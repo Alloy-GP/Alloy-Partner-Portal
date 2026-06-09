@@ -10,7 +10,6 @@ const PROJ_STATUSES = [
   { id:"planning",    label:"Planning",    color:"#8a8780", bg:"#f3f0eb" },
   { id:"assigned",    label:"Assigned",    color:"#2a6391", bg:"#e3edf4" },
   { id:"in-progress", label:"In-Progress", color:"#b8881a", bg:"#fcefd1" },
-  { id:"review",      label:"In-Review",   color:"var(--alloy-pink)", bg:"var(--alloy-pink-tint)" },
   { id:"live",        label:"Complete",    color:"#2c8a6e", bg:"#e6f3f0" },
 ];
 const PROJ_ST = Object.fromEntries(PROJ_STATUSES.map(s=>[s.id, s]));
@@ -41,7 +40,8 @@ function ProjEngineChips({ engines }) {
 
 function ProjectsScreen({ onNav }) {
   const [filter, setFilter] = useState("all");
-  const review = DATA.projects.filter(p => p.status === "review");
+  // "Waiting on you" mirrors the dashboard action queue: tickets in Review.
+  const actionItems = DATA.actionQueue || [];
   const filtered = filter === "all" ? DATA.projects : DATA.projects.filter(p => p.status === filter);
   const counts = PROJ_STATUSES.reduce((acc, s) => {
     acc[s.id] = DATA.projects.filter(p => p.status === s.id).length;
@@ -50,28 +50,23 @@ function ProjectsScreen({ onNav }) {
 
   return (
     <div className="content proj-screen" data-screen-label="02 Projects">
-      {/* Waiting on you — compact rows */}
-      {review.length > 0 && (
+      {/* Waiting on you — tickets in Review (same as the dashboard action queue) */}
+      {actionItems.length > 0 && (
         <div className="proj-review-section">
           <div className="proj-section-head">
             <div className="proj-section-title">Waiting on you</div>
-            <div className="proj-section-count">{review.length}</div>
+            <div className="proj-section-count">{actionItems.length}</div>
           </div>
           <div className="proj-review-rows">
-            {review.map(p => (
-              <div key={p.id} className="proj-review-row">
-                <button className="btn btn-sm btn-primary proj-review-row-btn">Open →</button>
-                <div className="proj-review-row-title">{p.title}</div>
-                <ProjStatusPill status={p.status} />
+            {actionItems.map((a, i) => (
+              <div key={i} className="proj-review-row">
+                <button className="btn btn-sm btn-primary proj-review-row-btn" onClick={() => onNav && onNav("tickets")}>Open →</button>
+                <div className="proj-review-row-title">{a.title}</div>
+                <span className="proj-status-pill" style={{color:"var(--alloy-pink)", background:"var(--alloy-pink-tint)"}}>
+                  <span className="dot" style={{background:"var(--alloy-pink)"}}/>In Review
+                </span>
               </div>
             ))}
-            <div className="proj-review-row proj-review-row-leads">
-              <button className="btn btn-sm btn-primary proj-review-row-btn" onClick={() => onNav && onNav("home")}>Open →</button>
-              <div className="proj-review-row-title">3 pending leads to qualify</div>
-              <span className="proj-status-pill" style={{color:"var(--alloy-yellow-ink, #8a6900)", background:"var(--alloy-yellow-tint, #fff4cc)"}}>
-                <span className="dot" style={{background:"#b8881a"}}/>Leads
-              </span>
-            </div>
           </div>
         </div>
       )}

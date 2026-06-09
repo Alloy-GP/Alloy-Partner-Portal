@@ -24,13 +24,16 @@ const COL_PERSON = "person";
 const COL_CATEGORY = "color_mm3qzt0h";
 const COL_TASKID = "18414964193__text_mm3xd56m";
 
+// Project status map. "review" is intentionally NOT a project status — review
+// is a ticket concept (the action queue). Waiting/Review projects show as
+// in-progress here.
 const STATUS_MAP: Record<string, [string, number]> = {
   "Planning": ["planning", 10],
   "Not Started": ["planning", 5],
   "Assigned": ["assigned", 30],
   "In-Progress": ["in-progress", 60],
-  "Waiting": ["review", 75],
-  "Review": ["review", 85],
+  "Waiting": ["in-progress", 60],
+  "Review": ["in-progress", 60],
   "Reprioritized / Hold": ["planning", 20],
   "Completed": ["live", 100],
 };
