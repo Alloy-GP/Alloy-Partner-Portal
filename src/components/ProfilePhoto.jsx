@@ -17,6 +17,7 @@ function ProfilePhoto() {
   const user = DATA.user || {};
   const [url, setUrl] = useState(user.avatarUrl || null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const pick = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -25,8 +26,13 @@ function ProfilePhoto() {
   };
 
   const upload = async (file) => {
-    if (!user.id) return;
+    if (!user.id) {
+      console.error('[ProfilePhoto] no user id — cannot upload');
+      setFailed(true);
+      return;
+    }
     setBusy(true);
+    setFailed(false);
     try {
       const ext = (file.name.split('.').pop() || 'png').toLowerCase();
       const path = `${user.id}/avatar.${ext}`;
@@ -38,11 +44,15 @@ function ProfilePhoto() {
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
       const publicUrl = `${pub.publicUrl}?t=${Date.now()}`; // cache-bust
 
-      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+      const { error: updErr } = await supabase
+        .from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+      if (updErr) throw updErr;
+
       DATA.user.avatarUrl = publicUrl; // keep the shared object in sync
       setUrl(publicUrl);
-    } catch {
-      /* swallow — keep placeholder on failure */
+    } catch (err) {
+      console.error('[ProfilePhoto] upload failed:', err);
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -70,12 +80,13 @@ function ProfilePhoto() {
           {user.initials || ''}
         </span>
       )}
-      {busy ? (
+      {busy || failed ? (
         <span style={{
           position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-          justifyContent: 'center', background: 'rgba(255,255,255,0.6)',
-          fontSize: '10px', color: 'var(--alloy-purple)', fontWeight: 600,
-        }}>…</span>
+          justifyContent: 'center', background: 'rgba(255,255,255,0.75)',
+          fontSize: failed ? '9px' : '12px', textAlign: 'center', padding: '4px',
+          color: failed ? 'var(--alloy-pink)' : 'var(--alloy-purple)', fontWeight: 600,
+        }}>{busy ? '…' : 'Upload failed'}</span>
       ) : null}
       <input type="file" accept="image/*" onChange={pick} style={{ display: 'none' }} />
     </label>
