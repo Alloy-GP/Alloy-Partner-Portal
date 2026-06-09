@@ -287,7 +287,6 @@ function PastSnapshotCalendar() {
 function WeeklySnapshotCard({ onNav }) {
   const ws = DATA.weeklySnapshot;
   const isStaff = !!(DATA.user && DATA.user.isStaff);
-  const [showPast, setShowPast] = React.useState(false);
   const [openId, setOpenId] = React.useState(null);
   const [hasDraft, setHasDraft] = React.useState(false);
 
@@ -378,15 +377,10 @@ function WeeklySnapshotCard({ onNav }) {
               <button
                 onClick={() => onNav && onNav("snapshot")}
                 style={{ marginLeft: "auto", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "var(--alloy-yellow-tint)", color: "#8a6900" }}>
-                📋 Draft ready to review
+                Draft ready to review
               </button>
             ) : null}
           </div>
-          {ws.headline ? (
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 15, color: "var(--alloy-purple)", lineHeight: 1.3, marginTop: 8 }}>
-              {ws.headline}
-            </div>
-          ) : null}
         </div>
 
       <div className="ws-stats">
@@ -411,17 +405,8 @@ function WeeklySnapshotCard({ onNav }) {
       </div>
 
       <div className="ws-footer">
-        <button className="ws-past-toggle" onClick={() => setShowPast(v => !v)} aria-expanded={showPast}>
-          <I.Clock width={13} height={13}/>
-          <span>Past weekly snapshots</span>
-          <span className={`ws-caret${showPast ? " open" : ""}`}><I.Chevron width={13} height={13}/></span>
-        </button>
-        {showPast ? <PastSnapshotCalendar /> : null}
         <button className="ws-quarterly" onClick={() => onNav && onNav("snapshot")}>
           View full snapshot →
-        </button>
-        <button className="ws-quarterly" onClick={() => onNav && onNav(ws.quarterlyHref)}>
-          View quarterly reports →
         </button>
       </div>
       </div>

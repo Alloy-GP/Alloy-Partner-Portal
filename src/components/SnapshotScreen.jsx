@@ -22,19 +22,19 @@ function Stat({ value, label, tone }) {
   );
 }
 
-function Section({ icon, title, tone, items, empty }) {
+function Section({ title, items, empty }) {
   if (!items || items.length === 0) {
     if (!empty) return null;
     return (
-      <div style={{ marginBottom: 18 }}>
-        <SectionHead icon={icon} title={title} tone={tone} count={0} />
+      <div style={{ marginBottom: 22 }}>
+        <SectionHead title={title} count={0} />
         <div style={{ fontSize: 13, color: 'var(--fg-muted)', padding: '4px 2px' }}>{empty}</div>
       </div>
     );
   }
   return (
-    <div style={{ marginBottom: 18 }}>
-      <SectionHead icon={icon} title={title} tone={tone} count={items.length} />
+    <div style={{ marginBottom: 22 }}>
+      <SectionHead title={title} count={items.length} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         {items.map((it, i) => (
           <div key={i} className="card" style={{ padding: '11px 14px', display: 'flex', alignItems: 'baseline', gap: 10 }}>
@@ -47,12 +47,11 @@ function Section({ icon, title, tone, items, empty }) {
   );
 }
 
-function SectionHead({ icon, title, tone, count }) {
+function SectionHead({ title, count }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
-      <span style={{ fontSize: 15 }}>{icon}</span>
-      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14.5, color: 'var(--alloy-purple)' }}>{title}</span>
-      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', background: 'var(--alloy-off-white)', borderRadius: 999, padding: '1px 8px' }}>{count}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11, paddingBottom: 9, borderBottom: '2px solid var(--border-subtle)' }}>
+      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--alloy-purple)', flex: 1 }}>{title}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', background: 'var(--alloy-off-white)', borderRadius: 999, padding: '2px 9px' }}>{count}</span>
     </div>
   );
 }
@@ -73,10 +72,10 @@ function SnapshotBody({ v }) {
         <Stat value={v.summary.waiting} label="Waiting on you" tone="pink" />
       </div>
 
-      <Section icon="✅" title="Shipped this week" tone="green" items={v.completed} empty="Nothing wrapped up this week — plenty in motion below." />
-      <Section icon="🔧" title="In motion" tone="purple" items={v.upcoming} />
-      <Section icon="📥" title="New leads" tone="purple" items={v.lead} />
-      <Section icon="⏳" title="Waiting on you" tone="pink" items={v.waiting} empty="You're all caught up — nothing needs you right now." />
+      <Section title="Shipped this week" items={v.completed} empty="Nothing wrapped up this week — plenty in motion below." />
+      <Section title="In motion" items={v.upcoming} />
+      <Section title="New leads" items={v.lead} />
+      <Section title="Waiting on you" items={v.waiting} empty="You're all caught up — nothing needs you right now." />
 
       {v.note ? (
         <div className="card card-pad" style={{ background: 'var(--alloy-purple-tint)', border: 'none', marginTop: 8 }}>
@@ -175,8 +174,7 @@ function SnapshotScreen() {
       ) : null}
 
       {view ? <SnapshotBody v={view} /> : (
-        <div style={{ maxWidth: 600, margin: '40px auto', textAlign: 'center', color: 'var(--fg-muted)', fontSize: 14 }}>
-          <div style={{ fontSize: 30, marginBottom: 8 }}>📬</div>
+        <div style={{ maxWidth: 600, margin: '60px auto', textAlign: 'center', color: 'var(--fg-muted)', fontSize: 14 }}>
           Your first weekly snapshot is on its way — it lands here every Friday.
         </div>
       )}

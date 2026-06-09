@@ -25,11 +25,11 @@ function renderSnapshotEmail(acct: any, snap: any): string {
   items.slice().sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0))
     .forEach((it: any) => { (g[it.kind] || (g[it.kind] = [])).push(it); });
   const name = acct?.short_name || acct?.company || "your team";
-  const section = (emoji: string, title: string, list: any[]) => {
+  const section = (title: string, list: any[]) => {
     if (!list.length) return "";
     const rows = list.map((it) =>
-      `<tr><td style="padding:8px 0;font-family:${SANS};font-size:14px;color:${BRAND.fg};border-bottom:1px solid ${BRAND.border};">${esc(it.text)}${it.meta ? ` <span style="color:${BRAND.muted};font-size:12px;">${esc(it.meta)}</span>` : ""}</td></tr>`).join("");
-    return `<tr><td style="padding:22px 0 6px;"><div style="font-family:${DISPLAY};font-weight:700;font-size:14px;color:${BRAND.purple};">${emoji}&nbsp; ${title}</div></td></tr><tr><td><table width="100%" cellpadding="0" cellspacing="0" role="presentation">${rows}</table></td></tr>`;
+      `<tr><td style="padding:9px 0;font-family:${SANS};font-size:14px;color:${BRAND.fg};border-bottom:1px solid ${BRAND.border};">${esc(it.text)}${it.meta ? ` <span style="color:${BRAND.muted};font-size:12px;">${esc(it.meta)}</span>` : ""}</td></tr>`).join("");
+    return `<tr><td style="padding:28px 0 0;"><div style="font-family:${DISPLAY};font-weight:800;font-size:17px;color:${BRAND.purple};border-bottom:2px solid ${BRAND.border};padding-bottom:9px;">${title}</div></td></tr><tr><td><table width="100%" cellpadding="0" cellspacing="0" role="presentation">${rows}</table></td></tr>`;
   };
   const stat = (n: string | number, label: string, color: string) =>
     `<td align="center" width="33%" style="padding:16px 6px;background:${BRAND.off};border-radius:12px;"><div style="font-family:${DISPLAY};font-weight:800;font-size:26px;color:${color};line-height:1;">${esc(n)}</div><div style="font-family:${SANS};font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:${BRAND.muted};margin-top:7px;">${esc(label)}</div></td>`;
@@ -40,7 +40,7 @@ function renderSnapshotEmail(acct: any, snap: any): string {
   const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
-  </head><body style="margin:0;background:${BRAND.off};padding:24px 0;font-family:${SANS};">
+  </head><body style="margin:0;background:${BRAND.off};padding:24px 16px;font-family:${SANS};">
   <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
     <tr><td style="background:${BRAND.deep};padding:24px 28px;">
       <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy · Weekly Snapshot</div>
@@ -48,7 +48,7 @@ function renderSnapshotEmail(acct: any, snap: any): string {
     </td></tr>
     <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>${bar(BRAND.pink)}${bar(BRAND.yellow)}${bar(BRAND.green)}${bar(BRAND.purple)}</tr></table></td></tr>
     <tr><td style="padding:26px 28px 8px;">
-      <div style="font-family:${DISPLAY};font-weight:800;font-size:22px;color:${BRAND.purple};line-height:1.3;">${esc(snap.headline || "Your week at a glance")}</div>
+      <div style="font-family:${DISPLAY};font-weight:800;font-size:25px;color:${BRAND.purple};line-height:1.25;">${esc(snap.headline || "Your week at a glance")}</div>
     </td></tr>
     <tr><td style="padding:12px 28px 4px;">
       <table width="100%" cellpadding="0" cellspacing="8" role="presentation"><tr>
@@ -58,10 +58,10 @@ function renderSnapshotEmail(acct: any, snap: any): string {
       </tr></table>
     </td></tr>
     <tr><td style="padding:4px 28px 8px;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-      ${section("✅", "Shipped this week", g.completed)}
-      ${section("🔧", "In motion", g.upcoming)}
-      ${section("📥", "New leads", g.lead)}
-      ${section("⏳", "Waiting on you", g.waiting)}
+      ${section("Shipped this week", g.completed)}
+      ${section("In motion", g.upcoming)}
+      ${section("New leads", g.lead)}
+      ${section("Waiting on you", g.waiting)}
       ${note}
     </table></td></tr>
     <tr><td align="center" style="padding:24px 28px 28px;">
