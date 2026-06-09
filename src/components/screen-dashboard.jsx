@@ -287,7 +287,6 @@ function PastSnapshotCalendar() {
 function WeeklySnapshotCard({ onNav }) {
   const ws = DATA.weeklySnapshot;
   const isStaff = !!(DATA.user && DATA.user.isStaff);
-  const [openId, setOpenId] = React.useState(null);
   const [hasDraft, setHasDraft] = React.useState(false);
 
   // Staff: surface a "draft ready to review" hint without leaving the dashboard.
@@ -310,41 +309,14 @@ function WeeklySnapshotCard({ onNav }) {
   const pbDone = 45;
   const pbTotal = 60;
   const pbPct = Math.round((pbDone / pbTotal) * 100);
-  const toggle = (key) => setOpenId(cur => (cur === key ? null : key));
 
-  const marks = {
-    waiting:   <I.Arrow width={13} height={13}/>,
-    completed: <I.Check width={13} height={13}/>,
-    upcoming:  <I.Clock width={13} height={13}/>,
-  };
-
-  const Section = ({ id, tone, label, items }) => {
-    const isOpen = openId === id;
-    return (
-    <div className={`ws-section${isOpen ? " open" : ""}`}>
-      <button
-        className={`ws-section-head ws-tone-${tone}`}
-        onClick={() => toggle(id)}
-        aria-expanded={isOpen}
-      >
-        <span className="ws-dot"/>
-        <span className="ws-section-label">{label}</span>
-        <span className="ws-section-count">{items.length}</span>
-        <span className="ws-section-caret"><I.Chevron width={14} height={14}/></span>
-      </button>
-      {isOpen ? (
-        <ul className={`ws-items ws-tone-${tone}`}>
-          {items.map((it, i) => (
-            <li key={i} className="ws-item">
-              <span className="ws-item-mark">{marks[id]}</span>
-              <span className="ws-item-text">{it.text}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-    );
-  };
+  // The 4 at-a-glance tiles. Detail lives on the full snapshot screen.
+  const tiles = [
+    { label: "Shipped", value: ws.summary.completed, color: "#2c8a6e" },
+    { label: "In motion", value: (ws.upcoming || []).length, color: "var(--alloy-purple)" },
+    { label: "New leads", value: ws.summary.leads, color: "#2f6fb0" },
+    { label: "Waiting on you", value: ws.summary.waiting, color: "var(--alloy-pink)" },
+  ];
 
   return (
     <div className="ws-column">
@@ -383,25 +355,13 @@ function WeeklySnapshotCard({ onNav }) {
           </div>
         </div>
 
-      <div className="ws-stats">
-        <div className="ws-stat ws-tone-pink">
-          <span className="ws-stat-num">{ws.summary.waiting}</span>
-          <span className="ws-stat-lbl">Waiting on you</span>
-        </div>
-        <div className="ws-stat ws-tone-blue">
-          <span className="ws-stat-num">{ws.summary.leads}</span>
-          <span className="ws-stat-lbl">New leads</span>
-        </div>
-        <div className="ws-stat ws-tone-green">
-          <span className="ws-stat-num">{ws.summary.completed}</span>
-          <span className="ws-stat-lbl">Completed</span>
-        </div>
-      </div>
-
-      <div className="ws-accordion">
-        <Section id="waiting"   tone="pink"   label="Waiting on you" items={ws.waiting} />
-        <Section id="completed" tone="green"  label="Completed this week" items={ws.completed} />
-        <Section id="upcoming"  tone="yellow" label="In motion" items={ws.upcoming} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "4px 0 2px" }}>
+        {tiles.map((t) => (
+          <div key={t.label} style={{ background: "var(--alloy-off-white)", borderRadius: 14, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 8, minHeight: 96, justifyContent: "center" }}>
+            <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 38, lineHeight: 1, color: t.color }}>{t.value}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--fg-muted)" }}>{t.label}</span>
+          </div>
+        ))}
       </div>
 
       <div className="ws-footer">
