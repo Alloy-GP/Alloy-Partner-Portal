@@ -43,12 +43,6 @@ function TicketsScreen() {
 
   return (
     <div className="content" data-screen-label="04 Support">
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <a className="btn btn-primary" href="mailto:hello@alloygp.co?subject=New%20request"><I.Plus width={13} height={13} /> New request</a>
-        </div>
-      </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 0, border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff", minHeight: 620 }}>
         {/* Left list */}
         <div style={{ borderRight: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
