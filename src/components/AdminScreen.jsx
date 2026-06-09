@@ -28,7 +28,7 @@ function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
   );
 }
 
-function AdminScreen() {
+function AdminScreen({ startNew }) {
   const [accounts, setAccounts] = useState(null);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState(null); // account id, or 'new'
@@ -60,6 +60,8 @@ function AdminScreen() {
   };
 
   const newClient = () => { setSelectedId('new'); setForm(BLANK); setInvites([]); setError(''); };
+  // Opened from the portfolio "+ Add client" → jump straight to the new form.
+  useEffect(() => { if (startNew) newClient(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = async () => {

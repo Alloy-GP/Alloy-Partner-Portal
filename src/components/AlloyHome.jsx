@@ -36,7 +36,7 @@ function Pill({ n, label, tone }) {
   );
 }
 
-function AlloyHome({ onEnter, onSignOut }) {
+function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient }) {
   const [clients, setClients] = useState(null);
   const [error, setError] = useState('');
 
@@ -57,6 +57,11 @@ function AlloyHome({ onEnter, onSignOut }) {
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, lineHeight: 1.1 }}>Alloy — Client portfolio</div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>All clients at a glance</div>
         </div>
+        {onAdmin ? (
+          <button onClick={onAdmin} style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 12.5 }}>
+            Admin
+          </button>
+        ) : null}
         <button onClick={onSignOut} style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 12.5 }}>
           Sign out
         </button>
@@ -116,10 +121,22 @@ function AlloyHome({ onEnter, onSignOut }) {
                   </button>
                 );
               })}
+              {onAddClient ? (
+                <button onClick={onAddClient} className="card card-pad"
+                  style={{ cursor: 'pointer', border: '1.5px dashed var(--border-subtle)', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 150, color: 'var(--alloy-purple)' }}>
+                  <span style={{ width: 38, height: 38, borderRadius: '22%', display: 'grid', placeItems: 'center', background: 'var(--alloy-purple-tint)' }}>
+                    <I.Plus width={18} height={18} />
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14 }}>Add client</span>
+                </button>
+              ) : null}
             </div>
           </>
         ) : (clients && clients.length === 0 && !error ? (
-          <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>No clients yet — add one in Admin.</div>
+          <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>
+            No clients yet.{' '}
+            {onAddClient ? <button onClick={onAddClient} className="btn btn-primary btn-sm" style={{ marginLeft: 6 }}><I.Plus width={12} height={12} /> Add client</button> : null}
+          </div>
         ) : null)}
       </div>
     </div>

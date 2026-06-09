@@ -8,7 +8,33 @@ import { track } from './lib/track.js';
 import Login from './components/Login.jsx';
 import NoAccess from './components/NoAccess.jsx';
 import AlloyHome from './components/AlloyHome.jsx';
+import AdminScreen from './components/AdminScreen.jsx';
 import App from './App.jsx';
+
+// Staff-level Admin page — global client management, lives above any single
+// client (reached from the Alloy Home portfolio, not a client's sidebar).
+function AdminPage({ onBack, onSignOut, startNew }) {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--alloy-off-white)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 28px', background: 'var(--alloy-purple-deep)', color: '#fff' }}>
+        <img src="/alloy-icon.png" alt="Alloy" style={{ width: 30, height: 30, borderRadius: 7 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, lineHeight: 1.1 }}>Alloy — Admin</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Clients, goals, access &amp; analytics</div>
+        </div>
+        <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 12.5 }}>
+          ⌂ Portfolio
+        </button>
+        <button onClick={onSignOut} style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 12.5 }}>
+          Sign out
+        </button>
+      </div>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '8px 16px 32px' }}>
+        <AdminScreen startNew={startNew} />
+      </div>
+    </div>
+  );
+}
 
 let loginLogged = false; // once per page load
 
@@ -122,9 +148,26 @@ function AuthGate() {
   if (me === undefined) return splash;
   if (me === null) return <NoAccess email={session.user?.email} onSignOut={signOut} />;
 
-  // Staff land on the portfolio until they enter a client (via the URL).
+  // Staff surfaces that live above any single client: the Admin console and
+  // the portfolio. Both are reached without a /c/:id prefix.
   if (me.isStaff && !urlClientId) {
-    return <AlloyHome onEnter={(id) => navigate(`/c/${id}`)} onSignOut={signOut} />;
+    if (location.pathname.startsWith('/admin')) {
+      return (
+        <AdminPage
+          startNew={new URLSearchParams(location.search).get('new') === '1'}
+          onBack={() => navigate('/')}
+          onSignOut={signOut}
+        />
+      );
+    }
+    return (
+      <AlloyHome
+        onEnter={(id) => navigate(`/c/${id}`)}
+        onAdmin={() => navigate('/admin')}
+        onAddClient={() => navigate('/admin?new=1')}
+        onSignOut={signOut}
+      />
+    );
   }
 
   // Only render the portal once DATA actually holds the account we're viewing —

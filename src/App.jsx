@@ -7,14 +7,13 @@ import { Dashboard, DesktopTopBar } from './components/screen-dashboard.jsx';
 import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx';
 import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen } from './components/screens-rest.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
-import AdminScreen from './components/AdminScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 const PATHS = {
   dashboard: '/', roi: '/roi', projects: '/projects', tickets: '/tickets',
-  playbook: '/playbook', library: '/library', rewards: '/rewards', admin: '/admin',
+  playbook: '/playbook', library: '/library', rewards: '/rewards',
 };
 
 // App entry — composes Sidebar + screen
@@ -82,7 +81,6 @@ function App({ session, onSignOut, staffNav } = {}) {
     playbook: { t: "Roadmap", s: "Your 2026 growth plan, quarter by quarter" },
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
     rewards: { t: "Recognition", s: "Wins, made tangible" },
-    admin: { t: "Admin", s: "Manage clients, goals and access" },
   };
 
   // Navigate within the current client context. `sub` appends a sub-path
@@ -105,7 +103,6 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "playbook": return <PlaybookScreen onNav={handleNav}/>;
       case "library": return <LibraryScreen/>;
       case "rewards": return <RecognitionScreen/>;
-      case "admin": return <AdminScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }
   })();

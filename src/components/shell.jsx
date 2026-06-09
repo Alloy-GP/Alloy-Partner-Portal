@@ -32,7 +32,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     { id: "tickets", label: "Tickets", icon: I.Ticket, group: "account", count: pendingTickets || 0 },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Doc, group: "account", external: true, href: "https://dam.alloygp.co" },
-    { id: "admin", label: "Admin", icon: I.Bolt, group: "account", staff: true },
+    // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
   ].filter(n => !n.staff || isStaff);
   const grouped = {
     top: navItems.filter(n => n.group === "top"),
