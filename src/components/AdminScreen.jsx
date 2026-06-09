@@ -28,7 +28,7 @@ function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
   );
 }
 
-function AdminScreen({ startNew }) {
+function AdminScreen({ startNew, selectId }) {
   const [accounts, setAccounts] = useState(null);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState(null); // account id, or 'new'
@@ -49,7 +49,7 @@ function AdminScreen({ startNew }) {
       else if (!selectedId && list[0]) selectAccount(list[0]);
     } catch (e) { setError(String(e.message || e)); setAccounts([]); }
   };
-  useEffect(() => { loadAccounts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAccounts(selectId); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectAccount = (a) => {
     if (!a) return;

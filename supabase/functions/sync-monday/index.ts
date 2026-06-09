@@ -146,6 +146,23 @@ Deno.serve(async (req) => {
 
     const eventBoardId = body?.event?.boardId ? String(body.event.boardId) : null;
 
+    // Debounce webhook bursts: a single board edit often fires several events
+    // (status + date + …) within seconds, each triggering a full re-sync. Run
+    // by event would race — a sync that read Monday *before* a change committed
+    // could finish last and clobber fresh data. So record this event's time,
+    // wait briefly, and only proceed if no newer event arrived for this board
+    // (the latest event syncs, reading Monday after everything has settled).
+    if (eventBoardId) {
+      const stamp = new Date().toISOString();
+      await supabase.from("monday_sync_debounce").upsert({ board_id: eventBoardId, requested_at: stamp });
+      await new Promise((r) => setTimeout(r, 4000));
+      const { data: marker } = await supabase
+        .from("monday_sync_debounce").select("requested_at").eq("board_id", eventBoardId).maybeSingle();
+      if (marker && new Date(marker.requested_at).getTime() > new Date(stamp).getTime()) {
+        return Response.json({ ok: true, coalesced: true });
+      }
+    }
+
     const { data: accounts, error: accErr } = await supabase
       .from("accounts").select("id, monday_board_id").not("monday_board_id", "is", null);
     if (accErr) throw accErr;

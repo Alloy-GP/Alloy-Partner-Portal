@@ -36,7 +36,7 @@ function Pill({ n, label, tone }) {
   );
 }
 
-function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient }) {
+function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient }) {
   const [clients, setClients] = useState(null);
   const [error, setError] = useState('');
 
@@ -102,6 +102,14 @@ function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient }) {
                         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)' }}>{c.short_name || c.company}</div>
                         <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>{c.tier || '—'} · active {relTime(c.lastActive)}</div>
                       </div>
+                      {onEditClient ? (
+                        <span role="button" tabIndex={0} title="Edit client" aria-label="Edit client"
+                          onClick={(e) => { e.stopPropagation(); onEditClient(c.id); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onEditClient(c.id); } }}
+                          style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 7, color: 'var(--fg-muted)', cursor: 'pointer' }}>
+                          <I.Edit width={15} height={15} />
+                        </span>
+                      ) : null}
                       <span aria-hidden="true" style={{ color: 'var(--fg-muted)' }}>→</span>
                     </div>
 

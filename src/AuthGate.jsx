@@ -13,7 +13,7 @@ import App from './App.jsx';
 
 // Staff-level Admin page — global client management, lives above any single
 // client (reached from the Alloy Home portfolio, not a client's sidebar).
-function AdminPage({ onBack, onSignOut, startNew }) {
+function AdminPage({ onBack, onSignOut, startNew, selectId }) {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--alloy-off-white)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 28px', background: 'var(--alloy-purple-deep)', color: '#fff' }}>
@@ -30,7 +30,7 @@ function AdminPage({ onBack, onSignOut, startNew }) {
         </button>
       </div>
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '8px 16px 32px' }}>
-        <AdminScreen startNew={startNew} />
+        <AdminScreen startNew={startNew} selectId={selectId} />
       </div>
     </div>
   );
@@ -152,9 +152,11 @@ function AuthGate() {
   // the portfolio. Both are reached without a /c/:id prefix.
   if (me.isStaff && !urlClientId) {
     if (location.pathname.startsWith('/admin')) {
+      const sp = new URLSearchParams(location.search);
       return (
         <AdminPage
-          startNew={new URLSearchParams(location.search).get('new') === '1'}
+          startNew={sp.get('new') === '1'}
+          selectId={sp.get('client')}
           onBack={() => navigate('/')}
           onSignOut={signOut}
         />
@@ -165,6 +167,7 @@ function AuthGate() {
         onEnter={(id) => navigate(`/c/${id}`)}
         onAdmin={() => navigate('/admin')}
         onAddClient={() => navigate('/admin?new=1')}
+        onEditClient={(id) => navigate(`/admin?client=${id}`)}
         onSignOut={signOut}
       />
     );
