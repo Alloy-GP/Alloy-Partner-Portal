@@ -212,11 +212,18 @@ a:hover { text-decoration: underline; }
 .sidebar-collapse-btn:hover { color: var(--alloy-purple); }
 .sidebar-collapse-btn svg { transition: transform 0.18s ease; }
 
-/* Sidebar control popover (Expanded / Collapsed / Expand on hover) */
+/* Sidebar control tray + popover (Expanded / Collapsed / Expand on hover) */
+.sidebar-ctrl { position: relative; width: 100%; }
+.sidebar-ctrl-btn {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  background: none; border: none; cursor: pointer; border-radius: 8px;
+  color: rgba(255,255,255,0.6); font-size: 12.5px; font-weight: 600; padding: 9px 8px;
+}
+.sidebar-ctrl-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .sidebar-ctrl-scrim { position: fixed; inset: 0; z-index: 69; }
 .sidebar-ctrl-menu {
-  position: absolute; top: 52px; left: 100%; margin-left: 12px; z-index: 70;
-  width: 210px; padding: 8px;
+  position: absolute; bottom: calc(100% + 8px); left: 4px; z-index: 70;
+  width: 200px; padding: 8px;
   background: #241334; border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4);
 }
@@ -225,8 +232,15 @@ a:hover { text-decoration: underline; }
 .sidebar-ctrl-opt:hover { background: rgba(255,255,255,0.08); }
 .sidebar-ctrl-dot { width: 10px; height: 10px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,0.35); flex-shrink: 0; }
 .sidebar-ctrl-dot.on { background: var(--alloy-yellow); border-color: var(--alloy-yellow); }
+.sidebar-mobile-signout { display: none; }
 @media (max-width: 1024px) {
-  .sidebar-collapse-btn, .sidebar-ctrl-menu, .sidebar-ctrl-scrim { display: none; }
+  .sidebar-collapse-btn, .sidebar-ctrl-menu, .sidebar-ctrl-scrim, .sidebar-ctrl { display: none; }
+  .sidebar-mobile-signout {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: none; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.8); font-size: 13px; font-weight: 600; padding: 10px 8px; border-radius: 8px;
+  }
+  .sidebar-mobile-signout:hover { background: rgba(255,255,255,0.08); color: #fff; }
 }
 
 /* Sidebar — Client brand area (where their logo/name lives) */

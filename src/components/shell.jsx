@@ -7,8 +7,9 @@ import { zdList } from '../lib/zendesk.js';
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
-function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, onToggleCollapse, session, onSignOut, staffNav }) {
+function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, sidebarMode, onSetMode }) {
   const isStaff = !!(DATA.user && DATA.user.isStaff);
+  const [ctrlOpen, setCtrlOpen] = useState(false);
 
   // Projects badge: active (non-live) projects. Tickets badge: the client's
   // open tasks = pending Zendesk tickets (matches the "{client} Tasks" bucket).
@@ -119,20 +120,40 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
       </nav>
 
       <div className="sidebar-footer">
-        <div className="user-row">
-          <div className="avatar">{DATA.user.initials}</div>
-          <div className="who">
-            <div className="nm">{DATA.user.name}</div>
-            <div className="role">{session?.user?.email || DATA.account.company}</div>
-          </div>
-          {onSignOut ? (
-            <button className="icon-btn" style={{color: "rgba(255,255,255,0.6)"}} onClick={onSignOut} aria-label="Sign out" title="Sign out">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+        {/* Sidebar control tray (Expanded / Collapsed / Expand on hover). Lives
+            inside the sidebar so it stays reachable in hover mode. */}
+        {onSetMode ? (
+          <div className="sidebar-ctrl">
+            {ctrlOpen ? (
+              <>
+                <div className="sidebar-ctrl-scrim" onClick={() => setCtrlOpen(false)} />
+                <div className="sidebar-ctrl-menu" role="menu">
+                  <div className="sidebar-ctrl-title">Sidebar control</div>
+                  {[["expanded", "Expanded"], ["collapsed", "Collapsed"], ["hover", "Expand on hover"]].map(([m, label]) => (
+                    <button key={m} className="sidebar-ctrl-opt" role="menuitemradio" aria-checked={sidebarMode === m}
+                      onClick={() => { onSetMode(m); setCtrlOpen(false); }}>
+                      <span className={`sidebar-ctrl-dot${sidebarMode === m ? " on" : ""}`} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
+            <button className="sidebar-ctrl-btn" onClick={() => setCtrlOpen((v) => !v)} aria-label="Sidebar control" title="Sidebar control">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>
+              </svg>
+              <span className="sidebar-ctrl-label">Sidebar</span>
             </button>
-          ) : (
-            <button className="icon-btn" style={{color: "rgba(255,255,255,0.6)"}}><I.Settings width={16} height={16}/></button>
-          )}
-        </div>
+          </div>
+        ) : null}
+        {/* Mobile keeps sign-out here (the desktop top-bar avatar is hidden on mobile). */}
+        {onSignOut ? (
+          <button className="sidebar-mobile-signout" onClick={onSignOut}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+            Sign out
+          </button>
+        ) : null}
       </div>
     </aside>
   );

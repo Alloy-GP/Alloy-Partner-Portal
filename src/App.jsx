@@ -46,9 +46,8 @@ function App({ session, onSignOut, staffNav } = {}) {
     try { return localStorage.getItem("alloy_sidebar_mode") || "expanded"; } catch { return "expanded"; }
   });
   const [sidebarHover, setSidebarHover] = useState(false);
-  const [ctrlOpen, setCtrlOpen] = useState(false);
   const chooseMode = (m) => {
-    setSidebarMode(m); setCtrlOpen(false); setSidebarHover(false);
+    setSidebarMode(m); setSidebarHover(false);
     try { localStorage.setItem("alloy_sidebar_mode", m); } catch {}
   };
   // Collapsed footprint when explicitly collapsed, or in hover mode while not hovering.
@@ -123,33 +122,12 @@ function App({ session, onSignOut, staffNav } = {}) {
         onMouseEnter={() => { if (sidebarMode === "hover") setSidebarHover(true); }}
         onMouseLeave={() => setSidebarHover(false)}
       >
-        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} session={session} onSignOut={onSignOut} staffNav={staffNav} />
-        <div className="sidebar-ctrl">
-          {ctrlOpen ? (
-            <>
-              <div className="sidebar-ctrl-scrim" onClick={() => setCtrlOpen(false)} />
-              <div className="sidebar-ctrl-menu" role="menu">
-                <div className="sidebar-ctrl-title">Sidebar control</div>
-                {[["expanded", "Expanded"], ["collapsed", "Collapsed"], ["hover", "Expand on hover"]].map(([m, label]) => (
-                  <button key={m} className="sidebar-ctrl-opt" onClick={() => chooseMode(m)} role="menuitemradio" aria-checked={sidebarMode === m}>
-                    <span className={`sidebar-ctrl-dot${sidebarMode === m ? " on" : ""}`} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : null}
-          <button className="sidebar-collapse-btn" onClick={() => setCtrlOpen((v) => !v)} aria-label="Sidebar control" title="Sidebar control">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>
-            </svg>
-          </button>
-        </div>
+        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} session={session} onSignOut={onSignOut} staffNav={staffNav} sidebarMode={sidebarMode} onSetMode={chooseMode} />
         <div className="sidebar-scrim" onClick={() => setMobileNav(false)}/>
       </div>
 
       <main className="main">
-        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav}/>
+        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut}/>
         {active !== "dashboard" ? <RisePageHero title={titles[active].t} subtitle={titles[active].s} mobileNav={mobileNav} setMobileNav={setMobileNav}/> : null}
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>

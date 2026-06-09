@@ -145,15 +145,24 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   );
 }
 
-function DesktopTopBar({ onNav, title, isDashboard, active }) {
+function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef(null);
+  const [userOpen, setUserOpen] = React.useState(false);
+  const userRef = React.useRef(null);
   React.useEffect(() => {
     if (!open) return;
     const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+  React.useEffect(() => {
+    if (!userOpen) return;
+    const onDoc = (e) => { if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [userOpen]);
+  const u = DATA.user || {};
 
   return (
     <div className="desktop-topbar">
@@ -211,6 +220,25 @@ function DesktopTopBar({ onNav, title, isDashboard, active }) {
             <button className="ds-notif-foot" onClick={() => setOpen(false)}>View all notifications →</button>
           </div>
         ) : null}
+        </div>
+        <div className="ds-user" ref={userRef}>
+          <button className="ds-avatar-btn" aria-label="Account" aria-haspopup="true" aria-expanded={userOpen} onClick={() => setUserOpen(o => !o)}>
+            {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.initials || (u.name || "?").slice(0, 2).toUpperCase()}</span>}
+          </button>
+          {userOpen ? (
+            <div className="ds-notif-pop ds-user-pop" role="menu">
+              <div className="ds-user-head">
+                <div className="ds-user-name">{u.name || "Account"}</div>
+                <div className="ds-user-email">{session?.user?.email || DATA.account.company}</div>
+              </div>
+              {onSignOut ? (
+                <button className="ds-user-signout" role="menuitem" onClick={onSignOut}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+                  Sign out
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
