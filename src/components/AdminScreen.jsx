@@ -40,16 +40,20 @@ function AdminScreen({ startNew, selectId }) {
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('clients');
 
-  const loadAccounts = async (selectAfter) => {
+  const loadAccounts = async (selectAfter, autoSelect = true) => {
     try {
       const res = await listAccounts();
       const list = res.accounts || [];
       setAccounts(list);
       if (selectAfter) selectAccount(list.find((a) => a.id === selectAfter) || list[0]);
-      else if (!selectedId && list[0]) selectAccount(list[0]);
+      else if (autoSelect && !selectedId && list[0]) selectAccount(list[0]);
     } catch (e) { setError(String(e.message || e)); setAccounts([]); }
   };
-  useEffect(() => { loadAccounts(selectId); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // On open: jump to the new-client form, or a requested client, else the first.
+  useEffect(() => {
+    loadAccounts(selectId, !startNew); // don't auto-select first when adding
+    if (startNew) newClient();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectAccount = (a) => {
     if (!a) return;
@@ -60,8 +64,6 @@ function AdminScreen({ startNew, selectId }) {
   };
 
   const newClient = () => { setSelectedId('new'); setForm(BLANK); setInvites([]); setError(''); };
-  // Opened from the portfolio "+ Add client" → jump straight to the new form.
-  useEffect(() => { if (startNew) newClient(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = async () => {
