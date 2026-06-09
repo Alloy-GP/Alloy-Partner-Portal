@@ -95,12 +95,23 @@ Deno.serve(async (req) => {
       .from("profiles").select("account_id, is_staff").eq("id", user.id).maybeSingle();
     if (!profile?.account_id) return json({ error: "no account" }, 403);
 
-    const { data: account } = await userClient
-      .from("accounts").select("zendesk_org_id").eq("id", profile.account_id).maybeSingle();
-    const orgId = account?.zendesk_org_id || null;
-
     const body = await req.json().catch(() => ({}));
     const action = body.action;
+
+    // Resolve which account's tickets to act on. A client can ONLY ever touch
+    // their own account; staff may view any client. This is the cross-tenant
+    // boundary — never trust the requested id for non-staff.
+    const requested = body.accountId ? String(body.accountId) : null;
+    let targetAccountId = profile.account_id;
+    if (requested && requested !== String(profile.account_id)) {
+      if (!profile.is_staff) return json({ error: "forbidden" }, 403);
+      targetAccountId = requested;
+    }
+
+    const { data: account } = await userClient
+      .from("accounts").select("zendesk_org_id").eq("id", targetAccountId).maybeSingle();
+    // No row (or RLS hid it) → treat as not authorized / not configured.
+    const orgId = account?.zendesk_org_id || null;
 
     // --- staff-only: find an org id by name (one-time setup helper) ---
     if (action === "find_org") {

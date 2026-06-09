@@ -94,6 +94,7 @@ export async function loadAccountData(session, accountId, me) {
       avatarUrl: profile.avatar_url || null,
     },
     account: {
+      id: account.id,
       company: account.company,
       shortName: account.short_name,
       tier: account.tier,
