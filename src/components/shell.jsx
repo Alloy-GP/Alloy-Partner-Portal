@@ -2,17 +2,34 @@ import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import CompanyMark from './CompanyMark.jsx';
+import { zdList } from '../lib/zendesk.js';
 
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
 function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, onToggleCollapse, session, onSignOut }) {
   const isStaff = !!(DATA.user && DATA.user.isStaff);
+
+  // Projects badge: active (non-live) projects. Tickets badge: the client's
+  // open tasks = pending Zendesk tickets (matches the "{client} Tasks" bucket).
+  const openProjects = (DATA.projects || []).filter((p) => p.status && p.status !== 'live').length;
+  const [pendingTickets, setPendingTickets] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    zdList()
+      .then((res) => {
+        if (cancelled || !res) return;
+        setPendingTickets((res.tickets || []).filter((t) => t.status === 'pending').length);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [DATA.account?.id]); // refetch when switching client
+
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "growth" },
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "growth" },
-    { id: "projects", label: "Projects", icon: I.Folder, group: "growth", count: 6 },
-    { id: "tickets", label: "Tickets", icon: I.Ticket, group: "account", count: 3 },
+    { id: "projects", label: "Projects", icon: I.Folder, group: "growth", count: openProjects },
+    { id: "tickets", label: "Tickets", icon: I.Ticket, group: "account", count: pendingTickets || 0 },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Doc, group: "account", external: true, href: "https://dam.alloygp.co" },
     { id: "admin", label: "Admin", icon: I.Bolt, group: "account", staff: true },
