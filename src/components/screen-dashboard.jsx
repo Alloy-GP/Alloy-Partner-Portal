@@ -63,11 +63,11 @@ function DashboardFooter() {
 function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   const firstName = DATA.user.name.split(" ")[0];
 
-  // Current quarter — derived live from today's date (quarter, year, months).
+  // Current quarter + today's date, live in the viewer's local timezone.
   const _now = new Date();
   const _q = Math.floor(_now.getMonth() / 3) + 1;
-  const _qMonths = ["Jan – Mar", "Apr – Jun", "Jul – Sep", "Oct – Dec"][_q - 1];
-  const qLabel = `Q${_q} ${_now.getFullYear()} · ${_qMonths}`;
+  const _today = _now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  const qLabel = `Q${_q} ${_now.getFullYear()} • ${_today}`;
 
   // Items needing attention — open tickets + projects in "review" status
   const openTickets = (DATA.tickets || []).filter(t => t.status !== "answered").length;
