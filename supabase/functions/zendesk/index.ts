@@ -77,11 +77,12 @@ Deno.serve(async (req) => {
 
     if (!orgId) return json({ tickets: [], messages: [], notConfigured: true });
 
-    // --- list the account's tickets ---
+    // --- list the account's tickets (by org id; newest first) ---
     if (action === "list") {
-      const q = encodeURIComponent(`type:ticket organization:${orgId} order_by:created_at sort:desc`);
-      const r = await zd(`/search.json?query=${q}`);
-      const tickets = (r.results || []).filter((x: any) => x.result_type === "ticket").map(mapTicket);
+      const r = await zd(`/organizations/${orgId}/tickets.json?page[size]=100`);
+      const tickets = (r.tickets || [])
+        .map(mapTicket)
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       return json({ tickets });
     }
 
