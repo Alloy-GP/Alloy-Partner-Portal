@@ -1,71 +1,93 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
-import { TicketRow, BadgeMedalSmall } from './screen-dashboard.jsx';
+import { BadgeMedalSmall } from './screen-dashboard.jsx';
+import TicketThread from './TicketThread.jsx';
+import { zdList } from '../lib/zendesk.js';
 
 // Tickets, Playbook, Library, Recognition
-const { useState: _useState2 } = React;
+const { useState: _useState2, useEffect: _useEffect2 } = React;
 const useState = _useState2;
+const useEffect = _useEffect2;
 
 function TicketsScreen() {
-  const [activeId, setActiveId] = useState(DATA.tickets[0].id);
+  const [tickets, setTickets] = useState(null); // null = loading
+  const [error, setError] = useState("");
+  const [activeId, setActiveId] = useState(null);
   const [filter, setFilter] = useState("open");
-  const [composing, setComposing] = useState(false);
-  const filtered = DATA.tickets.filter(tk => {
-    if (filter === "open") return tk.status !== "answered";
-    if (filter === "answered") return tk.status === "answered";
-    return true;
-  });
-  const active = DATA.tickets.find(t => t.id === activeId);
+
+  useEffect(() => {
+    let cancelled = false;
+    zdList()
+      .then((res) => {
+        if (cancelled) return;
+        const list = (res && res.tickets) || [];
+        setTickets(list);
+        if (list.length) setActiveId((cur) => cur || list[0].id);
+      })
+      .catch((e) => { if (!cancelled) { setError(String(e.message || e)); setTickets([]); } });
+    return () => { cancelled = true; };
+  }, []);
+
+  const isOpen = (t) => t.status !== "solved" && t.status !== "closed";
+  const all = tickets || [];
+  const openCount = all.filter(isOpen).length;
+  const filtered = all.filter((t) => filter === "open" ? isOpen(t) : filter === "resolved" ? !isOpen(t) : true);
+
+  const FBTN = (id, label) => (
+    <button onClick={() => setFilter(id)} className="btn btn-sm"
+      style={{ background: filter === id ? "var(--alloy-purple)" : "transparent", color: filter === id ? "#fff" : "var(--alloy-purple)", padding: "5px 11px" }}>
+      {label}
+    </button>
+  );
 
   return (
     <div className="content" data-screen-label="04 Support">
-      <div style={{display:"flex", alignItems:"center", gap:14, marginBottom:14, flexWrap:"wrap"}}>
-        <div style={{marginLeft:"auto", display:"flex", gap:8}}>
-          <button className="btn btn-secondary"><I.Calendar width={13} height={13}/> Book strategy call</button>
-          <button className="btn btn-primary" onClick={() => setComposing(true)}><I.Plus width={13} height={13}/> New request</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <a className="btn btn-primary" href="mailto:hello@alloygp.co?subject=New%20request"><I.Plus width={13} height={13} /> New request</a>
         </div>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"380px 1fr", gap: 0, border:"1px solid var(--border-subtle)", borderRadius: 14, overflow:"hidden", background:"#fff", minHeight: 620}}>
+      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 0, border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff", minHeight: 620 }}>
         {/* Left list */}
-        <div style={{borderRight:"1px solid var(--border-subtle)", display:"flex", flexDirection:"column"}}>
-          <div style={{padding:"12px 14px", borderBottom:"1px solid var(--border-subtle)", display:"flex", gap:6, alignItems:"center", background:"var(--alloy-off-white)"}}>
-            <button onClick={() => setFilter("open")} className="btn btn-sm" style={{background: filter==="open"?"var(--alloy-purple)":"transparent", color: filter==="open"?"#fff":"var(--alloy-purple)", padding:"5px 11px"}}>Open ({DATA.tickets.filter(t=>t.status!=="answered").length})</button>
-            <button onClick={() => setFilter("answered")} className="btn btn-sm" style={{background: filter==="answered"?"var(--alloy-purple)":"transparent", color: filter==="answered"?"#fff":"var(--alloy-purple)", padding:"5px 11px"}}>Resolved</button>
-            <button onClick={() => setFilter("all")} className="btn btn-sm" style={{background: filter==="all"?"var(--alloy-purple)":"transparent", color: filter==="all"?"#fff":"var(--alloy-purple)", padding:"5px 11px"}}>All</button>
-            <div style={{flex:1}}/>
-            <I.Filter width={15} height={15} style={{color:"var(--fg-muted)"}}/>
+        <div style={{ borderRight: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 6, alignItems: "center", background: "var(--alloy-off-white)" }}>
+            {FBTN("open", `Open (${openCount})`)}
+            {FBTN("resolved", "Resolved")}
+            {FBTN("all", "All")}
+            <div style={{ flex: 1 }} />
+            <I.Filter width={15} height={15} style={{ color: "var(--fg-muted)" }} />
           </div>
-          <div style={{flex:1, overflowY:"auto"}}>
-            {filtered.map(tk => (
-              <TicketRow key={tk.id} t={tk} onClick={() => setActiveId(tk.id)} active={activeId===tk.id}/>
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {tickets === null ? (
+              <div style={{ padding: "22px", fontSize: 13, color: "var(--fg-muted)" }}>Loading tickets…</div>
+            ) : error ? (
+              <div style={{ padding: "22px", fontSize: 13, color: "var(--alloy-pink)" }}>Couldn’t load tickets. {error}</div>
+            ) : filtered.length === 0 ? (
+              <div style={{ padding: "22px", fontSize: 13, color: "var(--fg-muted)" }}>No {filter === "all" ? "" : filter} tickets.</div>
+            ) : filtered.map((t) => (
+              <button key={t.id} onClick={() => setActiveId(t.id)}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "13px 16px", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", background: activeId === t.id ? "var(--alloy-purple-tint)" : "#fff" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--fg-muted)" }}>#{t.id}</span>
+                  <span className="tag tag-outline" style={{ textTransform: "capitalize" }}>{t.status}</span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--alloy-purple)", lineHeight: 1.3 }}>{t.title}</div>
+              </button>
             ))}
           </div>
         </div>
         {/* Right detail */}
-        <div style={{display:"flex", flexDirection:"column"}}>
-          {composing ? <ComposeRequest onCancel={() => setComposing(false)} /> : <TicketDetail t={active} />}
-        </div>
-      </div>
-
-      {/* Quick request templates */}
-      <div className="section-title"><span className="pip"/>Common requests <a style={{cursor:"pointer"}}>See all templates →</a></div>
-      <div className="col-4">
-        {[
-          { icon: <I.Doc width={16} height={16}/>, title: "Update site copy", desc: "Headline tweaks, page edits, footer info." },
-          { icon: <I.Sparkle width={16} height={16}/>, title: "Add a blog post", desc: "Suggest a topic or share a draft." },
-          { icon: <I.Trophy width={16} height={16}/>, title: "Case study request", desc: "We have a board win to celebrate." },
-          { icon: <I.Phone width={16} height={16}/>, title: "Schedule a check-in", desc: "Book time with your strategist." },
-        ].map((r, i) => (
-          <button key={i} className="card card-pad" style={{textAlign:"left", display:"block", cursor:"pointer", border:"1px solid var(--border-subtle)"}} onClick={() => setComposing(true)}>
-            <div style={{display:"flex", alignItems:"center", gap:10, marginBottom: 8}}>
-              <div style={{width:32, height:32, borderRadius:8, background: ["var(--alloy-pink-tint)","var(--alloy-yellow-tint)","var(--alloy-blue-tint)","var(--alloy-green-tint)"][i], color: ["var(--alloy-pink)","#7a5a14","#2a6391","#2c6e62"][i], display:"grid", placeItems:"center"}}>{r.icon}</div>
-              <div style={{fontFamily:"var(--font-display)", fontSize:14, fontWeight:700, color:"var(--alloy-purple)"}}>{r.title}</div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {activeId ? (
+            <TicketThread id={activeId} />
+          ) : (
+            <div style={{ padding: "40px 22px", fontSize: 13, color: "var(--fg-muted)" }}>
+              {tickets === null ? "" : "Select a ticket to view the conversation."}
             </div>
-            <div style={{fontSize:12.5, color:"var(--fg-muted)", lineHeight:1.45}}>{r.desc}</div>
-          </button>
-        ))}
+          )}
+        </div>
       </div>
     </div>
   );
