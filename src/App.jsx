@@ -112,22 +112,12 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   return (
     <>
-    {staffNav ? (
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", background: "var(--alloy-purple-deep)", color: "#fff", fontSize: 12.5, fontWeight: 600 }}>
-        <span style={{ opacity: 0.7 }}>Alloy admin</span>
-        <span aria-hidden="true" style={{ opacity: 0.4 }}>·</span>
-        <span>Viewing <strong>{DATA.account?.shortName || DATA.account?.company}</strong></span>
-        <button onClick={staffNav.onHome} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.14)", color: "#fff", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 700 }}>
-          ⌂ All clients
-        </button>
-      </div>
-    ) : null}
     <div className={`app density-${tweaks.density} mobile-cards-${tweaks.mobileCards || "card"}${sidebarCollapsed ? " sidebar-collapsed" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
       {/* Mobile top bar — removed; mobile controls now live inside the hero card */}
 
       {/* Sidebar (responsive) */}
       <div className={`sidebar-wrap ${mobileNav ? "open" : ""}`}>
-        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} session={session} onSignOut={onSignOut} />
+        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} session={session} onSignOut={onSignOut} staffNav={staffNav} />
         <button className={`sidebar-collapse-btn${sidebarCollapsed ? " is-collapsed" : ""}`} onClick={toggleSidebar} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand" : "Collapse"}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6"/>

@@ -7,7 +7,7 @@ import { zdList } from '../lib/zendesk.js';
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
-function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, onToggleCollapse, session, onSignOut }) {
+function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, onToggleCollapse, session, onSignOut, staffNav }) {
   const isStaff = !!(DATA.user && DATA.user.isStaff);
 
   // Projects badge: active (non-live) projects. Tickets badge: the client's
@@ -100,6 +100,19 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
             </div>
           )
         ))}
+
+        {/* Client Center — staff-only nav above any single client */}
+        {staffNav ? (
+          <div style={{ margin: "14px 10px 4px", padding: "12px", borderRadius: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--alloy-yellow)", marginBottom: 9 }}>Client Center</div>
+            <button onClick={staffNav.onHome} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, padding: "7px 6px", borderRadius: 8 }}>
+              <I.Home width={15} height={15} /> All clients
+            </button>
+            <button onClick={staffNav.onAdmin} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, padding: "7px 6px", borderRadius: 8 }}>
+              <I.Bolt width={15} height={15} /> Admin
+            </button>
+          </div>
+        ) : null}
       </nav>
 
       <div className="sidebar-footer">

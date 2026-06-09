@@ -178,7 +178,9 @@ function AuthGate() {
   // never flash the previous client's dashboard while the new one loads.
   if (loadedAccountId !== viewAccountId) return appLoader;
 
-  const staffNav = me.isStaff ? { onHome: () => navigate('/') } : null;
+  const staffNav = me.isStaff
+    ? { onHome: () => navigate('/'), onAdmin: () => navigate('/admin') }
+    : null;
   return <App session={session} onSignOut={signOut} staffNav={staffNav} />;
 }
 
