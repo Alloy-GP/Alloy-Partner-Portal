@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './lib/useAuth.js';
+import { supabase } from './lib/supabase.js';
 import { loadAccountData } from './lib/loadData.js';
 import { applyData } from './data.js';
 import Login from './components/Login.jsx';
@@ -18,6 +19,7 @@ function AuthGate() {
   // In mock mode there's nothing to fetch, so data is "ready" immediately.
   const [dataReady, setDataReady] = useState(!configured);
   const [hasAccess, setHasAccess] = useState(true);
+  const [, setTick] = useState(0); // bump to re-render after a live refresh
 
   useEffect(() => {
     if (!configured || !session) return;
@@ -39,6 +41,31 @@ function AuthGate() {
         if (!cancelled) setDataReady(true);
       });
     return () => { cancelled = true; };
+  }, [configured, session]);
+
+  // Live updates: when the Monday sync writes to a synced table, refetch and
+  // re-render so the open portal updates without a manual reload. RLS scopes
+  // the realtime events to this user's account. Debounced because the sync
+  // does a delete-all-then-insert (a burst of events) per run.
+  useEffect(() => {
+    if (!configured || !session) return;
+    let timer;
+    const refresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const data = await loadAccountData(session);
+          if (data) { applyData(data); setTick((t) => t + 1); }
+        } catch { /* ignore transient */ }
+      }, 600);
+    };
+    const channel = supabase
+      .channel('portal-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'action_items' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_services' }, refresh)
+      .subscribe();
+    return () => { clearTimeout(timer); supabase.removeChannel(channel); };
   }, [configured, session]);
 
   if (!configured) return <App />;
