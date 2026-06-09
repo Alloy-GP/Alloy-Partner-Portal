@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import ProfilePhoto from './ProfilePhoto.jsx';
@@ -464,7 +463,6 @@ function Sparkline({ tone = "pink" }) {
 function ActionQueue({ onNav }) {
   const needsYou = (DATA.actionQueue || []).slice(0, 8);
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quality === "review").length;
-  const navigate = useNavigate();
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon">
       <div className="banner-card-head">
@@ -495,7 +493,7 @@ function ActionQueue({ onNav }) {
       ) : (
         <div className="aq-scroll" style={{display:"flex", flexDirection:"column", gap:10}}>
           {needsYou.map((p, i) => (
-            <button key={i} onClick={() => navigate(`/tickets/${p.routeId}`)} style={{
+            <button key={i} onClick={() => onNav("tickets", p.routeId)} style={{
               display:"flex", alignItems:"center", gap:14, textAlign:"left", width:"100%", cursor:"pointer",
               padding:"14px 16px", background:"var(--alloy-off-white)",
               border:"1px solid var(--border-subtle)", borderRadius:10,

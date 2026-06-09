@@ -29,9 +29,14 @@ const TWEAKS = /*EDITMODE-BEGIN*/{
 function App({ session, onSignOut, staffNav } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const seg = '/' + (location.pathname.split('/')[1] || '');
+  // A staff member viewing a client carries the client in the URL: /c/:id/...
+  // Screens are parsed from the path *after* that optional prefix.
+  const parts = location.pathname.split('/').filter(Boolean);
+  const clientPrefix = parts[0] === 'c' && parts[1] ? `/c/${parts[1]}` : '';
+  const rest = clientPrefix ? parts.slice(2) : parts;
+  const seg = '/' + (rest[0] || '');
   const active = Object.keys(PATHS).find((id) => PATHS[id] === seg) || 'dashboard';
-  const ticketId = active === 'tickets' ? (location.pathname.split('/')[2] || null) : null;
+  const ticketId = active === 'tickets' ? (rest[1] || null) : null;
   const [role, setRole] = useState("owner");
   const [editMode, setEditMode] = useState(false);
   const [tweaks, setTweaks] = useState(TWEAKS);
@@ -80,8 +85,15 @@ function App({ session, onSignOut, staffNav } = {}) {
     admin: { t: "Admin", s: "Manage clients, goals and access" },
   };
 
-  const handleNav = (id) => { navigate(PATHS[id] || '/'); setMobileNav(false); window.scrollTo(0,0); };
-  const handleCommand = (cmd) => { if (cmd === "new-ticket") navigate('/tickets'); };
+  // Navigate within the current client context. `sub` appends a sub-path
+  // (e.g. a ticket id) so deep links keep the /c/:id prefix.
+  const handleNav = (id, sub) => {
+    const base = PATHS[id] || '/';
+    const path = clientPrefix + (base === '/' ? '' : base) + (sub ? `/${sub}` : '');
+    navigate(path || '/');
+    setMobileNav(false); window.scrollTo(0, 0);
+  };
+  const handleCommand = (cmd) => { if (cmd === "new-ticket") handleNav('tickets'); };
 
   const screen = (() => {
     if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav}/>;

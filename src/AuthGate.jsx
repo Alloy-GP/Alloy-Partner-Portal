@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './lib/useAuth.js';
 import { supabase } from './lib/supabase.js';
 import { getMe, loadAccountData } from './lib/loadData.js';
@@ -18,35 +19,59 @@ let loginLogged = false; // once per page load
  *   - no profile → NoAccess
  *   - staff with no client selected → Alloy Home (portfolio)
  *   - client (or staff viewing a client) → App scoped to that account
+ *
+ * The staff-selected client lives in the URL (/c/:accountId/...), so it's
+ * refresh-stable and shareable. Loaded account data is cached per account, so
+ * coming back to a client is instant (no reload, no flash).
  */
 function AuthGate() {
   const { configured, loading, session, signOut } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [me, setMe] = useState(undefined);          // undefined = loading, null = no access
-  const [activeAccountId, setActiveAccountId] = useState(null); // staff: client being viewed
   const [loadedAccountId, setLoadedAccountId] = useState(null); // which account DATA holds
   const [, setTick] = useState(0);                   // bump to re-render after a live refresh
+  const cacheRef = useRef(new Map());                // accountId → loaded DATA snapshot
+
+  // Staff client selection is the /c/:id URL segment.
+  const urlParts = location.pathname.split('/').filter(Boolean);
+  const urlClientId = urlParts[0] === 'c' && urlParts[1] ? urlParts[1] : null;
 
   // Who am I — staff or a client (and which account)?
   useEffect(() => {
     if (!configured || !session) return;
     let cancelled = false;
-    setMe(undefined); setActiveAccountId(null);
+    setMe(undefined);
     getMe(session).then((m) => { if (!cancelled) setMe(m); })
       .catch(() => { if (!cancelled) setMe(null); });
     return () => { cancelled = true; };
   }, [configured, session]);
 
-  // Which account to load: a client's own, or the staff member's selection.
-  const viewAccountId = me ? (me.isStaff ? activeAccountId : me.accountId) : null;
+  // Which account to show: a client's own, or the staff member's URL selection.
+  const viewAccountId = me ? (me.isStaff ? urlClientId : me.accountId) : null;
 
+  // If we already have this account cached, apply it BEFORE paint so revisiting
+  // a client is instant — no loader frame, no flash.
+  useLayoutEffect(() => {
+    if (!viewAccountId) return;
+    const cached = cacheRef.current.get(viewAccountId);
+    if (cached) { applyData(cached); setLoadedAccountId(viewAccountId); }
+  }, [viewAccountId]);
+
+  // Fetch fresh data (always — keeps the cache current), then apply + cache.
   useEffect(() => {
     if (!configured || !session || !me || !viewAccountId) return;
     let cancelled = false;
     loadAccountData(session, viewAccountId, me)
       .then((data) => {
         if (cancelled) return;
-        if (data) { applyData(data); if (!loginLogged) { loginLogged = true; track('login'); } }
+        if (data) {
+          cacheRef.current.set(viewAccountId, data);
+          applyData(data);
+          if (!loginLogged) { loginLogged = true; track('login'); }
+        }
         setLoadedAccountId(viewAccountId);
+        setTick((t) => t + 1);
       })
       // Even on failure, advance so we don't hang on the loader — the dashboard
       // guards/ErrorBoundary handle missing data gracefully.
@@ -63,7 +88,7 @@ function AuthGate() {
       timer = setTimeout(async () => {
         try {
           const d = await loadAccountData(session, viewAccountId, me);
-          if (d) { applyData(d); setTick((t) => t + 1); }
+          if (d) { cacheRef.current.set(viewAccountId, d); applyData(d); setTick((t) => t + 1); }
         } catch { /* ignore transient */ }
       }, 600);
     };
@@ -97,16 +122,16 @@ function AuthGate() {
   if (me === undefined) return splash;
   if (me === null) return <NoAccess email={session.user?.email} onSignOut={signOut} />;
 
-  // Staff land on the portfolio until they enter a client.
-  if (me.isStaff && !activeAccountId) {
-    return <AlloyHome onEnter={(id) => setActiveAccountId(id)} onSignOut={signOut} />;
+  // Staff land on the portfolio until they enter a client (via the URL).
+  if (me.isStaff && !urlClientId) {
+    return <AlloyHome onEnter={(id) => navigate(`/c/${id}`)} onSignOut={signOut} />;
   }
 
   // Only render the portal once DATA actually holds the account we're viewing —
   // never flash the previous client's dashboard while the new one loads.
   if (loadedAccountId !== viewAccountId) return appLoader;
 
-  const staffNav = me.isStaff ? { onHome: () => setActiveAccountId(null) } : null;
+  const staffNav = me.isStaff ? { onHome: () => navigate('/') } : null;
   return <App session={session} onSignOut={signOut} staffNav={staffNav} />;
 }
 
