@@ -8,6 +8,7 @@ import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx
 import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen } from './components/screens-rest.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
 import AdminScreen from './components/AdminScreen.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
@@ -126,7 +127,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       <main className="main">
         <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav}/>
         {active !== "dashboard" ? <RisePageHero title={titles[active].t} subtitle={titles[active].s} mobileNav={mobileNav} setMobileNav={setMobileNav}/> : null}
-        {screen}
+        <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
 
       {editMode ? <TweaksFloat tweaks={tweaks} setTweak={setTweak} onClose={() => {

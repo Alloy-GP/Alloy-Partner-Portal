@@ -7,7 +7,7 @@ import CompanyMark from './CompanyMark.jsx';
 
 // Dashboard screen — warm, celebratory home
 function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
-  const tierClass = DATA.account.tier.toLowerCase();
+  const tierClass = (DATA.account.tier || "").toLowerCase();
   return (
     <div className="content" data-screen-label="01 Dashboard">
       {/* Celebrate — fresh signed deal */}
@@ -62,7 +62,7 @@ function DashboardFooter() {
 // Primary dashboard hero — purple panel, 5-stripe accent, company-name title,
 // lead greeting, and a 4-stat metadata row pulling live portal data.
 function AlloyHero({ onNav, mobileNav, setMobileNav }) {
-  const firstName = DATA.user.name.split(" ")[0];
+  const firstName = (DATA.user.name || "there").split(" ")[0];
 
   // Current quarter + today's date, live in the viewer's local timezone.
   const _now = new Date();
@@ -297,7 +297,7 @@ function WeeklySnapshotCard({ onNav }) {
   const nextLabel = nextFri.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   // Quarterly playbook progress (current "now" quarter)
-  const pb = DATA.roadmap.find(q => q.state === "now") || DATA.roadmap[0];
+  const pb = (DATA.roadmap || []).find(q => q.state === "now") || (DATA.roadmap || [])[0] || {};
   const pbDone = 45;
   const pbTotal = 60;
   const pbPct = Math.round((pbDone / pbTotal) * 100);
@@ -341,7 +341,7 @@ function WeeklySnapshotCard({ onNav }) {
     <div className="ws-column">
       <button className="ws-playbook" onClick={() => onNav && onNav("playbook")}>
         <div className="ws-pb-head">
-          <span className="ws-pb-label">{pb.q} Playbook</span>
+          <span className="ws-pb-label">{pb.q || "Roadmap"} Playbook</span>
           <span className="ws-pb-link">View playbook →</span>
         </div>
         <div className="ws-pb-metric">
