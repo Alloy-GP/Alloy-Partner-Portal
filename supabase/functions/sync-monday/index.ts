@@ -2,31 +2,33 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Syncs a Monday "<Client> Q2" board into the portal's read tables:
-//   Active Projects + Strategy & Reporting + Completed (Jun/May) -> projects
-//   Ongoing Services                                             -> recurring_services
-//   Tickets group, Monday Status in ACTION_STATUSES              -> action_items
+//   Active Projects + Strategy & Reporting + Completed* -> projects
+//   Ongoing Services                                    -> recurring_services
+//   Tickets group, Monday Status in ACTION_STATUSES     -> action_items
 // Trigger: Monday webhook (real-time) on board change, or a manual call.
+//
+// Every client board is built from the same TEMPLATE — same group titles and
+// column titles/types — but Monday generates fresh ids per board. So we never
+// hardcode ids: we read the board's metadata and resolve groups by title and
+// columns by title+type. This works for any client board following the layout.
 
 const MONDAY_API = "https://api.monday.com/v2";
 
-const PROJECT_GROUPS = ["group_title", "group_mm3qxr1j", "group_mm40m2a1", "group_mm3sekqf"];
-const COMPLETED_GROUPS = new Set(["group_mm40m2a1", "group_mm3sekqf"]);
-const SERVICE_GROUP = "group_mm3q3dg1";
-const TICKETS_GROUP = "topics";
-// Monday Status (source of truth, set by the Zendesk->Monday automation) that
-// surfaces a ticket in the action queue. Adjust to taste.
-const ACTION_STATUSES = new Set(["Review"]);
-const ALL_GROUPS = [...PROJECT_GROUPS, SERVICE_GROUP, TICKETS_GROUP];
+// Group titles (matched case-insensitively, trimmed).
+const PROJECT_GROUP_TITLES = new Set(["active projects", "strategy & reporting"]);
+const SERVICE_GROUP_TITLE = "ongoing services";
+const TICKETS_GROUP_TITLE = "tickets";
+const isCompletedTitle = (t: string) => /^completed\b/i.test((t || "").trim());
 
-const COL_STATUS = "status";
-const COL_DUE = "18414964193__date_mm3xzf45";
-const COL_PERSON = "person";
-const COL_CATEGORY = "color_mm3qzt0h";
-const COL_TASKID = "18414964193__text_mm3xd56m";
-const COL_ZENDESK = "integration_mm3s7vha";
+// Monday Status (source of truth, set by the Zendesk->Monday automation) that
+// surfaces a ticket in the action queue.
+const ACTION_STATUSES = new Set(["Review"]);
+// Status labels that mean a ticket is finished (shown in completed work).
+const DONE_TICKET_STATUSES = new Set(["Completed", "Complete", "Solved", "solved"]);
+
 const ZENDESK_BASE = "https://alloycreatives.zendesk.com";
 
-// Project status map. "review" is intentionally NOT a project status — review
+// Project status map. "Review" is intentionally NOT a project status — review
 // is a ticket concept (the action queue). Waiting/Review projects show as
 // in-progress here.
 const STATUS_MAP: Record<string, [string, number]> = {
@@ -38,6 +40,7 @@ const STATUS_MAP: Record<string, [string, number]> = {
   "Review": ["in-progress", 60],
   "Reprioritized / Hold": ["planning", 20],
   "Completed": ["live", 100],
+  "Complete": ["live", 100],
 };
 
 // Monday "Category" -> one of the portal's 5 recurring-service tones.
@@ -65,8 +68,9 @@ function cols(item: any): Record<string, string> {
 }
 // The Zendesk integration column stores its ticket ref in `value` (JSON), not
 // `text`: {"entity_id": 6428, "api_ticket_url": "..."}.
-function zendeskRef(item: any): { id: string | null; url: string | null } {
-  const c = item.column_values.find((x: any) => x.id === COL_ZENDESK);
+function zendeskRef(item: any, zendeskColId: string | null): { id: string | null; url: string | null } {
+  if (!zendeskColId) return { id: null, url: null };
+  const c = item.column_values.find((x: any) => x.id === zendeskColId);
   if (!c || !c.value) return { id: null, url: null };
   try {
     const v = JSON.parse(c.value);
@@ -77,32 +81,42 @@ function zendeskRef(item: any): { id: string | null; url: string | null } {
   return { id: null, url: null };
 }
 
-const QUERY = `
-  query ($board: [ID!], $groups: [String!]) {
+// --- Board metadata: resolve group + column ids by title/type (no hardcoding).
+const META_QUERY = `
+  query ($board: [ID!]) {
     boards(ids: $board) {
-      groups(ids: $groups) {
-        id
-        items_page(limit: 200) {
-          items {
-            id
-            name
-            updated_at
-            column_values(ids: ["${COL_STATUS}","${COL_DUE}","${COL_PERSON}","${COL_CATEGORY}","${COL_TASKID}","${COL_ZENDESK}"]) {
-              id
-              text
-              value
-            }
-          }
-        }
-      }
+      groups { id title }
+      columns { id title type }
     }
   }`;
 
-async function mondayQuery(token: string, variables: Record<string, unknown>) {
+type ColMap = {
+  status: string | null; due: string | null; person: string | null;
+  category: string | null; taskId: string | null; zendesk: string | null;
+};
+
+function resolveColumns(columns: any[]): ColMap {
+  const norm = (s: string) => (s || "").trim().toLowerCase();
+  const byTitle = (title: string, type?: string) =>
+    columns.find((c) => norm(c.title) === title && (!type || c.type === type));
+  const zendesk =
+    columns.find((c) => c.type === "integration" && norm(c.title).includes("zendesk")) ||
+    columns.find((c) => c.type === "integration");
+  return {
+    status: byTitle("status", "status")?.id ?? null,
+    due: byTitle("due", "date")?.id ?? null,
+    person: (byTitle("owner", "people") || columns.find((c) => c.type === "people"))?.id ?? null,
+    category: byTitle("category", "status")?.id ?? null,
+    taskId: byTitle("task id", "text")?.id ?? null,
+    zendesk: zendesk?.id ?? null,
+  };
+}
+
+async function monday(token: string, query: string, variables: Record<string, unknown>) {
   const res = await fetch(MONDAY_API, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-10" },
-    body: JSON.stringify({ query: QUERY, variables }),
+    body: JSON.stringify({ query, variables }),
   });
   const json = await res.json();
   if (json.errors) throw new Error("Monday API error: " + JSON.stringify(json.errors));
@@ -140,7 +154,43 @@ Deno.serve(async (req) => {
     for (const acct of accounts ?? []) {
       if (eventBoardId && acct.monday_board_id !== eventBoardId) continue;
 
-      const data = await mondayQuery(token, { board: [acct.monday_board_id], groups: ALL_GROUPS });
+      // 1) Read this board's structure and resolve ids by title/type.
+      const meta = await monday(token, META_QUERY, { board: [acct.monday_board_id] });
+      const board = meta?.boards?.[0];
+      if (!board) { summary.push({ account: acct.id, error: "board not found" }); continue; }
+
+      const allGroups: any[] = board.groups ?? [];
+      const C = resolveColumns(board.columns ?? []);
+
+      const norm = (s: string) => (s || "").trim().toLowerCase();
+      const projectGroupIds = new Set(allGroups.filter((g) => PROJECT_GROUP_TITLES.has(norm(g.title))).map((g) => g.id));
+      const completedGroupIds = new Set(allGroups.filter((g) => isCompletedTitle(g.title)).map((g) => g.id));
+      const serviceGroupId = allGroups.find((g) => norm(g.title) === SERVICE_GROUP_TITLE)?.id ?? null;
+      const ticketsGroupId = allGroups.find((g) => norm(g.title) === TICKETS_GROUP_TITLE)?.id ?? "topics";
+
+      const wantedGroups = [
+        ...projectGroupIds, ...completedGroupIds, serviceGroupId, ticketsGroupId,
+      ].filter(Boolean) as string[];
+
+      // 2) Fetch items for just those groups, requesting the resolved columns.
+      const colIds = [C.status, C.due, C.person, C.category, C.taskId, C.zendesk].filter(Boolean) as string[];
+      const ITEMS_QUERY = `
+        query ($board: [ID!], $groups: [String!]) {
+          boards(ids: $board) {
+            groups(ids: $groups) {
+              id
+              items_page(limit: 200) {
+                items {
+                  id
+                  name
+                  updated_at
+                  column_values(ids: ${JSON.stringify(colIds)}) { id text value }
+                }
+              }
+            }
+          }
+        }`;
+      const data = await monday(token, ITEMS_QUERY, { board: [acct.monday_board_id], groups: wantedGroups });
       const groups: any[] = data?.boards?.[0]?.groups ?? [];
 
       const projects: any[] = [];
@@ -149,53 +199,56 @@ Deno.serve(async (req) => {
 
       for (const g of groups) {
         const items = g.items_page?.items ?? [];
-        items.forEach((it: any, idx: number) => {
+        const isProjectGroup = projectGroupIds.has(g.id);
+        const isCompletedGroup = completedGroupIds.has(g.id);
+
+        items.forEach((it: any) => {
           const cv = cols(it);
-          const dueRaw = cv[COL_DUE] || "";
+          const dueRaw = C.due ? (cv[C.due] || "") : "";
           const upd = it.updated_at ? new Date(it.updated_at) : null;
           const updLabel = upd ? `Updated ${MONTHS[upd.getUTCMonth()]} ${upd.getUTCDate()}` : null;
+          const statusText = C.status ? cv[C.status] : "";
+          const categoryText = C.category ? cv[C.category] : "";
+          const owners = (C.person ? (cv[C.person] || "") : "").split(",").map((s) => initials(s)).filter(Boolean);
 
-          if (PROJECT_GROUPS.includes(g.id)) {
-            let [status, pct] = STATUS_MAP[cv[COL_STATUS]] ?? ["in-progress", 50];
-            if (COMPLETED_GROUPS.has(g.id)) { status = "live"; pct = 100; }
+          if (isProjectGroup || isCompletedGroup) {
+            let [status, pct] = STATUS_MAP[statusText] ?? ["in-progress", 50];
+            if (isCompletedGroup) { status = "live"; pct = 100; }
             projects.push({
               account_id: acct.id, monday_item_id: String(it.id),
-              code: cv[COL_TASKID] || null, title: it.name,
-              phase: cv[COL_CATEGORY] || null, engines: [],
+              code: (C.taskId ? cv[C.taskId] : "") || null, title: it.name,
+              phase: categoryText || null, engines: [],
               status, pct,
               due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null, due_rel: null,
-              owners: (cv[COL_PERSON] || "").split(",").map((s) => initials(s)).filter(Boolean),
-              pulse: updLabel, sort: projects.length,
+              owners, pulse: updLabel, sort: projects.length,
             });
-          } else if (g.id === SERVICE_GROUP) {
-            const cat = cv[COL_CATEGORY] || "";
+          } else if (g.id === serviceGroupId) {
+            const cat = categoryText;
             services.push({
               account_id: acct.id, monday_item_id: String(it.id), name: it.name,
               short: (cat || it.name).slice(0, 3).toUpperCase(), cadence: "Ongoing",
               lane: cat || null, color: TONE_BY_CAT[cat] || "purple",
               last_touch: updLabel, note: cat || null, sort: services.length,
             });
-          } else if (g.id === TICKETS_GROUP) {
-            const st = cv[COL_STATUS];
-            if (ACTION_STATUSES.has(st)) {
+          } else if (g.id === ticketsGroupId) {
+            if (ACTION_STATUSES.has(statusText)) {
               // Waiting on you (action queue)
-              const zd = zendeskRef(it);
+              const zd = zendeskRef(it, C.zendesk);
               actions.push({
                 account_id: acct.id, monday_item_id: String(it.id), title: it.name,
                 due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null,
                 zendesk_id: zd.id, zendesk_url: zd.url,
                 sort: actions.length,
               });
-            } else if (st === "Completed") {
+            } else if (DONE_TICKET_STATUSES.has(statusText)) {
               // A finished ticket still shows in the completed tasks list.
               projects.push({
                 account_id: acct.id, monday_item_id: String(it.id),
-                code: cv[COL_TASKID] || null, title: it.name,
-                phase: cv[COL_CATEGORY] || null, engines: [],
+                code: (C.taskId ? cv[C.taskId] : "") || null, title: it.name,
+                phase: categoryText || null, engines: [],
                 status: "live", pct: 100,
                 due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null, due_rel: null,
-                owners: (cv[COL_PERSON] || "").split(",").map((s) => initials(s)).filter(Boolean),
-                pulse: updLabel, sort: projects.length,
+                owners, pulse: updLabel, sort: projects.length,
               });
             }
           }
