@@ -50,18 +50,6 @@ function ProjectsScreen({ onNav }) {
 
   return (
     <div className="content proj-screen" data-screen-label="02 Projects">
-      <div style={{display:"flex", alignItems:"baseline", justifyContent:"flex-end", flexWrap:"wrap", gap:12, marginBottom:14}}>
-        <div className="proj-scorecard">
-          {PROJ_STATUSES.map(s => (counts[s.id] || 0) > 0 ? (
-            <div key={s.id} className="proj-scorecard-item">
-              <span className="proj-scorecard-dot" style={{background:s.color}}/>
-              <span className="proj-scorecard-num" style={{color:s.color}}>{counts[s.id]}</span>
-              <span className="proj-scorecard-label">{s.label.toLowerCase()}</span>
-            </div>
-          ) : null)}
-        </div>
-      </div>
-
       {/* Waiting on you — compact rows */}
       {review.length > 0 && (
         <div className="proj-review-section">
