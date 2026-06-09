@@ -39,6 +39,7 @@ function TicketsScreen() {
   const filtered = q
     ? byFilter.filter((t) => (t.title || "").toLowerCase().includes(q) || String(t.id).includes(q))
     : byFilter;
+  const clientName = (DATA.account && (DATA.account.shortName || DATA.account.company)) || "My";
   const emptyMsg = q ? "No tickets match your search."
     : filter === "mytasks" ? "Nothing needs you right now."
     : filter === "inprogress" ? "No tickets in progress."
@@ -58,7 +59,7 @@ function TicketsScreen() {
         <div style={{ borderRight: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: 8, background: "var(--alloy-off-white)" }}>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-              {FBTN("mytasks", `My Tasks (${counts.mytasks})`)}
+              {FBTN("mytasks", `${clientName} Tasks (${counts.mytasks})`)}
               {FBTN("inprogress", `In-Progress (${counts.inprogress})`)}
               {FBTN("all", "All")}
             </div>
