@@ -1,0 +1,260 @@
+/* RISE-branded dashboard hero — side accent (V3) */
+:root {
+  --rise-blue: #005765;
+  --rise-blue-tint: #d6e7eb;
+  --rise-green: #71BA42;
+  --rise-cream: #faf7f0;
+}
+
+.rise-hero {
+  display: flex;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(0, 87, 101, 0.15);
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: #dcefe9;
+  position: relative;
+}
+.rise-hero-stripe {
+  flex-shrink: 0;
+  width: 8px;
+  background: linear-gradient(180deg, var(--rise-blue) 0%, var(--rise-green) 100%);
+}
+.rise-hero-body {
+  flex: 1;
+  min-width: 0;
+  padding: 18px 20px 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.rise-hero-mark-chip {
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: var(--rise-blue);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.rise-hero-mark-img { width: 16px; height: 16px; }
+
+.rise-hero-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.rise-hero-mobile-controls {
+  display: none;
+  margin-left: auto;
+  align-items: center;
+  gap: 4px;
+}
+.rise-hero-icon-btn {
+  background: transparent;
+  border: 0;
+  padding: 6px;
+  border-radius: 8px;
+  color: var(--rise-blue, #005765);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+}
+.rise-hero-icon-btn:hover { background: rgba(0, 87, 101, 0.08); }
+.rise-hero-menu-btn { padding: 4px; }
+.rise-hero-dot {
+  position: absolute;
+  top: 5px; right: 5px;
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: var(--alloy-pink, #d9356e);
+  border: 1.5px solid #dcefe9;
+}
+@media (max-width: 960px) {
+  .rise-hero-mobile-controls { display: inline-flex; }
+}
+
+/* Page hero — slimmer variant used on non-dashboard screens (mobile only).
+   Hidden by DEFAULT so a flaky/partial stylesheet load can never stack it
+   on top of the desktop topbar. Only the mobile media query reveals it. */
+.rise-page-hero {
+  display: none;
+  margin-bottom: 22px;
+  position: sticky; top: 0; z-index: 30;
+  box-shadow: 0 6px 20px rgba(56,28,79,0.10);
+}
+@media (max-width: 1023px) {
+  .rise-page-hero { display: flex; }
+}
+.rise-page-hero .rise-hero-body { padding: 15px 22px 16px; }
+.rise-hero-topline { display: flex; justify-content: flex-end; }
+.rise-page-headline { display: flex; align-items: center; gap: 16px; }
+.rise-page-headline .rise-page-mark-chip {
+  width: 60px; height: 60px; border-radius: 13px;
+  background: #fff; box-shadow: 0 1px 3px rgba(56,28,79,0.10), inset 0 0 0 1px rgba(56,28,79,0.06);
+}
+.rise-page-headline .rise-hero-mark-img { width: 40px; height: 40px; }
+.rise-page-headline-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rise-page-eyebrow {
+  font-family: var(--font-display); font-weight: 800; font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--rise-blue, #005765);
+}
+.rise-page-headline .rise-page-title { margin: 0; }
+.rise-page-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(22px, 3.2vw, 28px);
+  color: var(--alloy-purple);
+  letter-spacing: -0.01em;
+  margin: 4px 0 0;
+}
+.rise-page-sub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 4px 0 0;
+  max-width: 56ch;
+}
+.rise-hero-mark { width: 20px; height: 20px; flex-shrink: 0; }
+.rise-hero-brand-text {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--rise-blue);
+  text-transform: uppercase;
+}
+.rise-hero-brand-tier {
+  color: var(--rise-green);
+  font-weight: 800;
+}
+.rise-hero-market {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  letter-spacing: 0.04em;
+  margin-left: auto;
+  text-transform: uppercase;
+}
+
+.rise-hero-greet-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.rise-hero-greet {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(22px, 3.2vw, 28px);
+  color: var(--alloy-purple);
+  letter-spacing: -0.01em;
+}
+.rise-hero-date {
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.rise-hero-goal {
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 10px;
+}
+.rise-hero-track {
+  height: 14px;
+  background: rgba(0, 87, 101, 0.14);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.rise-hero-track-fill {
+  position: absolute;
+  inset: 0;
+  width: 38%;
+  background: var(--rise-green);
+  border-radius: 999px;
+}
+.rise-hero-track-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-weight: 600;
+  margin: 6px 0 0;
+}
+
+.rise-hero-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.rise-hero-cta {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 18px !important;
+  font-size: 13.5px !important;
+  font-family: var(--font-display);
+  font-weight: 700;
+  border-radius: 10px;
+}
+.rise-hero-nudge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(56, 28, 79, 0.10);
+  padding: 12px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.rise-hero-nudge:hover { border-color: rgba(56, 28, 79, 0.20); }
+.aq-nudge { margin-top: 10px; }
+.aq-nudge-top { margin-top: 0; margin-bottom: 12px; }
+.rise-hero-nudge-badge {
+  width: 30px; height: 30px;
+  border-radius: 999px;
+  background: #fcf2d2;
+  color: #b8881a;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+.rise-hero-nudge-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rise-hero-nudge-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--alloy-purple);
+  line-height: 1.2;
+}
+.rise-hero-nudge-sub {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.rise-hero-nudge-chev {
+  color: var(--alloy-purple);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+@media (max-width: 720px) {
+  .rise-hero-body { padding: 16px 16px 16px; }
+  .rise-hero-market { width: 100%; margin-left: 0; }
+}
