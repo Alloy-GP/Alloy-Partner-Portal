@@ -4,6 +4,7 @@ import {
   listAccounts, createAccount, updateAccount, deleteAccount,
   listInvites, addInvite, removeInvite, uploadLogo,
 } from '../lib/admin.js';
+import AdminAnalytics from './AdminAnalytics.jsx';
 
 const { useState, useEffect } = React;
 
@@ -37,6 +38,7 @@ function AdminScreen() {
   const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'owner' });
   const [busyInvite, setBusyInvite] = useState(false);
   const [notice, setNotice] = useState('');
+  const [tab, setTab] = useState('clients');
 
   const loadAccounts = async (selectAfter) => {
     try {
@@ -124,6 +126,16 @@ function AdminScreen() {
 
   return (
     <div className="content" data-screen-label="Admin">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {['clients', 'analytics'].map((id) => (
+          <button key={id} onClick={() => setTab(id)} className="btn btn-sm"
+            style={{ background: tab === id ? 'var(--alloy-purple)' : 'transparent', color: tab === id ? '#fff' : 'var(--alloy-purple)', padding: '6px 14px', textTransform: 'capitalize' }}>
+            {id}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'analytics' ? <AdminAnalytics /> : (
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
         {/* Accounts list */}
         <div className="card" style={{ padding: 0, alignSelf: 'start' }}>
@@ -256,6 +268,7 @@ function AdminScreen() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

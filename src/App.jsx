@@ -8,6 +8,7 @@ import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx
 import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen } from './components/screens-rest.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
 import AdminScreen from './components/AdminScreen.jsx';
+import { track } from './lib/track.js';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 const PATHS = {
@@ -63,6 +64,9 @@ function App({ session, onSignOut } = {}) {
     try { window.parent.postMessage({ type: "__edit_mode_available" }, "*"); } catch (e) {}
     return () => window.removeEventListener("message", handler);
   }, []);
+
+  // Log a screen view on each navigation (feeds admin analytics).
+  useEffect(() => { track("view", { screen: active }); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },

@@ -131,6 +131,63 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "analytics") {
+      const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const { data: evs, error } = await admin.from("events")
+        .select("account_id, user_id, type, meta, created_at")
+        .gte("created_at", since).order("created_at", { ascending: false }).limit(20000);
+      if (error) throw error;
+      const { data: accts } = await admin.from("accounts").select("id, short_name, company");
+      const nameOf: Record<string, string> = {};
+      for (const a of accts || []) nameOf[a.id] = a.short_name || a.company;
+
+      // 14-day buckets for the activity chart.
+      const daily: Record<string, number> = {};
+      const days: string[] = [];
+      for (let i = 13; i >= 0; i--) {
+        const key = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+        days.push(key); daily[key] = 0;
+      }
+
+      const perAccount: Record<string, any> = {};
+      const screens: Record<string, number> = {};
+      const users = new Set<string>();
+      let logins = 0, views = 0;
+
+      for (const e of evs || []) {
+        const aid = e.account_id || "—";
+        const pa = perAccount[aid] || (perAccount[aid] = {
+          account_id: aid, name: nameOf[aid] || "Unknown",
+          logins: 0, views: 0, events: 0, users: new Set<string>(), lastActive: e.created_at,
+        });
+        pa.events++;
+        if (e.created_at > pa.lastActive) pa.lastActive = e.created_at;
+        if (e.user_id) { pa.users.add(e.user_id); users.add(e.user_id); }
+        if (e.type === "login") { pa.logins++; logins++; }
+        if (e.type === "view") {
+          pa.views++; views++;
+          const s = (e.meta && e.meta.screen) || "?";
+          screens[s] = (screens[s] || 0) + 1;
+        }
+        const dk = e.created_at.slice(0, 10);
+        if (dk in daily) daily[dk]++;
+      }
+
+      const perAccountArr = Object.values(perAccount)
+        .map((p: any) => ({ ...p, users: p.users.size }))
+        .sort((a: any, b: any) => String(b.lastActive).localeCompare(String(a.lastActive)));
+      const screensArr = Object.entries(screens)
+        .map(([screen, count]) => ({ screen, count })).sort((a, b) => b.count - a.count);
+      const dailyArr = days.map((d) => ({ date: d, count: daily[d] }));
+
+      return json({
+        analytics: {
+          totals: { logins, views, activeUsers: users.size, activeAccounts: perAccountArr.length },
+          perAccount: perAccountArr, screens: screensArr, daily: dailyArr,
+        },
+      });
+    }
+
     return json({ error: "unknown action" }, 400);
   } catch (e) {
     return json({ error: String(e) }, 500);

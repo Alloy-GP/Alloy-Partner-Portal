@@ -3,6 +3,9 @@ import { useAuth } from './lib/useAuth.js';
 import { supabase } from './lib/supabase.js';
 import { loadAccountData } from './lib/loadData.js';
 import { applyData } from './data.js';
+import { track } from './lib/track.js';
+
+let loginLogged = false; // once per page load
 import Login from './components/Login.jsx';
 import NoAccess from './components/NoAccess.jsx';
 import App from './App.jsx';
@@ -33,6 +36,7 @@ function AuthGate() {
           setHasAccess(false);     // signed in, but no account membership
         } else {
           applyData(data);
+          if (!loginLogged) { loginLogged = true; track('login'); }
         }
         setDataReady(true);
       })
