@@ -63,12 +63,12 @@ function TicketsScreen() {
               {FBTN("inprogress", `In-Progress (${counts.inprogress})`)}
               {FBTN("all", "All")}
             </div>
-            <div style={{ position: "relative" }}>
-              <I.Search width={14} height={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-muted)" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "7px 10px" }}>
+              <I.Search width={14} height={14} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
               <input
-                className="input" value={query} onChange={(e) => setQuery(e.target.value)}
+                value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search tickets…"
-                style={{ width: "100%", boxSizing: "border-box", paddingLeft: 30, fontSize: 12.5 }}
+                style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--fg)" }}
               />
             </div>
           </div>
