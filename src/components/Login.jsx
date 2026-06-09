@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import './Login.css';
 
+// TEMPORARY build-time gate: only Alloy team members can sign in while the
+// portal is under construction. Set to null (and this becomes a no-op) once
+// client accounts go live — real per-account access is the Phase 2 RLS work.
+const ALLOWED_EMAIL_DOMAIN = 'alloygp.co';
+
 /**
  * Magic-link login screen.
  *
@@ -18,6 +23,13 @@ function Login() {
     e.preventDefault();
     const value = email.trim();
     if (!value) return;
+
+    // Temporary gate — see ALLOWED_EMAIL_DOMAIN above.
+    if (ALLOWED_EMAIL_DOMAIN && !value.toLowerCase().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
+      setStatus('error');
+      setError(`The portal is still in setup — sign-in is limited to @${ALLOWED_EMAIL_DOMAIN} addresses for now.`);
+      return;
+    }
 
     setStatus('sending');
     setError('');
