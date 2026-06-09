@@ -14,7 +14,8 @@ function TicketsScreen() {
   const [tickets, setTickets] = useState(null); // null = loading
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState(null);
-  const [filter, setFilter] = useState("open");
+  const [filter, setFilter] = useState("mytasks");
+  const [query, setQuery] = useState("");
 
   const loadList = () => {
     zdList()
@@ -27,10 +28,21 @@ function TicketsScreen() {
   };
   useEffect(() => { loadList(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isOpen = (t) => t.status !== "solved" && t.status !== "closed";
+  // Client-facing buckets: pending = waiting on the client ("My Tasks");
+  // open/new/hold = team actively working ("In-Progress"); All = everything.
+  const inMyTasks = (t) => t.status === "pending";
+  const inProgress = (t) => ["open", "new", "hold"].includes(t.status);
   const all = tickets || [];
-  const openCount = all.filter(isOpen).length;
-  const filtered = all.filter((t) => filter === "open" ? isOpen(t) : filter === "resolved" ? !isOpen(t) : true);
+  const counts = { mytasks: all.filter(inMyTasks).length, inprogress: all.filter(inProgress).length };
+  const byFilter = all.filter((t) => filter === "mytasks" ? inMyTasks(t) : filter === "inprogress" ? inProgress(t) : true);
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? byFilter.filter((t) => (t.title || "").toLowerCase().includes(q) || String(t.id).includes(q))
+    : byFilter;
+  const emptyMsg = q ? "No tickets match your search."
+    : filter === "mytasks" ? "Nothing needs you right now."
+    : filter === "inprogress" ? "No tickets in progress."
+    : "No tickets.";
 
   const FBTN = (id, label) => (
     <button onClick={() => setFilter(id)} className="btn btn-sm"
@@ -44,12 +56,20 @@ function TicketsScreen() {
       <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 0, border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff", minHeight: 620 }}>
         {/* Left list */}
         <div style={{ borderRight: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 6, alignItems: "center", background: "var(--alloy-off-white)" }}>
-            {FBTN("open", `Open (${openCount})`)}
-            {FBTN("resolved", "Resolved")}
-            {FBTN("all", "All")}
-            <div style={{ flex: 1 }} />
-            <I.Filter width={15} height={15} style={{ color: "var(--fg-muted)" }} />
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: 8, background: "var(--alloy-off-white)" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              {FBTN("mytasks", `My Tasks (${counts.mytasks})`)}
+              {FBTN("inprogress", `In-Progress (${counts.inprogress})`)}
+              {FBTN("all", "All")}
+            </div>
+            <div style={{ position: "relative" }}>
+              <I.Search width={14} height={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-muted)" }} />
+              <input
+                className="input" value={query} onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search tickets…"
+                style={{ width: "100%", boxSizing: "border-box", paddingLeft: 30, fontSize: 12.5 }}
+              />
+            </div>
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
             {tickets === null ? (
@@ -57,7 +77,7 @@ function TicketsScreen() {
             ) : error ? (
               <div style={{ padding: "22px", fontSize: 13, color: "var(--alloy-pink)" }}>Couldn’t load tickets. {error}</div>
             ) : filtered.length === 0 ? (
-              <div style={{ padding: "22px", fontSize: 13, color: "var(--fg-muted)" }}>No {filter === "all" ? "" : filter} tickets.</div>
+              <div style={{ padding: "22px", fontSize: 13, color: "var(--fg-muted)" }}>{emptyMsg}</div>
             ) : filtered.map((t) => (
               <button key={t.id} onClick={() => setActiveId(t.id)}
                 style={{ display: "block", width: "100%", textAlign: "left", padding: "13px 16px", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", background: activeId === t.id ? "var(--alloy-purple-tint)" : "#fff" }}>
