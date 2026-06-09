@@ -41,16 +41,18 @@ function App({ session, onSignOut, staffNav } = {}) {
   const [editMode, setEditMode] = useState(false);
   const [tweaks, setTweaks] = useState(TWEAKS);
   const [mobileNav, setMobileNav] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem("alloy_sidebar_collapsed") === "1"; } catch { return false; }
+  // Sidebar control: expanded | collapsed | hover (expand on hover).
+  const [sidebarMode, setSidebarMode] = useState(() => {
+    try { return localStorage.getItem("alloy_sidebar_mode") || "expanded"; } catch { return "expanded"; }
   });
-  const toggleSidebar = () => {
-    setSidebarCollapsed(v => {
-      const next = !v;
-      try { localStorage.setItem("alloy_sidebar_collapsed", next ? "1" : "0"); } catch {}
-      return next;
-    });
+  const [sidebarHover, setSidebarHover] = useState(false);
+  const [ctrlOpen, setCtrlOpen] = useState(false);
+  const chooseMode = (m) => {
+    setSidebarMode(m); setCtrlOpen(false); setSidebarHover(false);
+    try { localStorage.setItem("alloy_sidebar_mode", m); } catch {}
   };
+  // Collapsed footprint when explicitly collapsed, or in hover mode while not hovering.
+  const sidebarCollapsed = sidebarMode === "collapsed" || (sidebarMode === "hover" && !sidebarHover);
 
   const setTweak = (key, val) => {
     let next;
@@ -112,17 +114,37 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   return (
     <>
-    <div className={`app density-${tweaks.density} mobile-cards-${tweaks.mobileCards || "card"}${sidebarCollapsed ? " sidebar-collapsed" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
+    <div className={`app density-${tweaks.density} mobile-cards-${tweaks.mobileCards || "card"}${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarMode === "hover" ? " sidebar-hover" : ""}${sidebarMode === "hover" && sidebarHover ? " is-hovering" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
       {/* Mobile top bar — removed; mobile controls now live inside the hero card */}
 
       {/* Sidebar (responsive) */}
-      <div className={`sidebar-wrap ${mobileNav ? "open" : ""}`}>
-        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} session={session} onSignOut={onSignOut} staffNav={staffNav} />
-        <button className={`sidebar-collapse-btn${sidebarCollapsed ? " is-collapsed" : ""}`} onClick={toggleSidebar} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand" : "Collapse"}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
+      <div
+        className={`sidebar-wrap ${mobileNav ? "open" : ""}`}
+        onMouseEnter={() => { if (sidebarMode === "hover") setSidebarHover(true); }}
+        onMouseLeave={() => setSidebarHover(false)}
+      >
+        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} session={session} onSignOut={onSignOut} staffNav={staffNav} />
+        <div className="sidebar-ctrl">
+          {ctrlOpen ? (
+            <>
+              <div className="sidebar-ctrl-scrim" onClick={() => setCtrlOpen(false)} />
+              <div className="sidebar-ctrl-menu" role="menu">
+                <div className="sidebar-ctrl-title">Sidebar control</div>
+                {[["expanded", "Expanded"], ["collapsed", "Collapsed"], ["hover", "Expand on hover"]].map(([m, label]) => (
+                  <button key={m} className="sidebar-ctrl-opt" onClick={() => chooseMode(m)} role="menuitemradio" aria-checked={sidebarMode === m}>
+                    <span className={`sidebar-ctrl-dot${sidebarMode === m ? " on" : ""}`} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+          <button className="sidebar-collapse-btn" onClick={() => setCtrlOpen((v) => !v)} aria-label="Sidebar control" title="Sidebar control">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>
+            </svg>
+          </button>
+        </div>
         <div className="sidebar-scrim" onClick={() => setMobileNav(false)}/>
       </div>
 

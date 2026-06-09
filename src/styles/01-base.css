@@ -211,9 +211,22 @@ a:hover { text-decoration: underline; }
 }
 .sidebar-collapse-btn:hover { color: var(--alloy-purple); }
 .sidebar-collapse-btn svg { transition: transform 0.18s ease; }
-.sidebar-collapse-btn.is-collapsed svg { transform: rotate(180deg); }
+
+/* Sidebar control popover (Expanded / Collapsed / Expand on hover) */
+.sidebar-ctrl-scrim { position: fixed; inset: 0; z-index: 69; }
+.sidebar-ctrl-menu {
+  position: absolute; top: 52px; left: 100%; margin-left: 12px; z-index: 70;
+  width: 210px; padding: 8px;
+  background: #241334; border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+}
+.sidebar-ctrl-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.5); padding: 6px 10px 9px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 4px; }
+.sidebar-ctrl-opt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 600; padding: 9px 10px; border-radius: 8px; }
+.sidebar-ctrl-opt:hover { background: rgba(255,255,255,0.08); }
+.sidebar-ctrl-dot { width: 10px; height: 10px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,0.35); flex-shrink: 0; }
+.sidebar-ctrl-dot.on { background: var(--alloy-yellow); border-color: var(--alloy-yellow); }
 @media (max-width: 1024px) {
-  .sidebar-collapse-btn { display: none; }
+  .sidebar-collapse-btn, .sidebar-ctrl-menu, .sidebar-ctrl-scrim { display: none; }
 }
 
 /* Sidebar — Client brand area (where their logo/name lives) */
