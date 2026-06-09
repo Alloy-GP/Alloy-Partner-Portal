@@ -96,7 +96,6 @@ function ProjectsScreen({ onNav }) {
 
         <div className="proj-table">
           <div className="proj-table-head">
-            <div>ID</div>
             <div>Project</div>
             <div>Engine</div>
             <div>Status</div>
@@ -104,7 +103,6 @@ function ProjectsScreen({ onNav }) {
           </div>
           {filtered.map(p => (
             <div key={p.id} className="proj-table-row">
-              <div className="proj-table-id">{p.id}</div>
               <div className="proj-table-project">
                 <div className="proj-table-title">{p.title}</div>
                 <div className="proj-table-pulse">{p.pulse}</div>
