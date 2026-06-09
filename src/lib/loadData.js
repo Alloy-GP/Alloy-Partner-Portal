@@ -87,6 +87,9 @@ export async function loadAccountData(session) {
       tier: account.tier,
       market: account.market,
       since: account.since,
+      goalLabel: account.goal_label || 'boards signed',
+      goalCurrent: account.goal_current || 0,
+      goalTarget: account.goal_target || 0,
     },
     roles: ROLES,
     recurringServices: (recurringRes.data || []).map((r) => ({

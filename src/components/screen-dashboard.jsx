@@ -77,9 +77,11 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
     ? "All caught up"
     : `${attentionCount} ${attentionCount === 1 ? "item" : "items"} for you`;
 
-  // Year goal — boards signed (mirrors original hero copy)
-  const yearGoal = { signed: 3, total: 8 };
-  const yearPct = Math.round((yearGoal.signed / yearGoal.total) * 100);
+  // Goal — set per client in Admin (label + current/target).
+  const goalLabel = DATA.account?.goalLabel || "boards signed";
+  const goalCurrent = Number(DATA.account?.goalCurrent || 0);
+  const goalTarget = Number(DATA.account?.goalTarget || 0);
+  const yearPct = goalTarget ? Math.round((goalCurrent / goalTarget) * 100) : 0;
 
   // Tier / plan
   const plan = `BoardSuite ${DATA.account?.tier || "Accelerate"}`;
@@ -130,8 +132,8 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
             <span className="v">{qLabel}</span>
           </div>
           <div className="alloy-hero-stat">
-            <span className="k">Year goal</span>
-            <span className="v">{yearGoal.signed} of {yearGoal.total} boards signed</span>
+            <span className="k">Goal</span>
+            <span className="v">{goalCurrent} of {goalTarget} {goalLabel}</span>
             <div className="track" aria-hidden="true">
               <div className="track-fill" style={{ width: `${yearPct}%` }}/>
             </div>
