@@ -162,3 +162,11 @@ export const DATA = {
     { lane: "energy", stage: "L&D", ttl: "Gamification for CAM Staff", meta: "Strategy guide · 18 min read", desc: "How recognition systems lift retention without feeling corny." },
   ],
 };
+
+// Replace the mock contents in-place with live data (same object reference,
+// so every component that imported DATA sees the new values). Used by the
+// data loader once the signed-in user's account data has been fetched.
+export function applyData(next) {
+  for (const key of Object.keys(DATA)) delete DATA[key];
+  Object.assign(DATA, next);
+}
