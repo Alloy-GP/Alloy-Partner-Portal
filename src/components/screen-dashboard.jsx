@@ -63,9 +63,11 @@ function DashboardFooter() {
 function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   const firstName = DATA.user.name.split(" ")[0];
 
-  // Current quarter from roadmap (the one marked "now")
-  const currentQ = (DATA.roadmap || []).find(q => q.state === "now") || DATA.roadmap?.[0];
-  const qLabel = currentQ ? `${currentQ.q} · ${currentQ.title || "In progress"}` : "Q2 2026 · Momentum";
+  // Current quarter — derived live from today's date (quarter, year, months).
+  const _now = new Date();
+  const _q = Math.floor(_now.getMonth() / 3) + 1;
+  const _qMonths = ["Jan – Mar", "Apr – Jun", "Jul – Sep", "Oct – Dec"][_q - 1];
+  const qLabel = `Q${_q} ${_now.getFullYear()} · ${_qMonths}`;
 
   // Items needing attention — open tickets + projects in "review" status
   const openTickets = (DATA.tickets || []).filter(t => t.status !== "answered").length;
