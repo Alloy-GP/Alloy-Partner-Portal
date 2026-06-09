@@ -5,7 +5,7 @@ import { DATA } from '../data.js';
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
-function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, onToggleCollapse }) {
+function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, onToggleCollapse, session, onSignOut }) {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "growth" },
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "growth" },
@@ -86,9 +86,15 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
           <div className="avatar">{DATA.user.initials}</div>
           <div className="who">
             <div className="nm">{DATA.user.name}</div>
-            <div className="role">{DATA.account.company}</div>
+            <div className="role">{session?.user?.email || DATA.account.company}</div>
           </div>
-          <button className="icon-btn" style={{color: "rgba(255,255,255,0.6)"}}><I.Settings width={16} height={16}/></button>
+          {onSignOut ? (
+            <button className="icon-btn" style={{color: "rgba(255,255,255,0.6)"}} onClick={onSignOut} aria-label="Sign out" title="Sign out">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+            </button>
+          ) : (
+            <button className="icon-btn" style={{color: "rgba(255,255,255,0.6)"}}><I.Settings width={16} height={16}/></button>
+          )}
         </div>
       </div>
     </aside>

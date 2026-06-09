@@ -8,7 +8,7 @@ This is a migration of the design-handoff prototype (CDN React + in-browser Babe
 
 **Phase 1 — done.** Working Vite + React app, deployable to Vercel today. All UI, styling, interactions, and responsive behavior from the prototype are preserved. Data is still the mock dataset in `src/data.js`.
 
-**Phase 2 — not started.** Supabase backend (Postgres + Auth + RLS + Storage). See [Phase 2 — Supabase](#phase-2--supabase) below.
+**Phase 2 — in progress.** Supabase Auth with **magic-link** login is wired (`src/components/Login.jsx`, gated by `src/AuthGate.jsx`). Postgres data, RLS, and Storage are still to do. See [Phase 2 — Supabase](#phase-2--supabase) below.
 
 ## Stack
 
@@ -70,10 +70,19 @@ src/
 
 The mock `DATA` object in `src/data.js` is the schema spec. The product is **multi-tenant** (many client accounts): every client-scoped table needs an `account_id` FK enforced with **Row-Level Security**.
 
-Suggested migration order:
+### Auth (done — magic link)
 
-1. Create a Supabase project; add `@supabase/supabase-js`; create `src/lib/supabase.js` from the env vars.
-2. Apply the schema (see the design handoff README for the full `CREATE TABLE` set: `accounts`, `profiles`, `projects`, `recurring_services`, `tickets`, `leads`, `weekly_snapshots` + items, `roadmap_quarters` + focuses, `roi`, `kpis`, `badges` + `account_badges`, `library_resources`, `activity`).
+`@supabase/supabase-js` is installed and `src/lib/supabase.js` reads `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. When both are set, `AuthGate` shows the magic-link `Login` screen until the user has a session; sign-out lives in the sidebar footer. **When the env vars are absent the app runs un-gated on mock data** — so the current deploy keeps working until you flip it on.
+
+To turn it on:
+
+1. Create a Supabase project. In **Authentication → Providers**, the Email provider (magic link) is on by default.
+2. In **Authentication → URL Configuration**, set **Site URL** to your Vercel domain and add it (plus `http://localhost:5173`) to **Redirect URLs** — the magic link redirects to `window.location.origin`.
+3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to Vercel env vars (and `.env.local` for local dev). See `.env.example`.
+
+### Data, RLS, Storage (remaining)
+
+1. Apply the schema (see the design handoff README for the full `CREATE TABLE` set: `accounts`, `profiles`, `projects`, `recurring_services`, `tickets`, `leads`, `weekly_snapshots` + items, `roadmap_quarters` + focuses, `roi`, `kpis`, `badges` + `account_badges`, `library_resources`, `activity`).
 3. Seed from `src/data.js`.
 4. Replace `DATA.*` reads with Supabase-backed hooks (TanStack Query recommended), scoped to the signed-in user's `account_id` via RLS.
 5. Add Supabase Auth (email/OTP or SSO); gate the app.

@@ -1,0 +1,164 @@
+/* Magic-link login screen — on-brand with the portal design tokens. */
+
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--alloy-purple-deep);
+  overflow: hidden;
+}
+
+/* Soft brand glow behind the card (echoes the dashboard spotlight cards). */
+.login-bg {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 40% at 25% 20%, rgba(217, 53, 110, 0.35), transparent 70%),
+    radial-gradient(45% 45% at 80% 30%, rgba(245, 216, 128, 0.22), transparent 70%),
+    radial-gradient(50% 50% at 60% 90%, rgba(161, 200, 231, 0.25), transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: #fff;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 40px 36px 28px;
+  text-align: center;
+}
+
+.login-logo {
+  height: 34px;
+  width: auto;
+  margin: 0 auto 28px;
+  display: block;
+}
+
+.login-card h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+
+.login-sub {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  margin: 0 0 24px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.login-form label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.login-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 14px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius);
+  font-size: 15px;
+  color: var(--fg);
+  background: var(--alloy-off-white);
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.login-form input:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--alloy-purple);
+  box-shadow: 0 0 0 3px rgba(56, 28, 79, 0.12);
+}
+
+.login-form input:disabled {
+  opacity: 0.6;
+}
+
+.login-submit {
+  margin-top: 8px;
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  background: var(--alloy-purple);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  transition: background 0.15s, transform 0.05s;
+}
+
+.login-submit:hover:not(:disabled) { background: var(--alloy-purple-deep); }
+.login-submit:active:not(:disabled) { transform: translateY(1px); }
+.login-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.login-error {
+  background: var(--alloy-pink-tint);
+  color: var(--alloy-pink);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+}
+
+/* "Check your inbox" confirmation state */
+.login-sent { text-align: center; }
+
+.login-sent-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--alloy-purple-tint);
+  color: var(--alloy-purple);
+}
+
+.login-sent p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--fg-muted);
+  margin: 0 0 18px;
+}
+.login-sent strong { color: var(--fg-2); }
+
+.login-link-btn {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--alloy-purple);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.login-link-btn:hover { color: var(--alloy-pink); }
+
+.login-foot {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+.login-foot a { color: var(--alloy-purple); font-weight: 600; }
+.login-foot a:hover { color: var(--alloy-pink); }
