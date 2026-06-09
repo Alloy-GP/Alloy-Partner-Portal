@@ -456,11 +456,9 @@ function Sparkline({ tone = "pink" }) {
 
 // Action queue — only items waiting on the client (review + blocked)
 function ActionQueue({ onNav }) {
-  const needsYou = DATA.projects
-    .filter(p => p.status !== "live")
-    .slice(0, 8);
-  const activeCount = DATA.projects.filter(p => p.status !== "live").length;
-  const pendingLeads = (DATA.recentLeads || []).filter(l => l.quality === "review").length;  return (
+  const needsYou = (DATA.actionQueue || []).slice(0, 8);
+  const pendingLeads = (DATA.recentLeads || []).filter(l => l.quality === "review").length;
+  return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon">
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Bolt width={18} height={18}/></div>
@@ -511,7 +509,7 @@ function ActionQueue({ onNav }) {
 // Stripped project list — only on-track work (excludes anything in the action queue above)
 // Recurring services collapse into an accordion at the bottom.
 function ProjectsList({ onNav }) {
-  const inProgress = DATA.projects.filter(p => p.status === "in-progress");
+  const inProgress = DATA.projects.filter(p => p.status !== "live");
   const items = inProgress.slice(0, 8);
   const remaining = Math.max(0, inProgress.length - items.length);
   const services = DATA.recurringServices || [];
