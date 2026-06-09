@@ -131,6 +131,46 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "portfolio") {
+      const today = new Date().toISOString().slice(0, 10);
+      const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const [accts, acts, projs, invs, evs] = await Promise.all([
+        admin.from("accounts").select("id, company, short_name, tier, logo_url, goal_label, goal_current, goal_target"),
+        admin.from("action_items").select("account_id"),
+        admin.from("projects").select("account_id, due_date, status"),
+        admin.from("account_invites").select("account_id"),
+        admin.from("events").select("account_id, user_id, created_at").gte("created_at", since),
+      ]);
+      const openActions: Record<string, number> = {};
+      for (const a of acts.data || []) openActions[a.account_id] = (openActions[a.account_id] || 0) + 1;
+      const pastDue: Record<string, number> = {};
+      for (const p of projs.data || []) {
+        if (p.due_date && p.due_date < today && p.status !== "live") {
+          pastDue[p.account_id] = (pastDue[p.account_id] || 0) + 1;
+        }
+      }
+      const invited: Record<string, number> = {};
+      for (const iv of invs.data || []) invited[iv.account_id] = (invited[iv.account_id] || 0) + 1;
+      const lastActive: Record<string, string> = {};
+      const usersByAcct: Record<string, Set<string>> = {};
+      for (const e of evs.data || []) {
+        if (!lastActive[e.account_id] || e.created_at > lastActive[e.account_id]) lastActive[e.account_id] = e.created_at;
+        if (e.user_id) (usersByAcct[e.account_id] || (usersByAcct[e.account_id] = new Set())).add(e.user_id);
+      }
+      const clients = (accts.data || []).map((a: any) => ({
+        id: a.id, company: a.company, short_name: a.short_name, tier: a.tier, logo_url: a.logo_url,
+        goal_label: a.goal_label, goal_current: a.goal_current || 0, goal_target: a.goal_target || 0,
+        openActions: openActions[a.id] || 0,
+        pastDue: pastDue[a.id] || 0,
+        invited: invited[a.id] || 0,
+        activeUsers: usersByAcct[a.id] ? usersByAcct[a.id].size : 0,
+        lastActive: lastActive[a.id] || null,
+      })).sort((x: any, y: any) =>
+        (y.openActions + y.pastDue) - (x.openActions + x.pastDue) ||
+        String(x.company).localeCompare(String(y.company)));
+      return json({ clients });
+    }
+
     if (action === "analytics") {
       const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
       const { data: evs, error } = await admin.from("events")

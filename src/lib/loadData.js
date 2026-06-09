@@ -21,47 +21,59 @@ function relativeDue(dateStr) {
 }
 
 /**
- * Fetches every table for the signed-in user's account (RLS scopes the rows
- * automatically) and reshapes them into the exact object shape the UI
- * components already expect from the old mock `DATA`. Keeping the shape
- * identical means zero component changes — only the data source moved.
+ * Lightweight "who am I": is this a staff member, and (for clients) which
+ * account are they locked to. Drives the staff-vs-client branch in AuthGate.
  */
-export async function loadAccountData(session) {
-  const uid = session.user.id;
+export async function getMe(session) {
+  const { data, error } = await supabase
+    .from('profiles').select('account_id, is_staff, name, initials, avatar_url, role')
+    .eq('id', session.user.id).maybeSingle();
+  if (error) throw error;
+  if (!data) return null; // signed in but no profile → no access
+  return {
+    accountId: data.account_id || null,
+    isStaff: !!data.is_staff,
+    profile: data,
+  };
+}
+
+/**
+ * Fetches every table for a given account and reshapes them into the exact
+ * object shape the UI expects from the old mock `DATA`. `accountId` is the
+ * account being viewed — a client's own, or any client for staff (RLS allows
+ * staff to read all). `me` is the signed-in profile (for DATA.user).
+ */
+export async function loadAccountData(session, accountId, me) {
+  if (!accountId) return null;
 
   const [
-    profileRes, accountRes, recurringRes, projectsRes, leadsRes,
+    accountRes, recurringRes, projectsRes, leadsRes,
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes,
   ] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
-    supabase.from('accounts').select('*').limit(1).maybeSingle(),
-    supabase.from('recurring_services').select('*').order('sort'),
-    supabase.from('projects').select('*').order('sort'),
-    supabase.from('leads').select('*').order('sort'),
-    supabase.from('activity').select('*').order('sort'),
-    supabase.from('tickets').select('*').order('sort'),
-    supabase.from('kpis').select('*').order('sort'),
-    supabase.from('roi').select('*').limit(1).maybeSingle(),
+    supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
+    supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('projects').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('leads').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('activity').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('tickets').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('kpis').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('roi').select('*').eq('account_id', accountId).limit(1).maybeSingle(),
     supabase.from('library_resources').select('*').order('sort'),
-    supabase.from('account_badges').select('*, badges(*)').order('sort'),
-    supabase.from('weekly_snapshots').select('*, weekly_snapshot_items(*)').eq('is_current', true).maybeSingle(),
-    supabase.from('weekly_snapshots').select('week_label, pdf_path').eq('is_current', false).order('sort'),
-    supabase.from('roadmap_quarters').select('*, roadmap_focuses(*)').order('sort'),
-    supabase.from('action_items').select('*').order('sort'),
+    supabase.from('account_badges').select('*, badges(*)').eq('account_id', accountId).order('sort'),
+    supabase.from('weekly_snapshots').select('*, weekly_snapshot_items(*)').eq('account_id', accountId).eq('is_current', true).maybeSingle(),
+    supabase.from('weekly_snapshots').select('week_label, pdf_path').eq('account_id', accountId).eq('is_current', false).order('sort'),
+    supabase.from('roadmap_quarters').select('*, roadmap_focuses(*)').eq('account_id', accountId).order('sort'),
+    supabase.from('action_items').select('*').eq('account_id', accountId).order('sort'),
   ]);
 
-  // Surface a hard failure on the two things the whole shell depends on.
-  if (profileRes.error) throw profileRes.error;
   if (accountRes.error) throw accountRes.error;
 
-  const profile = profileRes.data;
+  const profile = (me && me.profile) || {};
   const account = accountRes.data;
 
-  // Signed in but not a member of any account (no invite) → no access.
-  // Returning null lets AuthGate show the "no access" screen instead of
-  // falling back to mock data.
-  if (!profile || !account) return null;
+  // No such account (bad id / nothing to show) → null so AuthGate can react.
+  if (!account) return null;
   const roi = roiRes.data;
 
   const snap = snapCurRes.data;
@@ -74,7 +86,7 @@ export async function loadAccountData(session) {
 
   return {
     user: {
-      id: profile.id,
+      id: session.user.id,
       name: profile.name || '',
       initials: profile.initials || '',
       role: profile.role || 'owner',

@@ -25,7 +25,7 @@ const TWEAKS = /*EDITMODE-BEGIN*/{
   "mobileCards": "card"
 }/*EDITMODE-END*/;
 
-function App({ session, onSignOut } = {}) {
+function App({ session, onSignOut, staffNav } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const seg = '/' + (location.pathname.split('/')[1] || '');
@@ -98,6 +98,17 @@ function App({ session, onSignOut } = {}) {
   })();
 
   return (
+    <>
+    {staffNav ? (
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", background: "var(--alloy-purple-deep)", color: "#fff", fontSize: 12.5, fontWeight: 600 }}>
+        <span style={{ opacity: 0.7 }}>Alloy admin</span>
+        <span aria-hidden="true" style={{ opacity: 0.4 }}>·</span>
+        <span>Viewing <strong>{DATA.account?.shortName || DATA.account?.company}</strong></span>
+        <button onClick={staffNav.onHome} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.14)", color: "#fff", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 700 }}>
+          ⌂ All clients
+        </button>
+      </div>
+    ) : null}
     <div className={`app density-${tweaks.density} mobile-cards-${tweaks.mobileCards || "card"}${sidebarCollapsed ? " sidebar-collapsed" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
       {/* Mobile top bar — removed; mobile controls now live inside the hero card */}
 
@@ -130,6 +141,7 @@ function App({ session, onSignOut } = {}) {
         </button>
       ) : null}
     </div>
+    </>
   );
 }
 
