@@ -101,17 +101,20 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
           )
         ))}
 
-        {/* Client Center — staff-only nav above any single client */}
+        {/* Client Center — staff-only nav above any single client. Rendered as a
+            normal nav section so it collapses to icons with the sidebar. */}
         {staffNav ? (
-          <div style={{ margin: "14px 10px 4px", padding: "12px", borderRadius: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--alloy-yellow)", marginBottom: 9 }}>Client Center</div>
-            <button onClick={staffNav.onHome} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, padding: "7px 6px", borderRadius: 8 }}>
-              <I.Home width={15} height={15} /> All clients
-            </button>
-            <button onClick={staffNav.onAdmin} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, padding: "7px 6px", borderRadius: 8 }}>
-              <I.Bolt width={15} height={15} /> Admin
-            </button>
-          </div>
+          <>
+            <div className="nav-section-label has-divider">Client Center</div>
+            <div className="nav-item" data-active={false} onClick={staffNav.onHome} title="All clients">
+              <span className="icon"><I.Home /></span>
+              <span>All clients</span>
+            </div>
+            <div className="nav-item" data-active={false} onClick={staffNav.onAdmin} title="Admin">
+              <span className="icon"><I.Bolt /></span>
+              <span>Admin</span>
+            </div>
+          </>
         ) : null}
       </nav>
 
