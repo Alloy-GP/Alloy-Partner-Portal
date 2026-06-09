@@ -1,0 +1,4 @@
+# Supabase CLI config. The project_id links this repo to the remote project.
+# Run `supabase link --project-ref aryttfcmleukwstknvio` to connect, then
+# `supabase db push` / `supabase db pull`. See supabase/README.md.
+project_id = "aryttfcmleukwstknvio"
