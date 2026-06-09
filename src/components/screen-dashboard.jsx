@@ -3,6 +3,7 @@ import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import ProfilePhoto from './ProfilePhoto.jsx';
 import CompanyMark from './CompanyMark.jsx';
+import { listSnapshots } from '../lib/admin.js';
 
 // Dashboard screen — warm, celebratory home
 function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
@@ -285,11 +286,21 @@ function PastSnapshotCalendar() {
 
 function WeeklySnapshotCard({ onNav }) {
   const ws = DATA.weeklySnapshot;
+  const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [showPast, setShowPast] = React.useState(false);
   const [openId, setOpenId] = React.useState(null);
+  const [hasDraft, setHasDraft] = React.useState(false);
 
-  // Countdown to the next Friday snapshot (anchored to the current portal week)
-  const today = new Date(2026, 2, 23);
+  // Staff: surface a "draft ready to review" hint without leaving the dashboard.
+  React.useEffect(() => {
+    if (!isStaff || !DATA.account?.id) return;
+    listSnapshots(DATA.account.id)
+      .then((r) => setHasDraft((r.snapshots || []).some((s) => s.status === "draft")))
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Countdown to the next Friday snapshot (real, client-local).
+  const today = new Date();
   const add = ((5 - today.getDay()) + 7) % 7 || 7;
   const nextFri = new Date(today); nextFri.setDate(today.getDate() + add);
   const daysLeft = Math.round((nextFri - today) / 86400000);
@@ -363,7 +374,19 @@ function WeeklySnapshotCard({ onNav }) {
           </div>
           <div className="ws-head-meta">
             <span className="ws-kicker">{ws.weekLabel}</span>
+            {isStaff && hasDraft ? (
+              <button
+                onClick={() => onNav && onNav("snapshot")}
+                style={{ marginLeft: "auto", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "var(--alloy-yellow-tint)", color: "#8a6900" }}>
+                📋 Draft ready to review
+              </button>
+            ) : null}
           </div>
+          {ws.headline ? (
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 15, color: "var(--alloy-purple)", lineHeight: 1.3, marginTop: 8 }}>
+              {ws.headline}
+            </div>
+          ) : null}
         </div>
 
       <div className="ws-stats">
@@ -384,7 +407,7 @@ function WeeklySnapshotCard({ onNav }) {
       <div className="ws-accordion">
         <Section id="waiting"   tone="pink"   label="Waiting on you" items={ws.waiting} />
         <Section id="completed" tone="green"  label="Completed this week" items={ws.completed} />
-        <Section id="upcoming"  tone="yellow" label="Upcoming next week" items={ws.upcoming} />
+        <Section id="upcoming"  tone="yellow" label="In motion" items={ws.upcoming} />
       </div>
 
       <div className="ws-footer">
@@ -394,6 +417,9 @@ function WeeklySnapshotCard({ onNav }) {
           <span className={`ws-caret${showPast ? " open" : ""}`}><I.Chevron width={13} height={13}/></span>
         </button>
         {showPast ? <PastSnapshotCalendar /> : null}
+        <button className="ws-quarterly" onClick={() => onNav && onNav("snapshot")}>
+          View full snapshot →
+        </button>
         <button className="ws-quarterly" onClick={() => onNav && onNav(ws.quarterlyHref)}>
           View quarterly reports →
         </button>
