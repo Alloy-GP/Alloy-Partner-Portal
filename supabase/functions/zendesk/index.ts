@@ -36,6 +36,33 @@ const CORS = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
+// Heuristically strip email signatures / disclaimers / quoted history that
+// Zendesk leaves in email-sourced comments. Conservative: only cuts on strong
+// signals so it won't eat real message text. Falls back to the raw body.
+function cleanMessage(raw: string): string {
+  let text = (raw || "").replace(/!\[[^\]]*\]\([^)]*\)/g, ""); // markdown images
+  const lines = text.split(/\r?\n/);
+  const cut = [
+    /^--\s*$/,                                  // standard signature delimiter
+    /^(best|kind|warm)\s+regards\b/i,
+    /^regards[,!]?\s*$/i,
+    /^(many\s+)?thanks[,!]?\s*$/i,
+    /^thank you[,!]?\s*$/i,
+    /^(sincerely|cheers|best|respectfully)[,!]?\s*$/i,
+    /^sent from my /i,
+    /^on .+wrote:\s*$/i,                        // quoted reply
+    /^from:\s/i,                                // forwarded headers
+    /confidentiality notice/i,
+    /this e-?mail .*confidential/i,
+  ];
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (cut.some((re) => re.test(lines[i].trim()))) { end = i; break; }
+  }
+  const cleaned = lines.slice(0, end).join("\n").trim();
+  return cleaned || (raw || "").trim();
+}
+
 function mapTicket(t: any) {
   return {
     id: String(t.id),
@@ -107,7 +134,7 @@ Deno.serve(async (req) => {
           const a = users[String(m.author_id)] || {};
           return {
             id: String(m.id),
-            body: m.body,
+            body: cleanMessage(m.body),
             created_at: m.created_at,
             author: a.name || "Alloy",
             // role=end-user => the client ("you"); else the Alloy team
