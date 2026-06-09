@@ -304,11 +304,13 @@ function WeeklySnapshotCard({ onNav }) {
   const daysLeft = Math.round((nextFri - today) / 86400000);
   const nextLabel = nextFri.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-  // Quarterly playbook progress (current "now" quarter)
+  // Quarterly playbook progress: parent tasks done ÷ total (live = done).
+  // `projects` are the top-level Monday board items (not subtasks).
   const pb = (DATA.roadmap || []).find(q => q.state === "now") || (DATA.roadmap || [])[0] || {};
-  const pbDone = 45;
-  const pbTotal = 60;
-  const pbPct = Math.round((pbDone / pbTotal) * 100);
+  const allProjects = DATA.projects || [];
+  const pbTotal = allProjects.length;
+  const pbDone = allProjects.filter(p => p.status === "live").length;
+  const pbPct = pbTotal ? Math.round((pbDone / pbTotal) * 100) : 0;
 
   // The 4 at-a-glance tiles. Detail lives on the full snapshot screen.
   const tiles = [
