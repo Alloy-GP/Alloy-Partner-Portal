@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
+import ProfilePhoto from './ProfilePhoto.jsx';
 
 // Dashboard screen — warm, celebratory home
 function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
@@ -84,7 +85,7 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
     <section className="alloy-hero" aria-label="Account overview">
       <div className="alloy-hero-main">
         <div className="alloy-hero-logo alloy-hero-avatar">
-          <image-slot id="hero-profile" shape="circle" fit="cover" placeholder="Profile photo"></image-slot>
+          <ProfilePhoto />
         </div>
         <div className="alloy-hero-content">
           <div className="alloy-hero-top">

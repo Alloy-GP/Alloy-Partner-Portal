@@ -3,6 +3,7 @@ import { useAuth } from './lib/useAuth.js';
 import { loadAccountData } from './lib/loadData.js';
 import { applyData } from './data.js';
 import Login from './components/Login.jsx';
+import NoAccess from './components/NoAccess.jsx';
 import App from './App.jsx';
 
 /**
@@ -16,23 +17,26 @@ function AuthGate() {
   const { configured, loading, session, signOut } = useAuth();
   // In mock mode there's nothing to fetch, so data is "ready" immediately.
   const [dataReady, setDataReady] = useState(!configured);
-  const [dataError, setDataError] = useState(null);
+  const [hasAccess, setHasAccess] = useState(true);
 
   useEffect(() => {
     if (!configured || !session) return;
     let cancelled = false;
     setDataReady(false);
-    setDataError(null);
+    setHasAccess(true);
     loadAccountData(session)
       .then((data) => {
         if (cancelled) return;
-        applyData(data);
+        if (!data) {
+          setHasAccess(false);     // signed in, but no account membership
+        } else {
+          applyData(data);
+        }
         setDataReady(true);
       })
-      .catch((err) => {
-        if (cancelled) return;
-        setDataError(err);
-        setDataReady(true);
+      .catch(() => {
+        // Fetch failed (network, etc.) — fall back to whatever DATA holds.
+        if (!cancelled) setDataReady(true);
       });
     return () => { cancelled = true; };
   }, [configured, session]);
@@ -49,7 +53,11 @@ function AuthGate() {
 
   if (!session) return <Login />;
 
-  return <App session={session} onSignOut={signOut} dataError={dataError} />;
+  if (!hasAccess) {
+    return <NoAccess email={session.user?.email} onSignOut={signOut} />;
+  }
+
+  return <App session={session} onSignOut={signOut} />;
 }
 
 export default AuthGate;

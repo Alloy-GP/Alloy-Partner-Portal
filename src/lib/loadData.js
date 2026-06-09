@@ -21,8 +21,8 @@ export async function loadAccountData(session) {
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes,
   ] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', uid).single(),
-    supabase.from('accounts').select('*').limit(1).single(),
+    supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+    supabase.from('accounts').select('*').limit(1).maybeSingle(),
     supabase.from('recurring_services').select('*').order('sort'),
     supabase.from('projects').select('*').order('sort'),
     supabase.from('leads').select('*').order('sort'),
@@ -41,8 +41,13 @@ export async function loadAccountData(session) {
   if (profileRes.error) throw profileRes.error;
   if (accountRes.error) throw accountRes.error;
 
-  const profile = profileRes.data || {};
-  const account = accountRes.data || {};
+  const profile = profileRes.data;
+  const account = accountRes.data;
+
+  // Signed in but not a member of any account (no invite) → no access.
+  // Returning null lets AuthGate show the "no access" screen instead of
+  // falling back to mock data.
+  if (!profile || !account) return null;
   const roi = roiRes.data;
 
   const snap = snapCurRes.data;
@@ -55,9 +60,11 @@ export async function loadAccountData(session) {
 
   return {
     user: {
+      id: profile.id,
       name: profile.name || '',
       initials: profile.initials || '',
       role: profile.role || 'owner',
+      avatarUrl: profile.avatar_url || null,
     },
     account: {
       company: account.company,
