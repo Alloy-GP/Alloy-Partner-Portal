@@ -2,7 +2,7 @@ import React from 'react';
 import { I } from './icons.jsx';
 import {
   listAccounts, createAccount, updateAccount, deleteAccount,
-  listInvites, addInvite, removeInvite,
+  listInvites, addInvite, removeInvite, uploadLogo,
 } from '../lib/admin.js';
 
 const { useState, useEffect } = React;
@@ -107,6 +107,19 @@ function AdminScreen() {
     } catch (e) { setError(String(e.message || e)); } finally { setBusyInvite(false); }
   };
 
+  const onLogo = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || selectedId === 'new') return;
+    setSaving(true); setError('');
+    try {
+      const logo_url = await uploadLogo(selectedId, file);
+      await updateAccount(selectedId, { logo_url });
+      setForm((f) => ({ ...f, logo_url }));
+      await loadAccounts(selectedId);
+    } catch (e2) { setError(String(e2.message || e2)); } finally { setSaving(false); }
+  };
+
   const isNew = selectedId === 'new';
 
   return (
@@ -148,6 +161,26 @@ function AdminScreen() {
               </div>
 
               {error ? <div style={{ background: 'var(--alloy-pink-tint)', color: 'var(--alloy-pink)', fontSize: 13, padding: '9px 12px', borderRadius: 8, marginBottom: 14 }}>{error}</div> : null}
+
+              {/* Company icon */}
+              {isNew ? (
+                <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginBottom: 14 }}>Save the client first, then you can upload a company icon.</div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+                  {form.logo_url ? (
+                    <img src={form.logo_url} alt="" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', border: '1px solid var(--border-subtle)' }} />
+                  ) : (
+                    <div style={{ width: 48, height: 48, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'var(--alloy-purple-tint)', color: 'var(--alloy-purple)', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
+                      {(form.short_name || form.company || '').slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                    {form.logo_url ? 'Change icon' : 'Upload icon'}
+                    <input type="file" accept="image/*" onChange={onLogo} style={{ display: 'none' }} />
+                  </label>
+                  <span style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>Square image — shown top-left of their dashboard.</span>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Company" value={form.company} onChange={set('company')} placeholder="RISE Association Management Group" />

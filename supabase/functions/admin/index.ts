@@ -16,7 +16,7 @@ const json = (data: unknown, status = 200) =>
 const ACCOUNT_FIELDS = [
   "company", "short_name", "tier", "market", "since",
   "goal_label", "goal_current", "goal_target",
-  "monday_board_id", "zendesk_org_id",
+  "monday_board_id", "zendesk_org_id", "logo_url",
 ];
 function pick(obj: any, fields: string[]) {
   const out: Record<string, unknown> = {};

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import ProfilePhoto from './ProfilePhoto.jsx';
+import CompanyMark from './CompanyMark.jsx';
 
 // Dashboard screen — warm, celebratory home
 function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
@@ -157,7 +158,7 @@ function DesktopTopBar({ onNav, title, isDashboard, active }) {
   return (
     <div className="desktop-topbar">
       <div className="ds-brand">
-        <img className="ds-brand-mark" src="/assets/rise-mark.svg" alt=""/>
+        <CompanyMark className="ds-brand-mark" size={42}/>
         <span className="ds-brand-name">{title || DATA.account.shortName || DATA.account.company}</span>
       </div>
       <div className="grow"/>

@@ -17,3 +17,16 @@ export const listInvites = (accountId) => call('list_invites', { account_id: acc
 export const addInvite = (accountId, invite) =>
   call('add_invite', { account_id: accountId, redirectTo: window.location.origin, ...invite });
 export const removeInvite = (email) => call('remove_invite', { email });
+
+// Upload a client's square logo to the public `logos` bucket (staff only),
+// return its public URL (cache-busted). Caller saves it via updateAccount.
+export async function uploadLogo(accountId, file) {
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+  const path = `${accountId}.${ext}`;
+  const { error } = await supabase.storage.from('logos').upload(path, file, {
+    upsert: true, contentType: file.type,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('logos').getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}

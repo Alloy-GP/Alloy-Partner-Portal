@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
+import CompanyMark from './CompanyMark.jsx';
 
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
@@ -149,7 +150,7 @@ function RisePageHero({ title, subtitle, mobileNav, setMobileNav }) {
         </div>
         <div className="rise-page-headline">
           <span className="rise-hero-mark-chip rise-page-mark-chip">
-            <img src="/assets/rise-mark.svg" alt="" className="rise-hero-mark-img"/>
+            <CompanyMark className="rise-hero-mark-img" size={40}/>
           </span>
           <div className="rise-page-headline-text">
             <span className="rise-page-eyebrow">{co}</span>

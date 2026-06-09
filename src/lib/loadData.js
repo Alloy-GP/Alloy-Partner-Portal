@@ -90,6 +90,7 @@ export async function loadAccountData(session) {
       goalLabel: account.goal_label || 'boards signed',
       goalCurrent: account.goal_current || 0,
       goalTarget: account.goal_target || 0,
+      logoUrl: account.logo_url || null,
     },
     roles: ROLES,
     recurringServices: (recurringRes.data || []).map((r) => ({
