@@ -78,6 +78,7 @@ export async function loadAccountData(session) {
       name: profile.name || '',
       initials: profile.initials || '',
       role: profile.role || 'owner',
+      isStaff: !!profile.is_staff,
       avatarUrl: profile.avatar_url || null,
     },
     account: {

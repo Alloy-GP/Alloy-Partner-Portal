@@ -160,7 +160,10 @@ Deno.serve(async (req) => {
 
       const comment: any = { body: text, public: true };
       if (authorId) comment.author_id = authorId;
-      await zd(`/tickets/${id}.json`, { method: "PUT", body: JSON.stringify({ ticket: { comment } }) });
+      const ticket: any = { comment };
+      // Optional explicit status (staff-controlled): open | pending | solved.
+      if (["open", "pending", "solved"].includes(body.status)) ticket.status = body.status;
+      await zd(`/tickets/${id}.json`, { method: "PUT", body: JSON.stringify({ ticket }) });
       return json({ ok: true });
     }
 

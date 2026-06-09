@@ -1,5 +1,6 @@
 import React from 'react';
 import { I } from './icons.jsx';
+import { DATA } from '../data.js';
 import { zdThread, zdReply, zdResolve } from '../lib/zendesk.js';
 
 const { useState, useEffect } = React;
@@ -47,6 +48,8 @@ function TicketThread({ id, onChanged }) {
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const isStaff = !!(DATA.user && DATA.user.isStaff);
+  const [replyStatus, setReplyStatus] = useState('pending'); // staff-only: status after reply
 
   const load = async () => {
     setLoading(true); setError('');
@@ -67,7 +70,7 @@ function TicketThread({ id, onChanged }) {
     if (!text) return;
     setSending(true);
     try {
-      await zdReply(id, text);
+      await zdReply(id, text, isStaff ? replyStatus : undefined);
       setReply('');
       await load();
       if (onChanged) onChanged();
@@ -131,9 +134,21 @@ function TicketThread({ id, onChanged }) {
             style={{ resize: 'none', minHeight: 60 }}
             value={reply} onChange={(e) => setReply(e.target.value)} disabled={sending}
           />
-          <button className="btn btn-primary" onClick={send} disabled={sending || !reply.trim()}>
-            <I.Send width={13} height={13} /> {sending ? 'Sending…' : 'Send'}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch', flexShrink: 0 }}>
+            {isStaff ? (
+              <select
+                className="input" value={replyStatus} onChange={(e) => setReplyStatus(e.target.value)}
+                title="Ticket status after sending" style={{ padding: '6px 8px', fontSize: 12 }}
+              >
+                <option value="open">Keep open</option>
+                <option value="pending">Set pending</option>
+                <option value="solved">Mark solved</option>
+              </select>
+            ) : null}
+            <button className="btn btn-primary" onClick={send} disabled={sending || !reply.trim()}>
+              <I.Send width={13} height={13} /> {sending ? 'Sending…' : 'Send'}
+            </button>
+          </div>
         </div>
       </div>
     </>

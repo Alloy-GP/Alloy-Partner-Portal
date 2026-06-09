@@ -15,5 +15,5 @@ async function call(action, payload = {}) {
 
 export const zdList = () => call('list');
 export const zdThread = (id) => call('thread', { id });
-export const zdReply = (id, body) => call('reply', { id, body });
+export const zdReply = (id, body, status) => call('reply', { id, body, status });
 export const zdResolve = (id) => call('resolve', { id });
