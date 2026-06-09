@@ -326,6 +326,46 @@ Deno.serve(async (req) => {
       return json({ total: (data || []).length, byAccount });
     }
 
+    if (action === "snapshot_queue") {
+      // Triaged review queue: one row per client with counts + anomaly flags,
+      // so staff react to exceptions instead of checking every client.
+      const [{ data: accts }, { data: snaps }] = await Promise.all([
+        admin.from("accounts").select("id, company, short_name, logo_url"),
+        admin.from("weekly_snapshots")
+          .select("id, account_id, status, created_at, period_end, summary_completed, summary_waiting, summary_leads, leads_value, flags, headline")
+          .order("created_at", { ascending: false }),
+      ]);
+      const now = Date.now();
+      const byAcct: Record<string, { latest: any; draft: any }> = {};
+      for (const s of snaps || []) {
+        const e = byAcct[s.account_id] || (byAcct[s.account_id] = { latest: null, draft: null });
+        if (!e.latest) e.latest = s; // ordered desc → first seen is newest
+        if (!e.draft && s.status === "draft") e.draft = s;
+      }
+      const rows = (accts || []).map((a: any) => {
+        const e = byAcct[a.id] || { latest: null, draft: null };
+        const src = e.draft || e.latest;
+        const flags = ((src && src.flags) || []).slice();
+        if (!e.latest) flags.push({ level: "warn", msg: "No snapshot generated yet." });
+        else if (e.latest.period_end && (now - new Date(e.latest.period_end).getTime()) > 6 * 864e5) {
+          flags.push({ level: "warn", msg: "No fresh snapshot this week — generation may have skipped." });
+        }
+        return {
+          id: a.id, name: a.short_name || a.company, logo_url: a.logo_url,
+          status: e.draft ? "draft" : (e.latest ? e.latest.status : "none"),
+          draftId: e.draft ? e.draft.id : null,
+          headline: (src && src.headline) || "",
+          shipped: (src && src.summary_completed) || 0,
+          waiting: (src && src.summary_waiting) || 0,
+          leads: (src && src.summary_leads) || 0,
+          leadsValue: (src && src.leads_value) || "",
+          flags,
+        };
+      }).sort((x: any, y: any) =>
+        (y.flags.length - x.flags.length) || ((y.draftId ? 1 : 0) - (x.draftId ? 1 : 0)) || String(x.name).localeCompare(String(y.name)));
+      return json({ queue: rows, drafts: rows.filter((r: any) => r.draftId).length, flagged: rows.filter((r: any) => r.flags.length).length });
+    }
+
     if (action === "update_snapshot") {
       if (!body.id) return json({ error: "id required" }, 400);
       const patch: Record<string, unknown> = {};

@@ -19,6 +19,7 @@ export const listInvites = (accountId) => call('list_invites', { account_id: acc
 // Weekly snapshots (staff review queue)
 export const listSnapshots = (accountId) => call('list_snapshots', { account_id: accountId });
 export const pendingSnapshots = () => call('pending_snapshots');
+export const snapshotQueue = () => call('snapshot_queue');
 export const updateSnapshot = (id, fields) => call('update_snapshot', { id, ...fields });
 export const approveSnapshot = (id) => call('approve_snapshot', { id });
 export const addInvite = (accountId, invite) =>

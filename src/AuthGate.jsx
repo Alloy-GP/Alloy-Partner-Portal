@@ -168,6 +168,7 @@ function AuthGate() {
         onAdmin={() => navigate('/admin')}
         onAddClient={() => navigate('/admin?new=1')}
         onEditClient={(id) => navigate(`/admin?client=${id}`)}
+        onReviewSnapshot={(id) => navigate(`/c/${id}/snapshot`)}
         onSignOut={signOut}
       />
     );

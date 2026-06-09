@@ -1,6 +1,6 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { getPortfolio } from '../lib/admin.js';
+import { getPortfolio, snapshotQueue, approveSnapshot } from '../lib/admin.js';
 
 const { useState, useEffect } = React;
 
@@ -36,7 +36,67 @@ function Pill({ n, label, tone }) {
   );
 }
 
-function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient }) {
+function SnapshotQueue({ onReview }) {
+  const [q, setQ] = useState(null);
+  const [busy, setBusy] = useState('');
+
+  const load = () => snapshotQueue().then(setQ).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  if (!q) return null;
+  const rows = (q.queue || []).filter((r) => r.draftId || (r.flags && r.flags.length));
+  if (rows.length === 0) return null;
+
+  const publish = async (id) => {
+    setBusy(id);
+    try { await approveSnapshot(id); await load(); } catch (e) { /* surfaced on the client screen */ } finally { setBusy(''); }
+  };
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 20, border: '1px solid var(--border-subtle)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)' }}>Weekly snapshots</span>
+        <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+          {q.drafts} ready{q.flagged ? ` · ${q.flagged} need a look` : ''}
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rows.map((r) => {
+          const flagged = r.flags && r.flags.length > 0;
+          return (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, background: flagged ? 'var(--alloy-yellow-tint)' : 'var(--alloy-off-white)', border: flagged ? '1px solid var(--alloy-yellow)' : '1px solid var(--border-subtle)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--alloy-purple)' }}>{r.name}</span>
+                  {flagged ? <span title={r.flags.map((f) => f.msg).join(' ')} style={{ fontSize: 11.5 }}>⚠️</span> : null}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>
+                  {r.headline || `${r.shipped} shipped · ${r.leads} leads · ${r.waiting} waiting`}
+                </div>
+                {flagged ? <div style={{ fontSize: 11.5, color: '#8a6900', marginTop: 3 }}>{r.flags.map((f) => f.msg).join(' · ')}</div> : null}
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#fff', color: 'var(--fg-muted)', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+                {r.status === 'draft' ? 'Draft' : r.status === 'published' ? 'Published' : '—'}
+              </span>
+              {r.draftId ? (
+                <>
+                  <button className="btn btn-secondary btn-sm" onClick={() => onReview(r.id)} style={{ flexShrink: 0 }}>Review</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => publish(r.draftId)} disabled={busy === r.draftId} style={{ flexShrink: 0 }}>
+                    {busy === r.draftId ? '…' : 'Publish'}
+                  </button>
+                </>
+              ) : (
+                <button className="btn btn-secondary btn-sm" onClick={() => onReview(r.id)} style={{ flexShrink: 0 }}>Open</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient, onReviewSnapshot }) {
   const [clients, setClients] = useState(null);
   const [error, setError] = useState('');
 
@@ -70,6 +130,8 @@ function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient }) {
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 28px' }}>
         {error ? <div style={{ color: 'var(--alloy-pink)', fontSize: 13 }}>Couldn’t load the portfolio. {error}</div> : null}
         {clients === null && !error ? <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>Loading clients…</div> : null}
+
+        {onReviewSnapshot ? <SnapshotQueue onReview={onReviewSnapshot} /> : null}
 
         {clients && clients.length > 0 ? (
           <>
