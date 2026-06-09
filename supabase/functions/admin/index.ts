@@ -24,6 +24,58 @@ function pick(obj: any, fields: string[]) {
   return out;
 }
 
+// --- Monday real-time onboarding -------------------------------------------
+// When a client's board id is set, register the realtime webhooks (idempotent)
+// and kick an immediate sync so their data shows right away. Best-effort: a
+// Monday hiccup must never block saving the account.
+const MONDAY_API = "https://api.monday.com/v2";
+const WEBHOOK_EVENTS = ["change_column_value", "create_item", "item_deleted"];
+
+async function mondayApi(query: string, variables: Record<string, unknown>) {
+  const token = (Deno.env.get("MONDAY_API_TOKEN") || "").trim();
+  if (!token) throw new Error("MONDAY_API_TOKEN not set");
+  const res = await fetch(MONDAY_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-10" },
+    body: JSON.stringify({ query, variables }),
+  });
+  const j = await res.json();
+  if (j.errors) throw new Error("Monday API error: " + JSON.stringify(j.errors));
+  return j.data;
+}
+
+async function ensureMondayWebhooks(boardId: string) {
+  const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
+  const data = await mondayApi(`query ($b: ID!) { webhooks(board_id: $b) { id event } }`, { b: boardId });
+  const existing = new Set((data?.webhooks || []).map((w: any) => w.event));
+  for (const event of WEBHOOK_EVENTS) {
+    if (existing.has(event)) continue;
+    await mondayApi(
+      `mutation ($b: ID!, $u: String!, $e: WebhookEventType!) { create_webhook(board_id: $b, url: $u, event: $e) { id } }`,
+      { b: boardId, u: fnUrl, e: event },
+    );
+  }
+}
+
+async function triggerSync(boardId: string) {
+  const secret = Deno.env.get("SYNC_SECRET");
+  const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+  await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: { boardId } }) });
+}
+
+// Wire up Monday for an account if it has a board id. Returns a status string
+// for the admin UI; swallows errors so the save itself always succeeds.
+async function onboardMonday(boardId: unknown): Promise<string | null> {
+  if (!boardId) return null;
+  try {
+    await ensureMondayWebhooks(String(boardId));
+    await triggerSync(String(boardId));
+    return "synced";
+  } catch (e) {
+    return "error: " + String(e);
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -60,15 +112,20 @@ Deno.serve(async (req) => {
       if (!fields.company) return json({ error: "company required" }, 400);
       const { data, error } = await admin.from("accounts").insert(fields).select().single();
       if (error) throw error;
-      return json({ account: data });
+      const monday = await onboardMonday(data.monday_board_id);
+      return json({ account: data, monday });
     }
 
     if (action === "update_account") {
       if (!body.id) return json({ error: "id required" }, 400);
+      const patch = pick(body, ACCOUNT_FIELDS);
       const { data, error } = await admin
-        .from("accounts").update(pick(body, ACCOUNT_FIELDS)).eq("id", body.id).select().single();
+        .from("accounts").update(patch).eq("id", body.id).select().single();
       if (error) throw error;
-      return json({ account: data });
+      // Only (re)wire Monday when the board id was part of this update.
+      const monday = patch.monday_board_id !== undefined
+        ? await onboardMonday(data.monday_board_id) : null;
+      return json({ account: data, monday });
     }
 
     if (action === "delete_account") {

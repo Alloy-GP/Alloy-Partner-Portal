@@ -23,7 +23,7 @@ function AuthGate() {
   const { configured, loading, session, signOut } = useAuth();
   const [me, setMe] = useState(undefined);          // undefined = loading, null = no access
   const [activeAccountId, setActiveAccountId] = useState(null); // staff: client being viewed
-  const [dataReady, setDataReady] = useState(!configured);
+  const [loadedAccountId, setLoadedAccountId] = useState(null); // which account DATA holds
   const [, setTick] = useState(0);                   // bump to re-render after a live refresh
 
   // Who am I — staff or a client (and which account)?
@@ -42,14 +42,15 @@ function AuthGate() {
   useEffect(() => {
     if (!configured || !session || !me || !viewAccountId) return;
     let cancelled = false;
-    setDataReady(false);
     loadAccountData(session, viewAccountId, me)
       .then((data) => {
         if (cancelled) return;
         if (data) { applyData(data); if (!loginLogged) { loginLogged = true; track('login'); } }
-        setDataReady(true);
+        setLoadedAccountId(viewAccountId);
       })
-      .catch(() => { if (!cancelled) setDataReady(true); });
+      // Even on failure, advance so we don't hang on the loader — the dashboard
+      // guards/ErrorBoundary handle missing data gracefully.
+      .catch(() => { if (!cancelled) setLoadedAccountId(viewAccountId); });
     return () => { cancelled = true; };
   }, [configured, session, me, viewAccountId]);
 
@@ -75,8 +76,19 @@ function AuthGate() {
     return () => { clearTimeout(timer); supabase.removeChannel(channel); };
   }, [configured, session, viewAccountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Purple auth splash — only for the pre-session phase.
   const splash = (
     <div className="login-page"><div className="login-bg" aria-hidden="true" /></div>
+  );
+  // Calm, in-app loader for switching accounts (matches the portal chrome, so
+  // entering a client from the portfolio doesn't flash the purple auth screen).
+  const appLoader = (
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--alloy-off-white)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <img src="/alloy-icon.png" alt="" style={{ width: 34, height: 34, borderRadius: 8, opacity: 0.9 }} />
+        <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', fontWeight: 600 }}>Loading…</div>
+      </div>
+    </div>
   );
 
   if (!configured) return <App />;
@@ -90,7 +102,9 @@ function AuthGate() {
     return <AlloyHome onEnter={(id) => setActiveAccountId(id)} onSignOut={signOut} />;
   }
 
-  if (!dataReady) return splash;
+  // Only render the portal once DATA actually holds the account we're viewing —
+  // never flash the previous client's dashboard while the new one loads.
+  if (loadedAccountId !== viewAccountId) return appLoader;
 
   const staffNav = me.isStaff ? { onHome: () => setActiveAccountId(null) } : null;
   return <App session={session} onSignOut={signOut} staffNav={staffNav} />;
