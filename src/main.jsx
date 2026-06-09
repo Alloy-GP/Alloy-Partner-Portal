@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 
 // Register the <image-slot> custom element (side-effect import).
 import './lib/image-slot.js';
@@ -16,6 +17,8 @@ import AuthGate from './AuthGate.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthGate />
+    <BrowserRouter>
+      <AuthGate />
+    </BrowserRouter>
   </React.StrictMode>
 );

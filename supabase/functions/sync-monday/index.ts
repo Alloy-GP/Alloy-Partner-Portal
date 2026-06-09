@@ -23,6 +23,8 @@ const COL_DUE = "18414964193__date_mm3xzf45";
 const COL_PERSON = "person";
 const COL_CATEGORY = "color_mm3qzt0h";
 const COL_TASKID = "18414964193__text_mm3xd56m";
+const COL_ZENDESK = "integration_mm3s7vha";
+const ZENDESK_BASE = "https://alloycreatives.zendesk.com";
 
 // Project status map. "review" is intentionally NOT a project status — review
 // is a ticket concept (the action queue). Waiting/Review projects show as
@@ -61,6 +63,19 @@ function cols(item: any): Record<string, string> {
   for (const c of item.column_values) cv[c.id] = c.text ?? "";
   return cv;
 }
+// The Zendesk integration column stores its ticket ref in `value` (JSON), not
+// `text`: {"entity_id": 6428, "api_ticket_url": "..."}.
+function zendeskRef(item: any): { id: string | null; url: string | null } {
+  const c = item.column_values.find((x: any) => x.id === COL_ZENDESK);
+  if (!c || !c.value) return { id: null, url: null };
+  try {
+    const v = JSON.parse(c.value);
+    if (v && v.entity_id) {
+      return { id: String(v.entity_id), url: `${ZENDESK_BASE}/agent/tickets/${v.entity_id}` };
+    }
+  } catch { /* ignore */ }
+  return { id: null, url: null };
+}
 
 const QUERY = `
   query ($board: [ID!], $groups: [String!]) {
@@ -72,9 +87,10 @@ const QUERY = `
             id
             name
             updated_at
-            column_values(ids: ["${COL_STATUS}","${COL_DUE}","${COL_PERSON}","${COL_CATEGORY}","${COL_TASKID}"]) {
+            column_values(ids: ["${COL_STATUS}","${COL_DUE}","${COL_PERSON}","${COL_CATEGORY}","${COL_TASKID}","${COL_ZENDESK}"]) {
               id
               text
+              value
             }
           }
         }
@@ -163,9 +179,11 @@ Deno.serve(async (req) => {
             const st = cv[COL_STATUS];
             if (ACTION_STATUSES.has(st)) {
               // Waiting on you (action queue)
+              const zd = zendeskRef(it);
               actions.push({
                 account_id: acct.id, monday_item_id: String(it.id), title: it.name,
                 due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null,
+                zendesk_id: zd.id, zendesk_url: zd.url,
                 sort: actions.length,
               });
             } else if (st === "Completed") {

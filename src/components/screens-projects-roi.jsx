@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 
@@ -39,6 +40,7 @@ function ProjEngineChips({ engines }) {
 }
 
 function ProjectsScreen({ onNav }) {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
   // "Waiting on you" mirrors the dashboard action queue: tickets in Review.
   const actionItems = DATA.actionQueue || [];
@@ -60,7 +62,7 @@ function ProjectsScreen({ onNav }) {
           <div className="proj-review-rows">
             {actionItems.map((a, i) => (
               <div key={i} className="proj-review-row">
-                <button className="btn btn-sm btn-primary proj-review-row-btn" onClick={() => onNav && onNav("tickets")}>Open →</button>
+                <button className="btn btn-sm btn-primary proj-review-row-btn" onClick={() => navigate(`/tickets/${a.routeId}`)}>Open →</button>
                 <div className="proj-review-row-title">{a.title}</div>
                 <span className="proj-status-pill" style={{color:"var(--alloy-pink)", background:"var(--alloy-pink-tint)"}}>
                   <span className="dot" style={{background:"var(--alloy-pink)"}}/>In Review

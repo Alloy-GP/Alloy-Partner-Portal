@@ -1,10 +1,18 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { I } from './components/icons.jsx';
 import { DATA } from './data.js';
 import { Sidebar, RisePageHero } from './components/shell.jsx';
 import { Dashboard, DesktopTopBar } from './components/screen-dashboard.jsx';
 import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx';
 import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen } from './components/screens-rest.jsx';
+import TicketDetailPage from './components/TicketDetailPage.jsx';
+
+// Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
+const PATHS = {
+  dashboard: '/', roi: '/roi', projects: '/projects', tickets: '/tickets',
+  playbook: '/playbook', library: '/library', rewards: '/rewards',
+};
 
 // App entry — composes Sidebar + screen
 const { useState, useEffect } = React;
@@ -16,7 +24,11 @@ const TWEAKS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 
 function App({ session, onSignOut } = {}) {
-  const [active, setActive] = useState("dashboard");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const seg = '/' + (location.pathname.split('/')[1] || '');
+  const active = Object.keys(PATHS).find((id) => PATHS[id] === seg) || 'dashboard';
+  const ticketId = active === 'tickets' ? (location.pathname.split('/')[2] || null) : null;
   const [role, setRole] = useState("owner");
   const [editMode, setEditMode] = useState(false);
   const [tweaks, setTweaks] = useState(TWEAKS);
@@ -61,10 +73,11 @@ function App({ session, onSignOut } = {}) {
     rewards: { t: "Recognition", s: "Wins, made tangible" },
   };
 
-  const handleNav = (id) => { setActive(id); setMobileNav(false); window.scrollTo(0,0); };
-  const handleCommand = (cmd) => { if (cmd === "new-ticket") setActive("tickets"); };
+  const handleNav = (id) => { navigate(PATHS[id] || '/'); setMobileNav(false); window.scrollTo(0,0); };
+  const handleCommand = (cmd) => { if (cmd === "new-ticket") navigate('/tickets'); };
 
   const screen = (() => {
+    if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav}/>;
     switch (active) {
       case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
       case "roi": return <ROIScreen/>;

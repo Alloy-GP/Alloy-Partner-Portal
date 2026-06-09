@@ -160,6 +160,8 @@ export async function loadAccountData(session) {
     })),
     actionQueue: (actionRes.data || []).map((a) => ({
       title: a.title, due: a.due_label || '', dueRel: relativeDue(a.due_date),
+      zendeskId: a.zendesk_id || null, zendeskUrl: a.zendesk_url || null,
+      routeId: a.zendesk_id || a.monday_item_id,
     })),
   };
 }

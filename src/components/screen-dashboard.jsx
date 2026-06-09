@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import ProfilePhoto from './ProfilePhoto.jsx';
@@ -458,6 +459,7 @@ function Sparkline({ tone = "pink" }) {
 function ActionQueue({ onNav }) {
   const needsYou = (DATA.actionQueue || []).slice(0, 8);
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quality === "review").length;
+  const navigate = useNavigate();
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon">
       <div className="banner-card-head">
@@ -487,9 +489,9 @@ function ActionQueue({ onNav }) {
         </div>
       ) : (
         <div className="aq-scroll" style={{display:"flex", flexDirection:"column", gap:10}}>
-          {needsYou.map(p => (
-            <div key={p.id} style={{
-              display:"flex", alignItems:"center", gap:14,
+          {needsYou.map((p, i) => (
+            <button key={i} onClick={() => navigate(`/tickets/${p.routeId}`)} style={{
+              display:"flex", alignItems:"center", gap:14, textAlign:"left", width:"100%", cursor:"pointer",
               padding:"14px 16px", background:"var(--alloy-off-white)",
               border:"1px solid var(--border-subtle)", borderRadius:10,
             }}>
@@ -497,7 +499,8 @@ function ActionQueue({ onNav }) {
                 <div style={{fontSize:13.5, fontWeight:700, color:"var(--alloy-purple)"}}>{p.title}</div>
                 <div style={{fontSize:12, color:"var(--fg-muted)", marginTop:2}}>{p.dueRel}</div>
               </div>
-            </div>
+              <span aria-hidden="true" style={{color:"var(--fg-muted)"}}>→</span>
+            </button>
           ))}
         </div>
       )}
