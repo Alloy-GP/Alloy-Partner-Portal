@@ -101,16 +101,24 @@ Deno.serve(async (req) => {
       const { error: invErr } = await admin.from("account_invites").insert(row);
       if (invErr) throw invErr;
 
-      // If that email already has an auth user, provision their profile now
-      // (the signup trigger only fires for brand-new users).
       const { data: uid } = await admin.rpc("auth_uid_by_email", { p_email: email });
+      let emailed = false;
       if (uid) {
+        // Existing user: provision their profile (the signup trigger only
+        // fires for brand-new users). They can sign in anytime.
         await admin.from("profiles").upsert({
           id: uid, account_id: row.account_id, role: row.role,
           is_staff: row.is_staff, name: row.name, initials: row.initials,
         }, { onConflict: "id" });
+      } else {
+        // New user: send an invite email (creates the auth user → the trigger
+        // provisions their profile from the invite we just inserted).
+        try {
+          await admin.auth.admin.inviteUserByEmail(email, body.redirectTo ? { redirectTo: body.redirectTo } : undefined);
+          emailed = true;
+        } catch (_e) { /* user may self-sign-in if allowed; invite row still stands */ }
       }
-      return json({ ok: true });
+      return json({ ok: true, emailed });
     }
 
     if (action === "remove_invite") {

@@ -36,6 +36,7 @@ function AdminScreen() {
   const [invites, setInvites] = useState([]);
   const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'owner' });
   const [busyInvite, setBusyInvite] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const loadAccounts = async (selectAfter) => {
     try {
@@ -87,9 +88,12 @@ function AdminScreen() {
   const addInviteH = async () => {
     const email = inviteForm.email.trim();
     if (!email || selectedId === 'new') return;
-    setBusyInvite(true);
+    setBusyInvite(true); setNotice(''); setError('');
     try {
-      await addInvite(selectedId, inviteForm);
+      const res = await addInvite(selectedId, inviteForm);
+      setNotice(res && res.emailed
+        ? `Invite email sent to ${email}.`
+        : `${email} added — they already have an account and can sign in.`);
       setInviteForm({ email: '', name: '', role: 'owner' });
       const r = await listInvites(selectedId); setInvites(r.invites || []);
     } catch (e) { setError(String(e.message || e)); } finally { setBusyInvite(false); }
@@ -205,8 +209,11 @@ function AdminScreen() {
                     </label>
                     <button className="btn btn-secondary" onClick={addInviteH} disabled={busyInvite || !inviteForm.email.trim()}>Add</button>
                   </div>
+                  {notice ? (
+                    <div style={{ marginTop: 8, background: 'var(--alloy-green-tint)', color: 'var(--dark-green, #2c6e62)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 }}>{notice}</div>
+                  ) : null}
                   <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 8 }}>
-                    Invited people sign in with a magic link and only see this client's data. Removing someone revokes their access.
+                    Adding someone emails them an invite link; they sign in and only see this client's data. Removing them revokes access.
                   </div>
                 </>
               ) : null}
