@@ -16,6 +16,11 @@ export const deleteAccount = (id) => call('delete_account', { id });
 export const getAnalytics = () => call('analytics');
 export const getPortfolio = () => call('portfolio');
 export const listInvites = (accountId) => call('list_invites', { account_id: accountId });
+// Weekly snapshots (staff review queue)
+export const listSnapshots = (accountId) => call('list_snapshots', { account_id: accountId });
+export const pendingSnapshots = () => call('pending_snapshots');
+export const updateSnapshot = (id, fields) => call('update_snapshot', { id, ...fields });
+export const approveSnapshot = (id) => call('approve_snapshot', { id });
 export const addInvite = (accountId, invite) =>
   call('add_invite', { account_id: accountId, redirectTo: window.location.origin, ...invite });
 export const removeInvite = (email) => call('remove_invite', { email });

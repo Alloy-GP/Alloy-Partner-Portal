@@ -309,6 +309,50 @@ Deno.serve(async (req) => {
       });
     }
 
+    // --- weekly snapshots: review queue + edit + publish ---
+    if (action === "list_snapshots") {
+      const q = admin.from("weekly_snapshots").select("*, weekly_snapshot_items(*)").order("created_at", { ascending: false });
+      const { data, error } = body.account_id ? await q.eq("account_id", body.account_id) : await q;
+      if (error) throw error;
+      return json({ snapshots: data });
+    }
+
+    if (action === "pending_snapshots") {
+      // Count of draft snapshots per account (for the Alloy Home review badge).
+      const { data, error } = await admin.from("weekly_snapshots").select("account_id").eq("status", "draft");
+      if (error) throw error;
+      const byAccount: Record<string, number> = {};
+      for (const s of data || []) byAccount[s.account_id] = (byAccount[s.account_id] || 0) + 1;
+      return json({ total: (data || []).length, byAccount });
+    }
+
+    if (action === "update_snapshot") {
+      if (!body.id) return json({ error: "id required" }, 400);
+      const patch: Record<string, unknown> = {};
+      if (body.headline !== undefined) patch.headline = body.headline;
+      if (body.note !== undefined) patch.note = body.note;
+      const { data, error } = await admin.from("weekly_snapshots").update(patch).eq("id", body.id).select().single();
+      if (error) throw error;
+      return json({ snapshot: data });
+    }
+
+    if (action === "approve_snapshot") {
+      if (!body.id) return json({ error: "id required" }, 400);
+      const { data: snap, error: e1 } = await admin
+        .from("weekly_snapshots").select("account_id").eq("id", body.id).maybeSingle();
+      if (e1) throw e1;
+      if (!snap) return json({ error: "not found" }, 404);
+      // Demote the prior current, publish this one.
+      await admin.from("weekly_snapshots").update({ is_current: false })
+        .eq("account_id", snap.account_id).eq("is_current", true);
+      const { error: e2 } = await admin.from("weekly_snapshots")
+        .update({ status: "published", is_current: true, approved_at: new Date().toISOString() })
+        .eq("id", body.id);
+      if (e2) throw e2;
+      // (Phase B will email the client here.)
+      return json({ ok: true });
+    }
+
     return json({ error: "unknown action" }, 400);
   } catch (e) {
     return json({ error: String(e) }, 500);

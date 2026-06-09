@@ -7,12 +7,13 @@ import { Dashboard, DesktopTopBar } from './components/screen-dashboard.jsx';
 import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx';
 import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen } from './components/screens-rest.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
+import SnapshotScreen from './components/SnapshotScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 const PATHS = {
-  dashboard: '/', roi: '/roi', projects: '/projects', tickets: '/tickets',
+  dashboard: '/', snapshot: '/snapshot', roi: '/roi', projects: '/projects', tickets: '/tickets',
   playbook: '/playbook', library: '/library', rewards: '/rewards',
 };
 
@@ -75,6 +76,7 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },
+    snapshot: { t: "Weekly snapshot", s: "Your week with Alloy, every Friday" },
     roi: { t: "ROI & Insight", s: "What Alloy is doing for your top line" },
     projects: { t: "Projects", s: "Live from Monday — every deliverable in motion" },
     tickets: { t: "Tickets", s: "One thread between you and your Alloy team" },
@@ -103,6 +105,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "playbook": return <PlaybookScreen onNav={handleNav}/>;
       case "library": return <LibraryScreen/>;
       case "rewards": return <RecognitionScreen/>;
+      case "snapshot": return <SnapshotScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }
   })();

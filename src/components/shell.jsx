@@ -27,6 +27,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "growth" },
+    { id: "snapshot", label: "Weekly snapshot", icon: I.Calendar, group: "growth" },
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "growth" },
     { id: "projects", label: "Projects", icon: I.Folder, group: "growth", count: openProjects },
     { id: "tickets", label: "Tickets", icon: I.Ticket, group: "account", count: pendingTickets || 0 },

@@ -132,6 +132,9 @@ export async function loadAccountData(session, accountId, me) {
     })),
     weeklySnapshot: {
       weekLabel: snap?.week_label || '',
+      headline: snap?.headline || '',
+      note: snap?.note || '',
+      status: snap?.status || '',
       pdf: snap?.pdf_path || '',
       quarterlyHref: snap?.quarterly_href || 'roi',
       summary: {
@@ -143,6 +146,7 @@ export async function loadAccountData(session, accountId, me) {
       waiting: byKind('waiting'),
       completed: byKind('completed'),
       upcoming: byKind('upcoming'),
+      lead: byKind('lead'),
       past: (snapPastRes.data || []).map((s) => ({ label: s.week_label, file: s.pdf_path })),
     },
     roadmap: (roadmapRes.data || []).map((q) => ({
