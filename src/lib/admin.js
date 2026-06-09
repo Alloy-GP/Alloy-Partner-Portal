@@ -21,6 +21,7 @@ export const listSnapshots = (accountId) => call('list_snapshots', { account_id:
 export const pendingSnapshots = () => call('pending_snapshots');
 export const snapshotQueue = () => call('snapshot_queue');
 export const updateSnapshot = (id, fields) => call('update_snapshot', { id, ...fields });
+export const regenerateSnapshot = (accountId) => call('regenerate_snapshot', { account_id: accountId });
 export const approveSnapshot = (id) => call('approve_snapshot', { id });
 export const addInvite = (accountId, invite) =>
   call('add_invite', { account_id: accountId, redirectTo: window.location.origin, ...invite });

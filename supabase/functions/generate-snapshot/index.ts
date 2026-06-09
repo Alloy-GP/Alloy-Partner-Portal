@@ -22,7 +22,7 @@ function parseMoney(v: string): number {
   return isFinite(n) ? n : 0;
 }
 
-async function generateForAccount(supabase: any, acct: any, now: Date) {
+async function generateForAccount(supabase: any, acct: any, now: Date, preserve = false) {
   // Last published snapshot → diff baseline + period start.
   const { data: prev } = await supabase
     .from("weekly_snapshots")
@@ -69,9 +69,14 @@ async function generateForAccount(supabase: any, acct: any, now: Date) {
   const weekLabel = `Week of ${fmtDay(now)}`;
   const newState = { projects: Object.fromEntries(projs.map((p: any) => [p.monday_item_id, p.status])) };
 
-  // Replace any existing draft for this account (keep published history).
+  // Replace any existing draft for this account (keep published history). On a
+  // staff "refresh from latest", carry over their edited headline + note so a
+  // refresh updates the data without wiping their words.
   const { data: oldDrafts } = await supabase
-    .from("weekly_snapshots").select("id").eq("account_id", acct.id).eq("status", "draft");
+    .from("weekly_snapshots").select("id, headline, note").eq("account_id", acct.id).eq("status", "draft");
+  const prevDraft = (oldDrafts || [])[0];
+  const finalHeadline = (preserve && prevDraft && prevDraft.headline) ? prevDraft.headline : headline;
+  const finalNote = (preserve && prevDraft) ? (prevDraft.note ?? null) : null;
   const oldIds = (oldDrafts || []).map((d: any) => d.id);
   if (oldIds.length) {
     await supabase.from("weekly_snapshot_items").delete().in("snapshot_id", oldIds);
@@ -80,7 +85,7 @@ async function generateForAccount(supabase: any, acct: any, now: Date) {
 
   const { data: snap, error: snapErr } = await supabase.from("weekly_snapshots").insert({
     account_id: acct.id, week_label: weekLabel, status: "draft", is_current: false,
-    headline, note: null,
+    headline: finalHeadline, note: finalNote,
     summary_completed: shipped.length, summary_waiting: waiting.length,
     summary_leads: newLeads.length, leads_value: leadsValue, quarterly_href: "roi",
     period_start: periodStart.toISOString(), period_end: now.toISOString(),
@@ -117,16 +122,24 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Fresh data in: sync Monday before diffing (skippable for quick manual runs).
+    const onlyAccount = body.accountId ? String(body.accountId) : null;
+    const preserve = !!body.preserve;
+    const now = new Date();
+
+    // Fresh data in: sync Monday before diffing (skippable for quick manual
+    // runs). For a single-account refresh, sync just that board (fast) instead
+    // of every client.
     if (!body.skipSync) {
       try {
         const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
-        await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        let syncBody = "{}";
+        if (onlyAccount) {
+          const { data: a } = await supabase.from("accounts").select("monday_board_id").eq("id", onlyAccount).maybeSingle();
+          if (a?.monday_board_id) syncBody = JSON.stringify({ event: { boardId: a.monday_board_id } });
+        }
+        await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: syncBody });
       } catch (_e) { /* generation continues; flags will catch stale/empty data */ }
     }
-
-    const onlyAccount = body.accountId ? String(body.accountId) : null;
-    const now = new Date();
 
     const { data: accounts, error: accErr } = await supabase.from("accounts").select("id, company, short_name, monday_board_id");
     if (accErr) throw accErr;
@@ -136,7 +149,7 @@ Deno.serve(async (req) => {
       if (onlyAccount && acct.id !== onlyAccount) continue;
       // Isolate each client — one failure must not block the others.
       try {
-        const r = await generateForAccount(supabase, acct, now);
+        const r = await generateForAccount(supabase, acct, now, preserve);
         summary.push({ account: acct.id, name: acct.short_name || acct.company, ok: true, ...r });
       } catch (e) {
         summary.push({ account: acct.id, name: acct.short_name || acct.company, ok: false, error: String(e) });

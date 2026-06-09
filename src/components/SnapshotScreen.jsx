@@ -1,7 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
-import { listSnapshots, updateSnapshot, approveSnapshot } from '../lib/admin.js';
+import { listSnapshots, updateSnapshot, approveSnapshot, regenerateSnapshot } from '../lib/admin.js';
 
 const { useState, useEffect } = React;
 
@@ -118,6 +118,19 @@ function SnapshotScreen() {
     : null;
 
   const save = async () => { setBusy(true); setMsg(''); try { await updateSnapshot(draft.id, { headline, note }); setMsg('Saved.'); } catch (e) { setMsg(String(e.message || e)); } finally { setBusy(false); } };
+
+  // Pull the latest Monday data into the draft (keeps the headline + note).
+  const refresh = async () => {
+    setBusy(true); setMsg('Refreshing from Monday…');
+    try {
+      await updateSnapshot(draft.id, { headline, note }); // persist edits before regen carries them over
+      await regenerateSnapshot(DATA.account.id);
+      const r = await listSnapshots(DATA.account.id);
+      const d = (r.snapshots || []).find((s) => s.status === 'draft');
+      if (d) { setDraft(d); setHeadline(d.headline || ''); setNote(d.note || ''); }
+      setMsg('Refreshed with the latest data.');
+    } catch (e) { setMsg(String(e.message || e)); } finally { setBusy(false); }
+  };
   const publish = async () => {
     setBusy(true); setMsg('');
     try {
@@ -149,6 +162,7 @@ function SnapshotScreen() {
             <textarea className="input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="A personal line — what to celebrate, what's next…" style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }} />
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button className="btn btn-secondary btn-sm" onClick={refresh} disabled={busy} title="Re-pull the latest Monday data into this draft">↻ Refresh from latest</button>
             <button className="btn btn-secondary btn-sm" onClick={save} disabled={busy}>Save draft</button>
             <button className="btn btn-primary btn-sm" onClick={publish} disabled={busy}>{busy ? 'Publishing…' : 'Publish & send'}</button>
             {msg ? <span style={{ fontSize: 12.5, color: '#8a6900', fontWeight: 600 }}>{msg}</span> : null}

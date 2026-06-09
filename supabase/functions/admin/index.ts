@@ -468,6 +468,20 @@ Deno.serve(async (req) => {
       return json({ queue: rows, drafts: rows.filter((r: any) => r.draftId).length, flagged: rows.filter((r: any) => r.flags.length).length });
     }
 
+    if (action === "regenerate_snapshot") {
+      // Staff "refresh from latest": re-pull this client's Monday board and
+      // rebuild the draft, keeping the edited headline + note.
+      if (!body.account_id) return json({ error: "account_id required" }, 400);
+      const secret = Deno.env.get("SYNC_SECRET");
+      const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-snapshot${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+      const r = await fetch(u, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: body.account_id, preserve: true }),
+      });
+      const result = await r.json().catch(() => ({}));
+      return json({ ok: true, result });
+    }
+
     if (action === "update_snapshot") {
       if (!body.id) return json({ error: "id required" }, 400);
       const patch: Record<string, unknown> = {};
