@@ -120,8 +120,15 @@ function SnapshotScreen() {
   const save = async () => { setBusy(true); setMsg(''); try { await updateSnapshot(draft.id, { headline, note }); setMsg('Saved.'); } catch (e) { setMsg(String(e.message || e)); } finally { setBusy(false); } };
   const publish = async () => {
     setBusy(true); setMsg('');
-    try { await updateSnapshot(draft.id, { headline, note }); await approveSnapshot(draft.id); setMsg('Published — it’s now live for the client.'); setDraft(null); }
-    catch (e) { setMsg(String(e.message || e)); } finally { setBusy(false); }
+    try {
+      await updateSnapshot(draft.id, { headline, note });
+      const res = await approveSnapshot(draft.id);
+      const e = res && res.email;
+      setMsg(e && e.sent > 0
+        ? `Published & emailed to ${e.sent} ${e.sent === 1 ? 'person' : 'people'}.`
+        : `Published — live for the client.${e && e.error ? ` (No email: ${e.error})` : ''}`);
+      setDraft(null);
+    } catch (e) { setMsg(String(e.message || e)); } finally { setBusy(false); }
   };
 
   return (
@@ -131,7 +138,7 @@ function SnapshotScreen() {
         <div className="card card-pad" style={{ marginBottom: 20, border: '1px solid var(--alloy-yellow)', background: 'var(--alloy-yellow-tint)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: '#8a6900' }}>Draft — not sent yet</span>
-            <span style={{ fontSize: 12, color: '#8a6900' }}>Review, tweak the headline/note, then publish to the client.</span>
+            <span style={{ fontSize: 12, color: '#8a6900' }}>Review, tweak the headline/note, then publish — it emails the client's portal users.</span>
           </div>
           <label style={{ display: 'block', marginBottom: 8 }}>
             <span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-muted)', marginBottom: 4 }}>Headline</span>
@@ -143,7 +150,7 @@ function SnapshotScreen() {
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button className="btn btn-secondary btn-sm" onClick={save} disabled={busy}>Save draft</button>
-            <button className="btn btn-primary btn-sm" onClick={publish} disabled={busy}>{busy ? 'Publishing…' : 'Publish to client'}</button>
+            <button className="btn btn-primary btn-sm" onClick={publish} disabled={busy}>{busy ? 'Publishing…' : 'Publish & send'}</button>
             {msg ? <span style={{ fontSize: 12.5, color: '#8a6900', fontWeight: 600 }}>{msg}</span> : null}
           </div>
         </div>

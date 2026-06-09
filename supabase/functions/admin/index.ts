@@ -76,6 +76,92 @@ async function onboardMonday(boardId: unknown): Promise<string | null> {
   }
 }
 
+// --- Weekly snapshot email (Resend) ----------------------------------------
+const PORTAL_URL = "https://partner.alloygp.co";
+const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
+
+function esc(s: unknown): string {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderSnapshotEmail(acct: any, snap: any): string {
+  const items = snap.weekly_snapshot_items || [];
+  const g: Record<string, any[]> = { completed: [], upcoming: [], waiting: [], lead: [] };
+  items.slice().sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0))
+    .forEach((it: any) => { (g[it.kind] || (g[it.kind] = [])).push(it); });
+  const name = acct?.short_name || acct?.company || "your team";
+
+  const section = (emoji: string, title: string, list: any[]) => {
+    if (!list.length) return "";
+    const rows = list.map((it) =>
+      `<tr><td style="padding:7px 0;font-size:14px;color:#2b2b3a;border-bottom:1px solid #efeae2;">${esc(it.text)}${it.meta ? ` <span style="color:#9a9aa8;font-size:12px;">${esc(it.meta)}</span>` : ""}</td></tr>`).join("");
+    return `<tr><td style="padding:20px 0 6px;"><div style="font-family:Georgia,'Times New Roman',serif;font-weight:bold;font-size:15px;color:#4b2e83;">${emoji}&nbsp; ${title}</div></td></tr><tr><td><table width="100%" cellpadding="0" cellspacing="0" role="presentation">${rows}</table></td></tr>`;
+  };
+  const stat = (n: string | number, label: string, color: string) =>
+    `<td align="center" width="33%" style="padding:14px 6px;background:#faf7f2;border-radius:10px;"><div style="font-family:Georgia,serif;font-weight:bold;font-size:26px;color:${color};line-height:1;">${esc(n)}</div><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#9a9aa8;margin-top:6px;">${esc(label)}</div></td>`;
+  const leadsStat = (snap.summary_leads || 0) + (snap.leads_value ? ` · ${snap.leads_value}` : "");
+
+  const note = snap.note
+    ? `<tr><td style="padding:18px 0 0;"><div style="background:#f1ecfb;border-radius:10px;padding:16px 18px;"><div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#4b2e83;margin-bottom:6px;">A note from your Alloy team</div><div style="font-size:14px;color:#2b2b3a;line-height:1.55;">${esc(snap.note).replace(/\n/g, "<br>")}</div></div></td></tr>`
+    : "";
+
+  return `<!doctype html><html><body style="margin:0;background:#f3eee6;padding:24px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;">
+    <tr><td style="background:#2e1a5e;padding:22px 28px;">
+      <div style="color:#ffffff;font-family:Georgia,serif;font-weight:bold;font-size:17px;">Alloy — Weekly Snapshot</div>
+      <div style="color:#c9bce6;font-size:12.5px;margin-top:2px;">${esc(name)} · ${esc(snap.week_label || "")}</div>
+    </td></tr>
+    <tr><td style="padding:26px 28px 8px;">
+      <div style="font-family:Georgia,serif;font-weight:bold;font-size:22px;color:#4b2e83;line-height:1.3;">${esc(snap.headline || "Your week at a glance")}</div>
+    </td></tr>
+    <tr><td style="padding:12px 28px 4px;">
+      <table width="100%" cellpadding="0" cellspacing="6" role="presentation"><tr>
+        ${stat(snap.summary_completed || 0, "Shipped", "#2c8a6e")}
+        ${stat(leadsStat, "New leads", "#4b2e83")}
+        ${stat(snap.summary_waiting || 0, "Waiting on you", "#e6447d")}
+      </tr></table>
+    </td></tr>
+    <tr><td style="padding:4px 28px 8px;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      ${section("✅", "Shipped this week", g.completed)}
+      ${section("🔧", "In motion", g.upcoming)}
+      ${section("📥", "New leads", g.lead)}
+      ${section("⏳", "Waiting on you", g.waiting)}
+      ${note}
+    </table></td></tr>
+    <tr><td align="center" style="padding:22px 28px 28px;">
+      <a href="${PORTAL_URL}" style="display:inline-block;background:#4b2e83;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:9px;">Open your portal →</a>
+    </td></tr>
+    <tr><td style="background:#faf7f2;padding:16px 28px;text-align:center;">
+      <div style="font-size:11.5px;color:#9a9aa8;">Sent by Alloy Growth Partners · <a href="${PORTAL_URL}" style="color:#9a9aa8;">partner.alloygp.co</a></div>
+    </td></tr>
+  </table></body></html>`;
+}
+
+// Send the published snapshot to the account's portal client users (non-staff
+// invites), one private email each. Best-effort: never blocks publishing.
+async function sendSnapshotEmail(admin: any, snapshotId: string) {
+  const key = Deno.env.get("RESEND_API_KEY");
+  if (!key) return { sent: 0, error: "RESEND_API_KEY not set" };
+  const { data: snap } = await admin.from("weekly_snapshots").select("*, weekly_snapshot_items(*)").eq("id", snapshotId).maybeSingle();
+  if (!snap) return { sent: 0, error: "snapshot not found" };
+  const { data: acct } = await admin.from("accounts").select("company, short_name, logo_url").eq("id", snap.account_id).maybeSingle();
+  const { data: invites } = await admin.from("account_invites").select("email, is_staff").eq("account_id", snap.account_id);
+  const to = (invites || []).filter((i: any) => !i.is_staff && i.email).map((i: any) => i.email);
+  if (!to.length) return { sent: 0, error: "no client recipients" };
+
+  const html = renderSnapshotEmail(acct, snap);
+  const subject = `Your Alloy weekly snapshot · ${snap.week_label || ""}`.trim();
+  // Batch = one private message per recipient (no shared To/CC).
+  const batch = to.map((addr: string) => ({ from: FROM, to: [addr], subject, html }));
+  const res = await fetch("https://api.resend.com/emails/batch", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify(batch),
+  });
+  if (!res.ok) return { sent: 0, error: `resend ${res.status}: ${await res.text()}` };
+  return { sent: to.length };
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -389,8 +475,10 @@ Deno.serve(async (req) => {
         .update({ status: "published", is_current: true, approved_at: new Date().toISOString() })
         .eq("id", body.id);
       if (e2) throw e2;
-      // (Phase B will email the client here.)
-      return json({ ok: true });
+      // Email the client's portal users (best-effort — publish already stuck).
+      const email = body.skipEmail ? { sent: 0, skipped: true } : await sendSnapshotEmail(admin, body.id);
+      if (email.sent > 0) await admin.from("weekly_snapshots").update({ sent_at: new Date().toISOString() }).eq("id", body.id);
+      return json({ ok: true, email });
     }
 
     return json({ error: "unknown action" }, 400);

@@ -82,7 +82,7 @@ function SnapshotQueue({ onReview }) {
                 <>
                   <button className="btn btn-secondary btn-sm" onClick={() => onReview(r.id)} style={{ flexShrink: 0 }}>Review</button>
                   <button className="btn btn-primary btn-sm" onClick={() => publish(r.draftId)} disabled={busy === r.draftId} style={{ flexShrink: 0 }}>
-                    {busy === r.draftId ? '…' : 'Publish'}
+                    {busy === r.draftId ? '…' : 'Publish & send'}
                   </button>
                 </>
               ) : (
