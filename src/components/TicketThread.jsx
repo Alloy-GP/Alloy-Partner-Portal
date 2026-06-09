@@ -1,6 +1,6 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { zdThread, zdReply } from '../lib/zendesk.js';
+import { zdThread, zdReply, zdResolve } from '../lib/zendesk.js';
 
 const { useState, useEffect } = React;
 
@@ -40,12 +40,13 @@ function Bubble({ m }) {
  * Renders one Zendesk ticket's public conversation, with a reply box.
  * `id` is the Zendesk ticket id. Re-fetches whenever the id changes.
  */
-function TicketThread({ id }) {
+function TicketThread({ id, onChanged }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  const [resolving, setResolving] = useState(false);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -69,10 +70,24 @@ function TicketThread({ id }) {
       await zdReply(id, text);
       setReply('');
       await load();
+      if (onChanged) onChanged();
     } catch (e) {
       setError(String(e.message || e));
     } finally {
       setSending(false);
+    }
+  };
+
+  const resolve = async () => {
+    setResolving(true);
+    try {
+      await zdResolve(id);
+      await load();
+      if (onChanged) onChanged();
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -88,12 +103,19 @@ function TicketThread({ id }) {
 
   return (
     <>
-      <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border-subtle)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>#{data.ticket.id}</span>
-          <span className="tag tag-outline" style={{ textTransform: 'capitalize' }}>{data.ticket.status}</span>
+      <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>#{data.ticket.id}</span>
+            <span className="tag tag-outline" style={{ textTransform: 'capitalize' }}>{data.ticket.status}</span>
+          </div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--alloy-purple)' }}>{data.ticket.title}</div>
         </div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--alloy-purple)' }}>{data.ticket.title}</div>
+        {!['solved', 'closed'].includes(data.ticket.status) ? (
+          <button className="btn btn-secondary btn-sm" onClick={resolve} disabled={resolving} style={{ flexShrink: 0 }}>
+            {resolving ? 'Resolving…' : 'Mark resolved'}
+          </button>
+        ) : null}
       </div>
 
       <div style={{ padding: '22px', flex: 1, overflowY: 'auto', background: 'var(--alloy-off-white)', display: 'flex', flexDirection: 'column', gap: 14 }}>

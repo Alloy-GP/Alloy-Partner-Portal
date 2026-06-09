@@ -16,18 +16,16 @@ function TicketsScreen() {
   const [activeId, setActiveId] = useState(null);
   const [filter, setFilter] = useState("open");
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadList = () => {
     zdList()
       .then((res) => {
-        if (cancelled) return;
         const list = (res && res.tickets) || [];
         setTickets(list);
-        if (list.length) setActiveId((cur) => cur || list[0].id);
+        setActiveId((cur) => cur || (list[0] && list[0].id) || null);
       })
-      .catch((e) => { if (!cancelled) { setError(String(e.message || e)); setTickets([]); } });
-    return () => { cancelled = true; };
-  }, []);
+      .catch((e) => { setError(String(e.message || e)); setTickets([]); });
+  };
+  useEffect(() => { loadList(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isOpen = (t) => t.status !== "solved" && t.status !== "closed";
   const all = tickets || [];
@@ -75,7 +73,7 @@ function TicketsScreen() {
         {/* Right detail */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           {activeId ? (
-            <TicketThread id={activeId} />
+            <TicketThread id={activeId} onChanged={loadList} />
           ) : (
             <div style={{ padding: "40px 22px", fontSize: 13, color: "var(--fg-muted)" }}>
               {tickets === null ? "" : "Select a ticket to view the conversation."}

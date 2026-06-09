@@ -164,6 +164,15 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    // --- client marks the ticket resolved (Zendesk "solved") ---
+    if (action === "resolve") {
+      const id = String(body.id);
+      const t = await zd(`/tickets/${id}.json`);
+      if (String(t.ticket.organization_id) !== String(orgId)) return json({ error: "forbidden" }, 403);
+      await zd(`/tickets/${id}.json`, { method: "PUT", body: JSON.stringify({ ticket: { status: "solved" } }) });
+      return json({ ok: true });
+    }
+
     return json({ error: "unknown action" }, 400);
   } catch (e) {
     return json({ error: String(e) }, 500);
