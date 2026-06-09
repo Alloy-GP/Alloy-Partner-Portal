@@ -26,8 +26,15 @@ async function zd(path: string, init?: RequestInit) {
   return res.json();
 }
 
+// Called from the browser (supabase.functions.invoke) → needs CORS.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
 function mapTicket(t: any) {
   return {
@@ -42,7 +49,7 @@ function mapTicket(t: any) {
 
 Deno.serve(async (req) => {
   try {
-    if (req.method === "OPTIONS") return new Response("ok");
+    if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
     const authorization = req.headers.get("Authorization") || "";
     if (!authorization) return json({ error: "unauthorized" }, 401);
