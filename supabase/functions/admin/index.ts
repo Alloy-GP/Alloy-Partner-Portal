@@ -140,6 +140,13 @@ Deno.serve(async (req) => {
       const { data: accts } = await admin.from("accounts").select("id, short_name, company");
       const nameOf: Record<string, string> = {};
       for (const a of accts || []) nameOf[a.id] = a.short_name || a.company;
+      // user display names + how many people are invited per account
+      const { data: profs } = await admin.from("profiles").select("id, name");
+      const userName: Record<string, string> = {};
+      for (const p of profs || []) userName[p.id] = p.name || "";
+      const { data: invs } = await admin.from("account_invites").select("account_id");
+      const invitedCount: Record<string, number> = {};
+      for (const iv of invs || []) invitedCount[iv.account_id] = (invitedCount[iv.account_id] || 0) + 1;
 
       // 14-day buckets for the activity chart.
       const daily: Record<string, number> = {};
@@ -150,6 +157,7 @@ Deno.serve(async (req) => {
       }
 
       const perAccount: Record<string, any> = {};
+      const perUser: Record<string, any> = {};
       const screens: Record<string, number> = {};
       const users = new Set<string>();
       let logins = 0, views = 0;
@@ -162,7 +170,16 @@ Deno.serve(async (req) => {
         });
         pa.events++;
         if (e.created_at > pa.lastActive) pa.lastActive = e.created_at;
-        if (e.user_id) { pa.users.add(e.user_id); users.add(e.user_id); }
+        if (e.user_id) {
+          pa.users.add(e.user_id); users.add(e.user_id);
+          const pu = perUser[e.user_id] || (perUser[e.user_id] = {
+            user_id: e.user_id, account_id: aid, logins: 0, views: 0, events: 0, lastActive: e.created_at,
+          });
+          pu.events++;
+          if (e.created_at > pu.lastActive) pu.lastActive = e.created_at;
+          if (e.type === "login") pu.logins++;
+          if (e.type === "view") pu.views++;
+        }
         if (e.type === "login") { pa.logins++; logins++; }
         if (e.type === "view") {
           pa.views++; views++;
@@ -174,7 +191,14 @@ Deno.serve(async (req) => {
       }
 
       const perAccountArr = Object.values(perAccount)
-        .map((p: any) => ({ ...p, users: p.users.size }))
+        .map((p: any) => ({ ...p, users: p.users.size, invited: invitedCount[p.account_id] || 0 }))
+        .sort((a: any, b: any) => String(b.lastActive).localeCompare(String(a.lastActive)));
+      const perUserArr = Object.values(perUser)
+        .map((u: any) => ({
+          ...u,
+          name: userName[u.user_id] || `User ${String(u.user_id).slice(0, 6)}`,
+          account: nameOf[u.account_id] || "Unknown",
+        }))
         .sort((a: any, b: any) => String(b.lastActive).localeCompare(String(a.lastActive)));
       const screensArr = Object.entries(screens)
         .map(([screen, count]) => ({ screen, count })).sort((a, b) => b.count - a.count);
@@ -183,7 +207,7 @@ Deno.serve(async (req) => {
       return json({
         analytics: {
           totals: { logins, views, activeUsers: users.size, activeAccounts: perAccountArr.length },
-          perAccount: perAccountArr, screens: screensArr, daily: dailyArr,
+          perAccount: perAccountArr, perUser: perUserArr, screens: screensArr, daily: dailyArr,
         },
       });
     }

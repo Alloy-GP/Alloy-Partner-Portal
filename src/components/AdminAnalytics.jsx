@@ -32,7 +32,7 @@ function AdminAnalytics() {
   if (error) return <div className="card card-pad" style={{ color: 'var(--alloy-pink)', fontSize: 13 }}>Couldn’t load analytics. {error}</div>;
   if (!data) return <div className="card card-pad" style={{ color: 'var(--fg-muted)', fontSize: 13 }}>Loading analytics…</div>;
 
-  const { totals, perAccount, screens, daily } = data;
+  const { totals, perAccount, perUser = [], screens, daily } = data;
   const maxDay = Math.max(1, ...daily.map((d) => d.count));
   const maxScreen = Math.max(1, ...screens.map((s) => s.count));
 
@@ -66,16 +66,37 @@ function AdminAnalytics() {
       <div className="card card-pad">
         <div className="section-title" style={{ marginTop: 0 }}><span className="pip" />By client</div>
         <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.2fr', gap: 8, padding: '8px 14px', background: 'var(--alloy-off-white)', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-muted)' }}>
-            <div>Client</div><div>Users</div><div>Logins</div><div>Views</div><div>Last active</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1.2fr', gap: 8, padding: '8px 14px', background: 'var(--alloy-off-white)', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-muted)' }}>
+            <div>Client</div><div>Active / invited</div><div>Logins</div><div>Views</div><div>Last active</div>
           </div>
           {perAccount.length === 0 ? (
             <div style={{ padding: 14, fontSize: 13, color: 'var(--fg-muted)' }}>No activity yet.</div>
           ) : perAccount.map((p) => (
-            <div key={p.account_id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.2fr', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border-subtle)', fontSize: 13, alignItems: 'center' }}>
+            <div key={p.account_id} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1.2fr', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border-subtle)', fontSize: 13, alignItems: 'center' }}>
               <div style={{ fontWeight: 700, color: 'var(--alloy-purple)' }}>{p.name}</div>
-              <div>{p.users}</div><div>{p.logins}</div><div>{p.views}</div>
+              <div><strong>{p.users}</strong><span style={{ color: 'var(--fg-muted)' }}> / {p.invited || 0}</span></div>
+              <div>{p.logins}</div><div>{p.views}</div>
               <div style={{ color: 'var(--fg-muted)' }}>{relTime(p.lastActive)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* By person */}
+      <div className="card card-pad">
+        <div className="section-title" style={{ marginTop: 0 }}><span className="pip" />By person</div>
+        <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.4fr 1fr 1fr 1.2fr', gap: 8, padding: '8px 14px', background: 'var(--alloy-off-white)', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-muted)' }}>
+            <div>Person</div><div>Client</div><div>Logins</div><div>Views</div><div>Last active</div>
+          </div>
+          {perUser.length === 0 ? (
+            <div style={{ padding: 14, fontSize: 13, color: 'var(--fg-muted)' }}>No activity yet.</div>
+          ) : perUser.map((u) => (
+            <div key={u.user_id} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.4fr 1fr 1fr 1.2fr', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border-subtle)', fontSize: 13, alignItems: 'center' }}>
+              <div style={{ fontWeight: 700, color: 'var(--alloy-purple)' }}>{u.name}</div>
+              <div style={{ color: 'var(--fg-3)' }}>{u.account}</div>
+              <div>{u.logins}</div><div>{u.views}</div>
+              <div style={{ color: 'var(--fg-muted)' }}>{relTime(u.lastActive)}</div>
             </div>
           ))}
         </div>
