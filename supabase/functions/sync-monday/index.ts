@@ -160,11 +160,24 @@ Deno.serve(async (req) => {
               last_touch: updLabel, note: cat || null, sort: services.length,
             });
           } else if (g.id === TICKETS_GROUP) {
-            if (ACTION_STATUSES.has(cv[COL_STATUS])) {
+            const st = cv[COL_STATUS];
+            if (ACTION_STATUSES.has(st)) {
+              // Waiting on you (action queue)
               actions.push({
                 account_id: acct.id, monday_item_id: String(it.id), title: it.name,
                 due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null,
                 sort: actions.length,
+              });
+            } else if (st === "Completed") {
+              // A finished ticket still shows in the completed tasks list.
+              projects.push({
+                account_id: acct.id, monday_item_id: String(it.id),
+                code: cv[COL_TASKID] || null, title: it.name,
+                phase: cv[COL_CATEGORY] || null, engines: [],
+                status: "live", pct: 100,
+                due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null, due_rel: null,
+                owners: (cv[COL_PERSON] || "").split(",").map((s) => initials(s)).filter(Boolean),
+                pulse: updLabel, sort: projects.length,
               });
             }
           }

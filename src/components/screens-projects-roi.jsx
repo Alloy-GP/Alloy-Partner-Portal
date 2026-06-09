@@ -96,8 +96,10 @@ function ProjectsScreen({ onNav }) {
             <div>Status</div>
             <div>Due</div>
           </div>
-          {filtered.map(p => (
-            <div key={p.id} className="proj-table-row">
+          {filtered.map(p => {
+            const st = PROJ_ST[p.status] || PROJ_ST["in-progress"];
+            return (
+            <div key={p.id} className="proj-table-row" style={{background: `${st.color}12`, boxShadow: `inset 3px 0 0 ${st.color}`}}>
               <div className="proj-table-project">
                 <div className="proj-table-title">{p.title}</div>
                 <div className="proj-table-pulse">{p.pulse}</div>
@@ -109,7 +111,8 @@ function ProjectsScreen({ onNav }) {
                 <div className="proj-table-duerel">{p.dueRel}</div>
               </div>
             </div>
-          ))}
+            );
+          })}
           {filtered.length === 0 ? (
             <div style={{padding:"32px 16px", textAlign:"center", fontSize:13, color:"var(--fg-muted)"}}>
               Nothing here. Try a different filter.
