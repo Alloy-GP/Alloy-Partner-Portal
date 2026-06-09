@@ -1,9 +1,9 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
-import { zdThread, zdReply, zdResolve } from '../lib/zendesk.js';
+import { zdThread, zdReply, zdResolve, zdUpload, zdAddCc } from '../lib/zendesk.js';
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 function relTime(iso) {
   if (!iso) return '';
@@ -16,9 +16,35 @@ function relTime(iso) {
 function initials(name) {
   return (name || '').split(' ').map((w) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase();
 }
+function fmtSize(b) {
+  if (!b) return '';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / 1048576).toFixed(1)} MB`;
+}
+
+function Attachment({ a }) {
+  const isImg = (a.contentType || '').startsWith('image/') && (a.thumb || a.url);
+  if (isImg) {
+    return (
+      <a href={a.url} target="_blank" rel="noreferrer" title={a.name} style={{ display: 'inline-block' }}>
+        <img src={a.thumb || a.url} alt={a.name}
+          style={{ maxWidth: 220, maxHeight: 170, borderRadius: 8, display: 'block', border: '1px solid var(--border-subtle)' }} />
+      </a>
+    );
+  }
+  return (
+    <a href={a.url} target="_blank" rel="noreferrer"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, padding: '7px 11px', background: 'var(--alloy-off-white)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--alloy-purple)', textDecoration: 'none', fontWeight: 600 }}>
+      <I.Paperclip width={13} height={13} /> {a.name}
+      {a.size ? <span style={{ color: 'var(--fg-muted)', fontWeight: 500 }}>{fmtSize(a.size)}</span> : null}
+    </a>
+  );
+}
 
 function Bubble({ m }) {
   const mine = m.mine;
+  const atts = m.attachments || [];
   return (
     <div style={{ display: 'flex', gap: 10, flexDirection: mine ? 'row-reverse' : 'row', maxWidth: '85%', alignSelf: mine ? 'flex-end' : 'flex-start' }}>
       <div style={{ width: 32, height: 32, borderRadius: 999, display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 800, background: mine ? 'linear-gradient(135deg, var(--alloy-yellow), var(--alloy-pink))' : 'var(--alloy-purple)', color: mine ? 'var(--alloy-purple)' : '#fff' }}>
@@ -29,9 +55,16 @@ function Bubble({ m }) {
           <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--alloy-purple)' }}>{m.author}</span>
           <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{relTime(m.created_at)}</span>
         </div>
-        <div style={{ padding: '12px 14px', background: mine ? 'var(--alloy-purple)' : '#fff', color: mine ? '#fff' : 'var(--fg-3)', borderRadius: 10, fontSize: 13.5, lineHeight: 1.5, border: mine ? 'none' : '1px solid var(--border-subtle)', whiteSpace: 'pre-wrap' }}>
-          {m.body}
-        </div>
+        {m.body && m.body.trim() ? (
+          <div style={{ padding: '12px 14px', background: mine ? 'var(--alloy-purple)' : '#fff', color: mine ? '#fff' : 'var(--fg-3)', borderRadius: 10, fontSize: 13.5, lineHeight: 1.5, border: mine ? 'none' : '1px solid var(--border-subtle)', whiteSpace: 'pre-wrap' }}>
+            {m.body}
+          </div>
+        ) : null}
+        {atts.length ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: m.body && m.body.trim() ? 8 : 0, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+            {atts.map((a) => <Attachment key={a.id} a={a} />)}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -46,8 +79,13 @@ function TicketThread({ id, onChanged }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reply, setReply] = useState('');
+  const [files, setFiles] = useState([]);          // staged File objects to attach
+  const [cc, setCc] = useState('');                // comma-separated CCs for this reply
   const [sending, setSending] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [addingCc, setAddingCc] = useState(false);
+  const [newCc, setNewCc] = useState('');          // header "add CC" field
+  const fileInput = useRef(null);
   const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [replyStatus, setReplyStatus] = useState('pending'); // staff-only: status after reply
 
@@ -63,21 +101,43 @@ function TicketThread({ id, onChanged }) {
     }
   };
 
-  useEffect(() => { if (id) load(); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => { if (id) { setReply(''); setFiles([]); setCc(''); setNewCc(''); load(); } /* eslint-disable-next-line */ }, [id]);
 
   const send = async () => {
     const text = reply.trim();
-    if (!text) return;
+    if (!text && files.length === 0) return;
     setSending(true);
     try {
-      await zdReply(id, text, isStaff ? replyStatus : undefined);
-      setReply('');
+      // Stage any attachments first, then post the reply with their tokens.
+      const uploads = [];
+      for (const f of files) {
+        const token = await zdUpload(f);
+        if (token) uploads.push(token);
+      }
+      const ccArr = cc.split(',').map((s) => s.trim()).filter(Boolean);
+      await zdReply(id, text, { status: isStaff ? replyStatus : undefined, uploads, cc: ccArr });
+      setReply(''); setFiles([]); setCc('');
       await load();
       if (onChanged) onChanged();
     } catch (e) {
       setError(String(e.message || e));
     } finally {
       setSending(false);
+    }
+  };
+
+  const addCc = async () => {
+    const emails = newCc.split(',').map((s) => s.trim()).filter(Boolean);
+    if (!emails.length) return;
+    setAddingCc(true);
+    try {
+      await zdAddCc(id, emails);
+      setNewCc('');
+      await load();
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setAddingCc(false);
     }
   };
 
@@ -104,21 +164,52 @@ function TicketThread({ id, onChanged }) {
     return <div style={{ padding: '40px 22px', color: 'var(--fg-muted)', fontSize: 13 }}>This ticket isn’t available.</div>;
   }
 
+  const t = data.ticket;
+  const ccs = data.ccs || [];
+
   return (
     <>
-      <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>#{data.ticket.id}</span>
-            <span className="tag tag-outline" style={{ textTransform: 'capitalize' }}>{data.ticket.status}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>#{t.id}</span>
+            <span className="tag tag-outline" style={{ textTransform: 'capitalize' }}>{t.status}</span>
           </div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--alloy-purple)' }}>{data.ticket.title}</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--alloy-purple)' }}>{t.title}</div>
+          {/* Requester — so the team knows whose ticket this is */}
+          {t.requester ? (
+            <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>
+              From <strong style={{ color: 'var(--fg-3)' }}>{t.requester}</strong>
+              {t.requesterEmail ? <span> · {t.requesterEmail}</span> : null}
+            </div>
+          ) : null}
         </div>
-        {!['solved', 'closed'].includes(data.ticket.status) ? (
+        {!['solved', 'closed'].includes(t.status) ? (
           <button className="btn btn-secondary btn-sm" onClick={resolve} disabled={resolving} style={{ flexShrink: 0 }}>
             {resolving ? 'Resolving…' : 'Mark resolved'}
           </button>
         ) : null}
+      </div>
+
+      {/* CC row — current collaborators + add a CC */}
+      <div style={{ padding: '8px 22px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--alloy-off-white)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>CC</span>
+        {ccs.length ? ccs.map((c, i) => (
+          <span key={i} title={c.email || c.name} style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: 'var(--alloy-purple-tint)', color: 'var(--alloy-purple)' }}>
+            {c.name}
+          </span>
+        )) : <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>No one CC’d yet</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <input
+            className="input" value={newCc} onChange={(e) => setNewCc(e.target.value)}
+            placeholder="email to CC" disabled={addingCc}
+            onKeyDown={(e) => { if (e.key === 'Enter') addCc(); }}
+            style={{ fontSize: 12, padding: '5px 9px', width: 200 }}
+          />
+          <button className="btn btn-sm btn-secondary" onClick={addCc} disabled={addingCc || !newCc.trim()}>
+            {addingCc ? 'Adding…' : 'Add'}
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '22px', flex: 1, overflowY: 'auto', background: 'var(--alloy-off-white)', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -128,6 +219,24 @@ function TicketThread({ id, onChanged }) {
       </div>
 
       <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border-subtle)', background: '#fff' }}>
+        {/* Staged attachment chips */}
+        {files.length ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {files.map((f, i) => (
+              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, padding: '4px 8px', background: 'var(--alloy-off-white)', border: '1px solid var(--border-subtle)', borderRadius: 7, color: 'var(--fg-3)' }}>
+                <I.Paperclip width={12} height={12} /> {f.name}
+                <button onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label="Remove"
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontWeight: 700, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {/* CC for this reply (optional) */}
+        <input
+          className="input" value={cc} onChange={(e) => setCc(e.target.value)}
+          placeholder="CC on this reply (comma-separated emails) — optional"
+          style={{ fontSize: 12, padding: '6px 10px', marginBottom: 8 }}
+        />
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <textarea
             className="input" rows={2} placeholder="Reply to your team…"
@@ -135,6 +244,13 @@ function TicketThread({ id, onChanged }) {
             value={reply} onChange={(e) => setReply(e.target.value)} disabled={sending}
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch', flexShrink: 0 }}>
+            <input
+              ref={fileInput} type="file" multiple style={{ display: 'none' }}
+              onChange={(e) => { setFiles([...files, ...Array.from(e.target.files || [])]); e.target.value = ''; }}
+            />
+            <button className="btn btn-secondary btn-sm" onClick={() => fileInput.current && fileInput.current.click()} disabled={sending} title="Attach files">
+              <I.Paperclip width={13} height={13} /> Attach
+            </button>
             {isStaff ? (
               <select
                 className="input" value={replyStatus} onChange={(e) => setReplyStatus(e.target.value)}
@@ -145,7 +261,7 @@ function TicketThread({ id, onChanged }) {
                 <option value="solved">Mark solved</option>
               </select>
             ) : null}
-            <button className="btn btn-primary" onClick={send} disabled={sending || !reply.trim()}>
+            <button className="btn btn-primary" onClick={send} disabled={sending || (!reply.trim() && files.length === 0)}>
               <I.Send width={13} height={13} /> {sending ? 'Sending…' : 'Send'}
             </button>
           </div>

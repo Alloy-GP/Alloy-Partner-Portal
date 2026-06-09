@@ -87,6 +87,14 @@ function TicketsScreen() {
                   <span className="tag tag-outline" style={{ textTransform: "capitalize" }}>{t.status}</span>
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--alloy-purple)", lineHeight: 1.3 }}>{t.title}</div>
+                {t.requester ? (
+                  <div style={{ fontSize: 11.5, color: "var(--fg-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ width: 16, height: 16, borderRadius: 999, flexShrink: 0, display: "grid", placeItems: "center", background: "var(--alloy-purple-tint)", color: "var(--alloy-purple)", fontSize: 8, fontWeight: 800 }}>
+                      {(t.requester || "").split(" ").map((w) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()}
+                    </span>
+                    {t.requester}
+                  </div>
+                ) : null}
               </button>
             ))}
           </div>

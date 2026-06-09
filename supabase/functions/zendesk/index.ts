@@ -71,7 +71,27 @@ function mapTicket(t: any) {
     priority: t.priority || null, // low|normal|high|urgent
     updated_at: t.updated_at,
     created_at: t.created_at,
+    requester_id: t.requester_id ? String(t.requester_id) : null,
   };
+}
+
+// Public attachments on a comment → light shape for the UI.
+function mapAttachments(att: any[]): any[] {
+  return (att || []).map((a) => ({
+    id: String(a.id),
+    name: a.file_name,
+    url: a.content_url,
+    contentType: a.content_type || "",
+    size: a.size || 0,
+    thumb: (a.thumbnails && a.thumbnails[0] && a.thumbnails[0].content_url) || null,
+  }));
+}
+
+function ccList(ids: any[], users: Record<string, any>): any[] {
+  return (ids || [])
+    .map((id) => users[String(id)])
+    .filter(Boolean)
+    .map((u: any) => ({ name: u.name || u.email, email: u.email || null }));
 }
 
 Deno.serve(async (req) => {
@@ -120,22 +140,50 @@ Deno.serve(async (req) => {
       return json({ organizations: (r.organizations || []).map((o: any) => ({ id: String(o.id), name: o.name })) });
     }
 
+    // --- upload a file to Zendesk, returns a token to attach on a reply ---
+    // (No org needed — the reply itself is org-checked; any signed-in user with
+    // an account may stage an upload.)
+    if (action === "upload") {
+      const filename = String(body.filename || "file");
+      const contentType = String(body.contentType || "application/octet-stream");
+      const bytes = Uint8Array.from(atob(String(body.data || "")), (c) => c.charCodeAt(0));
+      const res = await fetch(`${BASE}/uploads.json?filename=${encodeURIComponent(filename)}`, {
+        method: "POST",
+        headers: { "Authorization": authHeader(), "Content-Type": contentType },
+        body: bytes,
+      });
+      if (!res.ok) return json({ error: `upload failed ${res.status}: ${await res.text()}` }, 500);
+      const j = await res.json();
+      return json({ token: j.upload?.token || null });
+    }
+
     if (!orgId) return json({ tickets: [], messages: [], notConfigured: true });
 
     // --- list the account's tickets (by org id; newest first) ---
     if (action === "list") {
-      const r = await zd(`/organizations/${orgId}/tickets.json?page[size]=100`);
+      const r = await zd(`/organizations/${orgId}/tickets.json?include=users&page[size]=100`);
+      const users: Record<string, any> = {};
+      for (const u of r.users || []) users[String(u.id)] = u;
       const tickets = (r.tickets || [])
-        .map(mapTicket)
+        .map((t: any) => {
+          const base = mapTicket(t);
+          const ru = users[String(t.requester_id)] || {};
+          return { ...base, requester: ru.name || null, requesterEmail: ru.email || null };
+        })
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       return json({ tickets });
     }
 
-    // --- read one ticket's public thread ---
+    // --- read one ticket's public thread (+ requester, CCs, attachments) ---
     if (action === "thread") {
       const id = String(body.id);
-      const t = await zd(`/tickets/${id}.json`);
+      const t = await zd(`/tickets/${id}.json?include=users`);
       if (String(t.ticket.organization_id) !== String(orgId)) return json({ error: "forbidden" }, 403);
+      const tUsers: Record<string, any> = {};
+      for (const u of t.users || []) tUsers[String(u.id)] = u;
+      const requester = tUsers[String(t.ticket.requester_id)] || {};
+      const ccs = ccList(t.ticket.email_cc_ids || t.ticket.collaborator_ids || [], tUsers);
+
       const c = await zd(`/tickets/${id}/comments.json?include=users`);
       const users: Record<string, any> = {};
       for (const u of c.users || []) users[String(u.id)] = u;
@@ -150,16 +198,22 @@ Deno.serve(async (req) => {
             author: a.name || "Alloy",
             // role=end-user => the client ("you"); else the Alloy team
             mine: a.role === "end-user",
+            attachments: mapAttachments(m.attachments),
           };
         });
-      return json({ ticket: mapTicket(t.ticket), messages });
+      return json({
+        ticket: { ...mapTicket(t.ticket), requester: requester.name || null, requesterEmail: requester.email || null },
+        messages,
+        ccs,
+      });
     }
 
     // --- post a public reply, authored as the caller if they're a Zendesk user ---
     if (action === "reply") {
       const id = String(body.id);
       const text = (body.body || "").trim();
-      if (!text) return json({ error: "empty" }, 400);
+      const uploads = Array.isArray(body.uploads) ? body.uploads.filter(Boolean) : [];
+      if (!text && !uploads.length) return json({ error: "empty" }, 400);
       const t = await zd(`/tickets/${id}.json`);
       if (String(t.ticket.organization_id) !== String(orgId)) return json({ error: "forbidden" }, 403);
 
@@ -169,12 +223,31 @@ Deno.serve(async (req) => {
         if (u.users?.[0]?.id) authorId = u.users[0].id;
       } catch { /* fall back to API agent */ }
 
-      const comment: any = { body: text, public: true };
+      const comment: any = { body: text || " ", public: true };
       if (authorId) comment.author_id = authorId;
+      if (uploads.length) comment.uploads = uploads;
       const ticket: any = { comment };
       // Optional explicit status (staff-controlled): open | pending | solved.
       if (["open", "pending", "solved"].includes(body.status)) ticket.status = body.status;
+      // Optional CCs to add with this reply.
+      if (Array.isArray(body.cc) && body.cc.length) {
+        ticket.email_ccs = body.cc.map((e: string) => ({ user_email: String(e), action: "put" }));
+      }
       await zd(`/tickets/${id}.json`, { method: "PUT", body: JSON.stringify({ ticket }) });
+      return json({ ok: true });
+    }
+
+    // --- add CC(s) to a ticket without replying ---
+    if (action === "add_cc") {
+      const id = String(body.id);
+      const emails = (Array.isArray(body.cc) ? body.cc : [body.cc]).map((e: any) => String(e || "").trim()).filter(Boolean);
+      if (!emails.length) return json({ error: "no emails" }, 400);
+      const t = await zd(`/tickets/${id}.json`);
+      if (String(t.ticket.organization_id) !== String(orgId)) return json({ error: "forbidden" }, 403);
+      await zd(`/tickets/${id}.json`, {
+        method: "PUT",
+        body: JSON.stringify({ ticket: { email_ccs: emails.map((e: string) => ({ user_email: e, action: "put" })) } }),
+      });
       return json({ ok: true });
     }
 

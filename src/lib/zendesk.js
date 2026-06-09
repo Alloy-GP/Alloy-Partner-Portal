@@ -19,5 +19,23 @@ async function call(action, payload = {}) {
 
 export const zdList = () => call('list');
 export const zdThread = (id) => call('thread', { id });
-export const zdReply = (id, body, status) => call('reply', { id, body, status });
+// opts: { status, uploads: [token], cc: [email] }
+export const zdReply = (id, body, opts = {}) =>
+  call('reply', { id, body, status: opts.status, uploads: opts.uploads, cc: opts.cc });
 export const zdResolve = (id) => call('resolve', { id });
+export const zdAddCc = (id, cc) => call('add_cc', { id, cc });
+
+// Read a File as base64 and stage it as a Zendesk upload; returns its token.
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+export async function zdUpload(file) {
+  const data = await fileToBase64(file);
+  const res = await call('upload', { filename: file.name, contentType: file.type || 'application/octet-stream', data });
+  return res && res.token;
+}
