@@ -39,6 +39,14 @@
     width: 260px;
     box-shadow: 10px 0 44px rgba(0,0,0,0.4);
   }
+  /* When the tray expands on hover, hold the icon at the SAME x it sits at while
+     collapsed (rail center = 34px = 18px sidebar pad + 7px item pad + 9px half
+     icon) so it doesn't nudge sideways — the tray just widens, labels fade in.
+     Without this the icon reverts to the default 12px pad and shifts ~5px. */
+  .app.sidebar-hover.is-hovering .nav-item,
+  .app.sidebar-hover.is-hovering .sidebar-ctrl-btn {
+    justify-content: flex-start; padding-left: 7px;
+  }
   /* Collapse = narrow the rail and FADE the labels out (never display:none, so
      nothing pops or reflows). Icons and separator bars never move — the tray
      just glides. */
