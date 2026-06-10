@@ -595,6 +595,7 @@ function buildLeadsPage() {
     status: statusOf(l),
     note: l.message || "",
     page: l.page || "",
+    journey: Array.isArray(l.journey) ? l.journey : null,
     monthly: Number(l.salesValue) || Number(l.quoteValue) || 0,   // monthly
     value: l.quotable === "yes" ? (l.value || "") : null,         // annual display string
   }));
