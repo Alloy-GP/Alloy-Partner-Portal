@@ -641,6 +641,20 @@ function LeadsScreen() {
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
+  // Match the queue card's height to the right (proof) column so it flexes with
+  // it; the queue's rows scroll inside. Desktop two-column layout only.
+  const proofRef = React.useRef(null);
+  const [queueH, setQueueH] = useState(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1001px)");
+    const measure = () => setQueueH(mq.matches && proofRef.current ? proofRef.current.offsetHeight : null);
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (proofRef.current) ro.observe(proofRef.current);
+    mq.addEventListener("change", measure);
+    return () => { ro.disconnect(); mq.removeEventListener("change", measure); };
+  }, []);
+
   const reviewLeads = leads.filter((l) => l.status === "review");
   const qualifiedLeads = leads.filter((l) => l.status === "qualified");
   const ytdQualified = qualifiedLeads.length;
@@ -714,7 +728,7 @@ function LeadsScreen() {
     <div className="content" data-screen-label="03 Leads">
       <div className="ld-top">
         {/* Review queue */}
-        <div className="banner-card banner-pink ld-queue">
+        <div className="banner-card banner-pink ld-queue" style={queueH ? { height: queueH } : undefined}>
           <div className="banner-card-head">
             <span className="ld-queue-count">{reviewLeads.length}</span>
             <div className="bc-titles">
@@ -753,7 +767,7 @@ function LeadsScreen() {
         </div>
 
         {/* Proof rail */}
-        <div className="ld-proof">
+        <div className="ld-proof" ref={proofRef}>
           <div className="ld-proof-card">
             <div className="ld-proof-kicker">Qualified leads · {LD.year}</div>
             <div className="ld-proof-hero">
