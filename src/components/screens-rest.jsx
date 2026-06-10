@@ -793,9 +793,11 @@ function LeadsScreen() {
   );
 }
 
-// Source balance: where this year's leads came from, with the qualified slice
-// highlighted. Horizontal stacked bars (qualified = green, rest = muted),
-// sorted by volume. Built from the live YTD leads.
+const SOURCE_PALETTE = ["#6B4EFF", "#2C6E62", "#E0A422", "#E0518A", "#2A6391", "#9B8AFF", "#4FB3A1", "#C77DAE"];
+
+// Source balance: a donut of where this year's leads come from. Center shows
+// the YTD total; the legend carries each source's share and qualified count.
+// Top sources kept distinct, the long tail folded into "Other".
 function SourceChart({ leads, stateOf }) {
   const by = {};
   for (const l of leads) {
@@ -804,32 +806,54 @@ function SourceChart({ leads, stateOf }) {
     by[s].total++;
     if (stateOf(l) === "qualified") by[s].qualified++;
   }
-  const rows = Object.entries(by).sort((a, b) => b[1].total - a[1].total).slice(0, 8);
-  if (!rows.length) return null;
-  const max = rows[0][1].total || 1;
+  const total = leads.length;
+  if (!total) return null;
+
+  const sorted = Object.entries(by).sort((a, b) => b[1].total - a[1].total);
+  const top = sorted.slice(0, 7);
+  const tail = sorted.slice(7);
+  if (tail.length) {
+    const t = tail.reduce((acc, [, c]) => ({ total: acc.total + c.total, qualified: acc.qualified + c.qualified }), { total: 0, qualified: 0 });
+    top.push(["Other", t]);
+  }
+  const segs = top.map(([src, c], i) => ({ src, ...c, color: SOURCE_PALETTE[i % SOURCE_PALETTE.length], frac: c.total / total }));
+
+  const R = 72, SW = 26, C = 2 * Math.PI * R;
+  let acc = 0;
   const year = new Date().getFullYear();
+
   return (
-    <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 14, background: "#fff", padding: "16px 18px", marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)" }}>Lead sources · {year}</div>
-        <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--fg-muted)" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "#2c6e62" }} />Qualified</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--alloy-purple-tint)" }} />Other</span>
+    <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 14, background: "#fff", padding: "18px 20px", marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)", marginBottom: 14 }}>Lead sources · {year}</div>
+      <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ position: "relative", width: 180, height: 180, flexShrink: 0 }}>
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            <g transform="rotate(-90 90 90)">
+              {segs.map((s) => {
+                const dash = s.frac * C;
+                const el = (
+                  <circle key={s.src} cx="90" cy="90" r={R} fill="none" stroke={s.color} strokeWidth={SW}
+                    strokeDasharray={`${dash} ${C - dash}`} strokeDashoffset={-acc * C} />
+                );
+                acc += s.frac;
+                return el;
+              })}
+            </g>
+            <text x="90" y="84" textAnchor="middle" fontSize="30" fontWeight="800" style={{ fill: "var(--alloy-purple)" }} fontFamily="var(--font-display)">{total.toLocaleString("en-US")}</text>
+            <text x="90" y="104" textAnchor="middle" fontSize="11" style={{ fill: "var(--fg-muted)" }}>leads YTD</text>
+          </svg>
         </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {rows.map(([src, c]) => (
-          <div key={src} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 120, flexShrink: 0, fontSize: 12.5, color: "var(--fg)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={src}>{src}</div>
-            <div style={{ flex: 1, minWidth: 0, height: 18, background: "var(--alloy-off-white)", borderRadius: 5, overflow: "hidden", display: "flex" }}>
-              <div style={{ width: `${(c.qualified / max) * 100}%`, background: "#2c6e62" }} />
-              <div style={{ width: `${((c.total - c.qualified) / max) * 100}%`, background: "var(--alloy-purple-tint)" }} />
+        <div style={{ flex: 1, minWidth: 220, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 18px" }}>
+          {segs.map((s) => (
+            <div key={s.src} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 12.5, color: "var(--fg)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }} title={s.src}>{s.src}</span>
+              <span style={{ fontSize: 12, color: "var(--fg-muted)", flexShrink: 0 }}>
+                {Math.round(s.frac * 100)}%{s.qualified > 0 ? ` · ${s.qualified}✓` : ""}
+              </span>
             </div>
-            <div style={{ width: 84, flexShrink: 0, textAlign: "right", fontSize: 12, color: "var(--fg-muted)" }}>
-              <strong style={{ color: "var(--alloy-purple)" }}>{c.total}</strong>{c.qualified > 0 ? ` · ${c.qualified}✓` : ""}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
