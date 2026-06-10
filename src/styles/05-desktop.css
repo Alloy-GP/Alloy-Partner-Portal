@@ -61,10 +61,23 @@
   .app.sidebar-hover:not(.is-hovering) .sidebar-ctrl-btn {
     justify-content: center; gap: 0; padding-left: 0; padding-right: 0;
   }
+  /* Collapse every non-icon child to zero footprint so the icon truly centers.
+     `min-width: 0` is essential: flex items default to min-width:auto, which
+     floors width at the text's intrinsic size — so `width: 0` alone leaves the
+     label occupying space and pushes the icon left. overflow:hidden + margin:0
+     also neutralize any auto-margin on the count badge. */
   .app.sidebar-collapsed .nav-item > span:not(.icon),
   .app.sidebar-hover:not(.is-hovering) .nav-item > span:not(.icon),
+  .app.sidebar-collapsed .nav-item .badge-dot,
+  .app.sidebar-hover:not(.is-hovering) .nav-item .badge-dot,
+  .app.sidebar-collapsed .nav-item .nav-soon-tag,
+  .app.sidebar-hover:not(.is-hovering) .nav-item .nav-soon-tag,
+  .app.sidebar-collapsed .nav-item .nav-ext-icon,
+  .app.sidebar-hover:not(.is-hovering) .nav-item .nav-ext-icon,
   .app.sidebar-collapsed .sidebar-ctrl-label,
-  .app.sidebar-hover:not(.is-hovering) .sidebar-ctrl-label { width: 0; }
+  .app.sidebar-hover:not(.is-hovering) .sidebar-ctrl-label {
+    width: 0; min-width: 0; overflow: hidden; margin: 0; padding: 0;
+  }
   @media (prefers-reduced-motion: reduce) {
     .app:not(.sidebar-collapsed) .nav-item > span:not(.icon),
     .app:not(.sidebar-collapsed) .nav-section-label { animation: none; }
