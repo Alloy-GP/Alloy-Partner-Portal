@@ -764,7 +764,7 @@
 
 .recurring-row { display: flex; align-items: center; gap: 12px; }
 .recurring-dot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
-.recurring-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--alloy-purple); min-width: 0; }
+.recurring-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--alloy-purple); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .recurring-cadence { font-size: 10.5px; color: var(--fg-muted); font-weight: 600; white-space: nowrap; }
 
 /* ----- Mobile dashboard: chunkier touch targets, bigger type -----

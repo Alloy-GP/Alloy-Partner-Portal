@@ -608,7 +608,7 @@ function ProjectsList({ onNav }) {
             {services.map(s => (
               <div key={s.id} className="recurring-row">
                 <span className="recurring-dot" style={{ background: TONE[s.color] }}/>
-                <div className="recurring-name">{s.name}</div>
+                <div className="recurring-name" title={s.name}>{s.name}</div>
                 <span className="recurring-cadence">{s.cadence}</span>
               </div>
             ))}

@@ -102,7 +102,7 @@ function ProjectsScreen({ onNav }) {
             return (
             <div key={p.id} className="proj-table-row" style={{background: `${st.color}12`, boxShadow: `inset 3px 0 0 ${st.color}`}}>
               <div className="proj-table-project">
-                <div className="proj-table-title">{p.title}</div>
+                <div className="proj-table-title" title={p.title}>{p.title}</div>
                 <div className="proj-table-pulse">{p.pulse}</div>
               </div>
               <div><ProjEngineChips engines={p.engines}/></div>
