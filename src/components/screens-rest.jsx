@@ -593,6 +593,23 @@ function keyFacts(fields) {
   if (board && /^(y|true|1|check)/i.test(board)) out.push("Board member ✓");
   return out;
 }
+
+// The 3 hero facts shown as cards atop the detail panel. Returns the cards plus
+// the set of field names consumed, so the "What they submitted" list can show
+// only the remaining answers (intent, timeline, etc.) without duplicating these.
+function leadStatCards(fields) {
+  const arr = Array.isArray(fields) ? fields : [];
+  const used = new Set();
+  const pick = (re) => { const f = arr.find((x) => !used.has(x.name) && re.test(String(x.name || ""))); if (f) used.add(f.name); return f; };
+  const cards = [];
+  const u = pick(/units|how many units|# *of units/i);
+  if (u) { const m = String(u.value).match(/\d[\d,]*/); cards.push({ label: "Units", value: m ? m[0] : u.value }); }
+  const b = pick(/board member|on the board/i);
+  if (b) cards.push({ label: "Board member", value: b.value, good: /^(y|true|1|check)/i.test(b.value) });
+  const t = pick(/type of association|association type|property type|community type/i);
+  if (t) cards.push({ label: "Association", value: t.value });
+  return { cards, used };
+}
 function cleanFields(l) {
   const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
   const digits = (s) => norm(s).replace(/[^0-9]/g, "");
@@ -766,6 +783,8 @@ function LeadsScreen() {
   });
 
   const panelLead = leads.find((l) => l.id === panelId);
+  const panelStat = panelLead ? leadStatCards(panelLead.fields) : { cards: [], used: new Set() };
+  const panelExtra = panelLead ? (panelLead.fields || []).filter((f) => !panelStat.used.has(f.name)) : [];
 
   // Seed the free-form value inputs whenever a lead's panel opens.
   useEffect(() => {
@@ -943,15 +962,31 @@ function LeadsScreen() {
           <div className="ld-panel-scrim" onClick={() => setPanelId(null)} />
           <aside className="ld-panel" role="dialog" aria-label="Lead detail">
             <div className="ld-panel-head">
-              <div>
-                <div className="ttl">{panelLead.person}</div>
-                <div className="sub">{panelLead.community || panelLead.source}</div>
+              <div className="ld-panel-head-top">
+                <div className="ld-panel-id">
+                  <div className="ttl">{panelLead.person}</div>
+                  <div className="sub">{panelLead.community || panelLead.source}</div>
+                </div>
+                <button className="ld-panel-close" onClick={() => setPanelId(null)} aria-label="Close"><I.Close width={13} height={13} /></button>
               </div>
-              <button className="ld-panel-close" onClick={() => setPanelId(null)} aria-label="Close"><I.Close width={13} height={13} /></button>
+              <div className="ld-status-seg">
+                <button className={`ld-seg-btn yes${panelLead.status === "qualified" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "qualified")}>{panelLead.status === "qualified" ? <I.Check width={12} height={12} /> : null}Qualified</button>
+                <button className={`ld-seg-btn pend${panelLead.status === "review" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "pending")}>{panelLead.status === "review" ? <I.Check width={12} height={12} /> : null}Pending</button>
+                <button className={`ld-seg-btn no${panelLead.status === "notfit" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "notfit")}>{panelLead.status === "notfit" ? <I.Check width={12} height={12} /> : null}Not a fit</button>
+              </div>
             </div>
             <div className="ld-panel-body">
+              {panelStat.cards.length ? (
+                <div className="ld-stat-cards">
+                  {panelStat.cards.map((c, i) => (
+                    <div className="ld-stat-card" key={i}>
+                      <div className="lbl">{c.label}</div>
+                      <div className={`val${c.good ? " good" : ""}${String(c.value).length > 4 ? " txt" : ""}`}>{c.value}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <div className="ld-panel-sec">
-                <div className="sec-lbl">Deal value</div>
                 <div className="ld-val-edit">
                   <label className="ld-val-field">
                     <span className="ld-val-lbl">Quote · open</span>
@@ -972,11 +1007,11 @@ function LeadsScreen() {
                   <div className="ld-panel-note">{panelLead.note}</div>
                 </div>
               ) : null}
-              {Array.isArray(panelLead.fields) && panelLead.fields.length ? (
+              {panelExtra.length ? (
                 <div className="ld-panel-sec">
                   <div className="sec-lbl">What they submitted</div>
                   <div className="ld-panel-kv">
-                    {panelLead.fields.map((f, i) => (
+                    {panelExtra.map((f, i) => (
                       <div className="kv" key={i}>
                         <span className="k">{prettyField(f.name)}</span>
                         <span className="vv">{f.value}</span>
@@ -988,7 +1023,7 @@ function LeadsScreen() {
               <div className="ld-panel-sec">
                 <div className="sec-lbl">Customer journey</div>
                 {panelLead.journey && panelLead.journey.length ? (
-                  <LeadJourney steps={panelLead.journey} />
+                  <LeadJourney steps={panelLead.journey} context={panelLead.context} />
                 ) : (
                   <div className="ld-journey">
                     <div className="step"><span className="dot" /><span className="tx"><b>{panelLead.source}</b>{panelLead.context ? ` — ${panelLead.context}` : ""}</span></div>
@@ -1008,12 +1043,6 @@ function LeadsScreen() {
                 </div>
               </div>
             </div>
-            <div className="ld-panel-foot ld-status-foot">
-              <span className="ld-status-lbl">Status</span>
-              <button className={`ld-status-btn yes${panelLead.status === "qualified" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "qualified")}>Qualified</button>
-              <button className={`ld-status-btn pend${panelLead.status === "review" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "pending")}>Pending</button>
-              <button className={`ld-status-btn no${panelLead.status === "notfit" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "notfit")}>Not a fit</button>
-            </div>
           </aside>
         </>
       ) : null}
@@ -1029,7 +1058,7 @@ function LeadsScreen() {
   );
 }
 
-function LeadJourney({ steps }) {
+function LeadJourney({ steps, context }) {
   const visits = steps.filter((s) => s.type === "visit").length;
   const inquiries = steps.filter((s) => s.type === "lead").length;
   const CAP = 12;
@@ -1039,7 +1068,10 @@ function LeadJourney({ steps }) {
       <div className="ld-journey-sum">{visits} visit{visits !== 1 ? "s" : ""} · {inquiries} inquir{inquiries !== 1 ? "ies" : "y"}{steps.length > CAP ? ` · latest ${CAP} shown` : ""}</div>
       <div className="ld-journey">
         {ordered.map((s, idx) => s.type === "lead" ? (
-          <div key={idx} className="step lead"><span className="dot" /><span className="tx"><b>Inquiry submitted</b> <span className="ld-jt-date">{jDate(s.date)}</span></span></div>
+          <div key={idx} className="step lead"><span className="dot" /><span className="tx">
+            <b>Inquiry submitted</b> <span className="ld-jt-date">{jDate(s.date)}</span>
+            {context ? <span className="ld-journey-pages"><span className="pg">{context}</span></span> : null}
+          </span></div>
         ) : (
           <div key={idx} className="step"><span className="dot" /><span className="tx">
             <b>{s.source || "Direct"}</b>{s.medium && s.medium !== "(none)" && s.medium !== "(not set)" ? ` · ${s.medium}` : ""} <span className="ld-jt-date">{jDate(s.date)}</span>
@@ -1051,6 +1083,7 @@ function LeadJourney({ steps }) {
             ) : null}
           </span></div>
         ))}
+        <div className="step muted"><span className="dot" /><span className="tx">Captured by WhatConverts {"→"} routed here</span></div>
       </div>
     </>
   );
