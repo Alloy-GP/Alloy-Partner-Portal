@@ -19,16 +19,22 @@
     transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .app.sidebar-collapsed { grid-template-columns: 68px 1fr; }
-  .app.sidebar-collapsed .sidebar { overflow: hidden; }
 
-  /* Expand-on-hover: keep the collapsed 68px footprint so content never shifts;
-     the rail is always overlay-positioned so only its WIDTH animates (no
-     position jump) — smooth, slow ease in and out. */
-  .app.sidebar-hover { grid-template-columns: 68px 1fr; }
-  .app.sidebar-hover .sidebar {
-    position: absolute; top: 0; left: 0; height: 100%; width: 68px; z-index: 60;
+  /* Pin the rail to the VIEWPORT in every desktop state. The grid column
+     (260px / 68px) reserves the footprint so content never shifts; the rail
+     itself is fixed so it stays put on scroll no matter which mode is active.
+     (Plain sticky only pinned the expanded mode — hover mode used to scroll.) */
+  .app .sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; width: 260px;
+    z-index: 50; overflow-y: auto;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
   }
+  .app.sidebar-collapsed .sidebar { width: 68px; overflow-x: hidden; }
+
+  /* Expand-on-hover: keep the collapsed 68px footprint so content never shifts;
+     only the WIDTH animates (the rail is already viewport-fixed) — smooth ease. */
+  .app.sidebar-hover { grid-template-columns: 68px 1fr; }
+  .app.sidebar-hover .sidebar { width: 68px; z-index: 60; }
   .app.sidebar-hover.is-hovering .sidebar {
     width: 260px;
     box-shadow: 10px 0 44px rgba(0,0,0,0.4);
