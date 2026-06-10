@@ -613,7 +613,7 @@ function leadStatCards(fields) {
 function cleanFields(l) {
   const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
   const digits = (s) => norm(s).replace(/[^0-9]/g, "");
-  const emailV = norm(l.email), nameV = norm(l.name), companyV = norm(l.company);
+  const emailV = norm(l.email), nameV = norm(l.name), companyV = norm(l.company), msgV = norm(l.message);
   const phoneD = digits(l.phone);
   const seen = new Set();
   return (Array.isArray(l.fields) ? l.fields : []).filter((f) => {
@@ -627,6 +627,7 @@ function cleanFields(l) {
     if (SKIP_FIELD_NAME.test(nmKey)) return false;             // contact / tracking dupes
     const nv = norm(v);
     if (nv === emailV || nv === nameV || nv === companyV) return false;
+    if (msgV && nv === msgV) return false;                     // already shown as "Their message"
     if (phoneD && digits(v) === phoneD) return false;          // any phone dupe
     const key = norm(nmKey) + "=" + nv;
     if (seen.has(key)) return false;
