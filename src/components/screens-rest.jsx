@@ -556,13 +556,20 @@ const fmtMoney = (n) => {
   return v > 0 ? `$${v.toLocaleString("en-US")}` : "";
 };
 
+// Stored quote/sales values are ANNUAL. Clients enter MONTHLY in the portal,
+// so the inputs show monthly (annual ÷ 12) and annualize (× 12) on save.
+const toMonthly = (annual) => {
+  const n = Number(annual);
+  return n > 0 ? String(Math.round((n / 12) * 100) / 100) : "";
+};
+
 // One lead row with an inline qualify panel.
 function LeadRow({ lead, onSaved }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [quote, setQuote] = useState(lead.quoteValue ? String(lead.quoteValue) : "");
-  const [sales, setSales] = useState(lead.salesValue ? String(lead.salesValue) : "");
+  const [quote, setQuote] = useState(toMonthly(lead.quoteValue));   // monthly
+  const [sales, setSales] = useState(toMonthly(lead.salesValue));   // monthly
 
   const state = lead.quotable === "yes" ? "qualified"
     : lead.quotable === "no" ? "nofit" : "review";
@@ -570,12 +577,16 @@ function LeadRow({ lead, onSaved }) {
     : state === "nofit" ? { cls: "tag-outline", label: "Not a fit" }
     : { cls: "tag-status-progress", label: "Pending" };
 
+  // Monthly inputs → annual figures sent to WhatConverts / stored.
+  const quoteAnnual = quote !== "" ? Number(quote) * 12 : 0;
+  const salesAnnual = sales !== "" ? Number(sales) * 12 : 0;
+
   const save = async (quotable) => {
     setSaving(true); setErr("");
     const opts = { quotable };
     if (quotable === "yes") {
-      if (quote !== "") opts.quoteValue = quote;
-      if (sales !== "") opts.salesValue = sales;
+      if (quote !== "") opts.quoteValue = quoteAnnual;   // annual
+      if (sales !== "") opts.salesValue = salesAnnual;   // annual
     }
     try {
       const updated = await qualifyLead(lead.id, opts);
@@ -583,9 +594,9 @@ function LeadRow({ lead, onSaved }) {
       onSaved(lead.id, updated || {
         ...lead, quotable,
         quality: quotable === "yes" ? "qualified" : "review",
-        quote_value: quote ? Number(quote) : lead.quoteValue,
-        sales_value: sales ? Number(sales) : lead.salesValue,
-        value: fmtMoney(sales || quote || 0),
+        quote_value: quote ? quoteAnnual : lead.quoteValue,
+        sales_value: sales ? salesAnnual : lead.salesValue,
+        value: fmtMoney(salesAnnual || quoteAnnual || 0),
       });
       setOpen(false);
     } catch (e) {
@@ -594,16 +605,19 @@ function LeadRow({ lead, onSaved }) {
   };
 
   const showVal = lead.value || fmtMoney(lead.salesValue || lead.quoteValue || 0);
+  const sub = [lead.email, lead.source, lead.time].filter(Boolean).join(" · ");
 
   return (
     <div style={{ borderBottom: "1px solid var(--border-subtle)", background: "#fff" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--alloy-purple)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.name}</div>
-          <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2 }}>{lead.source}{lead.time ? ` · ${lead.time}` : ""}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--alloy-purple)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {lead.name}{lead.company ? <span style={{ fontWeight: 500, color: "var(--fg-muted)" }}> · {lead.company}</span> : null}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
         </div>
         {showVal ? (
-          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)", flexShrink: 0 }}>{showVal}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)", flexShrink: 0 }}>{showVal}<span style={{ fontSize: 10, fontWeight: 600, color: "var(--fg-muted)" }}>/yr</span></span>
         ) : null}
         <span className={`tag ${tag.cls}`} style={{ flexShrink: 0 }}><span className="dot" />{tag.label}</span>
         <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}
@@ -616,21 +630,24 @@ function LeadRow({ lead, onSaved }) {
         <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", background: "var(--alloy-off-white)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "12px 14px" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Quote value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>open opportunity</span>
+              Quote value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>monthly · open opportunity</span>
               <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 9px" }}>
                 <span style={{ color: "var(--fg-muted)" }}>$</span>
                 <input value={quote} onChange={(e) => setQuote(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0"
-                  style={{ width: 90, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
+                  style={{ width: 80, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
+                <span style={{ color: "var(--fg-muted)", fontSize: 12 }}>/mo</span>
               </div>
+              <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "var(--alloy-purple)" }}>{quoteAnnual > 0 ? `= ${fmtMoney(quoteAnnual)}/yr` : " "}</span>
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Sales value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>closed deal, annual</span>
+              Sales value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>monthly · closed deal</span>
               <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 9px" }}>
                 <span style={{ color: "var(--fg-muted)" }}>$</span>
                 <input value={sales} onChange={(e) => setSales(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0"
-                  style={{ width: 90, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
-                <span style={{ color: "var(--fg-muted)", fontSize: 12 }}>/yr</span>
+                  style={{ width: 80, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
+                <span style={{ color: "var(--fg-muted)", fontSize: 12 }}>/mo</span>
               </div>
+              <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "var(--alloy-purple)" }}>{salesAnnual > 0 ? `= ${fmtMoney(salesAnnual)}/yr` : " "}</span>
             </label>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -742,6 +759,8 @@ function LeadsScreen() {
         <Stat label="Won / yr" value={fmtMoney(won) || "$0"} tone="var(--alloy-purple)" />
       </div>
 
+      <SourceChart leads={leads} stateOf={stateOf} />
+
       <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
         <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", background: "var(--alloy-off-white)" }}>
           {FBTN("review", "Needs review", counts.review)}
@@ -769,6 +788,48 @@ function LeadsScreen() {
             ) : null}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Source balance: where this year's leads came from, with the qualified slice
+// highlighted. Horizontal stacked bars (qualified = green, rest = muted),
+// sorted by volume. Built from the live YTD leads.
+function SourceChart({ leads, stateOf }) {
+  const by = {};
+  for (const l of leads) {
+    const s = (l.source || "Direct").trim() || "Direct";
+    if (!by[s]) by[s] = { total: 0, qualified: 0 };
+    by[s].total++;
+    if (stateOf(l) === "qualified") by[s].qualified++;
+  }
+  const rows = Object.entries(by).sort((a, b) => b[1].total - a[1].total).slice(0, 8);
+  if (!rows.length) return null;
+  const max = rows[0][1].total || 1;
+  const year = new Date().getFullYear();
+  return (
+    <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 14, background: "#fff", padding: "16px 18px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)" }}>Lead sources · {year}</div>
+        <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--fg-muted)" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "#2c6e62" }} />Qualified</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--alloy-purple-tint)" }} />Other</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {rows.map(([src, c]) => (
+          <div key={src} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 120, flexShrink: 0, fontSize: 12.5, color: "var(--fg)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={src}>{src}</div>
+            <div style={{ flex: 1, minWidth: 0, height: 18, background: "var(--alloy-off-white)", borderRadius: 5, overflow: "hidden", display: "flex" }}>
+              <div style={{ width: `${(c.qualified / max) * 100}%`, background: "#2c6e62" }} />
+              <div style={{ width: `${((c.total - c.qualified) / max) * 100}%`, background: "var(--alloy-purple-tint)" }} />
+            </div>
+            <div style={{ width: 84, flexShrink: 0, textAlign: "right", fontSize: 12, color: "var(--fg-muted)" }}>
+              <strong style={{ color: "var(--alloy-purple)" }}>{c.total}</strong>{c.qualified > 0 ? ` · ${c.qualified}✓` : ""}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -84,6 +84,8 @@ function mapLead(l: any, i: number, acctId: string) {
     account_id: acctId,
     wc_lead_id: l.lead_id != null ? String(l.lead_id) : null,
     name: l.contact_name || l.contact_company_name || l.contact_company || "New lead",
+    email: l.contact_email_address || l.email_address || l.email || null,
+    company: l.contact_company_name || l.contact_company || null,
     source: l.lead_source || l.lead_medium || l.source || "Direct",
     quality,
     quotable,
