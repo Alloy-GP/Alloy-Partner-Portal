@@ -124,8 +124,17 @@ a:hover { text-decoration: underline; }
 .role-switcher button:hover:not([data-active="true"]) { color: rgba(255,255,255,0.85); }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
-.nav-section-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.12em; padding: 6px 12px 4px; margin-top: 8px; white-space: nowrap; overflow: hidden; }
-.nav-section-label.has-divider { border-top: 1px solid rgba(255,255,255,0.08); margin-top: 10px; padding-top: 12px; }
+/* Section titles are gone — groups are split by a balanced separator bar only.
+   Same in both states, so collapsing never shifts anything. */
+.nav-section-label { display: none; }
+.nav-section-label.has-divider {
+  display: block; font-size: 0; line-height: 0; height: 0; padding: 0;
+  margin: 14px 14px; border-top: 1px solid rgba(255,255,255,0.12);
+}
+/* Labels fade rather than pop when the rail collapses/expands. */
+.alloy-strip .alloy-word, .alloy-strip .alloy-divider, .alloy-strip .alloy-tag,
+.nav-item > span:not(.icon), .nav-item .badge-dot, .nav-item .nav-soon-tag,
+.nav-item .nav-ext-icon, .sidebar-ctrl-label { transition: opacity 0.2s ease; }
 .nav-item {
   display: flex; align-items: center; gap: 11px;
   padding: 9px 12px; border-radius: 8px;

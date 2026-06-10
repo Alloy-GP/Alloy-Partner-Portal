@@ -13,10 +13,10 @@
   /* ----- App shell ----- */
   .app {
     grid-template-columns: 260px 1fr;
-    transition: grid-template-columns 0.2s ease;
+    transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .app.sidebar-collapsed {
-    transition: grid-template-columns 0.2s ease;
+    transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .app.sidebar-collapsed { grid-template-columns: 68px 1fr; }
   .app.sidebar-collapsed .sidebar { overflow: hidden; }
@@ -27,53 +27,25 @@
   .app.sidebar-hover { grid-template-columns: 68px 1fr; }
   .app.sidebar-hover .sidebar {
     position: absolute; top: 0; left: 0; height: 100%; width: 68px; z-index: 60;
-    transition: width 0.34s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.34s ease;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
   }
   .app.sidebar-hover.is-hovering .sidebar {
     width: 260px;
     box-shadow: 10px 0 44px rgba(0,0,0,0.4);
   }
+  /* Collapse = narrow the rail and FADE the labels out (never display:none, so
+     nothing pops or reflows). Icons and separator bars never move — the tray
+     just glides. */
   .app.sidebar-collapsed .alloy-strip .alloy-word,
   .app.sidebar-collapsed .alloy-strip .alloy-divider,
   .app.sidebar-collapsed .alloy-strip .alloy-tag,
   .app.sidebar-collapsed .nav-item > span:not(.icon),
   .app.sidebar-collapsed .nav-item .badge-dot,
   .app.sidebar-collapsed .nav-item .nav-soon-tag,
-  .app.sidebar-collapsed .sidebar-footer .who,
-  .app.sidebar-collapsed .sidebar-footer .icon-btn { display: none !important; }
-  /* Collapsed: keep each section label's vertical footprint (so icons stay at
-     the same Y as expanded) but hide the text and show a small centered
-     separator bar to break the groups up. */
-  .app.sidebar-collapsed .nav-section-label { color: transparent; position: relative; padding-left: 0; padding-right: 0; }
-  .app.sidebar-collapsed .nav-section-label.has-divider { border-top-color: transparent; }
-  .app.sidebar-collapsed .nav-section-label::after {
-    content: ""; position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
-    width: 24px; height: 2px; border-radius: 2px; background: rgba(255,255,255,0.16);
-  }
-  .app.sidebar-collapsed .alloy-strip { justify-content: center; padding: 4px 0 12px; }
-  .app.sidebar-collapsed .alloy-strip .alloy-mark { margin: 0; }
-  /* Keep icons in the same left position whether collapsed or expanded —
-     only the label disappears, the icon doesn't slide. */
+  .app.sidebar-collapsed .nav-item .nav-ext-icon,
+  .app.sidebar-collapsed .sidebar-ctrl-label { opacity: 0; }
   .app.sidebar-collapsed .nav-item { padding-right: 0; }
-  .app.sidebar-collapsed .sidebar-footer { display: flex; justify-content: center; }
-  .app.sidebar-collapsed .sidebar-footer .user-row { justify-content: center; padding: 8px 0; }
-  .app.sidebar-collapsed .sidebar-ctrl-label { display: none !important; }
   .app.sidebar-collapsed .sidebar-ctrl-btn { padding-right: 0; }
-
-  /* Smooth expand: fade labels in (instead of a hard display pop) so widening
-     the rail doesn't twitch. */
-  .app:not(.sidebar-collapsed) .alloy-strip .alloy-word,
-  .app:not(.sidebar-collapsed) .alloy-strip .alloy-divider,
-  .app:not(.sidebar-collapsed) .alloy-strip .alloy-tag,
-  .app:not(.sidebar-collapsed) .nav-item > span:not(.icon),
-  .app:not(.sidebar-collapsed) .nav-item .badge-dot,
-  .app:not(.sidebar-collapsed) .nav-item .nav-soon-tag,
-  .app:not(.sidebar-collapsed) .nav-section-label,
-  .app:not(.sidebar-collapsed) .nav-item .nav-ext-icon,
-  .app:not(.sidebar-collapsed) .sidebar-footer .who {
-    animation: sbLabelIn 0.24s ease 0.04s both;
-  }
-  @keyframes sbLabelIn { from { opacity: 0; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     .app:not(.sidebar-collapsed) .nav-item > span:not(.icon),
     .app:not(.sidebar-collapsed) .nav-section-label { animation: none; }
