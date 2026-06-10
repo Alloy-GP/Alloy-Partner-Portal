@@ -67,6 +67,7 @@ async function rollupAccount(acct: any) {
   if (cursor < floor) cursor = floor;
 
   const bySource: Record<string, number> = {};
+  const byYear: Record<string, number> = {};   // qualified per calendar year
   let total = 0;
   let firstLead: string | null = null;
 
@@ -80,7 +81,11 @@ async function rollupAccount(acct: any) {
       const src = String(l.lead_source || l.lead_medium || "Direct").trim() || "Direct";
       bySource[src] = (bySource[src] || 0) + 1;
       const dc = toIso(l.date_created);
-      if (dc && (!firstLead || dc < firstLead)) firstLead = dc;
+      if (dc) {
+        if (!firstLead || dc < firstLead) firstLead = dc;
+        const yr = dc.slice(0, 4);              // YYYY
+        byYear[yr] = (byYear[yr] || 0) + 1;
+      }
     }
     // advance past this window
     cursor = new Date(winEnd.getTime() + 864e5);
@@ -92,6 +97,7 @@ async function rollupAccount(acct: any) {
     name: acct.short_name || acct.company,
     qualified_total: total,
     by_source: bySource,
+    by_year: byYear,
     first_lead_at: firstLead,   // already ISO
   };
 }
@@ -125,6 +131,7 @@ Deno.serve(async (req) => {
           const { error: upErr } = await supabase.from("accounts").update({
             wc_qualified_total: stats.qualified_total,
             wc_qualified_by_source: stats.by_source,
+            wc_qualified_by_year: stats.by_year,
             wc_first_lead_at: stats.first_lead_at,
             wc_rollup_at: new Date().toISOString(),
           }).eq("id", acct.id);

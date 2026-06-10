@@ -11,17 +11,19 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // save. Optional ?secret=SYNC_SECRET.
 
 const WC_BASE = "https://app.whatconverts.com/api/v1";
-const DAYS_BACK = 120;        // pull recent leads only
-const PER_PAGE = 1000;        // WhatConverts allows large pages; busiest client ~600/window
-const MAX_PAGES = 20;         // safety backstop (20k leads)
+const PER_PAGE = 1000;        // WhatConverts allows large pages
+const MAX_PAGES = 30;         // safety backstop (30k leads/yr)
+
+// Live window = calendar year-to-date. Clients work annually, so the portal's
+// lead list and counts are YTD (Jan 1 → today), not an arbitrary trailing
+// window. Prior years are kept as aggregates by the rollup function.
+function ytdStart(): string { return `${new Date().getUTCFullYear()}-01-01`; }
 
 function authHeader(): string {
   const token = (Deno.env.get("WHATCONVERTS_TOKEN") || "").trim();
   const secret = (Deno.env.get("WHATCONVERTS_SECRET") || "").trim();
   return "Basic " + btoa(`${token}:${secret}`);
 }
-
-function ymd(d: Date): string { return d.toISOString().slice(0, 10); }
 
 function relTime(iso: string | null): string {
   if (!iso) return "";
@@ -140,7 +142,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const onlyAccount = body.accountId ? String(body.accountId) : null;
-    const startDate = ymd(new Date(Date.now() - DAYS_BACK * 864e5));
+    const startDate = ytdStart();   // calendar YTD
 
     const { data: accounts, error } = await supabase
       .from("accounts").select("id, short_name, company, whatconverts_profile_id")

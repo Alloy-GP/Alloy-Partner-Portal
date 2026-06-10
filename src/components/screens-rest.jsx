@@ -549,6 +549,8 @@ function BigBadgeMedal({ color = "#d9356e", state = "earned" }) {
 // WhatConverts via the qualify-lead function; the row updates optimistically.
 // ---------------------------------------------------------------------------
 
+const RENDER_CAP = 150;   // cap rows rendered at once (a YTD "not a fit" bucket can be 700+)
+
 const fmtMoney = (n) => {
   const v = Number(n);
   return v > 0 ? `$${v.toLocaleString("en-US")}` : "";
@@ -654,22 +656,31 @@ function LeadRow({ lead, onSaved }) {
   );
 }
 
-// Lifetime tenure: "Client since X · N qualified leads delivered" + top sources.
-// Fed by the weekly rollup (DATA.account.wc*). Hidden until there's data.
+// Tenure: leads with the current-year (YTD) qualified number — the figure that
+// matters when you work annually — then prior years and lifetime, plus top
+// sources. Fed by the weekly rollup (DATA.account.wc*). Hidden until data.
 function TenureBanner() {
   const a = DATA.account || {};
   const total = a.wcQualifiedTotal || 0;
   if (!total) return null;
+  const byYear = a.wcQualifiedByYear || {};
+  const thisYear = String(new Date().getFullYear());
+  const ytd = byYear[thisYear] || 0;
   const since = a.wcFirstLeadAt
     ? new Date(a.wcFirstLeadAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
     : (a.since || "");
-  const sources = Object.entries(a.wcQualifiedBySource || {})
-    .sort((x, y) => y[1] - x[1]).slice(0, 5);
+  // Prior years, newest first (exclude the current year — it's the headline).
+  const priorYears = Object.keys(byYear).filter((y) => y !== thisYear).sort((x, y) => y.localeCompare(x));
+  const sources = Object.entries(a.wcQualifiedBySource || {}).sort((x, y) => y[1] - x[1]).slice(0, 5);
   return (
     <div style={{ background: "var(--alloy-purple)", color: "#fff", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 30, fontWeight: 800, fontFamily: "var(--font-display)", lineHeight: 1 }}>{total.toLocaleString("en-US")}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.92 }}>qualified leads delivered{since ? ` since ${since}` : ""}</span>
+        <span style={{ fontSize: 30, fontWeight: 800, fontFamily: "var(--font-display)", lineHeight: 1 }}>{ytd.toLocaleString("en-US")}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.92 }}>qualified leads in {thisYear} so far</span>
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10, fontSize: 12.5, opacity: 0.9 }}>
+        {priorYears.map((y) => <span key={y}>{y}: <strong>{byYear[y].toLocaleString("en-US")}</strong></span>)}
+        <span>Lifetime: <strong>{total.toLocaleString("en-US")}</strong>{since ? ` since ${since}` : ""}</span>
       </div>
       {sources.length ? (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
@@ -725,7 +736,7 @@ function LeadsScreen() {
     <div className="content" data-screen-label="03 Leads">
       <TenureBanner />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 16 }}>
-        <Stat label="Qualified (120d)" value={counts.qualified} tone="#2c6e62" />
+        <Stat label={`Qualified (${new Date().getFullYear()})`} value={counts.qualified} tone="#2c6e62" />
         <Stat label="Needs review" value={counts.review} tone="#b8881a" />
         <Stat label="Open pipeline" value={fmtMoney(pipeline) || "$0"} tone="var(--alloy-purple)" />
         <Stat label="Won / yr" value={fmtMoney(won) || "$0"} tone="var(--alloy-purple)" />
@@ -748,7 +759,16 @@ function LeadsScreen() {
           <div style={{ padding: "28px 18px", fontSize: 13, color: "var(--fg-muted)" }}>
             {leads.length === 0 ? "No leads yet." : filter === "review" ? "Nothing to review — you're all caught up." : "No leads here."}
           </div>
-        ) : filtered.map((l) => <LeadRow key={l._k} lead={l} onSaved={onSaved} />)}
+        ) : (
+          <>
+            {filtered.slice(0, RENDER_CAP).map((l) => <LeadRow key={l._k} lead={l} onSaved={onSaved} />)}
+            {filtered.length > RENDER_CAP ? (
+              <div style={{ padding: "16px", fontSize: 12.5, color: "var(--fg-muted)", textAlign: "center" }}>
+                Showing {RENDER_CAP} of {filtered.length.toLocaleString("en-US")} — search to narrow.
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );

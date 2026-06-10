@@ -107,6 +107,7 @@ export async function loadAccountData(session, accountId, me) {
       // Lifetime WhatConverts tenure (weekly rollup).
       wcQualifiedTotal: account.wc_qualified_total || 0,
       wcQualifiedBySource: account.wc_qualified_by_source || {},
+      wcQualifiedByYear: account.wc_qualified_by_year || {},
       wcFirstLeadAt: account.wc_first_lead_at || null,
     },
     roles: ROLES,
