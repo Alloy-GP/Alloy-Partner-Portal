@@ -888,7 +888,6 @@ function LeadsScreen() {
               <div className="lbl"><span className="dot blue" />Quote value</div>
               <div className="num">{fmtMoney(quoteAnnual) || "$0"}<span className="per">/yr</span></div>
               <div className="sub up">{openLeads.length} open {openLeads.length === 1 ? "quote" : "quotes"}</div>
-              <div className="sub">across {ytdQualified} qualified</div>
               <div className="ld-metric-note">leads with a quote value only</div>
             </div>
             <div className="ld-metric">
