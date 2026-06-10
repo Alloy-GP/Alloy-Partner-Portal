@@ -29,19 +29,19 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
   }, [DATA.account?.id]); // refetch when switching client
 
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: I.Home, group: "growth" },
-    { id: "leads", label: "Leads", icon: I.Mail, group: "growth", count: leadsToReview },
-    { id: "snapshot", label: "Weekly snapshot", icon: I.Calendar, group: "growth" },
-    { id: "playbook", label: "Roadmap", icon: I.Map, group: "growth" },
-    { id: "projects", label: "Projects", icon: I.Folder, group: "growth", count: openProjects },
-    { id: "tickets", label: "Tickets", icon: I.Ticket, group: "account", count: pendingTickets || 0 },
+    { id: "dashboard", label: "Dashboard", icon: I.Home, group: "main" },
+    { id: "leads", label: "Leads", icon: I.Mail, group: "main", count: leadsToReview },
+    { id: "snapshot", label: "Weekly snapshot", icon: I.Calendar, group: "main" },
+    { id: "playbook", label: "Roadmap", icon: I.Map, group: "work" },
+    { id: "projects", label: "Projects", icon: I.Folder, group: "work", count: openProjects },
+    { id: "tickets", label: "Inbox", icon: I.Ticket, group: "work", count: pendingTickets || 0 },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Doc, group: "account", external: true, href: "https://dam.alloygp.co" },
     // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
   ].filter(n => !n.staff || isStaff);
   const grouped = {
-    top: navItems.filter(n => n.group === "top"),
-    growth: navItems.filter(n => n.group === "growth"),
+    main: navItems.filter(n => n.group === "main"),
+    work: navItems.filter(n => n.group === "work"),
     account: navItems.filter(n => n.group === "account"),
   };
   return (
@@ -58,15 +58,21 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
       <button className="alloy-strip-spacer" aria-hidden="true" style={{display:"none"}}/>
 
       <nav className="sidebar-nav" data-tour="nav">
-        {grouped.top.map(it => (
-          <div key={it.id} className="nav-item" data-active={active === it.id} onClick={() => onNav(it.id)}>
+        {grouped.main.map(it => (
+          <div
+            key={it.id}
+            className={`nav-item${it.soon ? " nav-item-soon" : ""}`}
+            data-active={active === it.id}
+            onClick={() => { if (!it.soon) onNav(it.id); }}
+            aria-disabled={it.soon ? true : undefined}
+          >
             <span className="icon"><it.icon /></span>
             <span>{it.label}</span>
-            {it.count ? <span className="badge-dot">{it.count}</span> : null}
+            {it.soon ? <span className="nav-soon-tag">Soon</span> : (it.count ? <span className="badge-dot">{it.count}</span> : null)}
           </div>
         ))}
-        <div className="nav-section-label">Growth</div>
-        {grouped.growth.map(it => (
+        <div className="nav-section-label has-divider">Work</div>
+        {grouped.work.map(it => (
           <div
             key={it.id}
             className={`nav-item${it.soon ? " nav-item-soon" : ""}`}
