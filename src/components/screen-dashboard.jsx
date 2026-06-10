@@ -319,8 +319,8 @@ function PartnershipValueCard({ onNav }) {
   const quoteMonthly = leads.reduce((s, l) => s + (Number(l.quoteValue) || 0), 0);
   const salesMonthly = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0);
   const lifetimeQualified = DATA.account?.wcQualifiedTotal || leads.filter(l => l.quotable === "yes").length;
-  // Management fee -> true contract revenue (mid of the 2.25-2.5 range).
-  const CONTRACT = 2.375;
+  // Management fee -> true contract revenue.
+  const CONTRACT = 2.35;
   const fmtBig = (n) => {
     n = Number(n) || 0;
     if (n >= 1e6) return `$${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2)}M`;
@@ -339,7 +339,7 @@ function PartnershipValueCard({ onNav }) {
   // quote/sales values entered in the qualify flow, so they grow as leads get
   // valued.
   const tiles = [
-    { num: lifetimeQualified.toLocaleString("en-US"), lbl: "Qualified leads", sub: "since day one", color: "var(--alloy-purple)" },
+    { num: lifetimeQualified.toLocaleString("en-US"), lbl: "Qualified leads", sub: DATA.account?.since ? `since ${DATA.account.since}` : "all time", color: "var(--alloy-purple)" },
     { num: fmtBig(quoteMonthly * 12 * CONTRACT), lbl: "Total quote value", sub: "contract revenue", color: "#2f6fb0" },
     { num: fmtBig(salesMonthly * CONTRACT * 60), lbl: "Revenue created", sub: "lifetime, closed", color: "#2c8a6e" },
     { num: fmtBig(salesMonthly * 12 * CONTRACT * 4), lbl: "Projected firm value", sub: "your firm", color: "var(--alloy-pink)" },
