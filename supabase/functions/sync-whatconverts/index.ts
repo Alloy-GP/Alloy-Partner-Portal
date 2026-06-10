@@ -137,6 +137,7 @@ function mapLead(l: any, i: number, acctId: string) {
     company: l.contact_company_name || l.contact_company || null,
     message: leadMessage(l),
     context: leadContext(l),
+    page: l.lead_url || l.landing_url || null,   // the page the form/widget was on
     source: l.lead_source || l.lead_medium || l.source || "Direct",
     quality,
     quotable,

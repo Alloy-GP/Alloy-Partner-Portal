@@ -560,6 +560,8 @@ const fmtMoney = (n) => {
   return `$${v.toLocaleString("en-US")}`;
 };
 const statusOf = (l) => l.quotable === "yes" ? "qualified" : l.quotable === "no" ? "notfit" : "review";
+// "https://riseamg.com/quote/" → "riseamg.com/quote"
+const prettyPage = (url) => { try { const u = new URL(url); return (u.hostname + u.pathname).replace(/\/$/, ""); } catch { return url; } };
 
 // Build the leads-page view model from real data (recentLeads + account rollup).
 function buildLeadsPage() {
@@ -590,6 +592,7 @@ function buildLeadsPage() {
     time: l.time || "",
     status: statusOf(l),
     note: l.message || "",
+    page: l.page || "",
     monthly: Number(l.salesValue) || Number(l.quoteValue) || 0,   // monthly
     value: l.quotable === "yes" ? (l.value || "") : null,         // annual display string
   }));
@@ -875,6 +878,9 @@ function LeadsScreen() {
                 <div className="ld-journey">
                   <div className="step"><span className="dot" /><span className="tx"><b>{panelLead.source}</b>{panelLead.context ? ` — ${panelLead.context}` : ""}</span></div>
                   <div className="step"><span className="dot" /><span className="tx">{panelLead.channel === "call" ? "Called your tracked number" : "Filled out your contact form"}{panelLead.time ? ` · ${panelLead.time}` : ""}</span></div>
+                  {panelLead.page ? (
+                    <div className="step"><span className="dot" /><span className="tx">On <a className="ld-page-link" href={panelLead.page} target="_blank" rel="noreferrer">{prettyPage(panelLead.page)}</a></span></div>
+                  ) : null}
                   <div className="step"><span className="dot" /><span className="tx">Captured by WhatConverts → routed here</span></div>
                 </div>
               </div>
