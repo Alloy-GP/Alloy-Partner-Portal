@@ -44,12 +44,13 @@
   .app.sidebar-collapsed .sidebar-footer .icon-btn { display: none !important; }
   .app.sidebar-collapsed .alloy-strip { justify-content: center; padding: 4px 0 12px; }
   .app.sidebar-collapsed .alloy-strip .alloy-mark { margin: 0; }
-  .app.sidebar-collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
-  .app.sidebar-collapsed .nav-item .icon { margin: 0; }
+  /* Keep icons in the same left position whether collapsed or expanded —
+     only the label disappears, the icon doesn't slide. */
+  .app.sidebar-collapsed .nav-item { padding-right: 0; }
   .app.sidebar-collapsed .sidebar-footer { display: flex; justify-content: center; }
   .app.sidebar-collapsed .sidebar-footer .user-row { justify-content: center; padding: 8px 0; }
   .app.sidebar-collapsed .sidebar-ctrl-label { display: none !important; }
-  .app.sidebar-collapsed .sidebar-ctrl-btn { justify-content: center; }
+  .app.sidebar-collapsed .sidebar-ctrl-btn { padding-right: 0; }
 
   /* Smooth expand: fade labels in (instead of a hard display pop) so widening
      the rail doesn't twitch. */
