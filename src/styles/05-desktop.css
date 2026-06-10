@@ -61,13 +61,16 @@
   .app.sidebar-collapsed .nav-item { padding-right: 0; }
   .app.sidebar-collapsed .sidebar-ctrl-btn { padding-right: 0; }
 
-  /* Collapsed rail: center the icon (label width collapses to nothing). The
-     rail's sticky position is unchanged, so it still stays put on scroll. */
+  /* Collapsed rail: anchor the icon LEFT at a pad that still lands it centered
+     in the 68px rail (18px sidebar pad + 7px + 9px half-icon = 34px = rail
+     center). Anchoring left (not justify-content:center) means the icon holds
+     its x while the rail width animates — so it never drifts toward center when
+     the hover tray collapses. Matches the is-hovering rule above. */
   .app.sidebar-collapsed .nav-item,
   .app.sidebar-hover:not(.is-hovering) .nav-item,
   .app.sidebar-collapsed .sidebar-ctrl-btn,
   .app.sidebar-hover:not(.is-hovering) .sidebar-ctrl-btn {
-    justify-content: center; gap: 0; padding-left: 0; padding-right: 0;
+    justify-content: flex-start; gap: 0; padding-left: 7px; padding-right: 0;
   }
   /* Collapse every non-icon child to zero footprint so the icon truly centers.
      `min-width: 0` is essential: flex items default to min-width:auto, which
