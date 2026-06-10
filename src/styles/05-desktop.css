@@ -86,6 +86,12 @@
   .app.sidebar-hover:not(.is-hovering) .sidebar-ctrl-label {
     width: 0; min-width: 0; overflow: hidden; margin: 0; padding: 0;
   }
+  /* Group separators: in the narrow rail the default 14px side margins leave
+     only a ~4px nub (reads as a dot). Tighten so it's a real short rule. */
+  .app.sidebar-collapsed .nav-section-label.has-divider,
+  .app.sidebar-hover:not(.is-hovering) .nav-section-label.has-divider {
+    margin-left: 6px; margin-right: 6px;
+  }
   @media (prefers-reduced-motion: reduce) {
     .app:not(.sidebar-collapsed) .nav-item > span:not(.icon),
     .app:not(.sidebar-collapsed) .nav-section-label { animation: none; }

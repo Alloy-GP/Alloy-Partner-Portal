@@ -237,7 +237,8 @@ a:hover { text-decoration: underline; }
 .sidebar-ctrl-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .sidebar-ctrl-scrim { position: fixed; inset: 0; z-index: 69; }
 .sidebar-ctrl-menu {
-  position: absolute; bottom: calc(100% + 8px); left: 4px; z-index: 70;
+  /* Fixed (not absolute) so the collapsed 68px rail's overflow can't clip it. */
+  position: fixed; left: 12px; bottom: 74px; z-index: 70;
   width: 200px; padding: 8px;
   background: #241334; border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4);
