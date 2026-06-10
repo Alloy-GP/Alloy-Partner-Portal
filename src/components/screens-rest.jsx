@@ -562,6 +562,46 @@ const fmtMoney = (n) => {
 const statusOf = (l) => l.quotable === "yes" ? "qualified" : l.quotable === "no" ? "notfit" : "review";
 // "https://riseamg.com/quote/" → "riseamg.com/quote"
 const prettyPage = (url) => { try { const u = new URL(url); return (u.hostname + u.pathname).replace(/\/$/, ""); } catch { return url; } };
+// Form field names arrive machine-y ("your_message", "Type of Association *",
+// "ZIP / Postal Code(Required)"). Tidy to a readable label.
+const prettyField = (name) => {
+  const s = String(name || "")
+    .replace(/\(required\)/ig, "").replace(/\*/g, "")
+    .replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!s) return "Field";
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+// WhatConverts dumps the WHOLE form submission, with noise: contact-info
+// duplicates (mapped fields), tracking URLs (Page URL / Campaign / GCLID), and
+// checkbox option-dumps where name === value ("Commercial":"Commercial"). Keep
+// only the meaningful answers — dropdown selections, unit counts, association
+// type, "what brings you here", etc. — deduped.
+const SKIP_FIELD_NAME = /^(e-?mail( address)?|phone( number)?|mobile|cell|fax|name|full name|first( name)?|last( name)?|your name|contact name|company name|community name|association name|page url|url|campaign|gclid|utm[_a-z]*|ip address|message|comments?)$/i;
+function cleanFields(l) {
+  const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
+  const digits = (s) => norm(s).replace(/[^0-9]/g, "");
+  const emailV = norm(l.email), nameV = norm(l.name), companyV = norm(l.company);
+  const phoneD = digits(l.phone);
+  const seen = new Set();
+  return (Array.isArray(l.fields) ? l.fields : []).filter((f) => {
+    if (!f || f.value == null) return false;
+    const v = String(f.value).trim();
+    if (!v || v.length >= 200) return false;
+    if (/^https?:\/\//i.test(v)) return false;                 // tracking URLs
+    const nm = String(f.name || "").trim();
+    const nmKey = nm.replace(/\(required\)/ig, "").replace(/\*/g, "").trim();
+    if (norm(nm) === norm(v)) return false;                    // option-dump
+    if (SKIP_FIELD_NAME.test(nmKey)) return false;             // contact / tracking dupes
+    const nv = norm(v);
+    if (nv === emailV || nv === nameV || nv === companyV) return false;
+    if (phoneD && digits(v) === phoneD) return false;          // any phone dupe
+    const key = norm(nmKey) + "=" + nv;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((f) => ({ name: f.name, value: String(f.value).trim() }));
+}
 const jDate = (iso) => { try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return ""; } };
 const jPath = (url) => { try { const u = new URL(url); return (u.pathname.replace(/\/$/, "") || "/"); } catch { return url; } };
 
@@ -595,6 +635,7 @@ function buildLeadsPage() {
     date: l.date || "",
     status: statusOf(l),
     note: l.message || "",
+    fields: cleanFields(l),
     page: l.page || "",
     journey: Array.isArray(l.journey) ? l.journey : null,
     monthly: Number(l.salesValue) || Number(l.quoteValue) || 0,   // monthly (pipeline)
@@ -907,6 +948,19 @@ function LeadsScreen() {
                 <div className="ld-panel-sec">
                   <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : "Their message"}</div>
                   <div className="ld-panel-note">{panelLead.note}</div>
+                </div>
+              ) : null}
+              {Array.isArray(panelLead.fields) && panelLead.fields.length ? (
+                <div className="ld-panel-sec">
+                  <div className="sec-lbl">What they submitted</div>
+                  <div className="ld-panel-kv">
+                    {panelLead.fields.map((f, i) => (
+                      <div className="kv" key={i}>
+                        <span className="k">{prettyField(f.name)}</span>
+                        <span className="vv">{f.value}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
               <div className="ld-panel-sec">

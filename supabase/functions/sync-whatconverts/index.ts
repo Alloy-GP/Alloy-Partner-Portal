@@ -95,16 +95,14 @@ function fieldPairs(l: any): Array<{ name: string; value: string }> {
   return pairs;
 }
 
-// The lead's own words: prefer an actual message/comments field, else the
-// longest free-text answer (skip emails, phones, URLs, short categories).
+// The lead's own words: ONLY a field literally named message/comments/etc. The
+// full submission is kept in `fields`, so the panel shows dropdown answers (e.g.
+// "What brings you here") under their own labels — no need to guess a "message"
+// from the longest answer (that used to grab a bare phone number).
 function leadMessage(l: any): string | null {
   const pairs = fieldPairs(l);
-  const named = pairs.find((p) => /\b(message|comments?|your message|describe|tell us|details?)\b/i.test(p.name));
-  if (named) return named.value.slice(0, 800);
-  const longest = pairs.map((p) => p.value)
-    .filter((v) => !/^https?:|@|^\+?[0-9 ()-]+$/.test(v) && !/^(yes|no)$/i.test(v))
-    .sort((a, b) => b.length - a.length)[0];
-  return longest && longest.length > 25 ? longest.slice(0, 800) : null;
+  const named = pairs.find((p) => /\b(message|comments?|your message|describe|tell us|details?|how can we help|reason)\b/i.test(p.name));
+  return named && named.value.length > 1 ? named.value.slice(0, 800) : null;
 }
 
 // How they arrived: search keyword, else form name, else landing path.
@@ -156,6 +154,7 @@ function mapLead(l: any, i: number, acctId: string) {
     phone: l.contact_phone_number || l.caller_number || l.phone_number || null,
     company: l.contact_company_name || l.contact_company || null,
     message: leadMessage(l),
+    fields: fieldPairs(l),                       // full form submission (incl. dropdowns)
     context: leadContext(l),
     page: l.lead_url || l.landing_url || null,   // the page the form/widget was on
     journey: leadJourney(l),                     // full multi-touch path

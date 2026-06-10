@@ -9,7 +9,7 @@
   grid-template-columns: 1.7fr 1fr;
   gap: 16px;
   align-items: start;
-  margin-bottom: 16px;
+  margin-bottom: 28px;
 }
 @media (max-width: 1000px) { .ld-top { grid-template-columns: 1fr; } }
 
