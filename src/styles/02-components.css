@@ -248,9 +248,6 @@
 @keyframes wm-pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(2.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .wm-live::after { animation: none; } }
 
-.wm-viewall { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; background: none; border: none; cursor: pointer; color: var(--alloy-pink); font-weight: 700; font-size: 12.5px; padding: 4px 0 0; }
-.wm-viewall:hover { color: #c12a60; }
-
 /* Recognition — stat tiles on dark purple (V5 theme) */
 .recognition-tiles-card {
   border-radius: 14px;

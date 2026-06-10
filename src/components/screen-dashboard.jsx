@@ -533,15 +533,16 @@ function ProjectsList({ onNav }) {
     pink: "var(--alloy-pink)", yellow: "var(--alloy-yellow)", purple: "var(--alloy-purple)",
     blue: "#2a6391", green: "var(--alloy-green)",
   };
-  const PCOLORS = ["#d9356e", "#2a6391", "#2c6e62", "#381c4f", "#b8881a", "#9b6dc4"];
-  // Breadth by category: top few + remainder folded into "more". Skip projects
-  // with no category set (no "Other" bucket).
+  const PCOLORS = ["#d9356e", "#2a6391", "#2c6e62", "#381c4f", "#b8881a", "#9b6dc4", "#c2703d", "#5a7d9a"];
+  // Breadth by category: show plenty of areas (fills the card, reads as value),
+  // fold only the long tail into "+N more". Skip projects with no category set.
+  const TOP = 8;
   const byPhase = Object.entries(
     all.filter(p => p.phase).reduce((m, p) => { m[p.phase] = (m[p.phase] || 0) + 1; return m; }, {})
   ).sort((a, b) => b[1] - a[1]);
-  const topPhases = byPhase.slice(0, 5);
+  const topPhases = byPhase.slice(0, TOP);
   const moreCats = byPhase.length - topPhases.length;
-  const moreCount = byPhase.slice(5).reduce((s, [, n]) => s + n, 0);
+  const moreCount = byPhase.slice(TOP).reduce((s, [, n]) => s + n, 0);
 
   return (
     <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon" data-tour="projects">
@@ -600,8 +601,6 @@ function ProjectsList({ onNav }) {
             ))}
           </div>
         ) : null}
-
-        <button className="wm-viewall" onClick={() => onNav("projects")}>View all {all.length} projects &rarr;</button>
       </div>
     </div>
   );
