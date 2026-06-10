@@ -365,7 +365,7 @@ function PartnershipValueCard({ onNav }) {
         <div className="pv-head">
           <span className="pv-ic"><I.TrendUp width={20} height={20} /></span>
           <div className="pv-titles">
-            <div className="pv-kicker">What we've built</div>
+            <div className="pv-kicker">What we've built together</div>
             <div className="pv-title">Partnership value</div>
           </div>
           <button className="pv-cta" onClick={() => onNav && onNav("leads")} aria-label="See lead detail">
