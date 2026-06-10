@@ -30,10 +30,10 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "main" },
+    { id: "tickets", label: "Inbox", icon: I.Mail, group: "main", count: pendingTickets || 0 },
     { id: "leads", label: "Leads", icon: I.Chart, group: "main", count: leadsToReview },
-    { id: "snapshot", label: "Monthly snapshot", icon: I.Camera, group: "main" },
-    { id: "tickets", label: "Inbox", icon: I.Mail, group: "work", count: pendingTickets || 0 },
     { id: "projects", label: "Projects", icon: I.Folder, group: "work", count: openProjects },
+    { id: "snapshot", label: "Monthly snapshot", icon: I.Camera, group: "work" },
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "work" },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Doc, group: "account", external: true, href: "https://dam.alloygp.co" },
