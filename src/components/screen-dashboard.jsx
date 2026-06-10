@@ -500,16 +500,12 @@ function ActionQueue({ onNav }) {
       ) : (
         <div className="aq-scroll" style={{display:"flex", flexDirection:"column", gap:10}}>
           {needsYou.map((p, i) => (
-            <button key={i} onClick={() => onNav("tickets", p.routeId)} style={{
-              display:"flex", alignItems:"center", gap:14, textAlign:"left", width:"100%", cursor:"pointer",
-              padding:"14px 16px", background:"var(--alloy-off-white)",
-              border:"1px solid var(--border-subtle)", borderRadius:10,
-            }}>
-              <div style={{flex:1, minWidth:0}}>
-                <div style={{fontSize:13.5, fontWeight:700, color:"var(--alloy-purple)"}}>{p.title}</div>
-                <div style={{fontSize:12, color:"var(--fg-muted)", marginTop:2}}>{p.dueRel}</div>
+            <button key={i} className="aq-item" onClick={() => onNav("tickets", p.routeId)}>
+              <div className="aq-item-body">
+                <div className="aq-item-title">{p.title}</div>
+                <div className="aq-item-sub">{p.dueRel}</div>
               </div>
-              <span aria-hidden="true" style={{color:"var(--fg-muted)"}}>→</span>
+              <span className="aq-item-chev" aria-hidden="true">→</span>
             </button>
           ))}
         </div>

@@ -205,6 +205,23 @@
 .banner-card.banner-yellow .bc-cta.bc-cta-pink { background: var(--alloy-pink); color: #fff; }
 .banner-card.banner-yellow .bc-cta.bc-cta-pink:hover { background: #c12a60; }
 
+/* Action-queue item cards (route to a ticket) — clear clickable hover. */
+.aq-item {
+  display: flex; align-items: center; gap: 14px; text-align: left; width: 100%; cursor: pointer;
+  padding: 14px 16px; background: var(--alloy-off-white);
+  border: 1px solid var(--border-subtle); border-radius: 10px;
+  transition: border-color .12s ease, background .12s ease, box-shadow .12s ease, transform .1s ease;
+}
+.aq-item:hover {
+  border-color: color-mix(in oklab, var(--alloy-purple) 30%, transparent);
+  background: #fff; box-shadow: 0 4px 14px rgba(56,28,79,0.09); transform: translateY(-1px);
+}
+.aq-item-body { flex: 1; min-width: 0; }
+.aq-item-title { font-size: 13.5px; font-weight: 700; color: var(--alloy-purple); }
+.aq-item-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
+.aq-item-chev { color: var(--fg-muted); transition: transform .12s ease, color .12s ease; }
+.aq-item:hover .aq-item-chev { color: var(--alloy-pink); transform: translateX(3px); }
+
 /* Recognition — stat tiles on dark purple (V5 theme) */
 .recognition-tiles-card {
   border-radius: 14px;
