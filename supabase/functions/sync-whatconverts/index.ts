@@ -75,10 +75,12 @@ function mapLead(l: any, i: number, acctId: string) {
   const quotable = quotableState(l.quotable);
   // quality kept for back-compat: only an explicit "yes" is qualified.
   const quality = quotable === "yes" ? "qualified" : "review";
-  const quoteValue = num(l.quote_value);   // quoted, not closed
-  const salesValue = num(l.sales_value);   // closed deal, annual
-  // Display value favors the closed (sales) number, then the quote.
-  const val = salesValue || quoteValue || num(l.lead_value);
+  // WhatConverts values are MONTHLY (how the client enters them). We store the
+  // raw monthly figure and annualize (x12) only for display.
+  const quoteValue = num(l.quote_value);   // monthly, quoted (open)
+  const salesValue = num(l.sales_value);   // monthly, closed
+  const monthly = salesValue || quoteValue || num(l.lead_value);
+  const annual = monthly * 12;
   const created = toIso(l.date_created) || new Date().toISOString();  // created_at is NOT NULL
   return {
     account_id: acctId,
@@ -89,9 +91,9 @@ function mapLead(l: any, i: number, acctId: string) {
     source: l.lead_source || l.lead_medium || l.source || "Direct",
     quality,
     quotable,
-    value: val > 0 ? `$${val.toLocaleString("en-US")}` : "",
-    quote_value: quoteValue || null,
-    sales_value: salesValue || null,
+    value: annual > 0 ? `$${annual.toLocaleString("en-US")}` : "",   // annualized for display
+    quote_value: quoteValue || null,   // monthly
+    sales_value: salesValue || null,   // monthly
     type: leadType(l.lead_type),
     time_label: relTime(created),
     created_at: created,

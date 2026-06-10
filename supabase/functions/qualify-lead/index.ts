@@ -106,13 +106,13 @@ Deno.serve(async (req) => {
     const patch: Record<string, unknown> = { quality, quotable };
     if (quoteValue != null) patch.quote_value = quoteValue;
     if (salesValue != null) patch.sales_value = salesValue;
-    // Display value favors closed (sales/annual), then quote. Recompute from the
-    // post-update picture (new value if provided, else whatever was on the row).
+    // Values are stored MONTHLY (as entered & written to WhatConverts); the
+    // display string is annualized (x12). Favor closed (sales) then quote.
     const { data: row } = await admin.from("leads").select("quote_value, sales_value").eq("id", lead.id).maybeSingle();
     const finalSales = salesValue != null ? salesValue : num(row?.sales_value);
     const finalQuote = quoteValue != null ? quoteValue : num(row?.quote_value);
-    const display = finalSales || finalQuote;
-    patch.value = display > 0 ? `$${display.toLocaleString("en-US")}` : "";
+    const annual = (finalSales || finalQuote) * 12;
+    patch.value = annual > 0 ? `$${annual.toLocaleString("en-US")}` : "";
 
     const { data: updated, error: upErr } = await admin
       .from("leads").update(patch).eq("id", lead.id)

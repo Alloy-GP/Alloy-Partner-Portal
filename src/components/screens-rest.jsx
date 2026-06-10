@@ -558,12 +558,9 @@ const fmtMoney = (n) => {
   return v > 0 ? `$${v.toLocaleString("en-US")}` : "";
 };
 
-// Stored quote/sales values are ANNUAL. Clients enter MONTHLY in the portal,
-// so the inputs show monthly (annual / 12) and annualize (x 12) on save.
-const toMonthly = (annual) => {
-  const n = Number(annual);
-  return n > 0 ? String(Math.round((n / 12) * 100) / 100) : "";
-};
+// Values are stored MONTHLY (matching WhatConverts). The portal annualizes
+// (x12) only for display; inputs show and save the monthly figure.
+const annualize = (monthly) => (Number(monthly) || 0) * 12;
 
 // ---- Hero: the result, big and celebratory ----
 function LeadsHero({ qualified, won, pipeline }) {
@@ -665,8 +662,8 @@ function LeadRow({ lead, onSaved }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [quote, setQuote] = useState(toMonthly(lead.quoteValue));   // monthly
-  const [sales, setSales] = useState(toMonthly(lead.salesValue));   // monthly
+  const [quote, setQuote] = useState(lead.quoteValue ? String(lead.quoteValue) : "");   // monthly
+  const [sales, setSales] = useState(lead.salesValue ? String(lead.salesValue) : "");   // monthly
 
   const state = lead.quotable === "yes" ? "qualified"
     : lead.quotable === "no" ? "nofit" : "review";
@@ -681,17 +678,17 @@ function LeadRow({ lead, onSaved }) {
     setSaving(true); setErr("");
     const opts = { quotable };
     if (quotable === "yes") {
-      if (quote !== "") opts.quoteValue = quoteAnnual;
-      if (sales !== "") opts.salesValue = salesAnnual;
+      if (quote !== "") opts.quoteValue = Number(quote);   // monthly
+      if (sales !== "") opts.salesValue = Number(sales);   // monthly
     }
     try {
       const updated = await qualifyLead(lead.id, opts);
       onSaved(lead.id, updated || {
         ...lead, quotable,
         quality: quotable === "yes" ? "qualified" : "review",
-        quote_value: quote ? quoteAnnual : lead.quoteValue,
-        sales_value: sales ? salesAnnual : lead.salesValue,
-        value: fmtMoney(salesAnnual || quoteAnnual || 0),
+        quote_value: quote ? Number(quote) : lead.quoteValue,
+        sales_value: sales ? Number(sales) : lead.salesValue,
+        value: fmtMoney(salesAnnual || quoteAnnual || 0),   // annual display
       });
       setOpen(false);
     } catch (e) {
@@ -699,7 +696,7 @@ function LeadRow({ lead, onSaved }) {
     } finally { setSaving(false); }
   };
 
-  const showVal = lead.value || fmtMoney(lead.salesValue || lead.quoteValue || 0);
+  const showVal = fmtMoney(annualize(lead.salesValue || lead.quoteValue || 0));   // monthly x12
   const sub = [lead.email, lead.source, lead.time].filter(Boolean).join(" · ");
 
   return (
@@ -773,8 +770,9 @@ function LeadsScreen() {
     qualified: leads.filter((l) => stateOf(l) === "qualified").length,
     nofit: leads.filter((l) => stateOf(l) === "nofit").length,
   };
-  const pipeline = leads.filter((l) => stateOf(l) === "qualified").reduce((s, l) => s + (Number(l.quoteValue) || 0), 0);
-  const won = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0);
+  // Stored values are monthly → annualize (x12) for the headline figures.
+  const pipeline = leads.filter((l) => stateOf(l) === "qualified").reduce((s, l) => s + (Number(l.quoteValue) || 0), 0) * 12;
+  const won = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0) * 12;
 
   const q = query.trim().toLowerCase();
   const filtered = leads
