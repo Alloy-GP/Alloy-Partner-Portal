@@ -550,7 +550,7 @@ function ProjectsList({ onNav }) {
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Folder width={20} height={20}/></div>
         <div className="bc-titles">
-          <div className="bc-kicker">What we're driving for you</div>
+          <div className="bc-kicker">What we're driving</div>
           <div className="bc-title">Work in motion</div>
         </div>
         <button className="bc-cta" onClick={() => onNav("projects")} aria-label="See all projects">
