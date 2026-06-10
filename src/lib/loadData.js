@@ -26,7 +26,7 @@ function relativeDue(dateStr) {
  */
 export async function getMe(session) {
   const { data, error } = await supabase
-    .from('profiles').select('account_id, is_staff, name, initials, avatar_url, role')
+    .from('profiles').select('account_id, is_staff, name, initials, avatar_url, role, tour_completed_at')
     .eq('id', session.user.id).maybeSingle();
   if (error) throw error;
   if (!data) return null; // signed in but no profile → no access
@@ -92,6 +92,7 @@ export async function loadAccountData(session, accountId, me) {
       role: profile.role || 'owner',
       isStaff: !!profile.is_staff,
       avatarUrl: profile.avatar_url || null,
+      tourCompletedAt: profile.tour_completed_at || null,
     },
     account: {
       id: account.id,

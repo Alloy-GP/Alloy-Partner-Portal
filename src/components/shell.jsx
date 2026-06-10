@@ -57,7 +57,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
       </div>
       <button className="alloy-strip-spacer" aria-hidden="true" style={{display:"none"}}/>
 
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" data-tour="nav">
         {grouped.top.map(it => (
           <div key={it.id} className="nav-item" data-active={active === it.id} onClick={() => onNav(it.id)}>
             <span className="icon"><it.icon /></span>

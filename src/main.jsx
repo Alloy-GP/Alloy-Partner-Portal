@@ -13,6 +13,7 @@ import './styles/04-rise-hero.css';
 import './styles/05-desktop.css';
 import './styles/06-alloy-hero.css';
 import './styles/07-leads.css';
+import './styles/08-tour.css';
 
 import AuthGate from './AuthGate.jsx';
 

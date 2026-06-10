@@ -4,6 +4,7 @@ import { DATA } from '../data.js';
 import ProfilePhoto from './ProfilePhoto.jsx';
 import CompanyMark from './CompanyMark.jsx';
 import { listSnapshots } from '../lib/admin.js';
+import { startPortalTour } from '../lib/tour.js';
 
 // Dashboard screen — warm, celebratory home
 function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
@@ -88,7 +89,7 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   const plan = `BoardSuite ${DATA.account?.tier || "Accelerate"}`;
 
   return (
-    <section className="alloy-hero" aria-label="Account overview">
+    <section className="alloy-hero" aria-label="Account overview" data-tour="hero">
       <div className="alloy-hero-main">
         <div className="alloy-hero-logo alloy-hero-avatar">
           <ProfilePhoto />
@@ -231,6 +232,10 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }
                 <div className="ds-user-name">{u.name || "Account"}</div>
                 <div className="ds-user-email">{session?.user?.email || DATA.account.company}</div>
               </div>
+              <button className="ds-user-signout ds-user-tour" role="menuitem" onClick={() => { setUserOpen(false); startPortalTour({ userId: session?.user?.id }); }}>
+                <I.Sparkle width={15} height={15} />
+                View portal tour
+              </button>
               {onSignOut ? (
                 <button className="ds-user-signout" role="menuitem" onClick={onSignOut}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
@@ -349,7 +354,7 @@ function WeeklySnapshotCard({ onNav }) {
   ];
 
   return (
-    <div className="ws-column">
+    <div className="ws-column" data-tour="snapshot">
       <button className="ws-playbook" onClick={() => onNav && onNav("playbook")}>
         <div className="ws-pb-head">
           <span className="ws-pb-label">{pb.q || "Roadmap"} Playbook</span>
@@ -466,7 +471,7 @@ function ActionQueue({ onNav }) {
   // Needs triage = not yet qualified ("yes") and not marked "not a fit" ("no").
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
   return (
-    <div className="banner-card banner-yellow dash-feature-card hdr-icon">
+    <div className="banner-card banner-yellow dash-feature-card hdr-icon" data-tour="queue">
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Bolt width={18} height={18}/></div>
         <div className="bc-titles">
@@ -536,7 +541,7 @@ function ProjectsList({ onNav }) {
     Energy:      { label: "L&D",         c: "var(--alloy-purple)" },
   };
   return (
-    <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon">
+    <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon" data-tour="projects">
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Folder width={20} height={20}/></div>
         <div className="bc-titles">

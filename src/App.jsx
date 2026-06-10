@@ -10,6 +10,7 @@ import TicketDetailPage from './components/TicketDetailPage.jsx';
 import SnapshotScreen from './components/SnapshotScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
+import { startPortalTour } from './lib/tour.js';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 const PATHS = {
@@ -74,6 +75,18 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   // Log a screen view on each navigation (feeds admin analytics).
   useEffect(() => { track("view", { screen: active }); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // First-run guided tour — clients only, once. Waits a beat so the dashboard
+  // anchors are mounted; the tour stamps profiles.tour_completed_at on finish.
+  const tourStartedRef = React.useRef(false);
+  useEffect(() => {
+    if (tourStartedRef.current || active !== "dashboard") return;
+    const u = DATA.user || {};
+    if (!u.id || u.isStaff || u.tourCompletedAt) return;
+    tourStartedRef.current = true;
+    const t = setTimeout(() => startPortalTour({ userId: u.id }), 800);
+    return () => clearTimeout(t);
+  }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt]);
 
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },
