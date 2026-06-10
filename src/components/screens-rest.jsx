@@ -550,6 +550,8 @@ function BigBadgeMedal({ color = "#d9356e", state = "earned" }) {
 // ---------------------------------------------------------------------------
 
 const RENDER_CAP = 150;   // cap rows rendered at once (a YTD "not a fit" bucket can be 700+)
+// On-brand donut palette: aubergine, magenta, gold, blue, teal, lavender, dusty, grey.
+const SOURCE_PALETTE = ["#381c4f", "#d9356e", "#e0a422", "#5b8fb0", "#4a9d8e", "#9a6ebd", "#c9789f", "#b6abc4"];
 
 const fmtMoney = (n) => {
   const v = Number(n);
@@ -557,11 +559,106 @@ const fmtMoney = (n) => {
 };
 
 // Stored quote/sales values are ANNUAL. Clients enter MONTHLY in the portal,
-// so the inputs show monthly (annual ÷ 12) and annualize (× 12) on save.
+// so the inputs show monthly (annual / 12) and annualize (x 12) on save.
 const toMonthly = (annual) => {
   const n = Number(annual);
   return n > 0 ? String(Math.round((n / 12) * 100) / 100) : "";
 };
+
+// ---- Hero: the result, big and celebratory ----
+function LeadsHero({ qualified, won, pipeline }) {
+  const a = DATA.account || {};
+  const year = new Date().getFullYear();
+  const byYear = a.wcQualifiedByYear || {};
+  const prior = byYear[String(year - 1)] || 0;
+  const lifetime = a.wcQualifiedTotal || 0;
+  const delta = qualified - prior;
+  return (
+    <div className="leads-hero">
+      <div className="leads-hero-main">
+        <div className="leads-hero-kicker">Qualified leads &middot; {year}</div>
+        <div className="leads-hero-num">{qualified.toLocaleString("en-US")}</div>
+        <div className="leads-hero-sub">qualified leads delivered this year</div>
+        {prior > 0 ? (
+          <div className={`leads-hero-delta ${delta >= 0 ? "up" : "flat"}`}>
+            {delta >= 0 ? `▲ ${delta} ahead of all of ${year - 1}` : `${Math.abs(delta)} to match ${year - 1}`} &middot; {prior} in {year - 1}
+          </div>
+        ) : null}
+      </div>
+      <div className="leads-hero-stats">
+        <div className="leads-hero-stat">
+          <div className="leads-hero-stat-num">{fmtMoney(won) || "$0"}</div>
+          <div className="leads-hero-stat-lbl">Won / year</div>
+        </div>
+        <div className="leads-hero-stat">
+          <div className="leads-hero-stat-num">{fmtMoney(pipeline) || "$0"}</div>
+          <div className="leads-hero-stat-lbl">Open pipeline</div>
+        </div>
+        {lifetime ? (
+          <div className="leads-hero-stat">
+            <div className="leads-hero-stat-num">{lifetime.toLocaleString("en-US")}</div>
+            <div className="leads-hero-stat-lbl">Lifetime qualified</div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ---- Source donut: where this year's leads come from, at a glance ----
+function SourceDonut({ leads }) {
+  const by = {};
+  for (const l of leads) {
+    const s = (l.source || "Direct").trim() || "Direct";
+    by[s] = (by[s] || 0) + 1;
+  }
+  const total = leads.length;
+  if (!total) return null;
+
+  const sorted = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 6);
+  const tail = sorted.slice(6);
+  if (tail.length) top.push(["Other", tail.reduce((s, [, n]) => s + n, 0)]);
+  const segs = top.map(([src, n], i) => ({ src, n, color: SOURCE_PALETTE[i % SOURCE_PALETTE.length], frac: n / total }));
+
+  const R = 70, SW = 24, CIRC = 2 * Math.PI * R;
+  let acc = 0;
+  const year = new Date().getFullYear();
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 16 }}>
+      <div className="card-head"><span className="kicker">This year</span><h3>Where your leads come from</h3></div>
+      <div className="leads-sources">
+        <div className="leads-donut">
+          <svg width="188" height="188" viewBox="0 0 188 188">
+            <g transform="rotate(-90 94 94)">
+              {segs.map((s) => {
+                const dash = s.frac * CIRC;
+                const el = (
+                  <circle key={s.src} cx="94" cy="94" r={R} fill="none" stroke={s.color} strokeWidth={SW}
+                    strokeDasharray={`${dash} ${CIRC - dash}`} strokeDashoffset={-acc * CIRC} />
+                );
+                acc += s.frac;
+                return el;
+              })}
+            </g>
+            <text x="94" y="88" textAnchor="middle" fontSize="34" fontWeight="800" style={{ fill: "var(--alloy-purple)" }} fontFamily="var(--font-display)">{total.toLocaleString("en-US")}</text>
+            <text x="94" y="108" textAnchor="middle" fontSize="11" style={{ fill: "var(--fg-muted)" }}>leads this year</text>
+          </svg>
+        </div>
+        <div className="leads-legend">
+          {segs.map((s) => (
+            <div key={s.src} className="leads-legend-row">
+              <span className="leads-legend-dot" style={{ background: s.color }} />
+              <span className="leads-legend-name" title={s.src}>{s.src}</span>
+              <span className="leads-legend-pct">{Math.round(s.frac * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // One lead row with an inline qualify panel.
 function LeadRow({ lead, onSaved }) {
@@ -577,7 +674,6 @@ function LeadRow({ lead, onSaved }) {
     : state === "nofit" ? { cls: "tag-outline", label: "Not a fit" }
     : { cls: "tag-status-progress", label: "Pending" };
 
-  // Monthly inputs → annual figures sent to WhatConverts / stored.
   const quoteAnnual = quote !== "" ? Number(quote) * 12 : 0;
   const salesAnnual = sales !== "" ? Number(sales) * 12 : 0;
 
@@ -585,12 +681,11 @@ function LeadRow({ lead, onSaved }) {
     setSaving(true); setErr("");
     const opts = { quotable };
     if (quotable === "yes") {
-      if (quote !== "") opts.quoteValue = quoteAnnual;   // annual
-      if (sales !== "") opts.salesValue = salesAnnual;   // annual
+      if (quote !== "") opts.quoteValue = quoteAnnual;
+      if (sales !== "") opts.salesValue = salesAnnual;
     }
     try {
       const updated = await qualifyLead(lead.id, opts);
-      // Mock mode (no backend) → synthesize the change locally.
       onSaved(lead.id, updated || {
         ...lead, quotable,
         quality: quotable === "yes" ? "qualified" : "review",
@@ -608,104 +703,48 @@ function LeadRow({ lead, onSaved }) {
   const sub = [lead.email, lead.source, lead.time].filter(Boolean).join(" · ");
 
   return (
-    <div style={{ borderBottom: "1px solid var(--border-subtle)", background: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--alloy-purple)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {lead.name}{lead.company ? <span style={{ fontWeight: 500, color: "var(--fg-muted)" }}> · {lead.company}</span> : null}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
+    <div className="lead-row">
+      <div className="lead-row-head">
+        <div className="lead-row-id">
+          <div className="lead-row-name">{lead.name}{lead.company ? <span className="co"> &middot; {lead.company}</span> : null}</div>
+          {sub ? <div className="lead-row-sub">{sub}</div> : null}
         </div>
-        {showVal ? (
-          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)", flexShrink: 0 }}>{showVal}<span style={{ fontSize: 10, fontWeight: 600, color: "var(--fg-muted)" }}>/yr</span></span>
-        ) : null}
+        {showVal ? <span className="lead-row-val">{showVal}<span className="per">/yr</span></span> : null}
         <span className={`tag ${tag.cls}`} style={{ flexShrink: 0 }}><span className="dot" />{tag.label}</span>
         <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}
-          style={{ flexShrink: 0, background: open ? "var(--alloy-purple)" : "transparent", color: open ? "#fff" : "var(--alloy-purple)", padding: "5px 11px" }}>
+          style={{ flexShrink: 0, background: open ? "var(--alloy-purple)" : "transparent", color: open ? "#fff" : "var(--alloy-purple)", padding: "6px 13px" }}>
           {state === "review" ? "Qualify" : "Edit"}
         </button>
       </div>
 
       {open ? (
-        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", background: "var(--alloy-off-white)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "12px 14px" }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Quote value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>monthly · open opportunity</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 9px" }}>
-                <span style={{ color: "var(--fg-muted)" }}>$</span>
-                <input value={quote} onChange={(e) => setQuote(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0"
-                  style={{ width: 80, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
-                <span style={{ color: "var(--fg-muted)", fontSize: 12 }}>/mo</span>
-              </div>
-              <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "var(--alloy-purple)" }}>{quoteAnnual > 0 ? `= ${fmtMoney(quoteAnnual)}/yr` : " "}</span>
+        <div className="lead-panel">
+          <div className="lead-fields">
+            <label className="lead-field">
+              <span className="lead-field-lbl">Quote value <span>monthly &middot; open</span></span>
+              <span className="lead-money">
+                <span className="lead-money-unit">$</span>
+                <input value={quote} onChange={(e) => setQuote(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" />
+                <span className="lead-money-unit">/mo</span>
+              </span>
+              <span className="lead-annual">{quoteAnnual > 0 ? `= ${fmtMoney(quoteAnnual)}/yr` : " "}</span>
             </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
-              Sales value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>monthly · closed deal</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 9px" }}>
-                <span style={{ color: "var(--fg-muted)" }}>$</span>
-                <input value={sales} onChange={(e) => setSales(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0"
-                  style={{ width: 80, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
-                <span style={{ color: "var(--fg-muted)", fontSize: 12 }}>/mo</span>
-              </div>
-              <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "var(--alloy-purple)" }}>{salesAnnual > 0 ? `= ${fmtMoney(salesAnnual)}/yr` : " "}</span>
+            <label className="lead-field">
+              <span className="lead-field-lbl">Sales value <span>monthly &middot; closed</span></span>
+              <span className="lead-money">
+                <span className="lead-money-unit">$</span>
+                <input value={sales} onChange={(e) => setSales(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" />
+                <span className="lead-money-unit">/mo</span>
+              </span>
+              <span className="lead-annual">{salesAnnual > 0 ? `= ${fmtMoney(salesAnnual)}/yr` : " "}</span>
             </label>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button className="btn btn-sm" disabled={saving} onClick={() => save("yes")}
-              style={{ background: "var(--alloy-green, #2c6e62)", color: "#fff", padding: "6px 14px" }}>
-              {saving ? "Saving…" : "Mark qualified"}
-            </button>
-            <button className="btn btn-sm" disabled={saving} onClick={() => save("no")}
-              style={{ background: "transparent", color: "var(--fg-muted)", padding: "6px 14px" }}>
-              Not a fit
-            </button>
-            {state !== "review" ? (
-              <button className="btn btn-sm" disabled={saving} onClick={() => save("pending")}
-                style={{ background: "transparent", color: "var(--fg-muted)", padding: "6px 14px" }}>
-                Move to pending
-              </button>
-            ) : null}
+          <div className="lead-actions">
+            <button className="lead-btn yes" disabled={saving} onClick={() => save("yes")}>{saving ? "Saving…" : "Mark qualified"}</button>
+            <button className="lead-btn no" disabled={saving} onClick={() => save("no")}>Not a fit</button>
+            {state !== "review" ? <button className="lead-btn pending" disabled={saving} onClick={() => save("pending")}>Move to pending</button> : null}
             {err ? <span style={{ fontSize: 12, color: "var(--alloy-pink)" }}>{err}</span> : null}
           </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-// Tenure: leads with the current-year (YTD) qualified number — the figure that
-// matters when you work annually — then prior years and lifetime, plus top
-// sources. Fed by the weekly rollup (DATA.account.wc*). Hidden until data.
-function TenureBanner() {
-  const a = DATA.account || {};
-  const total = a.wcQualifiedTotal || 0;
-  if (!total) return null;
-  const byYear = a.wcQualifiedByYear || {};
-  const thisYear = String(new Date().getFullYear());
-  const ytd = byYear[thisYear] || 0;
-  const since = a.wcFirstLeadAt
-    ? new Date(a.wcFirstLeadAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-    : (a.since || "");
-  // Prior years, newest first (exclude the current year — it's the headline).
-  const priorYears = Object.keys(byYear).filter((y) => y !== thisYear).sort((x, y) => y.localeCompare(x));
-  const sources = Object.entries(a.wcQualifiedBySource || {}).sort((x, y) => y[1] - x[1]).slice(0, 5);
-  return (
-    <div style={{ background: "var(--alloy-purple)", color: "#fff", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 30, fontWeight: 800, fontFamily: "var(--font-display)", lineHeight: 1 }}>{ytd.toLocaleString("en-US")}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.92 }}>qualified leads in {thisYear} so far</span>
-      </div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10, fontSize: 12.5, opacity: 0.9 }}>
-        {priorYears.map((y) => <span key={y}>{y}: <strong>{byYear[y].toLocaleString("en-US")}</strong></span>)}
-        <span>Lifetime: <strong>{total.toLocaleString("en-US")}</strong>{since ? ` since ${since}` : ""}</span>
-      </div>
-      {sources.length ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          {sources.map(([src, n]) => (
-            <span key={src} style={{ fontSize: 12, fontWeight: 600, background: "rgba(255,255,255,0.16)", borderRadius: 999, padding: "4px 11px" }}>
-              {src} · {n}
-            </span>
-          ))}
         </div>
       ) : null}
     </div>
@@ -740,130 +779,53 @@ function LeadsScreen() {
   const q = query.trim().toLowerCase();
   const filtered = leads
     .filter((l) => filter === "all" ? true : stateOf(l) === filter)
-    .filter((l) => !q || (l.name || "").toLowerCase().includes(q) || (l.source || "").toLowerCase().includes(q));
+    .filter((l) => !q || (l.name || "").toLowerCase().includes(q) || (l.company || "").toLowerCase().includes(q) || (l.source || "").toLowerCase().includes(q));
 
-  const FBTN = (id, label, n) => (
-    <button key={id} onClick={() => setFilter(id)} className="btn btn-sm"
-      style={{ background: filter === id ? "var(--alloy-purple)" : "transparent", color: filter === id ? "#fff" : "var(--alloy-purple)", padding: "5px 11px" }}>
-      {label}{n != null ? ` (${n})` : ""}
-    </button>
-  );
+  const tabs = [["review", "Needs review"], ["qualified", "Qualified"], ["nofit", "Not a fit"], ["all", "All"]];
 
   return (
     <div className="content" data-screen-label="03 Leads">
-      <TenureBanner />
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 16 }}>
-        <Stat label={`Qualified (${new Date().getFullYear()})`} value={counts.qualified} tone="#2c6e62" />
-        <Stat label="Needs review" value={counts.review} tone="#b8881a" />
-        <Stat label="Open pipeline" value={fmtMoney(pipeline) || "$0"} tone="var(--alloy-purple)" />
-        <Stat label="Won / yr" value={fmtMoney(won) || "$0"} tone="var(--alloy-purple)" />
-      </div>
+      <LeadsHero qualified={counts.qualified} won={won} pipeline={pipeline} />
 
-      <SourceChart leads={leads} stateOf={stateOf} />
+      {counts.review > 0 ? (
+        <button className="leads-review-cta" onClick={() => setFilter("review")}>
+          <span className="leads-review-badge">{counts.review}</span>
+          <span>
+            <span className="leads-review-cta-title">{counts.review} {counts.review === 1 ? "lead is" : "leads are"} waiting for your review</span>
+            <span className="leads-review-cta-sub">Mark each one qualified or not a fit to keep your pipeline live.</span>
+          </span>
+          <span className="leads-review-chev" aria-hidden="true">{"→"}</span>
+        </button>
+      ) : null}
 
-      <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
-        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", background: "var(--alloy-off-white)" }}>
-          {FBTN("review", "Needs review", counts.review)}
-          {FBTN("qualified", "Qualified", counts.qualified)}
-          {FBTN("nofit", "Not a fit", counts.nofit)}
-          {FBTN("all", "All", leads.length)}
+      <SourceDonut leads={leads} />
+
+      <div className="leads-list">
+        <div className="leads-toolbar">
+          {tabs.map(([id, label]) => (
+            <button key={id} className="leads-tab" data-active={filter === id} onClick={() => setFilter(id)}>
+              {label} {id === "all" ? leads.length : counts[id]}
+            </button>
+          ))}
           <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "7px 10px", minWidth: 180 }}>
+          <div className="leads-search">
             <I.Search width={14} height={14} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search leads…"
-              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--fg)" }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, company, source..." />
           </div>
         </div>
         {filtered.length === 0 ? (
-          <div style={{ padding: "28px 18px", fontSize: 13, color: "var(--fg-muted)" }}>
-            {leads.length === 0 ? "No leads yet." : filter === "review" ? "Nothing to review — you're all caught up." : "No leads here."}
+          <div className="lead-foot" style={{ padding: "30px 18px" }}>
+            {leads.length === 0 ? "No leads yet." : filter === "review" ? "Nothing to review - you're all caught up." : "No leads here."}
           </div>
         ) : (
           <>
             {filtered.slice(0, RENDER_CAP).map((l) => <LeadRow key={l._k} lead={l} onSaved={onSaved} />)}
             {filtered.length > RENDER_CAP ? (
-              <div style={{ padding: "16px", fontSize: 12.5, color: "var(--fg-muted)", textAlign: "center" }}>
-                Showing {RENDER_CAP} of {filtered.length.toLocaleString("en-US")} — search to narrow.
-              </div>
+              <div className="lead-foot">Showing {RENDER_CAP} of {filtered.length.toLocaleString("en-US")} - search to narrow.</div>
             ) : null}
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-const SOURCE_PALETTE = ["#6B4EFF", "#2C6E62", "#E0A422", "#E0518A", "#2A6391", "#9B8AFF", "#4FB3A1", "#C77DAE"];
-
-// Source balance: a donut of where this year's leads come from. Center shows
-// the YTD total; the legend carries each source's share and qualified count.
-// Top sources kept distinct, the long tail folded into "Other".
-function SourceChart({ leads, stateOf }) {
-  const by = {};
-  for (const l of leads) {
-    const s = (l.source || "Direct").trim() || "Direct";
-    if (!by[s]) by[s] = { total: 0, qualified: 0 };
-    by[s].total++;
-    if (stateOf(l) === "qualified") by[s].qualified++;
-  }
-  const total = leads.length;
-  if (!total) return null;
-
-  const sorted = Object.entries(by).sort((a, b) => b[1].total - a[1].total);
-  const top = sorted.slice(0, 7);
-  const tail = sorted.slice(7);
-  if (tail.length) {
-    const t = tail.reduce((acc, [, c]) => ({ total: acc.total + c.total, qualified: acc.qualified + c.qualified }), { total: 0, qualified: 0 });
-    top.push(["Other", t]);
-  }
-  const segs = top.map(([src, c], i) => ({ src, ...c, color: SOURCE_PALETTE[i % SOURCE_PALETTE.length], frac: c.total / total }));
-
-  const R = 72, SW = 26, C = 2 * Math.PI * R;
-  let acc = 0;
-  const year = new Date().getFullYear();
-
-  return (
-    <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 14, background: "#fff", padding: "18px 20px", marginBottom: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)", marginBottom: 14 }}>Lead sources · {year}</div>
-      <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ position: "relative", width: 180, height: 180, flexShrink: 0 }}>
-          <svg width="180" height="180" viewBox="0 0 180 180">
-            <g transform="rotate(-90 90 90)">
-              {segs.map((s) => {
-                const dash = s.frac * C;
-                const el = (
-                  <circle key={s.src} cx="90" cy="90" r={R} fill="none" stroke={s.color} strokeWidth={SW}
-                    strokeDasharray={`${dash} ${C - dash}`} strokeDashoffset={-acc * C} />
-                );
-                acc += s.frac;
-                return el;
-              })}
-            </g>
-            <text x="90" y="84" textAnchor="middle" fontSize="30" fontWeight="800" style={{ fill: "var(--alloy-purple)" }} fontFamily="var(--font-display)">{total.toLocaleString("en-US")}</text>
-            <text x="90" y="104" textAnchor="middle" fontSize="11" style={{ fill: "var(--fg-muted)" }}>leads YTD</text>
-          </svg>
-        </div>
-        <div style={{ flex: 1, minWidth: 220, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 18px" }}>
-          {segs.map((s) => (
-            <div key={s.src} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12.5, color: "var(--fg)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }} title={s.src}>{s.src}</span>
-              <span style={{ fontSize: 12, color: "var(--fg-muted)", flexShrink: 0 }}>
-                {Math.round(s.frac * 100)}%{s.qualified > 0 ? ` · ${s.qualified}✓` : ""}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, tone }) {
-  return (
-    <div style={{ flex: "1 1 140px", minWidth: 120, border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "14px 16px", background: "#fff" }}>
-      <div style={{ fontSize: 24, fontWeight: 800, color: tone, fontFamily: "var(--font-display)" }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: "var(--fg-muted)", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
     </div>
   );
 }
