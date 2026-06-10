@@ -559,7 +559,9 @@ function ProjectsList({ onNav }) {
         <div className="wm-stats">
           <span className="big">{inMotion.length}</span>
           <span className="lbl">in motion now</span>
-          {deliveredQtr > 0 ? <span className="sub">· {deliveredQtr} delivered this qtr</span> : null}
+          <span className="wm-div" aria-hidden="true" />
+          <span className="big green">{deliveredQtr}</span>
+          <span className="lbl muted">delivered this qtr</span>
         </div>
 
         {topPhases.length ? (

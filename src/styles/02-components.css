@@ -225,8 +225,10 @@
 /* "Work in motion" — value lens on Alloy's active work (P3 "live pulse"). */
 .wm-stats { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 15px; }
 .wm-stats .big { font-family: var(--font-display); font-size: 34px; font-weight: 800; color: var(--alloy-purple); line-height: 1; letter-spacing: -0.02em; }
+.wm-stats .big.green { color: #2c8a6e; }
 .wm-stats .lbl { font-size: 13px; font-weight: 700; color: var(--fg-3); }
-.wm-stats .sub { font-size: 12.5px; font-weight: 600; color: var(--fg-muted); }
+.wm-stats .lbl.muted { font-weight: 600; color: var(--fg-muted); }
+.wm-stats .wm-div { align-self: center; flex-shrink: 0; width: 1px; height: 24px; background: #d3ccde; margin: 0 6px; }
 
 /* Category pills — color identity driven by an inline --c per pill. */
 .wm-pills { display: flex; flex-wrap: wrap; gap: 9px; }
