@@ -35,9 +35,13 @@ function relTime(iso: string | null): string {
 }
 
 // WhatConverts date strings ("2026-06-09 14:23:05", profile-local) to ISO.
+// WhatConverts dates come as ISO with T (+ Z or a -05:00 offset) OR space-form
+// ("2026-06-05 16:15:12"). Only the space-form needs a T/Z appended — appending
+// Z to an already-zoned ISO string makes it invalid (was defaulting to now()).
 function toIso(s: string | null): string | null {
   if (!s) return null;
-  const d = new Date(String(s).replace(" ", "T") + "Z");
+  const str = String(s).trim();
+  const d = new Date(str.includes("T") ? str : str.replace(" ", "T") + "Z");
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 

@@ -592,6 +592,7 @@ function buildLeadsPage() {
     source: l.source || "Direct",
     context: l.context || "",
     time: l.time || "",
+    date: l.date || "",
     status: statusOf(l),
     note: l.message || "",
     page: l.page || "",
@@ -737,7 +738,7 @@ function LeadsScreen() {
                       <div className="ld-who-sub">
                         <LdSourceChip lead={l} />
                         {l.context ? <span className="ld-context">{l.context}</span> : null}
-                        {l.time ? <><span className="sep">·</span><span>{l.time}</span></> : null}
+                        {l.date ? <><span className="sep">·</span><span>{jDate(l.date)}</span></> : null}
                       </div>
                     </div>
                     <div className="ld-actions" onClick={(e) => e.stopPropagation()}>
@@ -830,7 +831,7 @@ function LeadsScreen() {
                 <LdSourceChip lead={l} />
                 {l.context ? <span className="ld-context">{l.context}</span> : null}
               </div>
-              <span className="ld-time">{l.time}</span>
+              <span className="ld-time">{l.date ? jDate(l.date) : l.time}</span>
               <div className="ld-cell-status" onClick={(e) => e.stopPropagation()}>
                 {l.status === "review" ? (
                   <>
