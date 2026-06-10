@@ -125,10 +125,10 @@ export async function loadAccountData(session, accountId, me) {
       owners: p.owners || [], pulse: p.pulse,
     })),
     recentLeads: (leadsRes.data || []).map((l) => ({
-      id: l.wc_lead_id, name: l.name, email: l.email, company: l.company, source: l.source,
+      id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, source: l.source,
       quality: l.quality, quotable: l.quotable,
       value: l.value, quoteValue: l.quote_value, salesValue: l.sales_value,
-      type: l.type, time: l.time_label,
+      type: l.type, time: l.time_label, message: l.message, context: l.context,
     })),
     activity: (activityRes.data || []).map((a) => ({
       color: a.color, text: a.text, meta: a.meta,

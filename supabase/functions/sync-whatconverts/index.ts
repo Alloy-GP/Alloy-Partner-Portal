@@ -71,6 +71,52 @@ function quotableState(raw: unknown): string {
   return "not_set";
 }
 
+// WhatConverts form data arrives as additional_fields / custom_fields, each an
+// array of { field_name, field_value } (or an object map). Flatten to pairs.
+function fieldPairs(l: any): Array<{ name: string; value: string }> {
+  const pairs: Array<{ name: string; value: string }> = [];
+  for (const src of [l.additional_fields, l.custom_fields, l.mapped_fields]) {
+    if (Array.isArray(src)) {
+      for (const f of src) {
+        const name = String(f?.field_name ?? f?.name ?? f?.key ?? "").trim();
+        const value = String(f?.field_value ?? f?.value ?? "").trim();
+        if (value) pairs.push({ name, value });
+      }
+    } else if (src && typeof src === "object") {
+      for (const [name, value] of Object.entries(src)) {
+        if (value != null && String(value).trim()) pairs.push({ name: String(name), value: String(value).trim() });
+      }
+    }
+  }
+  return pairs;
+}
+
+// The lead's own words: prefer an actual message/comments field, else the
+// longest free-text answer (skip emails, phones, URLs, short categories).
+function leadMessage(l: any): string | null {
+  const pairs = fieldPairs(l);
+  const named = pairs.find((p) => /\b(message|comments?|your message|describe|tell us|details?)\b/i.test(p.name));
+  if (named) return named.value.slice(0, 800);
+  const longest = pairs.map((p) => p.value)
+    .filter((v) => !/^https?:|@|^\+?[0-9 ()-]+$/.test(v) && !/^(yes|no)$/i.test(v))
+    .sort((a, b) => b.length - a.length)[0];
+  return longest && longest.length > 25 ? longest.slice(0, 800) : null;
+}
+
+// How they arrived: search keyword, else form name, else landing path.
+function leadContext(l: any): string | null {
+  const kw = String(l.keyword || "").trim();
+  if (kw && !/^\(.*\)$/.test(kw)) return `"${kw}"`;     // a real search term
+  const form = String(l.form_name || "").trim();
+  if (form) return form;
+  try {
+    const u = new URL(l.landing_url || l.lead_url || "");
+    const path = u.pathname.replace(/\/$/, "");
+    if (path && path !== "") return path.split("/").filter(Boolean).slice(-1)[0].replace(/-/g, " ");
+  } catch { /* ignore */ }
+  return null;
+}
+
 function mapLead(l: any, i: number, acctId: string) {
   const quotable = quotableState(l.quotable);
   // quality kept for back-compat: only an explicit "yes" is qualified.
@@ -87,7 +133,10 @@ function mapLead(l: any, i: number, acctId: string) {
     wc_lead_id: l.lead_id != null ? String(l.lead_id) : null,
     name: l.contact_name || l.contact_company_name || l.contact_company || "New lead",
     email: l.contact_email_address || l.email_address || l.email || null,
+    phone: l.contact_phone_number || l.caller_number || l.phone_number || null,
     company: l.contact_company_name || l.contact_company || null,
+    message: leadMessage(l),
+    context: leadContext(l),
     source: l.lead_source || l.lead_medium || l.source || "Direct",
     quality,
     quotable,

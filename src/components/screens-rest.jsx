@@ -550,280 +550,396 @@ function BigBadgeMedal({ color = "#d9356e", state = "earned" }) {
 // ---------------------------------------------------------------------------
 
 const RENDER_CAP = 150;   // cap rows rendered at once (a YTD "not a fit" bucket can be 700+)
-// On-brand donut palette: aubergine, magenta, gold, blue, teal, lavender, dusty, grey.
+// On-brand donut/source palette: aubergine, magenta, gold, blue, teal, lavender, dusty, grey.
 const SOURCE_PALETTE = ["#381c4f", "#d9356e", "#e0a422", "#5b8fb0", "#4a9d8e", "#9a6ebd", "#c9789f", "#b6abc4"];
 
 const fmtMoney = (n) => {
-  const v = Number(n);
-  return v > 0 ? `$${v.toLocaleString("en-US")}` : "";
+  const v = Number(n) || 0;
+  if (v <= 0) return "";
+  if (v >= 1000) return `$${Math.round(v / 1000)}K`;
+  return `$${v.toLocaleString("en-US")}`;
 };
+const statusOf = (l) => l.quotable === "yes" ? "qualified" : l.quotable === "no" ? "notfit" : "review";
 
-// Values are stored MONTHLY (matching WhatConverts). The portal annualizes
-// (x12) only for display; inputs show and save the monthly figure.
-const annualize = (monthly) => (Number(monthly) || 0) * 12;
-
-// ---- Hero: the result, big and celebratory ----
-function LeadsHero({ qualified, won, pipeline }) {
+// Build the leads-page view model from real data (recentLeads + account rollup).
+function buildLeadsPage() {
   const a = DATA.account || {};
+  const raw = DATA.recentLeads || [];
   const year = new Date().getFullYear();
   const byYear = a.wcQualifiedByYear || {};
-  const prior = byYear[String(year - 1)] || 0;
-  const lifetime = a.wcQualifiedTotal || 0;
-  const delta = qualified - prior;
-  return (
-    <div className="leads-hero">
-      <div className="leads-hero-main">
-        <div className="leads-hero-kicker">Qualified leads &middot; {year}</div>
-        <div className="leads-hero-num">{qualified.toLocaleString("en-US")}</div>
-        <div className="leads-hero-sub">qualified leads delivered this year</div>
-        {prior > 0 ? (
-          <div className={`leads-hero-delta ${delta >= 0 ? "up" : "flat"}`}>
-            {delta >= 0 ? `▲ ${delta} ahead of all of ${year - 1}` : `${Math.abs(delta)} to match ${year - 1}`} &middot; {prior} in {year - 1}
-          </div>
-        ) : null}
-      </div>
-      <div className="leads-hero-stats">
-        <div className="leads-hero-stat">
-          <div className="leads-hero-stat-num">{fmtMoney(won) || "$0"}</div>
-          <div className="leads-hero-stat-lbl">Won / year</div>
-        </div>
-        <div className="leads-hero-stat">
-          <div className="leads-hero-stat-num">{fmtMoney(pipeline) || "$0"}</div>
-          <div className="leads-hero-stat-lbl">Open pipeline</div>
-        </div>
-        {lifetime ? (
-          <div className="leads-hero-stat">
-            <div className="leads-hero-stat-num">{lifetime.toLocaleString("en-US")}</div>
-            <div className="leads-hero-stat-lbl">Lifetime qualified</div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
-// ---- Source donut: where this year's leads come from, at a glance ----
-function SourceDonut({ leads }) {
-  const by = {};
-  for (const l of leads) {
-    const s = (l.source || "Direct").trim() || "Direct";
-    by[s] = (by[s] || 0) + 1;
-  }
-  const total = leads.length;
-  if (!total) return null;
-
-  const sorted = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  // sources: share of this year's leads, top 6 + Other, brand colors.
+  const counts = {};
+  for (const l of raw) { const s = (l.source || "Direct").trim() || "Direct"; counts[s] = (counts[s] || 0) + 1; }
+  const total = raw.length || 1;
+  const sorted = Object.entries(counts).sort((x, y) => y[1] - x[1]);
   const top = sorted.slice(0, 6);
   const tail = sorted.slice(6);
   if (tail.length) top.push(["Other", tail.reduce((s, [, n]) => s + n, 0)]);
-  const segs = top.map(([src, n], i) => ({ src, n, color: SOURCE_PALETTE[i % SOURCE_PALETTE.length], frac: n / total }));
+  const sources = top.map(([name, n], i) => ({ name, pct: Math.round(n / total * 100), color: SOURCE_PALETTE[i % SOURCE_PALETTE.length] }));
 
-  const R = 70, SW = 24, CIRC = 2 * Math.PI * R;
-  let acc = 0;
-  const year = new Date().getFullYear();
+  const list = raw.map((l, i) => ({
+    id: l.id || `row-${i}`,
+    person: l.name || "New lead",
+    community: l.company || "",
+    email: l.email || "",
+    phone: l.phone || "",
+    channel: l.type === "call" ? "call" : "form",
+    source: l.source || "Direct",
+    context: l.context || "",
+    time: l.time || "",
+    status: statusOf(l),
+    note: l.message || "",
+    monthly: Number(l.salesValue) || Number(l.quoteValue) || 0,   // monthly
+    value: l.quotable === "yes" ? (l.value || "") : null,         // annual display string
+  }));
 
-  return (
-    <div className="card leads-source-card">
-      <div className="card-head"><span className="kicker">This year</span><h3>Where your leads come from</h3></div>
-      <div className="leads-sources">
-        <div className="leads-donut">
-          <svg width="188" height="188" viewBox="0 0 188 188">
-            <g transform="rotate(-90 94 94)">
-              {segs.map((s) => {
-                const dash = s.frac * CIRC;
-                const el = (
-                  <circle key={s.src} cx="94" cy="94" r={R} fill="none" stroke={s.color} strokeWidth={SW}
-                    strokeDasharray={`${dash} ${CIRC - dash}`} strokeDashoffset={-acc * CIRC} />
-                );
-                acc += s.frac;
-                return el;
-              })}
-            </g>
-            <text x="94" y="88" textAnchor="middle" fontSize="34" fontWeight="800" style={{ fill: "var(--alloy-purple)" }} fontFamily="var(--font-display)">{total.toLocaleString("en-US")}</text>
-            <text x="94" y="108" textAnchor="middle" fontSize="11" style={{ fill: "var(--fg-muted)" }}>leads this year</text>
-          </svg>
-        </div>
-        <div className="leads-legend">
-          {segs.map((s) => (
-            <div key={s.src} className="leads-legend-row">
-              <span className="leads-legend-dot" style={{ background: s.color }} />
-              <span className="leads-legend-name" title={s.src}>{s.src}</span>
-              <span className="leads-legend-pct">{Math.round(s.frac * 100)}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  return {
+    year,
+    stats: {
+      paceLastYear: byYear[String(year - 1)] || 0,
+      lifetimeQualified: a.wcQualifiedTotal || 0,
+      totalThisYear: raw.length,
+      firstLead: a.wcFirstLeadAt ? new Date(a.wcFirstLeadAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : (a.since || ""),
+    },
+    sources,
+    list,
+  };
 }
 
-// One lead row with an inline qualify panel.
-function LeadRow({ lead, onSaved }) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-  const [quote, setQuote] = useState(lead.quoteValue ? String(lead.quoteValue) : "");   // monthly
-  const [sales, setSales] = useState(lead.salesValue ? String(lead.salesValue) : "");   // monthly
-
-  const state = lead.quotable === "yes" ? "qualified"
-    : lead.quotable === "no" ? "nofit" : "review";
-  const tag = state === "qualified" ? { cls: "tag-status-live", label: "Qualified" }
-    : state === "nofit" ? { cls: "tag-outline", label: "Not a fit" }
-    : { cls: "tag-status-progress", label: "Pending" };
-
-  const quoteAnnual = quote !== "" ? Number(quote) * 12 : 0;
-  const salesAnnual = sales !== "" ? Number(sales) * 12 : 0;
-
-  const save = async (quotable) => {
-    setSaving(true); setErr("");
-    const opts = { quotable };
-    if (quotable === "yes") {
-      if (quote !== "") opts.quoteValue = Number(quote);   // monthly
-      if (sales !== "") opts.salesValue = Number(sales);   // monthly
-    }
-    try {
-      const updated = await qualifyLead(lead.id, opts);
-      onSaved(lead.id, updated || {
-        ...lead, quotable,
-        quality: quotable === "yes" ? "qualified" : "review",
-        quote_value: quote ? Number(quote) : lead.quoteValue,
-        sales_value: sales ? Number(sales) : lead.salesValue,
-        value: fmtMoney(salesAnnual || quoteAnnual || 0),   // annual display
-      });
-      setOpen(false);
-    } catch (e) {
-      setErr(String(e.message || e));
-    } finally { setSaving(false); }
-  };
-
-  const showVal = fmtMoney(annualize(lead.salesValue || lead.quoteValue || 0));   // monthly x12
-  const sub = [lead.email, lead.source, lead.time].filter(Boolean).join(" · ");
-
+function LdChannelIcon({ channel }) {
   return (
-    <div className="lead-row">
-      <div className="lead-row-head">
-        <div className="lead-row-id">
-          <div className="lead-row-name">{lead.name}{lead.company ? <span className="co"> &middot; {lead.company}</span> : null}</div>
-          {sub ? <div className="lead-row-sub">{sub}</div> : null}
-        </div>
-        {showVal ? <span className="lead-row-val">{showVal}<span className="per">/yr</span></span> : null}
-        <span className={`tag ${tag.cls}`} style={{ flexShrink: 0 }}><span className="dot" />{tag.label}</span>
-        <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}
-          style={{ flexShrink: 0, background: open ? "var(--alloy-purple)" : "transparent", color: open ? "#fff" : "var(--alloy-purple)", padding: "6px 13px" }}>
-          {state === "review" ? "Qualify" : "Edit"}
-        </button>
-      </div>
-
-      {open ? (
-        <div className="lead-panel">
-          <div className="lead-fields">
-            <label className="lead-field">
-              <span className="lead-field-lbl">Quote value <span>monthly &middot; open</span></span>
-              <span className="lead-money">
-                <span className="lead-money-unit">$</span>
-                <input value={quote} onChange={(e) => setQuote(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" />
-                <span className="lead-money-unit">/mo</span>
-              </span>
-              <span className="lead-annual">{quoteAnnual > 0 ? `= ${fmtMoney(quoteAnnual)}/yr` : " "}</span>
-            </label>
-            <label className="lead-field">
-              <span className="lead-field-lbl">Sales value <span>monthly &middot; closed</span></span>
-              <span className="lead-money">
-                <span className="lead-money-unit">$</span>
-                <input value={sales} onChange={(e) => setSales(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" />
-                <span className="lead-money-unit">/mo</span>
-              </span>
-              <span className="lead-annual">{salesAnnual > 0 ? `= ${fmtMoney(salesAnnual)}/yr` : " "}</span>
-            </label>
-          </div>
-          <div className="lead-actions">
-            <button className="lead-btn yes" disabled={saving} onClick={() => save("yes")}>{saving ? "Saving…" : "Mark qualified"}</button>
-            <button className="lead-btn no" disabled={saving} onClick={() => save("no")}>Not a fit</button>
-            {state !== "review" ? <button className="lead-btn pending" disabled={saving} onClick={() => save("pending")}>Move to pending</button> : null}
-            {err ? <span style={{ fontSize: 12, color: "var(--alloy-pink)" }}>{err}</span> : null}
-          </div>
-        </div>
-      ) : null}
+    <div className={`ld-chan ld-chan-${channel}`} title={channel === "call" ? "Phone call" : "Form fill"}>
+      {channel === "call" ? <I.Phone width={15} height={15} /> : <I.Doc width={15} height={15} />}
     </div>
   );
 }
 
 function LeadsScreen() {
-  const [leads, setLeads] = useState(() => (DATA.recentLeads || []).map((l, i) => ({ ...l, _k: l.id || i })));
-  const [filter, setFilter] = useState("review");
+  const LD = React.useMemo(buildLeadsPage, []);
+  const srcColor = (name) => (LD.sources.find((s) => s.name.toLowerCase() === String(name).toLowerCase()) || {}).color || "#c9c1d6";
+
+  const [leads, setLeads] = useState(LD.list);
+  const [tab, setTab] = useState("review");
   const [query, setQuery] = useState("");
+  const [panelId, setPanelId] = useState(null);
+  const [valuePrompt, setValuePrompt] = useState(null);
+  const [toast, setToast] = useState(null);
+  const toastTimer = React.useRef(null);
+  const initialQualified = React.useRef(LD.list.filter((l) => l.status === "qualified").length);
 
-  const onSaved = (id, updated) => {
-    setLeads((cur) => cur.map((l) => l.id === id ? {
-      ...l,
-      quotable: updated.quotable ?? l.quotable,
-      quality: updated.quality ?? l.quality,
-      value: updated.value ?? l.value,
-      quoteValue: updated.quote_value ?? l.quoteValue,
-      salesValue: updated.sales_value ?? l.salesValue,
-    } : l));
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  const reviewLeads = leads.filter((l) => l.status === "review");
+  const qualifiedLeads = leads.filter((l) => l.status === "qualified");
+  const ytdQualified = qualifiedLeads.length;
+  const pipelineMonthly = qualifiedLeads.reduce((s, l) => s + (Number(l.monthly) || 0), 0);
+  const lifetime = LD.stats.lifetimeQualified + (ytdQualified - initialQualified.current);
+
+  const LdSourceChip = ({ lead }) => (
+    <span className="ld-src-chip"><span className="swatch" style={{ background: srcColor(lead.source) }} />{lead.source}</span>
+  );
+
+  const setStatus = async (id, status) => {
+    const lead = leads.find((l) => l.id === id);
+    if (!lead) return;
+    const prev = { status: lead.status, value: lead.value };
+    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, status, value: status === "qualified" ? l.value : null } : l));
+    setPanelId(null);
+    if (status === "qualified") setValuePrompt(id);
+    else if (valuePrompt === id) setValuePrompt(null);
+    setToast({ id, prev, label: status === "qualified" ? `${lead.person} marked qualified` : status === "notfit" ? `${lead.person} marked not a fit` : `${lead.person} moved to pending` });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
+    try { await qualifyLead(id, { quotable: status === "qualified" ? "yes" : status === "notfit" ? "no" : "pending" }); } catch (e) { /* optimistic; next sync reconciles */ }
+  };
+  const undo = async () => {
+    if (!toast) return;
+    const t = toast;
+    setLeads((ls) => ls.map((l) => l.id === t.id ? { ...l, ...t.prev } : l));
+    if (valuePrompt === t.id) setValuePrompt(null);
+    setToast(null);
+    try { await qualifyLead(t.id, { quotable: t.prev.status === "qualified" ? "yes" : t.prev.status === "notfit" ? "no" : "pending" }); } catch (e) { /* */ }
+  };
+  const setValue = async (id, monthly) => {
+    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, monthly, value: fmtMoney(monthly * 12) } : l));
+    setValuePrompt(null);
+    try { await qualifyLead(id, { quotable: "yes", quoteValue: monthly }); } catch (e) { /* */ }
   };
 
-  const stateOf = (l) => l.quotable === "yes" ? "qualified" : l.quotable === "no" ? "nofit" : "review";
-  const counts = {
-    review: leads.filter((l) => stateOf(l) === "review").length,
-    qualified: leads.filter((l) => stateOf(l) === "qualified").length,
-    nofit: leads.filter((l) => stateOf(l) === "nofit").length,
-  };
-  // Stored values are monthly → annualize (x12) for the headline figures.
-  const pipeline = leads.filter((l) => stateOf(l) === "qualified").reduce((s, l) => s + (Number(l.quoteValue) || 0), 0) * 12;
-  const won = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0) * 12;
-
+  const tabs = [
+    { id: "review", label: "Needs review", count: reviewLeads.length, attention: reviewLeads.length > 0 },
+    { id: "qualified", label: "Qualified", count: ytdQualified },
+    { id: "notfit", label: "Not a fit", count: leads.filter((l) => l.status === "notfit").length },
+    { id: "all", label: "All", count: leads.length },
+  ];
   const q = query.trim().toLowerCase();
-  const filtered = leads
-    .filter((l) => filter === "all" ? true : stateOf(l) === filter)
-    .filter((l) => !q || (l.name || "").toLowerCase().includes(q) || (l.company || "").toLowerCase().includes(q) || (l.source || "").toLowerCase().includes(q));
+  const visible = leads.filter((l) => {
+    if (tab !== "all" && l.status !== tab) return false;
+    if (!q) return true;
+    return [l.person, l.community, l.email, l.source, l.context].join(" ").toLowerCase().includes(q);
+  });
 
-  const tabs = [["review", "Needs review"], ["qualified", "Qualified"], ["nofit", "Not a fit"], ["all", "All"]];
+  const panelLead = leads.find((l) => l.id === panelId);
+  const promptLead = leads.find((l) => l.id === valuePrompt);
+
+  useEffect(() => {
+    if (!panelId) return;
+    const onKey = (e) => { if (e.key === "Escape") setPanelId(null); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [panelId]);
 
   return (
     <div className="content" data-screen-label="03 Leads">
-      <div className="leads-top">
-        <LeadsHero qualified={counts.qualified} won={won} pipeline={pipeline} />
-        <SourceDonut leads={leads} />
-      </div>
+      <div className="ld-top">
+        {/* Review queue */}
+        <div className="banner-card banner-pink ld-queue">
+          <div className="banner-card-head">
+            <span className="ld-queue-count">{reviewLeads.length}</span>
+            <div className="bc-titles">
+              <div className="bc-kicker">WhatConverts · live</div>
+              <div className="bc-title">{reviewLeads.length > 0 ? "Leads waiting on you" : "Lead review"}</div>
+            </div>
+          </div>
+          <div className="banner-card-body">
+            {promptLead ? (
+              <div className="ld-value-prompt" style={{ marginBottom: reviewLeads.length > 0 ? 12 : 0 }}>
+                <span className="q"><b>{promptLead.person}</b> qualified — est. monthly contract value?</span>
+                {[1000, 2500, 5000].map((v) => (
+                  <button key={v} className="ld-value-chip" onClick={() => setValue(promptLead.id, v)}>{fmtMoney(v)}/mo</button>
+                ))}
+                <button className="ld-value-chip ghost" onClick={() => setValuePrompt(null)}>I'll add it later</button>
+              </div>
+            ) : null}
 
-      {counts.review > 0 ? (
-        <button className="leads-review-cta" onClick={() => setFilter("review")}>
-          <span className="leads-review-badge">{counts.review}</span>
-          <span>
-            <span className="leads-review-cta-title">{counts.review} {counts.review === 1 ? "lead is" : "leads are"} waiting for your review</span>
-            <span className="leads-review-cta-sub">Mark each one qualified or not a fit to keep your pipeline live.</span>
-          </span>
-          <span className="leads-review-chev" aria-hidden="true">{"→"}</span>
-        </button>
-      ) : null}
-
-      <div className="leads-list">
-        <div className="leads-toolbar">
-          {tabs.map(([id, label]) => (
-            <button key={id} className="leads-tab" data-active={filter === id} onClick={() => setFilter(id)}>
-              {label} {id === "all" ? leads.length : counts[id]}
-            </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          <div className="leads-search">
-            <I.Search width={14} height={14} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, company, source..." />
+            {reviewLeads.length === 0 ? (
+              <div className="ld-queue-empty">
+                <I.Check width={22} height={22} />
+                Queue clear — every lead is triaged. New ones land here the moment they come in.
+              </div>
+            ) : (
+              <div className="ld-queue-rows">
+                {reviewLeads.slice(0, 5).map((l) => (
+                  <div key={l.id} className="ld-queue-row ld-clickable" onClick={() => setPanelId(l.id)}>
+                    <LdChannelIcon channel={l.channel} />
+                    <div className="ld-who">
+                      <div className="ld-who-name">{l.person}{l.community ? <span className="ld-comm"> · {l.community}</span> : null}</div>
+                      <div className="ld-who-sub">
+                        <LdSourceChip lead={l} />
+                        {l.context ? <span className="ld-context">{l.context}</span> : null}
+                        {l.time ? <><span className="sep">·</span><span>{l.time}</span></> : null}
+                      </div>
+                    </div>
+                    <div className="ld-actions" onClick={(e) => e.stopPropagation()}>
+                      <button className="ld-btn-qualify" onClick={() => setStatus(l.id, "qualified")}><I.Check width={13} height={13} /> Qualified</button>
+                      <button className="ld-btn-notfit" onClick={() => setStatus(l.id, "notfit")}><I.Close width={11} height={11} /> Not a fit</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {reviewLeads.length > 5 ? (
+              <div className="ld-queue-foot">
+                <span>{reviewLeads.length - 5} more in the list below</span>
+                <div className="grow" />
+                <a style={{ cursor: "pointer", fontWeight: 700, color: "#fff" }} onClick={() => setTab("review")}>See all pending →</a>
+              </div>
+            ) : null}
           </div>
         </div>
-        {filtered.length === 0 ? (
-          <div className="lead-foot" style={{ padding: "30px 18px" }}>
-            {leads.length === 0 ? "No leads yet." : filter === "review" ? "Nothing to review - you're all caught up." : "No leads here."}
-          </div>
-        ) : (
-          <>
-            {filtered.slice(0, RENDER_CAP).map((l) => <LeadRow key={l._k} lead={l} onSaved={onSaved} />)}
-            {filtered.length > RENDER_CAP ? (
-              <div className="lead-foot">Showing {RENDER_CAP} of {filtered.length.toLocaleString("en-US")} - search to narrow.</div>
+
+        {/* Proof rail */}
+        <div className="ld-proof">
+          <div className="ld-proof-card">
+            <div className="ld-proof-kicker">Qualified leads · {LD.year}</div>
+            <div className="ld-proof-hero">
+              <span className="ld-proof-num">{ytdQualified}</span>
+              {LD.stats.paceLastYear > 0 ? (
+                <span className="ld-pace-pill"><I.TrendUp width={11} height={11} />{ytdQualified - LD.stats.paceLastYear >= 0 ? `${ytdQualified - LD.stats.paceLastYear} ahead of '${String(LD.year - 1).slice(2)} pace` : `${LD.stats.paceLastYear - ytdQualified} to match '${String(LD.year - 1).slice(2)}`}</span>
+              ) : null}
+            </div>
+            {LD.stats.paceLastYear > 0 ? (
+              <div className="ld-pace">
+                <div className="ld-pace-row now">
+                  <span className="yr">{LD.year}</span>
+                  <span className="track"><span className="bar" style={{ width: "100%" }} /></span>
+                  <span className="n">{ytdQualified}</span>
+                </div>
+                <div className="ld-pace-row then">
+                  <span className="yr">{LD.year - 1}</span>
+                  <span className="track"><span className="bar" style={{ width: `${ytdQualified ? Math.min(100, Math.round(LD.stats.paceLastYear / ytdQualified * 100)) : 0}%` }} /></span>
+                  <span className="n">{LD.stats.paceLastYear}</span>
+                </div>
+              </div>
             ) : null}
-          </>
-        )}
+          </div>
+
+          <div className="ld-proof-card">
+            <div className="ld-proof-rows">
+              <div className="ld-proof-row">
+                <div className="ic" style={{ background: "var(--alloy-green-tint)", color: "#2c6e62" }}><I.TrendUp width={14} height={14} /></div>
+                <div className="body">
+                  <div className="v">{fmtMoney(pipelineMonthly * 12) || "$0"}<span className="per">/yr</span></div>
+                  <div className="l">Open pipeline · {ytdQualified} qualified {ytdQualified === 1 ? "lead" : "leads"} in play</div>
+                </div>
+              </div>
+              <div className="ld-proof-row">
+                <div className="ic" style={{ background: "var(--alloy-yellow-tint)", color: "#7a5a14" }}><I.Trophy width={14} height={14} /></div>
+                <div className="body">
+                  <div className="v">{lifetime.toLocaleString("en-US")}</div>
+                  <div className="l">Lifetime qualified{LD.stats.firstLead ? ` since ${LD.stats.firstLead}` : ""}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <LdSources sources={LD.sources} total={LD.stats.totalThisYear} />
+        </div>
+      </div>
+
+      {/* Full list */}
+      <div className="ld-list-card">
+        <div className="ld-list-bar">
+          <div className="ld-tabs">
+            {tabs.map((tb) => (
+              <button key={tb.id} className={`ld-tab${tab === tb.id ? " active" : ""}${tb.attention ? " attention" : ""}`} onClick={() => setTab(tb.id)}>
+                {tb.label} <span className="ct">{tb.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="ld-search">
+            <I.Search width={14} height={14} />
+            <input placeholder="Search name, community, source…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="ld-rows">
+          {visible.length === 0 ? (
+            <div className="ld-empty-rows">{tab === "review" ? "Nothing to review — you're all caught up. 🎉" : `No leads here${q ? " match your search" : ""}.`}</div>
+          ) : visible.slice(0, RENDER_CAP).map((l) => (
+            <div key={l.id} className="ld-row ld-clickable" onClick={() => setPanelId(l.id)}>
+              <LdChannelIcon channel={l.channel} />
+              <div className="ld-who">
+                <div className="ld-who-name">{l.person}{l.community ? <span className="ld-comm"> · {l.community}</span> : null}</div>
+                <div className="ld-who-sub">{l.email}</div>
+              </div>
+              <div className="ld-cell-src">
+                <LdSourceChip lead={l} />
+                {l.context ? <span className="ld-context">{l.context}</span> : null}
+              </div>
+              <span className="ld-time">{l.time}</span>
+              <div className="ld-cell-status" onClick={(e) => e.stopPropagation()}>
+                {l.status === "review" ? (
+                  <>
+                    <span className="tag tag-status-progress ld-hover-hide"><span className="dot" />Pending</span>
+                    <div className="ld-hover-actions">
+                      <button className="ld-btn-qualify" style={{ padding: "6px 10px", fontSize: 11 }} onClick={() => setStatus(l.id, "qualified")}><I.Check width={11} height={11} /></button>
+                      <button className="ld-btn-notfit" style={{ padding: "6px 10px", fontSize: 11 }} onClick={() => setStatus(l.id, "notfit")}><I.Close width={10} height={10} /></button>
+                    </div>
+                  </>
+                ) : l.status === "qualified" ? (
+                  <>
+                    {l.value ? <span className="ld-value">{l.value}<span className="per">/yr</span></span>
+                      : <button className="ld-add-value" onClick={() => setValuePrompt(l.id)}><I.Plus width={10} height={10} /> Est. value</button>}
+                    <span className="tag tag-status-live"><span className="dot" />Qualified</span>
+                  </>
+                ) : (
+                  <span className="tag tag-status-done"><span className="dot" />Not a fit</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="ld-list-foot">
+          <span>Showing {Math.min(visible.length, RENDER_CAP)} of {visible.length.toLocaleString("en-US")} · {LD.stats.totalThisYear.toLocaleString("en-US")} leads this year</span>
+        </div>
+      </div>
+
+      {/* Detail panel */}
+      {panelLead ? (
+        <>
+          <div className="ld-panel-scrim" onClick={() => setPanelId(null)} />
+          <aside className="ld-panel" role="dialog" aria-label="Lead detail">
+            <div className="ld-panel-head">
+              <div>
+                <div className="ttl">{panelLead.person}</div>
+                <div className="sub">{panelLead.community || panelLead.source}</div>
+              </div>
+              <button className="ld-panel-close" onClick={() => setPanelId(null)} aria-label="Close"><I.Close width={13} height={13} /></button>
+            </div>
+            <div className="ld-panel-body">
+              <div className="ld-panel-sec">
+                <div className="sec-lbl">How they found you</div>
+                <div className="ld-journey">
+                  <div className="step"><span className="dot" /><span className="tx"><b>{panelLead.source}</b>{panelLead.context ? ` — ${panelLead.context}` : ""}</span></div>
+                  <div className="step"><span className="dot" /><span className="tx">{panelLead.channel === "call" ? "Called your tracked number" : "Filled out your contact form"}{panelLead.time ? ` · ${panelLead.time}` : ""}</span></div>
+                  <div className="step"><span className="dot" /><span className="tx">Captured by WhatConverts → routed here</span></div>
+                </div>
+              </div>
+              {panelLead.note ? (
+                <div className="ld-panel-sec">
+                  <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : "Their message"}</div>
+                  <div className="ld-panel-note">{panelLead.note}</div>
+                </div>
+              ) : null}
+              <div className="ld-panel-sec">
+                <div className="sec-lbl">Contact</div>
+                <div className="ld-panel-kv">
+                  {panelLead.email ? <div className="kv"><span className="k">Email</span><span className="vv">{panelLead.email}</span></div> : null}
+                  {panelLead.phone ? <div className="kv"><span className="k">Phone</span><span className="vv">{panelLead.phone}</span></div> : null}
+                  {panelLead.community ? <div className="kv"><span className="k">Community</span><span className="vv">{panelLead.community}</span></div> : null}
+                </div>
+              </div>
+            </div>
+            {panelLead.status === "review" ? (
+              <div className="ld-panel-foot">
+                <button className="ld-btn-qualify" onClick={() => setStatus(panelLead.id, "qualified")}><I.Check width={13} height={13} /> Qualified</button>
+                <button className="ld-btn-notfit" onClick={() => setStatus(panelLead.id, "notfit")}><I.Close width={11} height={11} /> Not a fit</button>
+              </div>
+            ) : null}
+          </aside>
+        </>
+      ) : null}
+
+      {/* Undo toast */}
+      {toast ? (
+        <div className="ld-toast" role="status">
+          <span>{toast.label}</span>
+          <button className="ld-undo" onClick={undo}>Undo</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LdSources({ sources, total }) {
+  const [expanded, setExpanded] = useState(false);
+  const [hover, setHover] = useState(null);
+  if (!sources.length) return null;
+  const shown = expanded ? sources : sources.slice(0, 3);
+  const rest = sources.length - 3;
+  return (
+    <div className="ld-proof-card">
+      <div className="ld-proof-kicker" style={{ color: "var(--fg-muted)" }}>Where leads come from</div>
+      <div className="ld-src-total"><b style={{ color: "var(--alloy-purple)", fontFamily: "var(--font-display)", fontSize: 15 }}>{total.toLocaleString("en-US")}</b> leads this year</div>
+      <div className="ld-src-bar">
+        {sources.map((s) => (
+          <span key={s.name} className={`seg${hover && hover !== s.name ? " dim" : ""}`}
+            style={{ width: `${s.pct}%`, background: s.color }}
+            onMouseEnter={() => setHover(s.name)} onMouseLeave={() => setHover(null)} title={`${s.name} · ${s.pct}%`} />
+        ))}
+      </div>
+      <div className="ld-src-legend">
+        {shown.map((s) => (
+          <div key={s.name} className="ld-src-line" onMouseEnter={() => setHover(s.name)} onMouseLeave={() => setHover(null)}>
+            <span className="swatch" style={{ background: s.color }} />
+            <span className="nm">{s.name}</span>
+            <span className="pct">{s.pct}%</span>
+          </div>
+        ))}
+        {rest > 0 ? <button className="ld-src-more" onClick={() => setExpanded((e) => !e)}>{expanded ? "Show less" : `+ ${rest} more sources`}</button> : null}
       </div>
     </div>
   );
