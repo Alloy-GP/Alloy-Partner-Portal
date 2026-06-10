@@ -11,7 +11,7 @@ const { useState, useEffect } = React;
 const BLANK = {
   company: '', short_name: '', tier: '', market: '', since: '',
   goal_label: 'boards signed', goal_current: 0, goal_target: 0,
-  monday_board_id: '', zendesk_org_id: '',
+  monday_board_id: '', zendesk_org_id: '', whatconverts_profile_id: '',
 };
 
 function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
@@ -218,6 +218,7 @@ function AdminScreen({ startNew, selectId }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Monday board ID" value={form.monday_board_id} onChange={set('monday_board_id')} hint="Projects/services/action queue source" />
                 <Field label="Zendesk org ID" value={form.zendesk_org_id} onChange={set('zendesk_org_id')} hint="Scopes the client's tickets" />
+                <Field label="WhatConverts profile ID" value={form.whatconverts_profile_id} onChange={set('whatconverts_profile_id')} hint="Pulls the client's leads" />
               </div>
 
               <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>

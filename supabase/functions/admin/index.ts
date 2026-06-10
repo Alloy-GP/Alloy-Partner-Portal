@@ -16,7 +16,7 @@ const json = (data: unknown, status = 200) =>
 const ACCOUNT_FIELDS = [
   "company", "short_name", "tier", "market", "since",
   "goal_label", "goal_current", "goal_target",
-  "monday_board_id", "zendesk_org_id", "logo_url",
+  "monday_board_id", "zendesk_org_id", "whatconverts_profile_id", "logo_url",
 ];
 function pick(obj: any, fields: string[]) {
   const out: Record<string, unknown> = {};
@@ -71,6 +71,19 @@ async function onboardMonday(boardId: unknown): Promise<string | null> {
     await ensureMondayWebhooks(String(boardId));
     await triggerSync(String(boardId));
     return "synced";
+  } catch (e) {
+    return "error: " + String(e);
+  }
+}
+
+// Pull this account's WhatConverts leads now (best-effort).
+async function syncWhatConverts(accountId: string): Promise<string | null> {
+  try {
+    const secret = Deno.env.get("SYNC_SECRET");
+    const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+    const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId }) });
+    const j = await r.json().catch(() => ({}));
+    return j && j.ok ? "synced" : ("error: " + JSON.stringify(j));
   } catch (e) {
     return "error: " + String(e);
   }
@@ -215,7 +228,8 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.from("accounts").insert(fields).select().single();
       if (error) throw error;
       const monday = await onboardMonday(data.monday_board_id);
-      return json({ account: data, monday });
+      const whatconverts = data.whatconverts_profile_id ? await syncWhatConverts(data.id) : null;
+      return json({ account: data, monday, whatconverts });
     }
 
     if (action === "update_account") {
@@ -227,7 +241,9 @@ Deno.serve(async (req) => {
       // Only (re)wire Monday when the board id was part of this update.
       const monday = patch.monday_board_id !== undefined
         ? await onboardMonday(data.monday_board_id) : null;
-      return json({ account: data, monday });
+      const whatconverts = patch.whatconverts_profile_id !== undefined && data.whatconverts_profile_id
+        ? await syncWhatConverts(data.id) : null;
+      return json({ account: data, monday, whatconverts });
     }
 
     if (action === "delete_account") {

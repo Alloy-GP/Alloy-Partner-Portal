@@ -138,6 +138,9 @@ Deno.serve(async (req) => {
           if (a?.monday_board_id) syncBody = JSON.stringify({ event: { boardId: a.monday_board_id } });
         }
         await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: syncBody });
+        // Also refresh WhatConverts leads so "new leads" is current.
+        const wc = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+        await fetch(wc, { method: "POST", headers: { "Content-Type": "application/json" }, body: onlyAccount ? JSON.stringify({ accountId: onlyAccount }) : "{}" });
       } catch (_e) { /* generation continues; flags will catch stale/empty data */ }
     }
 

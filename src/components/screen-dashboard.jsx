@@ -599,6 +599,9 @@ function RecentLeads() {
     hot:       { label: "Qualified", cls: "tag-status-live" },
     review:    { label: "Pending",   cls: "tag-status-progress" },
   };
+  const allLeads = DATA.recentLeads || [];
+  const pendingCount = allLeads.filter(l => l.quality === "review").length;
+  const qualifiedCount = allLeads.length - pendingCount;
   return (
     <div className="banner-card banner-yellow">
       <div className="banner-card-head">
@@ -610,11 +613,11 @@ function RecentLeads() {
       </div>
       <div className="leads-stats">
         <div className="leads-stat">
-          <div className="leads-stat-num" style={{color:"#2c6e62"}}>9</div>
+          <div className="leads-stat-num" style={{color:"#2c6e62"}}>{qualifiedCount}</div>
           <div className="leads-stat-lbl">qualified</div>
         </div>
         <div className="leads-stat">
-          <div className="leads-stat-num" style={{color:"#b8881a"}}>5</div>
+          <div className="leads-stat-num" style={{color:"#b8881a"}}>{pendingCount}</div>
           <div className="leads-stat-lbl">pending</div>
         </div>
       </div>
