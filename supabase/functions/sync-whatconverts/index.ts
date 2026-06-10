@@ -117,6 +117,22 @@ function leadContext(l: any): string | null {
   return null;
 }
 
+// WhatConverts customer_journey → compact ordered touchpoints for the panel.
+// Each entry: a session (type "attribution") with source/medium/date + the
+// pages viewed in order, or the conversion itself (type "lead").
+function leadJourney(l: any): any[] | null {
+  const cj = Array.isArray(l.customer_journey) ? l.customer_journey : [];
+  if (!cj.length) return null;
+  const steps = cj.map((s: any) => ({
+    type: s.type === "lead" ? "lead" : "visit",
+    date: s.date_created || null,
+    source: s.source || null,
+    medium: s.medium || null,
+    pages: Array.isArray(s.page_views) ? s.page_views.map((p: any) => p.page_url).filter(Boolean) : [],
+  }));
+  return steps.length ? steps : null;
+}
+
 function mapLead(l: any, i: number, acctId: string) {
   const quotable = quotableState(l.quotable);
   // quality kept for back-compat: only an explicit "yes" is qualified.
@@ -138,6 +154,7 @@ function mapLead(l: any, i: number, acctId: string) {
     message: leadMessage(l),
     context: leadContext(l),
     page: l.lead_url || l.landing_url || null,   // the page the form/widget was on
+    journey: leadJourney(l),                     // full multi-touch path
     source: l.lead_source || l.lead_medium || l.source || "Direct",
     quality,
     quotable,
@@ -155,7 +172,7 @@ async function fetchAllLeads(acctId: string, startDate: string): Promise<any[]> 
   const all: any[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const url = `${WC_BASE}/leads?account_id=${encodeURIComponent(acctId)}` +
-      `&start_date=${startDate}&leads_per_page=${PER_PAGE}&page_number=${page}&order=DESC`;  // DESC = newest first (by date)
+      `&start_date=${startDate}&leads_per_page=${PER_PAGE}&page_number=${page}&order=DESC&customer_journey=true`;  // DESC = newest first
     const res = await fetch(url, { headers: { "Authorization": authHeader(), "Accept": "application/json" } });
     if (!res.ok) throw new Error(`WhatConverts ${res.status}: ${await res.text()}`);
     const data = await res.json();

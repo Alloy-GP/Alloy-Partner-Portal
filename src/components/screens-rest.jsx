@@ -562,6 +562,8 @@ const fmtMoney = (n) => {
 const statusOf = (l) => l.quotable === "yes" ? "qualified" : l.quotable === "no" ? "notfit" : "review";
 // "https://riseamg.com/quote/" → "riseamg.com/quote"
 const prettyPage = (url) => { try { const u = new URL(url); return (u.hostname + u.pathname).replace(/\/$/, ""); } catch { return url; } };
+const jDate = (iso) => { try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return ""; } };
+const jPath = (url) => { try { const u = new URL(url); return (u.pathname.replace(/\/$/, "") || "/"); } catch { return url; } };
 
 // Build the leads-page view model from real data (recentLeads + account rollup).
 function buildLeadsPage() {
@@ -874,15 +876,18 @@ function LeadsScreen() {
             </div>
             <div className="ld-panel-body">
               <div className="ld-panel-sec">
-                <div className="sec-lbl">How they found you</div>
-                <div className="ld-journey">
-                  <div className="step"><span className="dot" /><span className="tx"><b>{panelLead.source}</b>{panelLead.context ? ` — ${panelLead.context}` : ""}</span></div>
-                  <div className="step"><span className="dot" /><span className="tx">{panelLead.channel === "call" ? "Called your tracked number" : "Filled out your contact form"}{panelLead.time ? ` · ${panelLead.time}` : ""}</span></div>
-                  {panelLead.page ? (
-                    <div className="step"><span className="dot" /><span className="tx">On <a className="ld-page-link" href={panelLead.page} target="_blank" rel="noreferrer">{prettyPage(panelLead.page)}</a></span></div>
-                  ) : null}
-                  <div className="step"><span className="dot" /><span className="tx">Captured by WhatConverts → routed here</span></div>
-                </div>
+                <div className="sec-lbl">Customer journey</div>
+                {panelLead.journey && panelLead.journey.length ? (
+                  <LeadJourney steps={panelLead.journey} />
+                ) : (
+                  <div className="ld-journey">
+                    <div className="step"><span className="dot" /><span className="tx"><b>{panelLead.source}</b>{panelLead.context ? ` — ${panelLead.context}` : ""}</span></div>
+                    <div className="step"><span className="dot" /><span className="tx">{panelLead.channel === "call" ? "Called your tracked number" : "Filled out your contact form"}{panelLead.time ? ` · ${panelLead.time}` : ""}</span></div>
+                    {panelLead.page ? (
+                      <div className="step"><span className="dot" /><span className="tx">On <a className="ld-page-link" href={panelLead.page} target="_blank" rel="noreferrer">{prettyPage(panelLead.page)}</a></span></div>
+                    ) : null}
+                  </div>
+                )}
               </div>
               {panelLead.note ? (
                 <div className="ld-panel-sec">
@@ -917,6 +922,33 @@ function LeadsScreen() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function LeadJourney({ steps }) {
+  const visits = steps.filter((s) => s.type === "visit").length;
+  const inquiries = steps.filter((s) => s.type === "lead").length;
+  const CAP = 12;
+  const ordered = [...steps].reverse().slice(0, CAP);   // newest first
+  return (
+    <>
+      <div className="ld-journey-sum">{visits} visit{visits !== 1 ? "s" : ""} · {inquiries} inquir{inquiries !== 1 ? "ies" : "y"}{steps.length > CAP ? ` · latest ${CAP} shown` : ""}</div>
+      <div className="ld-journey">
+        {ordered.map((s, idx) => s.type === "lead" ? (
+          <div key={idx} className="step lead"><span className="dot" /><span className="tx"><b>Inquiry submitted</b> <span className="ld-jt-date">{jDate(s.date)}</span></span></div>
+        ) : (
+          <div key={idx} className="step"><span className="dot" /><span className="tx">
+            <b>{s.source || "Direct"}</b>{s.medium && s.medium !== "(none)" && s.medium !== "(not set)" ? ` · ${s.medium}` : ""} <span className="ld-jt-date">{jDate(s.date)}</span>
+            {s.pages && s.pages.length ? (
+              <span className="ld-journey-pages">
+                {s.pages.slice(0, 6).map((pp, k) => <span key={k} className="pg">{jPath(pp)}</span>)}
+                {s.pages.length > 6 ? <span className="pg more">+{s.pages.length - 6}</span> : null}
+              </span>
+            ) : null}
+          </span></div>
+        ))}
+      </div>
+    </>
   );
 }
 
