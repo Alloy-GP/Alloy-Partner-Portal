@@ -533,7 +533,7 @@ function ProjectsList({ onNav }) {
     pink: "var(--alloy-pink)", yellow: "var(--alloy-yellow)", purple: "var(--alloy-purple)",
     blue: "#2a6391", green: "var(--alloy-green)",
   };
-  const PCOLORS = ["var(--alloy-pink)", "#2a6391", "#2c6e62", "var(--alloy-purple)", "#b8881a", "#9b6dc4"];
+  const PCOLORS = ["#d9356e", "#2a6391", "#2c6e62", "#381c4f", "#b8881a", "#9b6dc4"];
   // Breadth by category: top few + remainder folded into "more". Skip projects
   // with no category set (no "Other" bucket).
   const byPhase = Object.entries(
@@ -557,39 +557,23 @@ function ProjectsList({ onNav }) {
       </div>
       <div className="banner-card-body">
         <div className="wm-stats">
-          <div className="wm-stat">
-            <div className="wm-num">{inMotion.length}</div>
-            <div className="wm-lbl">in motion</div>
-          </div>
-          <div className="wm-stat">
-            <div className="wm-num">{deliveredQtr}</div>
-            <div className="wm-lbl">delivered this qtr</div>
-          </div>
+          <span className="big">{inMotion.length}</span>
+          <span className="lbl">in motion now</span>
+          {deliveredQtr > 0 ? <span className="sub">· {deliveredQtr} delivered this qtr</span> : null}
         </div>
 
         {topPhases.length ? (
-          <div className="wm-breadth">
-            <div className="wm-breadth-lbl">Across {byPhase.length} areas of your growth</div>
-            <div className="wm-bar">
-              {topPhases.map(([name, n], i) => (
-                <span key={name} style={{ flexGrow: n, background: PCOLORS[i % PCOLORS.length] }} title={name + " · " + n} />
-              ))}
-              {moreCats > 0 ? <span style={{ flexGrow: moreCount, background: "var(--border-subtle)" }} /> : null}
-            </div>
-            <div className="wm-legend">
-              {topPhases.map(([name, n], i) => (
-                <div key={name} className="wm-leg">
-                  <span className="dot" style={{ background: PCOLORS[i % PCOLORS.length] }} />
-                  <span className="nm">{name}</span><span className="ct">{n}</span>
-                </div>
-              ))}
-              {moreCats > 0 ? (
-                <div className="wm-leg wm-leg-more">
-                  <span className="dot" style={{ background: "var(--border-subtle)" }} />
-                  <span className="nm">+ {moreCats} more {moreCats === 1 ? "area" : "areas"}</span>
-                </div>
-              ) : null}
-            </div>
+          <div className="wm-pills">
+            {topPhases.map(([name, n], i) => (
+              <span key={name} className="wm-pill" style={{ "--c": PCOLORS[i % PCOLORS.length] }}>
+                <span className="wm-live" />{name}<span className="n">{n}</span>
+              </span>
+            ))}
+            {moreCats > 0 ? (
+              <span className="wm-pill rest">
+                <span className="dot" />{moreCats} more {moreCats === 1 ? "area" : "areas"}<span className="n">{moreCount}</span>
+              </span>
+            ) : null}
           </div>
         ) : null}
 
