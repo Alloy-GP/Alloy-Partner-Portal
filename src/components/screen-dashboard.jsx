@@ -362,13 +362,15 @@ function PartnershipValueCard({ onNav }) {
       </button>
 
       <div className="weekly-snapshot">
-        <div className="ws-head">
-          <div className="ws-head-row">
-            <span className="ws-title">Partnership value</span>
+        <div className="pv-head">
+          <span className="pv-ic"><I.TrendUp width={20} height={20} /></span>
+          <div className="pv-titles">
+            <div className="pv-kicker">What we've built</div>
+            <div className="pv-title">Partnership value</div>
           </div>
-          <div className="ws-head-meta">
-            <span className="ws-kicker">What we've built together</span>
-          </div>
+          <button className="pv-cta" onClick={() => onNav && onNav("leads")} aria-label="See lead detail">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
         </div>
         <div className="pv-grid">
           {tiles.map((t) => (

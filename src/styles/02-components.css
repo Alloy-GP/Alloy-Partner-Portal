@@ -248,6 +248,15 @@
 @keyframes wm-pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(2.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .wm-live::after { animation: none; } }
 
+/* Partnership value — same header design system as the Work-in-motion card. */
+.pv-head { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
+.pv-head .pv-ic { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; background: var(--alloy-yellow-tint); color: #b8881a; display: grid; place-items: center; }
+.pv-head .pv-titles { flex: 1; min-width: 0; }
+.pv-head .pv-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--alloy-pink); margin-bottom: 4px; }
+.pv-head .pv-title { font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: -0.015em; line-height: 1.1; color: var(--alloy-purple); }
+.pv-head .pv-cta { width: 38px; height: 38px; border: none; cursor: pointer; border-radius: 10px; background: var(--alloy-purple); color: #fff; display: grid; place-items: center; flex-shrink: 0; transition: background .15s ease; }
+.pv-head .pv-cta:hover { background: var(--alloy-pink); }
+
 /* Partnership value — 4 all-time relationship metrics. */
 .pv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 2px; }
 .pv-tile { background: var(--alloy-off-white); border-radius: 14px; padding: 16px 14px; display: flex; flex-direction: column; min-height: 92px; justify-content: center; }
