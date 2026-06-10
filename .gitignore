@@ -24,3 +24,4 @@ pnpm-debug.log*
 # conductor workspace scratch
 .context/
 .gstack/
+.qa/

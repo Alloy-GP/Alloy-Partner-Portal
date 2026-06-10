@@ -577,7 +577,22 @@ const prettyField = (name) => {
 // checkbox option-dumps where name === value ("Commercial":"Commercial"). Keep
 // only the meaningful answers — dropdown selections, unit counts, association
 // type, "what brings you here", etc. — deduped.
-const SKIP_FIELD_NAME = /^(e-?mail( address)?|phone( number)?|mobile|cell|fax|name|full name|first( name)?|last( name)?|your name|contact name|company name|community name|association name|page url|url|campaign|gclid|utm[_a-z]*|ip address|message|comments?)$/i;
+const SKIP_FIELD_NAME = /^(e-?mail( address)?|phone( number)?|mobile|cell|fax|name|full name|first( name)?|last( name)?|your name|contact name|company name|community name|association name|page url|url|campaign|gclid|utm[_a-z]*|ip address|message|comments?|contact method|preferred contact( method)?|how did you hear( about us)?|how'd you hear|referral source|where did you hear)$/i;
+
+// Pull the few qualifying facts worth showing right on the lead card (no need
+// to open the panel): unit count, association/property type, board-member flag.
+function keyFacts(fields) {
+  if (!Array.isArray(fields)) return [];
+  const find = (re) => { const f = fields.find((x) => re.test(String(x.name || ""))); return f ? String(f.value).trim() : null; };
+  const out = [];
+  const units = find(/units|how many units|# *of units/i);
+  if (units) { const m = units.match(/\d[\d,]*/); out.push(m ? `${m[0]} units` : units); }
+  const type = find(/type of association|association type|property type|community type/i);
+  if (type) out.push(type);
+  const board = find(/board member/i);
+  if (board && /^(y|true|1|check)/i.test(board)) out.push("Board member ✓");
+  return out;
+}
 function cleanFields(l) {
   const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
   const digits = (s) => norm(s).replace(/[^0-9]/g, "");
@@ -590,7 +605,7 @@ function cleanFields(l) {
     if (!v || v.length >= 200) return false;
     if (/^https?:\/\//i.test(v)) return false;                 // tracking URLs
     const nm = String(f.name || "").trim();
-    const nmKey = nm.replace(/\(required\)/ig, "").replace(/\*/g, "").trim();
+    const nmKey = nm.replace(/\(required\)/ig, "").replace(/[*?:]/g, "").trim();
     if (norm(nm) === norm(v)) return false;                    // option-dump
     if (SKIP_FIELD_NAME.test(nmKey)) return false;             // contact / tracking dupes
     const nv = norm(v);
@@ -636,6 +651,7 @@ function buildLeadsPage() {
     status: statusOf(l),
     note: l.message || "",
     fields: cleanFields(l),
+    facts: keyFacts(l.fields),
     page: l.page || "",
     journey: Array.isArray(l.journey) ? l.journey : null,
     monthly: Number(l.salesValue) || Number(l.quoteValue) || 0,   // monthly (pipeline)
@@ -795,6 +811,9 @@ function LeadsScreen() {
                         {l.context ? <span className="ld-context">{l.context}</span> : null}
                         {l.date ? <><span className="sep">·</span><span>{jDate(l.date)}</span></> : null}
                       </div>
+                      {l.facts && l.facts.length ? (
+                        <div className="ld-facts">{l.facts.map((f, i) => <span key={i} className="ld-fact">{f}</span>)}</div>
+                      ) : null}
                     </div>
                     <div className="ld-actions" onClick={(e) => e.stopPropagation()}>
                       <button className="ld-btn-qualify" onClick={() => setStatus(l.id, "qualified")}><I.Check width={13} height={13} /> Qualified</button>
@@ -885,6 +904,9 @@ function LeadsScreen() {
               <div className="ld-cell-src">
                 <LdSourceChip lead={l} />
                 {l.context ? <span className="ld-context">{l.context}</span> : null}
+                {l.facts && l.facts.length ? (
+                  <div className="ld-facts">{l.facts.map((f, i) => <span key={i} className="ld-fact">{f}</span>)}</div>
+                ) : null}
               </div>
               <span className="ld-time">{l.date ? jDate(l.date) : l.time}</span>
               <div className="ld-cell-status" onClick={(e) => e.stopPropagation()}>
