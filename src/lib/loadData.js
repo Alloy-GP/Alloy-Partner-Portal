@@ -104,6 +104,10 @@ export async function loadAccountData(session, accountId, me) {
       goalCurrent: account.goal_current || 0,
       goalTarget: account.goal_target || 0,
       logoUrl: account.logo_url || null,
+      // Lifetime WhatConverts tenure (weekly rollup).
+      wcQualifiedTotal: account.wc_qualified_total || 0,
+      wcQualifiedBySource: account.wc_qualified_by_source || {},
+      wcFirstLeadAt: account.wc_first_lead_at || null,
     },
     roles: ROLES,
     recurringServices: (recurringRes.data || []).map((r) => ({
@@ -120,8 +124,9 @@ export async function loadAccountData(session, accountId, me) {
       owners: p.owners || [], pulse: p.pulse,
     })),
     recentLeads: (leadsRes.data || []).map((l) => ({
-      name: l.name, source: l.source, quality: l.quality,
-      value: l.value, type: l.type, time: l.time_label,
+      id: l.wc_lead_id, name: l.name, source: l.source, quality: l.quality,
+      value: l.value, quoteValue: l.quote_value, salesValue: l.sales_value,
+      type: l.type, time: l.time_label,
     })),
     activity: (activityRes.data || []).map((a) => ({
       color: a.color, text: a.text, meta: a.meta,

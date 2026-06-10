@@ -14,6 +14,8 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
   // Projects badge: active (non-live) projects. Tickets badge: the client's
   // open tasks = pending Zendesk tickets (matches the "{client} Tasks" bucket).
   const openProjects = (DATA.projects || []).filter((p) => p.status && p.status !== 'live').length;
+  // Leads badge: leads still needing triage (not yet qualified or marked no).
+  const leadsToReview = (DATA.recentLeads || []).filter((l) => l.quotable !== 'yes' && l.quotable !== 'no').length;
   const [pendingTickets, setPendingTickets] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +30,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "growth" },
+    { id: "leads", label: "Leads", icon: I.Mail, group: "growth", count: leadsToReview },
     { id: "snapshot", label: "Weekly snapshot", icon: I.Calendar, group: "growth" },
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "growth" },
     { id: "projects", label: "Projects", icon: I.Folder, group: "growth", count: openProjects },

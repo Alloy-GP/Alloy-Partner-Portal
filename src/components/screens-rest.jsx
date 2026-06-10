@@ -4,6 +4,7 @@ import { DATA } from '../data.js';
 import { BadgeMedalSmall } from './screen-dashboard.jsx';
 import TicketThread from './TicketThread.jsx';
 import { zdList } from '../lib/zendesk.js';
+import { qualifyLead } from '../lib/leads.js';
 
 // Tickets, Playbook, Library, Recognition
 const { useState: _useState2, useEffect: _useEffect2 } = React;
@@ -541,4 +542,225 @@ function BigBadgeMedal({ color = "#d9356e", state = "earned" }) {
 }
 
 
-export { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen };
+// ---------------------------------------------------------------------------
+// Leads — qualify in-portal. Clients (and staff) triage WhatConverts leads:
+// Qualified / Not a fit / Pending. Qualifying can capture a quote value (open
+// opportunity) and an annual sales value (closed deal). Writes back to
+// WhatConverts via the qualify-lead function; the row updates optimistically.
+// ---------------------------------------------------------------------------
+
+const fmtMoney = (n) => {
+  const v = Number(n);
+  return v > 0 ? `$${v.toLocaleString("en-US")}` : "";
+};
+
+// One lead row with an inline qualify panel.
+function LeadRow({ lead, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [quote, setQuote] = useState(lead.quoteValue ? String(lead.quoteValue) : "");
+  const [sales, setSales] = useState(lead.salesValue ? String(lead.salesValue) : "");
+
+  const state = lead.quotable === "yes" ? "qualified"
+    : lead.quotable === "no" ? "nofit" : "review";
+  const tag = state === "qualified" ? { cls: "tag-status-live", label: "Qualified" }
+    : state === "nofit" ? { cls: "tag-outline", label: "Not a fit" }
+    : { cls: "tag-status-progress", label: "Pending" };
+
+  const save = async (quotable) => {
+    setSaving(true); setErr("");
+    const opts = { quotable };
+    if (quotable === "yes") {
+      if (quote !== "") opts.quoteValue = quote;
+      if (sales !== "") opts.salesValue = sales;
+    }
+    try {
+      const updated = await qualifyLead(lead.id, opts);
+      // Mock mode (no backend) → synthesize the change locally.
+      onSaved(lead.id, updated || {
+        ...lead, quotable,
+        quality: quotable === "yes" ? "qualified" : "review",
+        quote_value: quote ? Number(quote) : lead.quoteValue,
+        sales_value: sales ? Number(sales) : lead.salesValue,
+        value: fmtMoney(sales || quote || 0),
+      });
+      setOpen(false);
+    } catch (e) {
+      setErr(String(e.message || e));
+    } finally { setSaving(false); }
+  };
+
+  const showVal = lead.value || fmtMoney(lead.salesValue || lead.quoteValue || 0);
+
+  return (
+    <div style={{ borderBottom: "1px solid var(--border-subtle)", background: "#fff" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--alloy-purple)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.name}</div>
+          <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2 }}>{lead.source}{lead.time ? ` · ${lead.time}` : ""}</div>
+        </div>
+        {showVal ? (
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--alloy-purple)", fontFamily: "var(--font-display)", flexShrink: 0 }}>{showVal}</span>
+        ) : null}
+        <span className={`tag ${tag.cls}`} style={{ flexShrink: 0 }}><span className="dot" />{tag.label}</span>
+        <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}
+          style={{ flexShrink: 0, background: open ? "var(--alloy-purple)" : "transparent", color: open ? "#fff" : "var(--alloy-purple)", padding: "5px 11px" }}>
+          {state === "review" ? "Qualify" : "Edit"}
+        </button>
+      </div>
+
+      {open ? (
+        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", background: "var(--alloy-off-white)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "12px 14px" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
+              Quote value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>open opportunity</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 9px" }}>
+                <span style={{ color: "var(--fg-muted)" }}>$</span>
+                <input value={quote} onChange={(e) => setQuote(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0"
+                  style={{ width: 90, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
+              </div>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
+              Sales value <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>closed deal, annual</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 9px" }}>
+                <span style={{ color: "var(--fg-muted)" }}>$</span>
+                <input value={sales} onChange={(e) => setSales(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0"
+                  style={{ width: 90, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--fg)" }} />
+                <span style={{ color: "var(--fg-muted)", fontSize: 12 }}>/yr</span>
+              </div>
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="btn btn-sm" disabled={saving} onClick={() => save("yes")}
+              style={{ background: "var(--alloy-green, #2c6e62)", color: "#fff", padding: "6px 14px" }}>
+              {saving ? "Saving…" : "Mark qualified"}
+            </button>
+            <button className="btn btn-sm" disabled={saving} onClick={() => save("no")}
+              style={{ background: "transparent", color: "var(--fg-muted)", padding: "6px 14px" }}>
+              Not a fit
+            </button>
+            {state !== "review" ? (
+              <button className="btn btn-sm" disabled={saving} onClick={() => save("pending")}
+                style={{ background: "transparent", color: "var(--fg-muted)", padding: "6px 14px" }}>
+                Move to pending
+              </button>
+            ) : null}
+            {err ? <span style={{ fontSize: 12, color: "var(--alloy-pink)" }}>{err}</span> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Lifetime tenure: "Client since X · N qualified leads delivered" + top sources.
+// Fed by the weekly rollup (DATA.account.wc*). Hidden until there's data.
+function TenureBanner() {
+  const a = DATA.account || {};
+  const total = a.wcQualifiedTotal || 0;
+  if (!total) return null;
+  const since = a.wcFirstLeadAt
+    ? new Date(a.wcFirstLeadAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : (a.since || "");
+  const sources = Object.entries(a.wcQualifiedBySource || {})
+    .sort((x, y) => y[1] - x[1]).slice(0, 5);
+  return (
+    <div style={{ background: "var(--alloy-purple)", color: "#fff", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 30, fontWeight: 800, fontFamily: "var(--font-display)", lineHeight: 1 }}>{total.toLocaleString("en-US")}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.92 }}>qualified leads delivered{since ? ` since ${since}` : ""}</span>
+      </div>
+      {sources.length ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          {sources.map(([src, n]) => (
+            <span key={src} style={{ fontSize: 12, fontWeight: 600, background: "rgba(255,255,255,0.16)", borderRadius: 999, padding: "4px 11px" }}>
+              {src} · {n}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LeadsScreen() {
+  const [leads, setLeads] = useState(() => (DATA.recentLeads || []).map((l, i) => ({ ...l, _k: l.id || i })));
+  const [filter, setFilter] = useState("review");
+  const [query, setQuery] = useState("");
+
+  const onSaved = (id, updated) => {
+    setLeads((cur) => cur.map((l) => l.id === id ? {
+      ...l,
+      quotable: updated.quotable ?? l.quotable,
+      quality: updated.quality ?? l.quality,
+      value: updated.value ?? l.value,
+      quoteValue: updated.quote_value ?? l.quoteValue,
+      salesValue: updated.sales_value ?? l.salesValue,
+    } : l));
+  };
+
+  const stateOf = (l) => l.quotable === "yes" ? "qualified" : l.quotable === "no" ? "nofit" : "review";
+  const counts = {
+    review: leads.filter((l) => stateOf(l) === "review").length,
+    qualified: leads.filter((l) => stateOf(l) === "qualified").length,
+    nofit: leads.filter((l) => stateOf(l) === "nofit").length,
+  };
+  const pipeline = leads.filter((l) => stateOf(l) === "qualified").reduce((s, l) => s + (Number(l.quoteValue) || 0), 0);
+  const won = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0);
+
+  const q = query.trim().toLowerCase();
+  const filtered = leads
+    .filter((l) => filter === "all" ? true : stateOf(l) === filter)
+    .filter((l) => !q || (l.name || "").toLowerCase().includes(q) || (l.source || "").toLowerCase().includes(q));
+
+  const FBTN = (id, label, n) => (
+    <button key={id} onClick={() => setFilter(id)} className="btn btn-sm"
+      style={{ background: filter === id ? "var(--alloy-purple)" : "transparent", color: filter === id ? "#fff" : "var(--alloy-purple)", padding: "5px 11px" }}>
+      {label}{n != null ? ` (${n})` : ""}
+    </button>
+  );
+
+  return (
+    <div className="content" data-screen-label="03 Leads">
+      <TenureBanner />
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 16 }}>
+        <Stat label="Qualified (120d)" value={counts.qualified} tone="#2c6e62" />
+        <Stat label="Needs review" value={counts.review} tone="#b8881a" />
+        <Stat label="Open pipeline" value={fmtMoney(pipeline) || "$0"} tone="var(--alloy-purple)" />
+        <Stat label="Won / yr" value={fmtMoney(won) || "$0"} tone="var(--alloy-purple)" />
+      </div>
+
+      <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", background: "var(--alloy-off-white)" }}>
+          {FBTN("review", "Needs review", counts.review)}
+          {FBTN("qualified", "Qualified", counts.qualified)}
+          {FBTN("nofit", "Not a fit", counts.nofit)}
+          {FBTN("all", "All", leads.length)}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "7px 10px", minWidth: 180 }}>
+            <I.Search width={14} height={14} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search leads…"
+              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--fg)" }} />
+          </div>
+        </div>
+        {filtered.length === 0 ? (
+          <div style={{ padding: "28px 18px", fontSize: 13, color: "var(--fg-muted)" }}>
+            {leads.length === 0 ? "No leads yet." : filter === "review" ? "Nothing to review — you're all caught up." : "No leads here."}
+          </div>
+        ) : filtered.map((l) => <LeadRow key={l._k} lead={l} onSaved={onSaved} />)}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }) {
+  return (
+    <div style={{ flex: "1 1 140px", minWidth: 120, border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "14px 16px", background: "#fff" }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: tone, fontFamily: "var(--font-display)" }}>{value}</div>
+      <div style={{ fontSize: 11.5, color: "var(--fg-muted)", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
+    </div>
+  );
+}
+
+export { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen, LeadsScreen };

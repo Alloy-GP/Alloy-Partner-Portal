@@ -5,7 +5,7 @@ import { DATA } from './data.js';
 import { Sidebar, RisePageHero } from './components/shell.jsx';
 import { Dashboard, DesktopTopBar } from './components/screen-dashboard.jsx';
 import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx';
-import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen } from './components/screens-rest.jsx';
+import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen, LeadsScreen } from './components/screens-rest.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
 import SnapshotScreen from './components/SnapshotScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
@@ -103,6 +103,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "roi": return <ROIScreen/>;
       case "projects": return <ProjectsScreen onNav={handleNav}/>;
       case "tickets": return <TicketsScreen/>;
+      case "leads": return <LeadsScreen/>;
       case "playbook": return <PlaybookScreen onNav={handleNav}/>;
       case "library": return <LibraryScreen/>;
       case "rewards": return <RecognitionScreen/>;

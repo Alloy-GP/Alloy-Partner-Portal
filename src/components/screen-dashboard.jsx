@@ -463,7 +463,8 @@ function Sparkline({ tone = "pink" }) {
 // Action queue — only items waiting on the client (review + blocked)
 function ActionQueue({ onNav }) {
   const needsYou = (DATA.actionQueue || []).slice(0, 8);
-  const pendingLeads = (DATA.recentLeads || []).filter(l => l.quality === "review").length;
+  // Needs triage = not yet qualified ("yes") and not marked "not a fit" ("no").
+  const pendingLeads = (DATA.recentLeads || []).filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon">
       <div className="banner-card-head">
