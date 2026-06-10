@@ -626,7 +626,7 @@ function SourceDonut({ leads }) {
   const year = new Date().getFullYear();
 
   return (
-    <div className="card card-pad" style={{ marginBottom: 16 }}>
+    <div className="card leads-source-card">
       <div className="card-head"><span className="kicker">This year</span><h3>Where your leads come from</h3></div>
       <div className="leads-sources">
         <div className="leads-donut">
@@ -785,7 +785,10 @@ function LeadsScreen() {
 
   return (
     <div className="content" data-screen-label="03 Leads">
-      <LeadsHero qualified={counts.qualified} won={won} pipeline={pipeline} />
+      <div className="leads-top">
+        <LeadsHero qualified={counts.qualified} won={won} pipeline={pipeline} />
+        <SourceDonut leads={leads} />
+      </div>
 
       {counts.review > 0 ? (
         <button className="leads-review-cta" onClick={() => setFilter("review")}>
@@ -797,8 +800,6 @@ function LeadsScreen() {
           <span className="leads-review-chev" aria-hidden="true">{"→"}</span>
         </button>
       ) : null}
-
-      <SourceDonut leads={leads} />
 
       <div className="leads-list">
         <div className="leads-toolbar">
