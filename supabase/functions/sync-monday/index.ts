@@ -29,14 +29,14 @@ const DONE_TICKET_STATUSES = new Set(["Completed", "Complete", "Solved", "solved
 const ZENDESK_BASE = "https://alloycreatives.zendesk.com";
 
 // Project status map. "Review" is intentionally NOT a project status — review
-// is a ticket concept (the action queue). Waiting/Review projects show as
-// in-progress here.
+// is a ticket concept (the action queue). "Waiting" IS its own status so it can
+// be filtered/labeled distinctly on the projects page.
 const STATUS_MAP: Record<string, [string, number]> = {
   "Planning": ["planning", 10],
   "Not Started": ["planning", 5],
   "Assigned": ["assigned", 30],
   "In-Progress": ["in-progress", 60],
-  "Waiting": ["in-progress", 60],
+  "Waiting": ["waiting", 60],
   "Review": ["in-progress", 60],
   "Reprioritized / Hold": ["planning", 20],
   "Completed": ["live", 100],

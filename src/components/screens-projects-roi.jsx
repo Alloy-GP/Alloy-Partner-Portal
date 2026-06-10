@@ -9,6 +9,7 @@ const useState = _useState1;
 const PROJ_STATUSES = [
   { id:"planning",    label:"Planning",    color:"#8a8780", bg:"#f3f0eb" },
   { id:"assigned",    label:"Assigned",    color:"#2a6391", bg:"#e3edf4" },
+  { id:"waiting",     label:"Waiting",     color:"#7d5ba6", bg:"#f0e9f7" },
   { id:"in-progress", label:"In-Progress", color:"#b8881a", bg:"#fcefd1" },
   { id:"live",        label:"Complete",    color:"#2c8a6e", bg:"#e6f3f0" },
 ];
@@ -134,6 +135,7 @@ function ProjectsScreen({ onNav }) {
 function ProjectCard({ p }) {
   const statusMap = {
     "in-progress": { label: "On track", c: "#2c8a6e", bg: "rgba(44,138,110,0.1)" },
+    "waiting":     { label: "Waiting",  c: "#7d5ba6", bg: "rgba(125,91,166,0.12)" },
     "review":      { label: "For you",  c: "var(--alloy-pink)", bg: "var(--alloy-pink-tint)" },
     "live":        { label: "Shipped",  c: "#2a6391", bg: "var(--alloy-blue-tint)" },
     "blocked":     { label: "Blocked",  c: "#b03a3a", bg: "#fde0e0" },
@@ -145,7 +147,7 @@ function ProjectCard({ p }) {
     "BoardRetain": "#2c8a6e",
     "L&D": "#b8881a",
   }[p.phase] || "var(--alloy-purple)";
-  const barColor = p.status === "live" ? "#2a6391" : p.status === "blocked" ? "#b03a3a" : p.status === "review" ? "var(--alloy-pink)" : "#2c8a6e";
+  const barColor = p.status === "live" ? "#2a6391" : p.status === "blocked" ? "#b03a3a" : p.status === "review" ? "var(--alloy-pink)" : p.status === "waiting" ? "#7d5ba6" : "#2c8a6e";
 
   return (
     <div className="proj-card">
