@@ -21,7 +21,7 @@ function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
       <div className="dash-spotlight">
         <ActionQueue onNav={onNav} />
         <ProjectsList onNav={onNav} />
-        <WeeklySnapshotCard onNav={onNav} />
+        <PartnershipValueCard onNav={onNav} />
       </div>
 
       <DashboardFooter />
@@ -314,41 +314,35 @@ function PastSnapshotCalendar() {
   );
 }
 
-function WeeklySnapshotCard({ onNav }) {
-  const ws = DATA.weeklySnapshot;
-  const isStaff = !!(DATA.user && DATA.user.isStaff);
-  const [hasDraft, setHasDraft] = React.useState(false);
+function PartnershipValueCard({ onNav }) {
+  const leads = DATA.recentLeads || [];
+  const quoteMonthly = leads.reduce((s, l) => s + (Number(l.quoteValue) || 0), 0);
+  const salesMonthly = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0);
+  const lifetimeQualified = DATA.account?.wcQualifiedTotal || leads.filter(l => l.quotable === "yes").length;
+  // Management fee -> true contract revenue (mid of the 2.25-2.5 range).
+  const CONTRACT = 2.375;
+  const fmtBig = (n) => {
+    n = Number(n) || 0;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2)}M`;
+    if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
+    return `$${Math.round(n)}`;
+  };
 
-  // Staff: surface a "draft ready to review" hint without leaving the dashboard.
-  React.useEffect(() => {
-    if (!isStaff || !DATA.account?.id) return;
-    listSnapshots(DATA.account.id)
-      .then((r) => setHasDraft((r.snapshots || []).some((s) => s.status === "draft")))
-      .catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // The snapshot covers the current month and publishes on its last day.
-  const today = new Date();
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const daysLeft = Math.max(0, Math.round((monthEnd - todayMidnight) / 86400000));
-  const nextLabel = monthEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const monthLabel = today.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-  // Quarterly playbook progress: parent tasks done ÷ total (live = done).
-  // `projects` are the top-level Monday board items (not subtasks).
+  // Quarterly playbook progress (kept above the value tiles).
   const pb = (DATA.roadmap || []).find(q => q.state === "now") || (DATA.roadmap || [])[0] || {};
   const allProjects = DATA.projects || [];
   const pbTotal = allProjects.length;
   const pbDone = allProjects.filter(p => p.status === "live").length;
   const pbPct = pbTotal ? Math.round((pbDone / pbTotal) * 100) : 0;
 
-  // The 4 at-a-glance tiles. Detail lives on the full snapshot screen.
+  // All-time relationship value (not a period). The $ tiles are driven by the
+  // quote/sales values entered in the qualify flow, so they grow as leads get
+  // valued.
   const tiles = [
-    { label: "Shipped", value: ws.summary.completed, color: "#2c8a6e" },
-    { label: "In motion", value: (ws.upcoming || []).length, color: "var(--alloy-purple)" },
-    { label: "New leads", value: ws.summary.leads, color: "#2f6fb0" },
-    { label: "Waiting on you", value: ws.summary.waiting, color: "var(--alloy-pink)" },
+    { num: lifetimeQualified.toLocaleString("en-US"), lbl: "Qualified leads", sub: "since day one", color: "var(--alloy-purple)" },
+    { num: fmtBig(quoteMonthly * 12 * CONTRACT), lbl: "Total quote value", sub: "contract revenue", color: "#2f6fb0" },
+    { num: fmtBig(salesMonthly * 60), lbl: "Revenue created", sub: "lifetime, closed", color: "#2c8a6e" },
+    { num: fmtBig(salesMonthly * 12 * CONTRACT * 4), lbl: "Projected firm value", sub: "your firm", color: "var(--alloy-pink)" },
   ];
 
   return (
@@ -370,38 +364,21 @@ function WeeklySnapshotCard({ onNav }) {
       <div className="weekly-snapshot">
         <div className="ws-head">
           <div className="ws-head-row">
-            <span className="ws-title">Monthly snapshot</span>
-            <span className="ws-next" title={`Next snapshot publishes ${nextLabel}`}>
-              <I.Clock width={11} height={11}/>
-              {daysLeft === 0 ? "Publishes today" : `Next in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`}
-            </span>
+            <span className="ws-title">Partnership value</span>
           </div>
           <div className="ws-head-meta">
-            <span className="ws-kicker">{monthLabel}</span>
-            {isStaff && hasDraft ? (
-              <button
-                onClick={() => onNav && onNav("snapshot")}
-                style={{ marginLeft: "auto", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "var(--alloy-yellow-tint)", color: "#8a6900" }}>
-                Draft ready to review
-              </button>
-            ) : null}
+            <span className="ws-kicker">What we've built together</span>
           </div>
         </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "4px 0 2px" }}>
-        {tiles.map((t) => (
-          <div key={t.label} style={{ background: "var(--alloy-off-white)", borderRadius: 14, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 8, minHeight: 96, justifyContent: "center" }}>
-            <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 38, lineHeight: 1, color: t.color }}>{t.value}</span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--fg-muted)" }}>{t.label}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="ws-footer">
-        <button className="ws-quarterly" onClick={() => onNav && onNav("snapshot")}>
-          View full snapshot →
-        </button>
-      </div>
+        <div className="pv-grid">
+          {tiles.map((t) => (
+            <div key={t.lbl} className="pv-tile">
+              <span className="pv-num" style={{ color: t.color }}>{t.num}</span>
+              <span className="pv-lbl">{t.lbl}</span>
+              <span className="pv-sub">{t.sub}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -42,8 +42,8 @@ const STEPS = [
   {
     element: '[data-tour="snapshot"]',
     popover: {
-      title: 'Weekly snapshot',
-      description: 'Your Friday recap — wins, what moved, and a calendar of past reports.',
+      title: 'Partnership value',
+      description: 'The value this partnership has created — qualified leads, contract value, revenue, and what it adds to your firm.',
       side: 'left', align: 'start',
     },
   },

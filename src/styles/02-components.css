@@ -248,6 +248,13 @@
 @keyframes wm-pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(2.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .wm-live::after { animation: none; } }
 
+/* Partnership value — 4 all-time relationship metrics. */
+.pv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 2px; }
+.pv-tile { background: var(--alloy-off-white); border-radius: 14px; padding: 16px 14px; display: flex; flex-direction: column; min-height: 92px; justify-content: center; }
+.pv-num { font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 1; letter-spacing: -0.01em; }
+.pv-lbl { font-size: 12px; font-weight: 700; color: var(--fg-2); margin-top: 8px; }
+.pv-sub { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+
 /* Recognition — stat tiles on dark purple (V5 theme) */
 .recognition-tiles-card {
   border-radius: 14px;
