@@ -189,6 +189,7 @@ a:hover { text-decoration: underline; }
   display: flex; align-items: center; gap: 8px;
   padding: 4px 4px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.07);
+  white-space: nowrap; /* brand text never wraps (so collapsing doesn't grow the header) */
 }
 .alloy-strip .alloy-mark {
   width: 26px; height: 26px; border-radius: 6px;
