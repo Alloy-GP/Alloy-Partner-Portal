@@ -7,7 +7,7 @@ import { zdList } from '../lib/zendesk.js';
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
-function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, sidebarMode, onSetMode }) {
+function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, sidebarMode, onSetMode, onHoverChange }) {
   const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [ctrlOpen, setCtrlOpen] = useState(false);
 
@@ -42,7 +42,10 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     account: navItems.filter(n => n.group === "account"),
   };
   return (
-    <aside className="sidebar">
+    <aside className="sidebar"
+      onMouseEnter={() => onHoverChange && onHoverChange(true)}
+      onMouseLeave={() => onHoverChange && onHoverChange(false)}
+    >
       <div className="alloy-strip">
         <img className="alloy-mark" src="/alloy-icon.png" alt="Alloy"/>
         <span className="alloy-word">Alloy</span>

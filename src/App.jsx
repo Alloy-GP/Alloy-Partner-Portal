@@ -117,12 +117,9 @@ function App({ session, onSignOut, staffNav } = {}) {
       {/* Mobile top bar — removed; mobile controls now live inside the hero card */}
 
       {/* Sidebar (responsive) */}
-      <div
-        className={`sidebar-wrap ${mobileNav ? "open" : ""}`}
-        onMouseEnter={() => { if (sidebarMode === "hover") setSidebarHover(true); }}
-        onMouseLeave={() => setSidebarHover(false)}
-      >
-        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} session={session} onSignOut={onSignOut} staffNav={staffNav} sidebarMode={sidebarMode} onSetMode={chooseMode} />
+      <div className={`sidebar-wrap ${mobileNav ? "open" : ""}`}>
+        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} session={session} onSignOut={onSignOut} staffNav={staffNav} sidebarMode={sidebarMode} onSetMode={chooseMode}
+          onHoverChange={(h) => { if (sidebarMode === "hover") setSidebarHover(h); }} />
         <div className="sidebar-scrim" onClick={() => setMobileNav(false)}/>
       </div>
 
