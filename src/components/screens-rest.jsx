@@ -885,19 +885,19 @@ function LeadsScreen() {
 
           <div className="ld-metrics">
             <div className="ld-metric">
-              <button type="button" className="ld-info" aria-label="What counts as quote value" data-tip="Open pipeline — qualified leads with a quote value but no signed sale yet.">i</button>
+              <button type="button" className="ld-info" aria-label="What counts as quote value" data-tip="Open pipeline — qualified leads with a quote value but no signed sale yet."><I.Info width={15} height={15} /></button>
               <div className="lbl"><span className="dot blue" />Quote value</div>
               <div className="num">{fmtMoney(quoteAnnual) || "$0"}<span className="per">/yr</span></div>
               <div className="sub up">from {openLeads.length} open {openLeads.length === 1 ? "lead" : "leads"}</div>
             </div>
             <div className="ld-metric">
-              <button type="button" className="ld-info" aria-label="What counts as sales value" data-tip="Closed deals — qualified leads with a signed sales value.">i</button>
+              <button type="button" className="ld-info" aria-label="What counts as sales value" data-tip="Closed deals — qualified leads with a signed sales value."><I.Info width={15} height={15} /></button>
               <div className="lbl"><span className="dot green" />Sales value</div>
               <div className="num green">{fmtMoney(salesAnnual) || "$0"}<span className="per">/yr</span></div>
               <div className="sub up">from {wonLeads.length} {wonLeads.length === 1 ? "lead" : "leads"} in {LD.year}</div>
             </div>
             <div className="ld-metric ld-metric-wide">
-              <button type="button" className="ld-info" aria-label="How win rate is calculated" data-tip="Signed ÷ valued leads (signed + open quotes). Excludes qualified leads with no quote value yet.">i</button>
+              <button type="button" className="ld-info" aria-label="How win rate is calculated" data-tip="Signed ÷ valued leads (signed + open quotes). Excludes qualified leads with no quote value yet."><I.Info width={15} height={15} /></button>
               <div className="lbl"><span className="dot yellow" />Win rate</div>
               <div className="ld-winrate">
                 <span className="pct">{winRate}%</span>
