@@ -341,7 +341,7 @@ function PartnershipValueCard({ onNav }) {
   const tiles = [
     { num: lifetimeQualified.toLocaleString("en-US"), lbl: "Qualified leads", sub: "since day one", color: "var(--alloy-purple)" },
     { num: fmtBig(quoteMonthly * 12 * CONTRACT), lbl: "Total quote value", sub: "contract revenue", color: "#2f6fb0" },
-    { num: fmtBig(salesMonthly * 60), lbl: "Revenue created", sub: "lifetime, closed", color: "#2c8a6e" },
+    { num: fmtBig(salesMonthly * CONTRACT * 60), lbl: "Revenue created", sub: "lifetime, closed", color: "#2c8a6e" },
     { num: fmtBig(salesMonthly * 12 * CONTRACT * 4), lbl: "Projected firm value", sub: "your firm", color: "var(--alloy-pink)" },
   ];
 
