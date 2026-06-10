@@ -876,6 +876,12 @@ function LeadsScreen() {
               <button className="ld-panel-close" onClick={() => setPanelId(null)} aria-label="Close"><I.Close width={13} height={13} /></button>
             </div>
             <div className="ld-panel-body">
+              {panelLead.note ? (
+                <div className="ld-panel-sec">
+                  <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : "Their message"}</div>
+                  <div className="ld-panel-note">{panelLead.note}</div>
+                </div>
+              ) : null}
               <div className="ld-panel-sec">
                 <div className="sec-lbl">Customer journey</div>
                 {panelLead.journey && panelLead.journey.length ? (
@@ -890,12 +896,6 @@ function LeadsScreen() {
                   </div>
                 )}
               </div>
-              {panelLead.note ? (
-                <div className="ld-panel-sec">
-                  <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : "Their message"}</div>
-                  <div className="ld-panel-note">{panelLead.note}</div>
-                </div>
-              ) : null}
               <div className="ld-panel-sec">
                 <div className="sec-lbl">Contact</div>
                 <div className="ld-panel-kv">
