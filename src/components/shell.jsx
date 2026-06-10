@@ -30,11 +30,11 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "main" },
-    { id: "leads", label: "Leads", icon: I.Mail, group: "main", count: leadsToReview },
+    { id: "leads", label: "Leads", icon: I.Chart, group: "main", count: leadsToReview },
     { id: "snapshot", label: "Weekly snapshot", icon: I.Calendar, group: "main" },
-    { id: "playbook", label: "Roadmap", icon: I.Map, group: "work" },
+    { id: "tickets", label: "Inbox", icon: I.Mail, group: "work", count: pendingTickets || 0 },
     { id: "projects", label: "Projects", icon: I.Folder, group: "work", count: openProjects },
-    { id: "tickets", label: "Inbox", icon: I.Ticket, group: "work", count: pendingTickets || 0 },
+    { id: "playbook", label: "Roadmap", icon: I.Map, group: "work" },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Doc, group: "account", external: true, href: "https://dam.alloygp.co" },
     // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
