@@ -34,8 +34,8 @@ const STEPS = [
   {
     element: '[data-tour="projects"]',
     popover: {
-      title: 'Active projects',
-      description: "What we're building for you right now, with live status on each.",
+      title: 'Work in motion',
+      description: "Everything we're driving for you — what's in motion, what we've delivered this quarter, and the full breadth of work behind your growth.",
       side: 'bottom', align: 'center',
     },
   },
