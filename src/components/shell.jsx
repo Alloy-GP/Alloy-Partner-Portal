@@ -31,7 +31,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "main" },
     { id: "leads", label: "Leads", icon: I.Chart, group: "main", count: leadsToReview },
-    { id: "snapshot", label: "Weekly snapshot", icon: I.Calendar, group: "main" },
+    { id: "snapshot", label: "Monthly snapshot", icon: I.Camera, group: "main" },
     { id: "tickets", label: "Inbox", icon: I.Mail, group: "work", count: pendingTickets || 0 },
     { id: "projects", label: "Projects", icon: I.Folder, group: "work", count: openProjects },
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "work" },

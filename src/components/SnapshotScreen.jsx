@@ -60,9 +60,9 @@ function SnapshotBody({ v }) {
   return (
     <div style={{ maxWidth: 760, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 22 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--alloy-pink)' }}>{v.weekLabel || 'Weekly snapshot'}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--alloy-pink)' }}>{v.weekLabel || 'Monthly snapshot'}</div>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--alloy-purple)', marginTop: 6, lineHeight: 1.25 }}>
-          {v.headline || 'Your week at a glance'}
+          {v.headline || 'Your month at a glance'}
         </div>
       </div>
 
@@ -72,7 +72,7 @@ function SnapshotBody({ v }) {
         <Stat value={v.summary.waiting} label="Waiting on you" tone="pink" />
       </div>
 
-      <Section title="Shipped this week" items={v.completed} empty="Nothing wrapped up this week — plenty in motion below." />
+      <Section title="Shipped this month" items={v.completed} empty="Nothing wrapped up this month — plenty in motion below." />
       <Section title="In motion" items={v.upcoming} />
       <Section title="New leads" items={v.lead} />
       <Section title="Waiting on you" items={v.waiting} empty="You're all caught up — nothing needs you right now." />
@@ -144,7 +144,7 @@ function SnapshotScreen() {
   };
 
   return (
-    <div className="content" data-screen-label="Weekly snapshot">
+    <div className="content" data-screen-label="Monthly snapshot">
       {/* Staff review bar */}
       {isStaff && draft ? (
         <div className="card card-pad" style={{ marginBottom: 20, border: '1px solid var(--alloy-yellow)', background: 'var(--alloy-yellow-tint)' }}>
@@ -175,7 +175,7 @@ function SnapshotScreen() {
 
       {view ? <SnapshotBody v={view} /> : (
         <div style={{ maxWidth: 600, margin: '60px auto', textAlign: 'center', color: 'var(--fg-muted)', fontSize: 14 }}>
-          Your first weekly snapshot is on its way — it lands here every Friday.
+          Your first monthly snapshot is on its way — it lands here at the end of each month.
         </div>
       )}
     </div>

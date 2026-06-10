@@ -55,7 +55,7 @@ function SnapshotQueue({ onReview }) {
   return (
     <div className="card card-pad" style={{ marginBottom: 20, border: '1px solid var(--border-subtle)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)' }}>Weekly snapshots</span>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)' }}>Monthly snapshots</span>
         <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
           {q.drafts} ready{q.flagged ? ` · ${q.flagged} need a look` : ''}
         </span>

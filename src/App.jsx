@@ -91,7 +91,7 @@ function App({ session, onSignOut, staffNav } = {}) {
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },
     leads: { t: "Leads", s: "Qualify every lead — it flows straight to WhatConverts" },
-    snapshot: { t: "Weekly snapshot", s: "Your week with Alloy, every Friday" },
+    snapshot: { t: "Monthly snapshot", s: "Your month with Alloy, every month-end" },
     roi: { t: "ROI & Insight", s: "What Alloy is doing for your top line" },
     projects: { t: "Projects", s: "Live from Monday — every deliverable in motion" },
     tickets: { t: "Inbox", s: "One thread between you and your Alloy team" },

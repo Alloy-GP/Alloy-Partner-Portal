@@ -212,8 +212,8 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }
             <button className="ds-notif-item" role="menuitem" onClick={() => setOpen(false)}>
               <span className="ds-notif-ic"><I.Doc width={15} height={15}/></span>
               <span className="ds-notif-body">
-                <span className="ds-notif-item-title">New weekly snapshot ready to view</span>
-                <span className="ds-notif-item-sub">Your snapshot for the week of Mar 16 – 22 is ready.</span>
+                <span className="ds-notif-item-title">New monthly snapshot ready to view</span>
+                <span className="ds-notif-item-sub">Your snapshot for March is ready.</span>
                 <span className="ds-notif-time">Just now · Fri 5:00 PM</span>
               </span>
               <span className="ds-notif-unread" aria-hidden="true"/>
@@ -372,7 +372,7 @@ function WeeklySnapshotCard({ onNav }) {
       <div className="weekly-snapshot">
         <div className="ws-head">
           <div className="ws-head-row">
-            <span className="ws-title">Weekly snapshot</span>
+            <span className="ws-title">Monthly snapshot</span>
             <span className="ws-next" title={`Next snapshot publishes ${nextLabel}`}>
               <I.Clock width={11} height={11}/>
               Next in {daysLeft} {daysLeft === 1 ? "day" : "days"}

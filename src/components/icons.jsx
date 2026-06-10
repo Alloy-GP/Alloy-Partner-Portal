@@ -34,6 +34,7 @@ const I = {
   Chevron: (p) => <svg width={p?.width||14} height={p?.height||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>,
   Check: (p) => <svg width={p?.width||14} height={p?.height||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>,
   Info: (p) => <svg width={p?.width||14} height={p?.height||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg>,
+  Camera: (p) => <svg width={p?.width||14} height={p?.height||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.2l1.6-2.4A1 1 0 0 1 8.6 3h6.8a1 1 0 0 1 .8.6L17.8 6H21a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.6"/></svg>,
   External: (p) => <svg width={p?.width||14} height={p?.height||14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>,
 };
 export { I };
