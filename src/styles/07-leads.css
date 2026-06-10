@@ -20,7 +20,8 @@
 .ld-queue .banner-card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 .ld-queue-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-.ld-queue-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; }
+.ld-queue-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; }
+.ld-queue-row .ld-actions { align-self: center; }
 .ld-queue-row.ld-clickable { cursor: pointer; transition: border-color .12s, box-shadow .12s, background .12s; }
 .ld-queue-row.ld-clickable:hover { border-color: color-mix(in oklab, var(--alloy-purple) 24%, transparent); background: var(--alloy-off-white); box-shadow: 0 2px 10px rgba(56,28,79,0.08); }
 
@@ -136,7 +137,8 @@
 .ld-search { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 200px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 7px 11px; color: var(--fg-muted); }
 .ld-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 12.5px; color: var(--fg); }
 
-.ld-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--border-subtle); }
+.ld-row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--border-subtle); }
+.ld-row .ld-time, .ld-row .ld-cell-status { align-self: center; }
 .ld-row:last-child { border-bottom: none; }
 .ld-row.ld-clickable { cursor: pointer; }
 .ld-row.ld-clickable:hover { background: var(--alloy-off-white); }
