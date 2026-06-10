@@ -22,12 +22,15 @@
   .app.sidebar-collapsed .sidebar { overflow: hidden; }
 
   /* Expand-on-hover: keep the collapsed 68px footprint so content never shifts;
-     the expanded rail floats over the page on hover. */
+     the rail is always overlay-positioned so only its WIDTH animates (no
+     position jump) — smooth, slow ease in and out. */
   .app.sidebar-hover { grid-template-columns: 68px 1fr; }
-  .app.sidebar-hover .sidebar { transition: width 0.18s ease, box-shadow 0.18s ease; }
+  .app.sidebar-hover .sidebar {
+    position: absolute; top: 0; left: 0; height: 100%; width: 68px; z-index: 60;
+    transition: width 0.34s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.34s ease;
+  }
   .app.sidebar-hover.is-hovering .sidebar {
-    position: absolute; top: 0; left: 0; height: 100%;
-    width: 260px; z-index: 60;
+    width: 260px;
     box-shadow: 10px 0 44px rgba(0,0,0,0.4);
   }
   .app.sidebar-collapsed .alloy-strip .alloy-word,
