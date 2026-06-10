@@ -187,9 +187,6 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }
             <button className="btn btn-primary" onClick={() => onNav("tickets")}>
               <I.Plus width={13} height={13}/> New request
             </button>
-            <a className="btn btn-secondary" href="https://dam.alloygp.co" target="_blank" rel="noopener noreferrer">
-              <I.Folder width={13} height={13}/> My Assets <span className="ds-ext" aria-hidden="true">↗</span>
-            </a>
           </div>
         )}
         <div className="ds-notif" ref={ref}>
