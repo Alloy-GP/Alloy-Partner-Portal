@@ -330,12 +330,13 @@ function WeeklySnapshotCard({ onNav }) {
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown to the next Friday snapshot (real, client-local).
+  // The snapshot covers the current month and publishes on its last day.
   const today = new Date();
-  const add = ((5 - today.getDay()) + 7) % 7 || 7;
-  const nextFri = new Date(today); nextFri.setDate(today.getDate() + add);
-  const daysLeft = Math.round((nextFri - today) / 86400000);
-  const nextLabel = nextFri.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const daysLeft = Math.max(0, Math.round((monthEnd - todayMidnight) / 86400000));
+  const nextLabel = monthEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const monthLabel = today.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   // Quarterly playbook progress: parent tasks done ÷ total (live = done).
   // `projects` are the top-level Monday board items (not subtasks).
@@ -375,11 +376,11 @@ function WeeklySnapshotCard({ onNav }) {
             <span className="ws-title">Monthly snapshot</span>
             <span className="ws-next" title={`Next snapshot publishes ${nextLabel}`}>
               <I.Clock width={11} height={11}/>
-              Next in {daysLeft} {daysLeft === 1 ? "day" : "days"}
+              {daysLeft === 0 ? "Publishes today" : `Next in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`}
             </span>
           </div>
           <div className="ws-head-meta">
-            <span className="ws-kicker">{ws.weekLabel}</span>
+            <span className="ws-kicker">{monthLabel}</span>
             {isStaff && hasDraft ? (
               <button
                 onClick={() => onNav && onNav("snapshot")}
