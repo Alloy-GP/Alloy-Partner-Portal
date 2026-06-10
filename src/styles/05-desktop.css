@@ -46,6 +46,19 @@
   .app.sidebar-collapsed .sidebar-ctrl-label { opacity: 0; }
   .app.sidebar-collapsed .nav-item { padding-right: 0; }
   .app.sidebar-collapsed .sidebar-ctrl-btn { padding-right: 0; }
+
+  /* Collapsed rail: center the icon (label width collapses to nothing). The
+     rail's sticky position is unchanged, so it still stays put on scroll. */
+  .app.sidebar-collapsed .nav-item,
+  .app.sidebar-hover:not(.is-hovering) .nav-item,
+  .app.sidebar-collapsed .sidebar-ctrl-btn,
+  .app.sidebar-hover:not(.is-hovering) .sidebar-ctrl-btn {
+    justify-content: center; gap: 0; padding-left: 0; padding-right: 0;
+  }
+  .app.sidebar-collapsed .nav-item > span:not(.icon),
+  .app.sidebar-hover:not(.is-hovering) .nav-item > span:not(.icon),
+  .app.sidebar-collapsed .sidebar-ctrl-label,
+  .app.sidebar-hover:not(.is-hovering) .sidebar-ctrl-label { width: 0; }
   @media (prefers-reduced-motion: reduce) {
     .app:not(.sidebar-collapsed) .nav-item > span:not(.icon),
     .app:not(.sidebar-collapsed) .nav-section-label { animation: none; }
