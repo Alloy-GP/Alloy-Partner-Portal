@@ -122,7 +122,7 @@ export async function loadAccountData(session, accountId, me) {
     projects: (projectsRes.data || []).map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase, engines: p.engines || [],
       pct: p.pct, status: p.status,
-      due: p.due_label || '', dueRel: p.due_rel || relativeDue(p.due_date),
+      due: p.due_label || '', dueRel: p.due_rel || relativeDue(p.due_date), dueDate: p.due_date || null,
       owners: p.owners || [], pulse: p.pulse,
     })),
     recentLeads: (leadsRes.data || []).map((l) => ({

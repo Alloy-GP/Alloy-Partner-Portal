@@ -222,6 +222,23 @@
 .aq-item-chev { color: var(--fg-muted); transition: transform .12s ease, color .12s ease; }
 .aq-item:hover .aq-item-chev { color: var(--alloy-pink); transform: translateX(3px); }
 
+/* "Work in motion" — value lens on Alloy's active work (not a to-do list). */
+.wm-stats { display: flex; gap: 10px; margin-bottom: 16px; }
+.wm-stat { flex: 1; background: var(--alloy-off-white); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 14px; }
+.wm-num { font-family: var(--font-display); font-size: 30px; font-weight: 800; line-height: 1; color: var(--alloy-purple); }
+.wm-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-muted); margin-top: 6px; }
+.wm-breadth-lbl { font-size: 11.5px; color: var(--fg-muted); margin-bottom: 8px; }
+.wm-bar { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; }
+.wm-bar > span { display: block; min-width: 4px; }
+.wm-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; }
+.wm-leg { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.wm-leg .dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.wm-leg .nm { color: var(--fg-2); }
+.wm-leg .ct { font-weight: 800; color: var(--alloy-purple); }
+.wm-leg-more .nm { color: var(--fg-muted); }
+.wm-viewall { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; background: none; border: none; cursor: pointer; color: var(--alloy-pink); font-weight: 700; font-size: 12.5px; padding: 4px 0 0; }
+.wm-viewall:hover { color: #c12a60; }
+
 /* Recognition — stat tiles on dark purple (V5 theme) */
 .recognition-tiles-card {
   border-radius: 14px;

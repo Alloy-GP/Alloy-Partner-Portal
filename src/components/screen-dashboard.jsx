@@ -515,80 +515,109 @@ function ActionQueue({ onNav }) {
   );
 }
 
-// Stripped project list — only on-track work (excludes anything in the action queue above)
-// Recurring services collapse into an accordion at the bottom.
+// "Work in motion" — a value lens on the work Alloy is driving for the client
+// (NOT a to-do list; anything needing the client lives in the action queue).
+// Shows breadth + delivered proof + always-on services, so it scales past 50
+// projects and reads as value at a glance instead of a truncated list.
 function ProjectsList({ onNav }) {
-  const inProgress = DATA.projects.filter(p => p.status !== "live");
-  const items = inProgress.slice(0, 8);
-  const remaining = Math.max(0, inProgress.length - items.length);
+  const all = DATA.projects || [];
+  const inMotion = all.filter(p => p.status !== "live");
+  // "Delivered this quarter" — live projects whose due date lands in the current
+  // calendar quarter (due_date is the best delivery signal we sync).
+  const _now = new Date();
+  const _qStart = new Date(_now.getFullYear(), Math.floor(_now.getMonth() / 3) * 3, 1);
+  const _qEnd = new Date(_qStart.getFullYear(), _qStart.getMonth() + 3, 1);
+  const inQuarter = (d) => { if (!d) return false; const x = new Date(d); return x >= _qStart && x < _qEnd; };
+  const deliveredQtr = all.filter(p => p.status === "live" && inQuarter(p.dueDate)).length;
   const services = DATA.recurringServices || [];
   const [showRecurring, setShowRecurring] = React.useState(false);
   const TONE = {
     pink: "var(--alloy-pink)", yellow: "var(--alloy-yellow)", purple: "var(--alloy-purple)",
     blue: "#2a6391", green: "var(--alloy-green)",
   };
-  const statusMap = {
-    "in-progress": { label: "In-Progress", cls: "tag-status-inprogress" },
-  };
-  const PHASE = {
-    BoardReach:  { label: "BoardReach",  c: "var(--alloy-pink)" },
-    BoardMatch:  { label: "BoardMatch",  c: "#2a6391" },
-    BoardRetain: { label: "BoardRetain", c: "#2c6e62" },
-    Energy:      { label: "L&D",         c: "var(--alloy-purple)" },
-  };
+  const PCOLORS = ["var(--alloy-pink)", "#2a6391", "#2c6e62", "var(--alloy-purple)", "#b8881a", "#9b6dc4"];
+  // Breadth by category: top few + remainder folded into "more". Skip projects
+  // with no category set (no "Other" bucket).
+  const byPhase = Object.entries(
+    all.filter(p => p.phase).reduce((m, p) => { m[p.phase] = (m[p.phase] || 0) + 1; return m; }, {})
+  ).sort((a, b) => b[1] - a[1]);
+  const topPhases = byPhase.slice(0, 5);
+  const moreCats = byPhase.length - topPhases.length;
+  const moreCount = byPhase.slice(5).reduce((s, [, n]) => s + n, 0);
+
   return (
     <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon" data-tour="projects">
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Folder width={20} height={20}/></div>
         <div className="bc-titles">
-          <div className="bc-kicker">Running</div>
-          <div className="bc-title">Active projects</div>
+          <div className="bc-kicker">What we're driving for you</div>
+          <div className="bc-title">Work in motion</div>
         </div>
         <button className="bc-cta" onClick={() => onNav("projects")} aria-label="See all projects">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </button>
       </div>
       <div className="banner-card-body">
-      {/* Recurring services — collapsible accordion (above the project list) */}
-      <button
-        className="recurring-toggle"
-        onClick={() => setShowRecurring(s => !s)}
-        aria-expanded={showRecurring}
-        style={{marginTop: 0}}
-      >
-        <span className="recurring-toggle-dots">
-          {services.slice(0, 5).map(s => (
-            <span key={s.id} className="recurring-toggle-dot" style={{background: TONE[s.color]}}/>
-          ))}
-        </span>
-        <span className="recurring-toggle-label">
-          <strong>{services.length} always-on services</strong>
-          <span className="recurring-toggle-sub">running in the background</span>
-        </span>
-        <span className={`recurring-toggle-chev ${showRecurring ? "open" : ""}`}>
-          <I.Arrow width={14} height={14}/>
-        </span>
-      </button>
-      {showRecurring ? (
-        <div className="recurring-panel">
-          {services.map(s => (
-            <div key={s.id} className="recurring-row">
-              <span className="recurring-dot" style={{background: TONE[s.color]}}/>
-              <div className="recurring-name">{s.name}</div>
-              <span className="recurring-cadence">{s.cadence}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="proj-mini-list aq-scroll" style={{marginTop: 14}}>
-        {items.map(p => (
-          <div key={p.id} className="proj-mini">
-            <div className="proj-mini-title">{p.title}</div>
-            <div className="proj-mini-due">Due {p.due}<span className="proj-mini-due-rel"> · {p.dueRel}</span></div>
+        <div className="wm-stats">
+          <div className="wm-stat">
+            <div className="wm-num">{inMotion.length}</div>
+            <div className="wm-lbl">in motion</div>
           </div>
-        ))}
-      </div>
+          <div className="wm-stat">
+            <div className="wm-num">{deliveredQtr}</div>
+            <div className="wm-lbl">delivered this qtr</div>
+          </div>
+        </div>
+
+        {topPhases.length ? (
+          <div className="wm-breadth">
+            <div className="wm-breadth-lbl">Across {byPhase.length} areas of your growth</div>
+            <div className="wm-bar">
+              {topPhases.map(([name, n], i) => (
+                <span key={name} style={{ flexGrow: n, background: PCOLORS[i % PCOLORS.length] }} title={name + " · " + n} />
+              ))}
+              {moreCats > 0 ? <span style={{ flexGrow: moreCount, background: "var(--border-subtle)" }} /> : null}
+            </div>
+            <div className="wm-legend">
+              {topPhases.map(([name, n], i) => (
+                <div key={name} className="wm-leg">
+                  <span className="dot" style={{ background: PCOLORS[i % PCOLORS.length] }} />
+                  <span className="nm">{name}</span><span className="ct">{n}</span>
+                </div>
+              ))}
+              {moreCats > 0 ? (
+                <div className="wm-leg wm-leg-more">
+                  <span className="dot" style={{ background: "var(--border-subtle)" }} />
+                  <span className="nm">+ {moreCats} more {moreCats === 1 ? "area" : "areas"}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <button className="recurring-toggle" onClick={() => setShowRecurring(s => !s)} aria-expanded={showRecurring} style={{ marginTop: 14 }}>
+          <span className="recurring-toggle-dots">
+            {services.slice(0, 5).map(s => (<span key={s.id} className="recurring-toggle-dot" style={{ background: TONE[s.color] }}/>))}
+          </span>
+          <span className="recurring-toggle-label">
+            <strong>{services.length} always-on services</strong>
+            <span className="recurring-toggle-sub">running in the background</span>
+          </span>
+          <span className={`recurring-toggle-chev ${showRecurring ? "open" : ""}`}><I.Arrow width={14} height={14}/></span>
+        </button>
+        {showRecurring ? (
+          <div className="recurring-panel">
+            {services.map(s => (
+              <div key={s.id} className="recurring-row">
+                <span className="recurring-dot" style={{ background: TONE[s.color] }}/>
+                <div className="recurring-name">{s.name}</div>
+                <span className="recurring-cadence">{s.cadence}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <button className="wm-viewall" onClick={() => onNav("projects")}>View all {all.length} projects &rarr;</button>
       </div>
     </div>
   );
