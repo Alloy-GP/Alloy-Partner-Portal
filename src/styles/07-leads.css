@@ -46,6 +46,7 @@
 .ld-btn-qualify, .ld-btn-notfit { display: inline-flex; align-items: center; gap: 5px; border: none; cursor: pointer; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 700; }
 .ld-btn-qualify { background: #2f7d5b; color: #fff; }
 .ld-btn-qualify:hover { filter: brightness(1.06); }
+.ld-btn-qualnow { padding: 8px 18px; font-size: 12.5px; }
 .ld-btn-notfit { background: #fff; color: var(--fg-muted); border: 1px solid var(--border-subtle); }
 .ld-btn-notfit:hover { border-color: var(--alloy-pink); color: var(--alloy-pink); }
 
@@ -92,6 +93,7 @@
 .ld-metric .num .per { font-size: 15px; font-weight: 800; }
 .ld-metric .sub { font-size: 12px; color: var(--fg-muted); margin-top: 4px; }
 .ld-metric .sub.up { margin-top: 10px; }
+.ld-metric-note { font-size: 10.5px; font-style: italic; color: var(--fg-muted); opacity: .8; margin-top: 8px; }
 .ld-winrate { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .ld-winrate .pct { font-family: var(--font-display); font-size: 28px; font-weight: 800; line-height: 1; color: var(--alloy-purple); letter-spacing: -0.02em; }
 .ld-winrate .track { flex: 1; min-width: 90px; height: 10px; background: var(--alloy-off-white); border-radius: 999px; overflow: hidden; }

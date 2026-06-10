@@ -742,7 +742,10 @@ function LeadsScreen() {
   const openLeads = qualifiedLeads.filter((l) => Number(l.quote) > 0 && !(Number(l.sales) > 0));
   const quoteAnnual = openLeads.reduce((s, l) => s + (Number(l.quote) || 0), 0) * 12;
   const salesAnnual = wonLeads.reduce((s, l) => s + (Number(l.sales) || 0), 0) * 12;
-  const winRate = ytdQualified ? Math.round((wonLeads.length / ytdQualified) * 100) : 0;
+  // Win rate over VALUED leads only (signed + open quotes) — un-quoted qualified
+  // leads don't drag it down.
+  const valuedCount = wonLeads.length + openLeads.length;
+  const winRate = valuedCount ? Math.round((wonLeads.length / valuedCount) * 100) : 0;
 
   const LdSourceChip = ({ lead }) => (
     <span className="ld-src-chip"><span className="swatch" style={{ background: srcColor(lead.source) }} />{lead.source}</span>
@@ -843,9 +846,8 @@ function LeadsScreen() {
                         <div className="ld-facts">{l.facts.map((f, i) => <span key={i} className="ld-fact">{f}</span>)}</div>
                       ) : null}
                     </div>
-                    <div className="ld-actions" onClick={(e) => e.stopPropagation()}>
-                      <button className="ld-btn-qualify" onClick={() => setStatus(l.id, "qualified")}><I.Check width={13} height={13} /> Qualified</button>
-                      <button className="ld-btn-notfit" onClick={() => setStatus(l.id, "notfit")}><I.Close width={11} height={11} /> Not a fit</button>
+                    <div className="ld-actions">
+                      <button className="ld-btn-qualify ld-btn-qualnow" onClick={() => setPanelId(l.id)}>Qualify now</button>
                     </div>
                   </div>
                 ))}
@@ -887,6 +889,7 @@ function LeadsScreen() {
               <div className="num">{fmtMoney(quoteAnnual) || "$0"}<span className="per">/yr</span></div>
               <div className="sub up">{openLeads.length} open {openLeads.length === 1 ? "quote" : "quotes"}</div>
               <div className="sub">across {ytdQualified} qualified</div>
+              <div className="ld-metric-note">leads with a quote value only</div>
             </div>
             <div className="ld-metric">
               <div className="lbl"><span className="dot green" />Sales value</div>
@@ -899,7 +902,7 @@ function LeadsScreen() {
               <div className="ld-winrate">
                 <span className="pct">{winRate}%</span>
                 <span className="track"><span className="bar" style={{ width: `${winRate}%` }} /></span>
-                <span className="cap">{wonLeads.length} of {ytdQualified} qualified signed</span>
+                <span className="cap">{wonLeads.length} of {valuedCount} quotes signed</span>
               </div>
             </div>
           </div>
