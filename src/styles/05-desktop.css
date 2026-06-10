@@ -39,9 +39,17 @@
   .app.sidebar-collapsed .nav-item > span:not(.icon),
   .app.sidebar-collapsed .nav-item .badge-dot,
   .app.sidebar-collapsed .nav-item .nav-soon-tag,
-  .app.sidebar-collapsed .nav-section-label,
   .app.sidebar-collapsed .sidebar-footer .who,
   .app.sidebar-collapsed .sidebar-footer .icon-btn { display: none !important; }
+  /* Collapsed: keep each section label's vertical footprint (so icons stay at
+     the same Y as expanded) but hide the text and show a small centered
+     separator bar to break the groups up. */
+  .app.sidebar-collapsed .nav-section-label { color: transparent; position: relative; padding-left: 0; padding-right: 0; }
+  .app.sidebar-collapsed .nav-section-label.has-divider { border-top-color: transparent; }
+  .app.sidebar-collapsed .nav-section-label::after {
+    content: ""; position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+    width: 24px; height: 2px; border-radius: 2px; background: rgba(255,255,255,0.16);
+  }
   .app.sidebar-collapsed .alloy-strip { justify-content: center; padding: 4px 0 12px; }
   .app.sidebar-collapsed .alloy-strip .alloy-mark { margin: 0; }
   /* Keep icons in the same left position whether collapsed or expanded —
