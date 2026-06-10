@@ -735,6 +735,15 @@ function LeadsScreen() {
   const pipelineMonthly = qualifiedLeads.reduce((s, l) => s + (Number(l.monthly) || 0), 0);
   const lifetime = LD.stats.lifetimeQualified + (ytdQualified - initialQualified.current);
 
+  // Value breakdown (YTD, qualified leads only). A "won" qualified lead has a
+  // sales value; an "open" one has a quote but no sale yet. Win rate = of all
+  // qualified leads, the share that closed (have a sales value).
+  const wonLeads = qualifiedLeads.filter((l) => Number(l.sales) > 0);
+  const openLeads = qualifiedLeads.filter((l) => Number(l.quote) > 0 && !(Number(l.sales) > 0));
+  const quoteAnnual = openLeads.reduce((s, l) => s + (Number(l.quote) || 0), 0) * 12;
+  const salesAnnual = wonLeads.reduce((s, l) => s + (Number(l.sales) || 0), 0) * 12;
+  const winRate = ytdQualified ? Math.round((wonLeads.length / ytdQualified) * 100) : 0;
+
   const LdSourceChip = ({ lead }) => (
     <span className="ld-src-chip"><span className="swatch" style={{ background: srcColor(lead.source) }} />{lead.source}</span>
   );
@@ -869,23 +878,28 @@ function LeadsScreen() {
                 </div>
               </div>
             ) : null}
+            <div className="ld-proof-note"><I.Trophy width={12} height={12} />{lifetime.toLocaleString("en-US")} qualified all-time{LD.stats.firstLead ? ` · since ${LD.stats.firstLead}` : ""}</div>
           </div>
 
-          <div className="ld-proof-card">
-            <div className="ld-proof-rows">
-              <div className="ld-proof-row">
-                <div className="ic" style={{ background: "var(--alloy-green-tint)", color: "#2c6e62" }}><I.TrendUp width={14} height={14} /></div>
-                <div className="body">
-                  <div className="v">{fmtMoney(pipelineMonthly * 12) || "$0"}<span className="per">/yr</span></div>
-                  <div className="l">Open pipeline · {ytdQualified} qualified {ytdQualified === 1 ? "lead" : "leads"} in play</div>
-                </div>
-              </div>
-              <div className="ld-proof-row">
-                <div className="ic" style={{ background: "var(--alloy-yellow-tint)", color: "#7a5a14" }}><I.Trophy width={14} height={14} /></div>
-                <div className="body">
-                  <div className="v">{lifetime.toLocaleString("en-US")}</div>
-                  <div className="l">Lifetime qualified{LD.stats.firstLead ? ` since ${LD.stats.firstLead}` : ""}</div>
-                </div>
+          <div className="ld-metrics">
+            <div className="ld-metric">
+              <div className="lbl"><span className="dot blue" />Quote value</div>
+              <div className="num">{fmtMoney(quoteAnnual) || "$0"}<span className="per">/yr</span></div>
+              <div className="sub up">{openLeads.length} open {openLeads.length === 1 ? "quote" : "quotes"}</div>
+              <div className="sub">across {ytdQualified} qualified</div>
+            </div>
+            <div className="ld-metric">
+              <div className="lbl"><span className="dot green" />Sales value</div>
+              <div className="num green">{fmtMoney(salesAnnual) || "$0"}<span className="per">/yr</span></div>
+              <div className="sub up">from {wonLeads.length} {wonLeads.length === 1 ? "lead" : "leads"}</div>
+              <div className="sub">signed in {LD.year}</div>
+            </div>
+            <div className="ld-metric ld-metric-wide">
+              <div className="lbl"><span className="dot yellow" />Win rate</div>
+              <div className="ld-winrate">
+                <span className="pct">{winRate}%</span>
+                <span className="track"><span className="bar" style={{ width: `${winRate}%` }} /></span>
+                <span className="cap">{wonLeads.length} of {ytdQualified} qualified signed</span>
               </div>
             </div>
           </div>
