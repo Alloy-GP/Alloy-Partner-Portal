@@ -18,7 +18,7 @@
 .ld-queue-count { font-family: var(--font-display); font-size: 36px; font-weight: 800; line-height: 1; color: #fff; min-width: 42px; }
 .ld-queue .banner-card-body { display: flex; flex-direction: column; }
 
-.ld-queue-rows { display: flex; flex-direction: column; gap: 8px; }
+.ld-queue-rows { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
 .ld-queue-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; }
 .ld-queue-row.ld-clickable { cursor: pointer; transition: border-color .12s; }
 .ld-queue-row.ld-clickable:hover { border-color: var(--alloy-pink); }
@@ -152,6 +152,26 @@
 .ld-panel-kv .vv { color: var(--fg); word-break: break-word; }
 .ld-panel-foot { padding: 16px 22px; border-top: 1px solid var(--border-subtle); display: flex; gap: 8px; }
 .ld-panel-foot .ld-btn-qualify, .ld-panel-foot .ld-btn-notfit { flex: 1; justify-content: center; padding: 11px; }
+
+/* free-form value editor (panel) */
+.ld-val-edit { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.ld-val-field { display: flex; flex-direction: column; gap: 5px; }
+.ld-val-lbl { font-size: 11px; font-weight: 700; color: var(--fg-muted); }
+.ld-money { display: flex; align-items: center; gap: 4px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 7px 10px; }
+.ld-money .u { color: var(--fg-muted); font-size: 12px; }
+.ld-money input { width: 74px; border: none; outline: none; background: transparent; font-size: 13px; color: var(--fg); }
+.ld-val-ann { font-size: 11px; font-weight: 700; color: var(--alloy-purple); min-height: 13px; }
+.ld-val-save { border: none; cursor: pointer; border-radius: 8px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; background: var(--alloy-purple); color: #fff; }
+.ld-val-save:hover { filter: brightness(1.08); }
+
+/* always-on status control (footer) */
+.ld-status-foot { align-items: center; }
+.ld-status-lbl { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-muted); margin-right: 2px; }
+.ld-status-btn { flex: 1; justify-content: center; border: 1px solid var(--border-subtle); background: #fff; color: var(--fg-muted); cursor: pointer; border-radius: 8px; padding: 9px 6px; font-size: 12.5px; font-weight: 700; }
+.ld-status-btn:hover { border-color: var(--alloy-purple); color: var(--alloy-purple); }
+.ld-status-btn.yes.on  { background: #2f7d5b; border-color: #2f7d5b; color: #fff; }
+.ld-status-btn.pend.on { background: var(--alloy-yellow); border-color: var(--alloy-yellow); color: #5a4708; }
+.ld-status-btn.no.on   { background: var(--alloy-purple); border-color: var(--alloy-purple); color: #fff; }
 
 /* ---- Undo toast ---- */
 .ld-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: var(--alloy-purple); color: #fff; border-radius: 999px; padding: 11px 16px 11px 20px; display: flex; align-items: center; gap: 16px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }

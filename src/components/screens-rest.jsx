@@ -596,8 +596,10 @@ function buildLeadsPage() {
     note: l.message || "",
     page: l.page || "",
     journey: Array.isArray(l.journey) ? l.journey : null,
-    monthly: Number(l.salesValue) || Number(l.quoteValue) || 0,   // monthly
-    value: l.quotable === "yes" ? (l.value || "") : null,         // annual display string
+    monthly: Number(l.salesValue) || Number(l.quoteValue) || 0,   // monthly (pipeline)
+    quote: Number(l.quoteValue) || 0,   // monthly, open
+    sales: Number(l.salesValue) || 0,   // monthly, closed
+    value: l.value || "",               // annualized display string
   }));
 
   return {
@@ -626,10 +628,12 @@ function LeadsScreen() {
   const srcColor = (name) => (LD.sources.find((s) => s.name.toLowerCase() === String(name).toLowerCase()) || {}).color || "#c9c1d6";
 
   const [leads, setLeads] = useState(LD.list);
-  const [tab, setTab] = useState("review");
+  const [tab, setTab] = useState("qualified");
   const [query, setQuery] = useState("");
   const [panelId, setPanelId] = useState(null);
-  const [valuePrompt, setValuePrompt] = useState(null);
+  const [editQuote, setEditQuote] = useState("");   // monthly, free-form
+  const [editSales, setEditSales] = useState("");   // monthly, free-form
+  const [savedFlash, setSavedFlash] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimer = React.useRef(null);
   const initialQualified = React.useRef(LD.list.filter((l) => l.status === "qualified").length);
@@ -646,35 +650,38 @@ function LeadsScreen() {
     <span className="ld-src-chip"><span className="swatch" style={{ background: srcColor(lead.source) }} />{lead.source}</span>
   );
 
+  const quotableOf = (status) => status === "qualified" ? "yes" : status === "notfit" ? "no" : "pending";
+
   const setStatus = async (id, status) => {
     const lead = leads.find((l) => l.id === id);
     if (!lead) return;
-    const prev = { status: lead.status, value: lead.value };
-    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, status, value: status === "qualified" ? l.value : null } : l));
-    setPanelId(null);
-    if (status === "qualified") setValuePrompt(id);
-    else if (valuePrompt === id) setValuePrompt(null);
+    const prev = { status: lead.status };
+    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, status } : l));   // keep values across status
     setToast({ id, prev, label: status === "qualified" ? `${lead.person} marked qualified` : status === "notfit" ? `${lead.person} marked not a fit` : `${lead.person} moved to pending` });
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 6000);
-    try { await qualifyLead(id, { quotable: status === "qualified" ? "yes" : status === "notfit" ? "no" : "pending" }); } catch (e) { /* optimistic; next sync reconciles */ }
+    try { await qualifyLead(id, { quotable: quotableOf(status) }); } catch (e) { /* optimistic; next sync reconciles */ }
   };
   const undo = async () => {
     if (!toast) return;
     const t = toast;
-    setLeads((ls) => ls.map((l) => l.id === t.id ? { ...l, ...t.prev } : l));
-    if (valuePrompt === t.id) setValuePrompt(null);
+    setLeads((ls) => ls.map((l) => l.id === t.id ? { ...l, status: t.prev.status } : l));
     setToast(null);
-    try { await qualifyLead(t.id, { quotable: t.prev.status === "qualified" ? "yes" : t.prev.status === "notfit" ? "no" : "pending" }); } catch (e) { /* */ }
+    try { await qualifyLead(t.id, { quotable: quotableOf(t.prev.status) }); } catch (e) { /* */ }
   };
-  const setValue = async (id, monthly) => {
-    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, monthly, value: fmtMoney(monthly * 12) } : l));
-    setValuePrompt(null);
-    try { await qualifyLead(id, { quotable: "yes", quoteValue: monthly }); } catch (e) { /* */ }
+  // Free-form value edit (monthly); persists regardless of status.
+  const saveValues = async (id, quoteStr, salesStr) => {
+    const lead = leads.find((l) => l.id === id);
+    if (!lead) return;
+    const qv = quoteStr === "" ? 0 : Number(quoteStr) || 0;
+    const sv = salesStr === "" ? 0 : Number(salesStr) || 0;
+    const disp = (sv || qv) ? `$${((sv || qv) * 12).toLocaleString("en-US")}` : "";
+    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, quote: qv, sales: sv, monthly: sv || qv, value: disp } : l));
+    setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1500);
+    try { await qualifyLead(id, { quotable: quotableOf(lead.status), quoteValue: qv, salesValue: sv }); } catch (e) { /* */ }
   };
 
   const tabs = [
-    { id: "review", label: "Needs review", count: reviewLeads.length, attention: reviewLeads.length > 0 },
     { id: "qualified", label: "Qualified", count: ytdQualified },
     { id: "notfit", label: "Not a fit", count: leads.filter((l) => l.status === "notfit").length },
     { id: "all", label: "All", count: leads.length },
@@ -687,7 +694,13 @@ function LeadsScreen() {
   });
 
   const panelLead = leads.find((l) => l.id === panelId);
-  const promptLead = leads.find((l) => l.id === valuePrompt);
+
+  // Seed the free-form value inputs whenever a lead's panel opens.
+  useEffect(() => {
+    if (!panelLead) return;
+    setEditQuote(panelLead.quote ? String(panelLead.quote) : "");
+    setEditSales(panelLead.sales ? String(panelLead.sales) : "");
+  }, [panelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!panelId) return;
@@ -709,16 +722,6 @@ function LeadsScreen() {
             </div>
           </div>
           <div className="banner-card-body">
-            {promptLead ? (
-              <div className="ld-value-prompt" style={{ marginBottom: reviewLeads.length > 0 ? 12 : 0 }}>
-                <span className="q"><b>{promptLead.person}</b> qualified — est. monthly contract value?</span>
-                {[1000, 2500, 5000].map((v) => (
-                  <button key={v} className="ld-value-chip" onClick={() => setValue(promptLead.id, v)}>{fmtMoney(v)}/mo</button>
-                ))}
-                <button className="ld-value-chip ghost" onClick={() => setValuePrompt(null)}>I'll add it later</button>
-              </div>
-            ) : null}
-
             {reviewLeads.length === 0 ? (
               <div className="ld-queue-empty">
                 <I.Check width={22} height={22} />
@@ -726,7 +729,7 @@ function LeadsScreen() {
               </div>
             ) : (
               <div className="ld-queue-rows">
-                {reviewLeads.slice(0, 5).map((l) => (
+                {reviewLeads.map((l) => (
                   <div key={l.id} className="ld-queue-row ld-clickable" onClick={() => setPanelId(l.id)}>
                     <LdChannelIcon channel={l.channel} />
                     <div className="ld-who">
@@ -745,13 +748,6 @@ function LeadsScreen() {
                 ))}
               </div>
             )}
-            {reviewLeads.length > 5 ? (
-              <div className="ld-queue-foot">
-                <span>{reviewLeads.length - 5} more in the list below</span>
-                <div className="grow" />
-                <a style={{ cursor: "pointer", fontWeight: 700, color: "#fff" }} onClick={() => setTab("review")}>See all pending →</a>
-              </div>
-            ) : null}
           </div>
         </div>
 
@@ -822,7 +818,7 @@ function LeadsScreen() {
 
         <div className="ld-rows">
           {visible.length === 0 ? (
-            <div className="ld-empty-rows">{tab === "review" ? "Nothing to review — you're all caught up. 🎉" : `No leads here${q ? " match your search" : ""}.`}</div>
+            <div className="ld-empty-rows">{`No leads here${q ? " match your search" : ""}.`}</div>
           ) : visible.slice(0, RENDER_CAP).map((l) => (
             <div key={l.id} className="ld-row ld-clickable" onClick={() => setPanelId(l.id)}>
               <LdChannelIcon channel={l.channel} />
@@ -847,7 +843,7 @@ function LeadsScreen() {
                 ) : l.status === "qualified" ? (
                   <>
                     {l.value ? <span className="ld-value">{l.value}<span className="per">/yr</span></span>
-                      : <button className="ld-add-value" onClick={() => setValuePrompt(l.id)}><I.Plus width={10} height={10} /> Est. value</button>}
+                      : <button className="ld-add-value" onClick={() => setPanelId(l.id)}><I.Plus width={10} height={10} /> Est. value</button>}
                     <span className="tag tag-status-live"><span className="dot" />Qualified</span>
                   </>
                 ) : (
@@ -876,6 +872,22 @@ function LeadsScreen() {
               <button className="ld-panel-close" onClick={() => setPanelId(null)} aria-label="Close"><I.Close width={13} height={13} /></button>
             </div>
             <div className="ld-panel-body">
+              <div className="ld-panel-sec">
+                <div className="sec-lbl">Deal value</div>
+                <div className="ld-val-edit">
+                  <label className="ld-val-field">
+                    <span className="ld-val-lbl">Quote · open</span>
+                    <span className="ld-money"><span className="u">$</span><input value={editQuote} onChange={(e) => setEditQuote(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" /><span className="u">/mo</span></span>
+                    <span className="ld-val-ann">{editQuote ? `= $${(Number(editQuote) * 12).toLocaleString("en-US")}/yr` : "\u00a0"}</span>
+                  </label>
+                  <label className="ld-val-field">
+                    <span className="ld-val-lbl">Sales · closed</span>
+                    <span className="ld-money"><span className="u">$</span><input value={editSales} onChange={(e) => setEditSales(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" /><span className="u">/mo</span></span>
+                    <span className="ld-val-ann">{editSales ? `= $${(Number(editSales) * 12).toLocaleString("en-US")}/yr` : "\u00a0"}</span>
+                  </label>
+                  <button className="ld-val-save" onClick={() => saveValues(panelLead.id, editQuote, editSales)}>{savedFlash ? "Saved" : "Save value"}</button>
+                </div>
+              </div>
               {panelLead.note ? (
                 <div className="ld-panel-sec">
                   <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : "Their message"}</div>
@@ -905,12 +917,12 @@ function LeadsScreen() {
                 </div>
               </div>
             </div>
-            {panelLead.status === "review" ? (
-              <div className="ld-panel-foot">
-                <button className="ld-btn-qualify" onClick={() => setStatus(panelLead.id, "qualified")}><I.Check width={13} height={13} /> Qualified</button>
-                <button className="ld-btn-notfit" onClick={() => setStatus(panelLead.id, "notfit")}><I.Close width={11} height={11} /> Not a fit</button>
-              </div>
-            ) : null}
+            <div className="ld-panel-foot ld-status-foot">
+              <span className="ld-status-lbl">Status</span>
+              <button className={`ld-status-btn yes${panelLead.status === "qualified" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "qualified")}>Qualified</button>
+              <button className={`ld-status-btn pend${panelLead.status === "review" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "pending")}>Pending</button>
+              <button className={`ld-status-btn no${panelLead.status === "notfit" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "notfit")}>Not a fit</button>
+            </div>
           </aside>
         </>
       ) : null}
