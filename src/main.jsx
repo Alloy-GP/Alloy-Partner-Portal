@@ -14,6 +14,7 @@ import './styles/05-desktop.css';
 import './styles/06-alloy-hero.css';
 import './styles/07-leads.css';
 import './styles/08-tour.css';
+import './styles/09-account.css';
 
 import AuthGate from './AuthGate.jsx';
 

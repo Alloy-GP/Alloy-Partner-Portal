@@ -49,7 +49,7 @@ export async function loadAccountData(session, accountId, me) {
   const [
     accountRes, recurringRes, projectsRes, leadsRes,
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
-    badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes,
+    badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -65,6 +65,8 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('weekly_snapshots').select('week_label, pdf_path').eq('account_id', accountId).eq('is_current', false).order('sort'),
     supabase.from('roadmap_quarters').select('*, roadmap_focuses(*)').eq('account_id', accountId).order('sort'),
     supabase.from('action_items').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('invoices').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('profiles').select('id, name, initials, avatar_url, role, is_staff').eq('account_id', accountId),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -105,6 +107,10 @@ export async function loadAccountData(session, accountId, me) {
       goalCurrent: account.goal_current || 0,
       goalTarget: account.goal_target || 0,
       logoUrl: account.logo_url || null,
+      // Integration ids — drive the Account page "Connected sources" card.
+      mondayBoardId: account.monday_board_id || null,
+      zendeskOrgId: account.zendesk_org_id || null,
+      whatconvertsProfileId: account.whatconverts_profile_id || null,
       // Lifetime WhatConverts tenure (weekly rollup).
       wcQualifiedTotal: account.wc_qualified_total || 0,
       wcQualifiedBySource: account.wc_qualified_by_source || {},
@@ -192,6 +198,20 @@ export async function loadAccountData(session, accountId, me) {
       title: a.title, due: a.due_label || '', dueRel: relativeDue(a.due_date),
       zendeskId: a.zendesk_id || null, zendeskUrl: a.zendesk_url || null,
       routeId: a.zendesk_id || a.monday_item_id,
+    })),
+    // QuickBooks invoices (synced nightly). Download the PDF on demand via the
+    // quickbooks-invoice-pdf function, passing `id`. UI gates on perms `billing`.
+    invoices: (invoicesRes.data || []).map((inv) => ({
+      id: inv.id, number: inv.doc_number, date: inv.txn_date, dueDate: inv.due_date,
+      amount: Number(inv.total_amount), balance: Number(inv.balance),
+      status: inv.status, currency: inv.currency,
+    })),
+    // Everyone on this account. The Account page splits this into client
+    // "Team seats" (is_staff=false) and "Your Alloy team" (is_staff=true).
+    // Email is not included (lives in auth.users, not client-readable).
+    team: (teamRes.data || []).map((p) => ({
+      id: p.id, name: p.name || '', initials: p.initials || '',
+      avatarUrl: p.avatar_url || null, role: p.role || 'owner', isStaff: !!p.is_staff,
     })),
   };
 }

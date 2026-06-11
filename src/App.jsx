@@ -8,6 +8,7 @@ import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx
 import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen, LeadsScreen } from './components/screens-rest.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
 import SnapshotScreen from './components/SnapshotScreen.jsx';
+import AccountScreen from './components/AccountScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour } from './lib/tour.js';
@@ -17,7 +18,7 @@ import NewRequestModal from './components/NewRequestModal.jsx';
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 const PATHS = {
   dashboard: '/', leads: '/leads', snapshot: '/snapshot', roi: '/roi', projects: '/projects', tickets: '/tickets',
-  playbook: '/playbook', library: '/library', rewards: '/rewards',
+  playbook: '/playbook', library: '/library', rewards: '/rewards', 'account-details': '/account',
 };
 
 // App entry — composes Sidebar + screen
@@ -104,6 +105,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     playbook: { t: "Roadmap", s: "Your 2026 growth plan, quarter by quarter" },
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
     rewards: { t: "Recognition", s: "Wins, made tangible" },
+    'account-details': { t: "Account Details", s: "Your plan, team, and account settings" },
   };
 
   // Navigate within the current client context. `sub` appends a sub-path
@@ -128,6 +130,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "library": return <LibraryScreen/>;
       case "rewards": return <RecognitionScreen/>;
       case "snapshot": return <SnapshotScreen/>;
+      case "account-details": return <AccountScreen onNav={handleNav}/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }
   })();

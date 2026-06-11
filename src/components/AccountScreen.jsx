@@ -1,0 +1,279 @@
+import React from 'react';
+import { I } from './icons.jsx';
+import { DATA } from '../data.js';
+import { can } from '../lib/perms.js';
+import { downloadInvoice } from '../lib/billing.js';
+
+// Account Details — ported from the design handoff. Wires real portal data
+// where it exists (company profile, billing/invoices via QuickBooks, team from
+// same-account profiles, connected sources from integration ids). Tiles not yet
+// in the data model are clearly marked PLACEHOLDER and tuned as we go.
+
+const ROLE_LABEL = { admin: 'Admin', staff: 'Staff', owner: 'Owner', accounting: 'Accounting', bd: 'BD', ops: 'Ops' };
+// Map a canonical role to a pill style. Legacy bd/ops kept for old rows.
+const ROLE_CLASS = { owner: 'owner', admin: 'owner', accounting: 'acct', staff: 'staff', bd: 'bd', ops: 'ops' };
+// Deterministic accent for Alloy-team avatars (no per-account color in the model yet).
+const ALLOY_COLORS = ['var(--alloy-pink)', '#2a6391', '#2c6e62', 'var(--alloy-purple)'];
+
+function money(n, compact = false) {
+  const v = Number(n) || 0;
+  if (compact && Math.abs(v) >= 1000) {
+    const k = v / 1000;
+    return '$' + (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + 'K';
+  }
+  return v.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(`${String(s).slice(0, 10)}T00:00:00`);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function monthLabel(s) {
+  if (!s) return '';
+  const d = new Date(`${String(s).slice(0, 10)}T00:00:00`);
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+function initialsOf(name, fallback) {
+  if (fallback) return fallback;
+  return String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
+}
+
+function InvoiceRow({ inv, tier }) {
+  const [state, setState] = React.useState('idle'); // idle | loading | ok | err
+  const paid = !(Number(inv.balance) > 0);
+  const onDownload = async () => {
+    if (state === 'loading') return;
+    setState('loading');
+    try {
+      await downloadInvoice(inv.id, `invoice-${inv.number || inv.id}.pdf`);
+      setState('ok');
+      setTimeout(() => setState('idle'), 2200);
+    } catch (e) {
+      setState('err');
+      setTimeout(() => setState('idle'), 2600);
+    }
+  };
+  return (
+    <div className="acct-inv-row" role="row">
+      <span className="mono">{inv.number || '—'}</span>
+      <span className="date">{fmtDate(inv.date)}</span>
+      <span className="desc">{tier ? `${tier} · ${monthLabel(inv.date)}` : monthLabel(inv.date)}</span>
+      <span className="amt">{money(inv.amount)}</span>
+      <span className="st"><span className={`acct-status ${paid ? 'paid' : 'due'}`}>{paid ? 'Paid' : 'Due'}</span></span>
+      <span className="acct-dl-cell">
+        <button
+          className={`acct-dl${state === 'ok' ? ' ok' : ''}${state === 'err' ? ' err' : ''}`}
+          onClick={onDownload}
+          aria-label={`Download ${inv.number || 'invoice'} as PDF`}
+        >
+          {state === 'loading' ? '…' : state === 'ok' ? '✓ Saved' : state === 'err' ? 'Retry' : <><I.Download width={12} height={12} /> PDF</>}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+export default function AccountScreen({ onNav }) {
+  const acct = DATA.account || {};
+  const user = DATA.user || {};
+  const team = DATA.team || [];
+  const clientSeats = team.filter((m) => !m.isStaff);
+  const alloyTeam = team.filter((m) => m.isStaff);
+  const services = DATA.recurringServices || [];
+  const invoices = (DATA.invoices || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  const showBilling = can(user, 'billing');
+  const canInvite = can(user, 'manageUsers');
+
+  // Billing derived from real invoices.
+  const open = invoices
+    .filter((i) => Number(i.balance) > 0)
+    .sort((a, b) => String(a.dueDate || a.date).localeCompare(String(b.dueDate || b.date)));
+  const nextInv = open[0] || null;
+  const thisYear = new Date().getFullYear();
+  const ytd = invoices
+    .filter((i) => String(i.date).slice(0, 4) === String(thisYear))
+    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const paidCount = invoices.filter((i) => !(Number(i.balance) > 0)).length;
+  const lastPaid = invoices.find((i) => !(Number(i.balance) > 0)) || null;
+
+  // Connected sources — derived from configured integration ids + data presence.
+  const sources = [
+    acct.whatconvertsProfileId && { name: 'WhatConverts', sub: 'Lead capture · calls + forms', feeds: 'Leads' },
+    acct.mondayBoardId && { name: 'Monday', sub: 'Project delivery board', feeds: 'Projects' },
+    acct.zendeskOrgId && { name: 'Zendesk', sub: 'Support threads', feeds: 'Tickets' },
+    invoices.length > 0 && { name: 'QuickBooks', sub: 'Invoices & payments', feeds: 'Billing' },
+  ].filter(Boolean);
+
+  // Notification prefs — local only for now (no prefs store yet; tuned later).
+  const [prefs, setPrefs] = React.useState({ snapshot: true, leads: true, approvals: true, receipts: false });
+  const toggle = (k) => setPrefs((p) => ({ ...p, [k]: !p[k] }));
+  const PREFS = [
+    { k: 'snapshot', t: 'Monthly snapshot', s: "Month-end email — wins, waiting-on-you, what's next" },
+    { k: 'leads', t: 'New lead alerts', s: 'Instant email when WhatConverts captures a lead' },
+    { k: 'approvals', t: 'Approval reminders', s: 'Nudge when a deliverable is waiting on your sign-off' },
+    { k: 'receipts', t: 'Invoice receipts', s: 'Email a PDF receipt when a payment clears' },
+  ];
+
+  return (
+    <div className="acct-page">
+      {/* ── Row 1: Company profile | Plan & usage ─────────────── */}
+      <div className="acct-grid2">
+        <section className="card card-pad-lg">
+          <div className="card-head"><span className="kicker">Account</span><h3>Company profile</h3><div className="grow" /></div>
+          <div className="acct-row"><span className="acct-row-lbl">Company</span><span className="acct-row-val">{acct.company || '—'}</span></div>
+          <div className="acct-row"><span className="acct-row-lbl">Display name</span><span className="acct-row-val">{acct.shortName || '—'}</span></div>
+          <div className="acct-row"><span className="acct-row-lbl">Market</span><span className="acct-row-val">{acct.market || '—'}</span></div>
+          <div className="acct-row"><span className="acct-row-lbl">Client since</span><span className="acct-row-val">{acct.since || '—'}</span></div>
+          <div className="acct-row no-line">
+            <span className="acct-row-lbl">Plan tier</span>
+            {acct.tier ? <span className="tier-pill"><span className="star">★</span> {acct.tier}</span> : <span className="acct-row-val">—</span>}
+          </div>
+        </section>
+
+        <section className="card card-pad-lg">
+          <div className="card-head"><span className="kicker">Subscription</span><h3>Plan &amp; usage</h3><div className="grow" /></div>
+          <div className="acct-plan-grid">
+            <div className="plan-limit">
+              <div className="pl-head"><span className="pl-lbl">Always-on services</span><span className="pl-n">{services.length} active</span></div>
+              <div className="pl-track"><span className="pl-fill" style={{ width: services.length ? '100%' : '0%' }} /></div>
+              <div className="pl-hint">{services.length ? services.slice(0, 4).map((s) => s.short || s.name).filter(Boolean).join(' · ') : 'No recurring services configured'}</div>
+            </div>
+            <div className="plan-limit">
+              {/* PLACEHOLDER: locations aren't modeled yet — single-location default. */}
+              <div className="pl-head"><span className="pl-lbl">Locations covered</span><span className="pl-n">1 / 1</span></div>
+              <div className="pl-track"><span className="pl-fill" style={{ width: '100%' }} /></div>
+              <div className="pl-hint">Single market · ask your team to add locations</div>
+            </div>
+          </div>
+          <div className="acct-note">
+            <div style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>
+              <strong style={{ color: 'var(--alloy-purple)' }}>{services.length} always-on services</strong> included · billed monthly
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => onNav && onNav('playbook')}>View plan →</button>
+          </div>
+        </section>
+      </div>
+
+      {/* ── Row 2: Billing & invoices (gated to billing roles) ───── */}
+      {showBilling ? (
+        <section className="card card-pad-lg" style={{ marginBottom: 20 }}>
+          <div className="card-head">
+            <span className="kicker">Billing</span><h3>Billing &amp; invoices</h3><div className="grow" />
+          </div>
+
+          {invoices.length === 0 ? (
+            <div className="acct-empty">No invoices yet. Once billing runs in QuickBooks, your invoices appear here for download.</div>
+          ) : (
+            <>
+              <div className="acct-billing-strip">
+                <div className="acct-bill-stat hero">
+                  <div className="lbl">Next invoice</div>
+                  <div className="val">{nextInv ? money(nextInv.amount) : 'Up to date'}</div>
+                  <div className="sub">{nextInv ? `due ${fmtDate(nextInv.dueDate || nextInv.date)}` : 'no open balance'}</div>
+                </div>
+                <div className="acct-bill-stat">
+                  <div className="lbl">Billing cycle</div>
+                  <div className="val-sm">Monthly</div>
+                  <div className="sub">{thisYear} invested {money(ytd, true)}</div>
+                </div>
+                <div className="acct-bill-stat">
+                  <div className="lbl">Invoices</div>
+                  <div className="val-sm">{invoices.length} total</div>
+                  <div className="sub">{paidCount} paid</div>
+                </div>
+                <div className="acct-bill-stat">
+                  <div className="lbl">Last payment</div>
+                  <div className="val-sm">{lastPaid ? money(lastPaid.amount) : '—'}</div>
+                  <div className="sub">{lastPaid ? fmtDate(lastPaid.date) : 'none yet'}</div>
+                </div>
+              </div>
+
+              <div role="table" aria-label="Invoice history">
+                <div className="acct-inv-head" role="row">
+                  <span>Invoice</span><span>Date</span><span className="desc">Description</span>
+                  <span className="amt">Amount</span><span className="st">Status</span><span aria-hidden="true" />
+                </div>
+                {invoices.map((inv) => <InvoiceRow key={inv.id} inv={inv} tier={acct.tier} />)}
+              </div>
+            </>
+          )}
+        </section>
+      ) : null}
+
+      {/* ── Row 3: Team seats | Notifications ──────────────────── */}
+      <div className="acct-grid2">
+        <section className="card card-pad-lg">
+          <div className="card-head">
+            <span className="kicker">Portal access</span><h3>Team seats</h3><div className="grow" />
+            {canInvite ? <button className="btn btn-secondary btn-sm" onClick={() => onNav && onNav('tickets')}>+ Invite</button> : null}
+          </div>
+          {clientSeats.length === 0 ? (
+            <div className="acct-empty">No portal users on this account yet.</div>
+          ) : clientSeats.map((m) => (
+            <div className="acct-seat" key={m.id}>
+              <div className="acct-avatar">{initialsOf(m.name, m.initials)}</div>
+              <div className="who">
+                <div className="nm">{m.name || 'Member'}{m.id === user.id ? <span className="you">you</span> : null}</div>
+              </div>
+              <div className="meta">
+                <span className={`acct-role ${ROLE_CLASS[m.role] || 'owner'}`}>{ROLE_LABEL[m.role] || m.role}</span>
+              </div>
+            </div>
+          ))}
+          <div className="acct-foot-hint">Owner sees everything · Staff sees day-to-day work · Accounting sees billing</div>
+        </section>
+
+        <section className="card card-pad-lg">
+          <div className="card-head"><span className="kicker">Notifications</span><h3>What we send you</h3><div className="grow" /></div>
+          {PREFS.map((p) => (
+            <div className="acct-pref" key={p.k}>
+              <div className="tx"><div className="t">{p.t}</div><div className="s">{p.s}</div></div>
+              <button
+                className={`toggle${prefs[p.k] ? ' on' : ''}`}
+                role="switch"
+                aria-checked={prefs[p.k]}
+                aria-label={p.t}
+                onClick={() => toggle(p.k)}
+              ><span className="thumb" /></button>
+            </div>
+          ))}
+        </section>
+      </div>
+
+      {/* ── Row 4: Your Alloy team | Connected sources ─────────── */}
+      <div className="acct-grid2" style={{ marginBottom: 0 }}>
+        <section className="card card-pad-lg">
+          <div className="card-head">
+            <span className="kicker">Your Alloy team</span><h3>Who's driving your growth</h3><div className="grow" />
+            <button className="btn btn-secondary btn-sm" onClick={() => onNav && onNav('tickets')}>Message →</button>
+          </div>
+          {alloyTeam.length === 0 ? (
+            <div className="acct-empty">Your Alloy team will appear here.</div>
+          ) : alloyTeam.map((m, i) => (
+            <div className="acct-seat" key={m.id}>
+              <div className="acct-avatar" style={{ background: ALLOY_COLORS[i % ALLOY_COLORS.length] }}>{initialsOf(m.name, m.initials)}</div>
+              <div className="who">
+                <div className="nm">{m.name || 'Alloy'}</div>
+                <div className="em">{ROLE_LABEL[m.role] || 'Alloy team'}</div>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section className="card card-pad-lg">
+          <div className="card-head"><span className="kicker">Connected sources</span><h3>Where your data comes from</h3><div className="grow" /></div>
+          {sources.length === 0 ? (
+            <div className="acct-empty">No sources connected yet.</div>
+          ) : sources.map((s) => (
+            <div className="acct-int" key={s.name}>
+              <span className="acct-int-dot" />
+              <div className="who"><div className="nm">{s.name}</div><div className="em">{s.sub}</div></div>
+              <span className="feeds">{s.feeds}</span>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
