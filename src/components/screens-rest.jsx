@@ -821,7 +821,6 @@ function LeadsScreen() {
           <div className="banner-card-head">
             <span className="ld-queue-count">{reviewLeads.length}</span>
             <div className="bc-titles">
-              <div className="bc-kicker">WhatConverts · live</div>
               <div className="bc-title">{reviewLeads.length > 0 ? "Leads waiting on you" : "Lead review"}</div>
             </div>
           </div>
