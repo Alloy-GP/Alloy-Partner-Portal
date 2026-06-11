@@ -51,7 +51,7 @@ const STEPS = [
     element: '[data-tour="nav"]',
     popover: {
       title: 'Get around',
-      description: 'Jump to Leads, your Roadmap, Tickets, and more from the sidebar.',
+      description: 'Jump to the Revenue Engine, your Roadmap, Inbox, and more from the sidebar.',
       side: 'right', align: 'center',
     },
   },
