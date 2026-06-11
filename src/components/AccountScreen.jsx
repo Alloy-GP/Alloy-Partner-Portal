@@ -88,17 +88,17 @@ export default function AccountScreen({ onNav, onCompose }) {
   // Plan & usage — momentum framing (in-motion / delivered / lifetime qualified).
   const now = new Date();
   const curQuarter = `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()}`;
+  // Same expressions the rest of the portal uses, so these numbers always match:
+  //   in motion         = open projects → sidebar + Dashboard "Work in motion"
+  //   delivered this qtr = live projects whose due date lands in the current
+  //                        quarter → identical to Dashboard "Work in motion"
+  //   qualified          = wcQualifiedTotal → Leads "qualified all-time" + Dashboard
   const inMotion = projects.filter((p) => p.status && p.status !== 'live').length;
-  const delivered = projects.filter((p) => p.status === 'live').length;
-  // Lifetime qualified = prior-year rollup totals + live YTD qualified leads.
-  // (The leads table only holds the calendar-YTD window; prior years live in
-  // accounts.wc_qualified_by_year. This stays fresher than the weekly rollup.)
-  const yr = now.getFullYear();
-  const priorQualified = Object.entries(acct.wcQualifiedByYear || {})
-    .filter(([y]) => Number(y) < yr)
-    .reduce((s, [, n]) => s + (Number(n) || 0), 0);
-  const ytdQualified = (DATA.recentLeads || []).filter((l) => l.quotable === 'yes').length;
-  const qualified = (priorQualified + ytdQualified) || acct.wcQualifiedTotal || 0;
+  const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+  const qEnd = new Date(qStart.getFullYear(), qStart.getMonth() + 3, 1);
+  const inQuarter = (d) => { if (!d) return false; const x = new Date(d); return x >= qStart && x < qEnd; };
+  const deliveredQtr = projects.filter((p) => p.status === 'live' && inQuarter(p.dueDate)).length;
+  const qualified = acct.wcQualifiedTotal || 0;
   // Categories of work = projects grouped by phase, top 6 by count.
   const phaseCounts = {};
   projects.forEach((p) => { const k = (p.phase || '').trim() || 'Other'; phaseCounts[k] = (phaseCounts[k] || 0) + 1; });
@@ -169,11 +169,10 @@ export default function AccountScreen({ onNav, onCompose }) {
 
           <div className="pu-stats">
             <div className="pu-stat">
-              <div className="n">{inMotion}</div><div className="l">in motion now</div><div className="s">{curQuarter}</div>
+              <div className="n">{inMotion}</div><div className="l">in motion now</div><div className="s">active engagements</div>
             </div>
             <div className="pu-stat green">
-              <div className="n">{delivered}</div><div className="l">delivered to date</div>
-              <div className="s">{acct.since ? `client since ${acct.since}` : 'since partnership start'}</div>
+              <div className="n">{deliveredQtr}</div><div className="l">delivered this qtr</div><div className="s">{curQuarter}</div>
             </div>
             <div className="pu-stat pink">
               <div className="n">{qualified}</div><div className="l">qualified leads</div>
