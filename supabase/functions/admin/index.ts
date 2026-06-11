@@ -174,8 +174,10 @@ async function sendSnapshotEmail(admin: any, snapshotId: string) {
   const { data: snap } = await admin.from("weekly_snapshots").select("*, weekly_snapshot_items(*)").eq("id", snapshotId).maybeSingle();
   if (!snap) return { sent: 0, error: "snapshot not found" };
   const { data: acct } = await admin.from("accounts").select("company, short_name, logo_url").eq("id", snap.account_id).maybeSingle();
-  const { data: invites } = await admin.from("account_invites").select("email, is_staff").eq("account_id", snap.account_id);
-  const to = (invites || []).filter((i: any) => !i.is_staff && i.email).map((i: any) => i.email);
+  // Recipients = non-staff invites MINUS anyone with monthly_snapshot off
+  // (centralized in snapshot_recipient_emails; honors per-user notification prefs).
+  const { data: emails } = await admin.rpc("snapshot_recipient_emails", { p_account_id: snap.account_id });
+  const to = (emails || []).filter(Boolean);
   if (!to.length) return { sent: 0, error: "no client recipients" };
 
   const html = renderSnapshotEmail(acct, snap);

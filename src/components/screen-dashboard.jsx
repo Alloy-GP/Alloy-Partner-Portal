@@ -165,6 +165,13 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, 
   const [open, setOpen] = React.useState(false);
   const pending = usePending(); // live Zendesk tickets waiting on the client
   const notifs = pending || [];
+  // Leads waiting to be qualified — surfaced in the bell when the user's
+  // lead_alerts notification pref is on (default on).
+  const leadAlertsOn = (DATA.user && DATA.user.notificationPrefs && DATA.user.notificationPrefs.lead_alerts) !== false;
+  const leadsToQualify = leadAlertsOn
+    ? (DATA.recentLeads || []).filter((l) => l.quotable !== "yes" && l.quotable !== "no").length
+    : 0;
+  const waitingCount = notifs.length + leadsToQualify;
   const ref = React.useRef(null);
   const [userOpen, setUserOpen] = React.useState(false);
   const userRef = React.useRef(null);
@@ -215,28 +222,42 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, 
           onClick={() => setOpen(o => !o)}
         >
           <I.Bell width={17} height={17}/>
-          {notifs.length > 0 ? <span className="pulse"/> : null}
+          {waitingCount > 0 ? <span className="pulse"/> : null}
         </button>
         {open ? (
           <div className="ds-notif-pop" role="menu">
             <div className="ds-notif-head">
               <span className="ds-notif-title">Notifications</span>
-              {notifs.length > 0 ? <span className="ds-notif-badge">{notifs.length} waiting</span> : null}
+              {waitingCount > 0 ? <span className="ds-notif-badge">{waitingCount} waiting</span> : null}
             </div>
-            {notifs.length === 0 ? (
+            {waitingCount === 0 ? (
               <div style={{ padding: "20px 16px", fontSize: 12.5, color: "var(--fg-muted)", textAlign: "center" }}>
                 You’re all caught up — nothing waiting on you.
               </div>
-            ) : notifs.slice(0, 8).map((t) => (
-              <button key={t.id} className="ds-notif-item" role="menuitem" onClick={() => { setOpen(false); onNav("tickets", t.id); }}>
-                <span className="ds-notif-ic"><I.Mail width={15} height={15}/></span>
-                <span className="ds-notif-body">
-                  <span className="ds-notif-item-title">Awaiting your reply</span>
-                  <span className="ds-notif-item-sub">{t.title}</span>
-                </span>
-                <span className="ds-notif-unread" aria-hidden="true"/>
-              </button>
-            ))}
+            ) : (
+              <>
+                {leadsToQualify > 0 ? (
+                  <button className="ds-notif-item" role="menuitem" onClick={() => { setOpen(false); onNav("leads"); }}>
+                    <span className="ds-notif-ic"><I.Chart width={15} height={15}/></span>
+                    <span className="ds-notif-body">
+                      <span className="ds-notif-item-title">{leadsToQualify} {leadsToQualify === 1 ? "lead" : "leads"} to qualify</span>
+                      <span className="ds-notif-item-sub">New leads waiting for your review</span>
+                    </span>
+                    <span className="ds-notif-unread" aria-hidden="true"/>
+                  </button>
+                ) : null}
+                {notifs.slice(0, 8).map((t) => (
+                  <button key={t.id} className="ds-notif-item" role="menuitem" onClick={() => { setOpen(false); onNav("tickets", t.id); }}>
+                    <span className="ds-notif-ic"><I.Mail width={15} height={15}/></span>
+                    <span className="ds-notif-body">
+                      <span className="ds-notif-item-title">Awaiting your reply</span>
+                      <span className="ds-notif-item-sub">{t.title}</span>
+                    </span>
+                    <span className="ds-notif-unread" aria-hidden="true"/>
+                  </button>
+                ))}
+              </>
+            )}
             <button className="ds-notif-foot" onClick={() => { setOpen(false); onNav("tickets"); }}>Open inbox →</button>
           </div>
         ) : null}

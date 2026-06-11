@@ -77,8 +77,10 @@ async function emailSnapshot(supabase: any, snap: any): Promise<number> {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return 0;
   const { data: acct } = await supabase.from("accounts").select("company, short_name").eq("id", snap.account_id).maybeSingle();
-  const { data: invites } = await supabase.from("account_invites").select("email, is_staff").eq("account_id", snap.account_id);
-  const to = (invites || []).filter((i: any) => !i.is_staff && i.email).map((i: any) => i.email);
+  // Recipients = non-staff invites MINUS anyone with monthly_snapshot off
+  // (centralized in snapshot_recipient_emails; honors per-user notification prefs).
+  const { data: emails } = await supabase.rpc("snapshot_recipient_emails", { p_account_id: snap.account_id });
+  const to = (emails || []).filter(Boolean);
   if (!to.length) return 0;
   const html = renderSnapshotEmail(acct, snap);
   const subject = `Your Alloy weekly snapshot · ${snap.week_label || ""}`.trim();

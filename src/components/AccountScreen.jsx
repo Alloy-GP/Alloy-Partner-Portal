@@ -3,17 +3,15 @@ import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { can } from '../lib/perms.js';
 import { downloadInvoice } from '../lib/billing.js';
+import { saveNotificationPrefs } from '../lib/prefs.js';
 
-// Account Details — ported from the design handoff. Wires real portal data
-// where it exists (company profile, billing/invoices via QuickBooks, team from
-// same-account profiles, connected sources from integration ids). Tiles not yet
-// in the data model are clearly marked PLACEHOLDER and tuned as we go.
+// Account Details — ported from the design handoff. Wires real portal data:
+// company profile, Plan & usage, billing/invoices via QuickBooks, team seats
+// from same-account profiles, and real per-user notification prefs.
 
 const ROLE_LABEL = { admin: 'Admin', staff: 'Staff', owner: 'Owner', accounting: 'Accounting', bd: 'BD', ops: 'Ops' };
 // Map a canonical role to a pill style. Legacy bd/ops kept for old rows.
 const ROLE_CLASS = { owner: 'owner', admin: 'owner', accounting: 'acct', staff: 'staff', bd: 'bd', ops: 'ops' };
-// Deterministic accent for Alloy-team avatars (no per-account color in the model yet).
-const ALLOY_COLORS = ['var(--alloy-pink)', '#2a6391', '#2c6e62', 'var(--alloy-purple)'];
 
 function money(n, compact = false) {
   const v = Number(n) || 0;
@@ -81,7 +79,6 @@ export default function AccountScreen({ onNav, onCompose }) {
   const user = DATA.user || {};
   const team = DATA.team || [];
   const clientSeats = team.filter((m) => !m.isStaff);
-  const alloyTeam = team.filter((m) => m.isStaff);
   const services = DATA.recurringServices || [];
   const projects = DATA.projects || [];
 
@@ -149,22 +146,22 @@ export default function AccountScreen({ onNav, onCompose }) {
   const shownInvoices = invYear === 'all' ? invoices : invoices.filter((i) => String(i.date).slice(0, 4) === invYear);
   const cappedInvoices = invExpanded ? shownInvoices : shownInvoices.slice(0, INV_CAP);
 
-  // Connected sources — derived from configured integration ids + data presence.
-  const sources = [
-    acct.whatconvertsProfileId && { name: 'WhatConverts', sub: 'Lead capture · calls + forms', feeds: 'Leads' },
-    acct.mondayBoardId && { name: 'Monday', sub: 'Project delivery board', feeds: 'Projects' },
-    acct.zendeskOrgId && { name: 'Zendesk', sub: 'Support threads', feeds: 'Tickets' },
-    invoices.length > 0 && { name: 'QuickBooks', sub: 'Invoices & payments', feeds: 'Billing' },
-  ].filter(Boolean);
-
-  // Notification prefs — local only for now (no prefs store yet; tuned later).
-  const [prefs, setPrefs] = React.useState({ snapshot: true, leads: true, approvals: true, receipts: false });
-  const toggle = (k) => setPrefs((p) => ({ ...p, [k]: !p[k] }));
+  // Notification prefs — persisted per-user to profiles.notification_prefs.
+  // Default ON unless explicitly turned off. monthly_snapshot gates the snapshot
+  // email; lead_alerts gates the in-portal "leads to qualify" bell.
+  const initPrefs = user.notificationPrefs || {};
+  const [prefs, setPrefs] = React.useState({
+    monthly_snapshot: initPrefs.monthly_snapshot !== false,
+    lead_alerts: initPrefs.lead_alerts !== false,
+  });
+  const toggle = (k) => setPrefs((p) => {
+    const next = { ...p, [k]: !p[k] };
+    saveNotificationPrefs(user.id, next).catch(() => { /* optimistic; next load reconciles */ });
+    return next;
+  });
   const PREFS = [
-    { k: 'snapshot', t: 'Monthly snapshot', s: "Month-end email — wins, waiting-on-you, what's next" },
-    { k: 'leads', t: 'New lead alerts', s: 'Instant email when WhatConverts captures a lead' },
-    { k: 'approvals', t: 'Approval reminders', s: 'Nudge when a deliverable is waiting on your sign-off' },
-    { k: 'receipts', t: 'Invoice receipts', s: 'Email a PDF receipt when a payment clears' },
+    { k: 'monthly_snapshot', t: 'Monthly snapshot', s: "Month-end email — wins, waiting-on-you, what's next" },
+    { k: 'lead_alerts', t: 'New lead alerts', s: 'A heads-up in your portal when a new lead needs qualifying' },
   ];
 
   return (
@@ -303,7 +300,7 @@ export default function AccountScreen({ onNav, onCompose }) {
       ) : null}
 
       {/* ── Row 3: Team seats | Notifications ──────────────────── */}
-      <div className="acct-grid2">
+      <div className="acct-grid2" style={{ marginBottom: 0 }}>
         <section className="card card-pad-lg">
           <div className="card-head">
             <span className="kicker">Portal access</span><h3>Team seats</h3><div className="grow" />
@@ -337,40 +334,6 @@ export default function AccountScreen({ onNav, onCompose }) {
                 aria-label={p.t}
                 onClick={() => toggle(p.k)}
               ><span className="thumb" /></button>
-            </div>
-          ))}
-        </section>
-      </div>
-
-      {/* ── Row 4: Your Alloy team | Connected sources ─────────── */}
-      <div className="acct-grid2" style={{ marginBottom: 0 }}>
-        <section className="card card-pad-lg">
-          <div className="card-head">
-            <span className="kicker">Your Alloy team</span><h3>Who's driving your growth</h3><div className="grow" />
-            <button className="btn btn-secondary btn-sm" onClick={() => onNav && onNav('tickets')}>Message →</button>
-          </div>
-          {alloyTeam.length === 0 ? (
-            <div className="acct-empty">Your Alloy team will appear here.</div>
-          ) : alloyTeam.map((m, i) => (
-            <div className="acct-seat" key={m.id}>
-              <div className="acct-avatar" style={{ background: ALLOY_COLORS[i % ALLOY_COLORS.length] }}>{initialsOf(m.name, m.initials)}</div>
-              <div className="who">
-                <div className="nm">{m.name || 'Alloy'}</div>
-                <div className="em">{ROLE_LABEL[m.role] || 'Alloy team'}</div>
-              </div>
-            </div>
-          ))}
-        </section>
-
-        <section className="card card-pad-lg">
-          <div className="card-head"><span className="kicker">Connected sources</span><h3>Where your data comes from</h3><div className="grow" /></div>
-          {sources.length === 0 ? (
-            <div className="acct-empty">No sources connected yet.</div>
-          ) : sources.map((s) => (
-            <div className="acct-int" key={s.name}>
-              <span className="acct-int-dot" />
-              <div className="who"><div className="nm">{s.name}</div><div className="em">{s.sub}</div></div>
-              <span className="feeds">{s.feeds}</span>
             </div>
           ))}
         </section>
