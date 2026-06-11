@@ -1,8 +1,8 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { zdCreate } from '../lib/zendesk.js';
+import { zdCreate, zdUpload } from '../lib/zendesk.js';
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // Compose + send a new support request (creates a Zendesk ticket on the
 // account's org as the signed-in user). Opens from the "New request" buttons.
@@ -10,8 +10,17 @@ export default function NewRequestModal({ onClose, onCreated }) {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [priority, setPriority] = useState('normal');
+  const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+
+  const addFiles = (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (picked.length) setFiles((f) => [...f, ...picked]);
+    e.target.value = ''; // allow re-picking the same file
+  };
+  const removeFile = (i) => setFiles((f) => f.filter((_, k) => k !== i));
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !busy) onClose(); };
@@ -23,7 +32,11 @@ export default function NewRequestModal({ onClose, onCreated }) {
     if (!subject.trim() || !message.trim()) { setErr('Add a subject and a few details.'); return; }
     setBusy(true); setErr('');
     try {
-      const res = await zdCreate({ subject: subject.trim(), body: message.trim(), priority });
+      let uploads = [];
+      if (files.length) {
+        uploads = (await Promise.all(files.map((f) => zdUpload(f)))).filter(Boolean);
+      }
+      const res = await zdCreate({ subject: subject.trim(), body: message.trim(), priority, uploads });
       setBusy(false);
       if (res && res.id) onCreated(res.id);
       else onClose();
@@ -57,6 +70,24 @@ export default function NewRequestModal({ onClose, onCreated }) {
             <option value="urgent">Urgent</option>
           </select>
         </label>
+        <div className="nr-field">
+          <span className="nr-label">Attachments</span>
+          <div className="nr-files">
+            {files.map((f, i) => (
+              <span key={i} className="nr-file" title={f.name}>
+                <I.Paperclip width={12} height={12} />
+                <span className="nr-file-name">{f.name}</span>
+                <button type="button" className="nr-file-x" onClick={() => removeFile(i)} aria-label={`Remove ${f.name}`}>
+                  <I.Close width={10} height={10} />
+                </button>
+              </span>
+            ))}
+            <button type="button" className="nr-attach" onClick={() => fileRef.current && fileRef.current.click()}>
+              <I.Paperclip width={13} height={13} /> Attach files
+            </button>
+            <input ref={fileRef} type="file" multiple style={{ display: 'none' }} onChange={addFiles} />
+          </div>
+        </div>
         {err ? <div className="nr-err">{err}</div> : null}
         <div className="nr-foot">
           <button className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>

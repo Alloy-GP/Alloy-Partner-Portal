@@ -46,10 +46,10 @@ export const zdResolve = (id) => call('resolve', { id });
 
 // Create a new request (ticket) on the account's Zendesk org, as the signed-in
 // user. Separate edge function (zendesk-create). Returns { ok, id }.
-export async function zdCreate({ subject, body, priority }) {
+export async function zdCreate({ subject, body, priority, uploads }) {
   if (!isSupabaseConfigured) return null;
   const { data, error } = await supabase.functions.invoke('zendesk-create', {
-    body: { accountId: DATA.account && DATA.account.id, subject, body, priority },
+    body: { accountId: DATA.account && DATA.account.id, subject, body, priority, uploads },
   });
   if (error) throw error;
   if (data && data.error) throw new Error(data.error);
