@@ -73,13 +73,38 @@ function InvoiceRow({ inv, tier }) {
   );
 }
 
-export default function AccountScreen({ onNav }) {
+// Deterministic palette for the Plan & usage category pills (project phases).
+const CAT_PALETTE = ['#d9356e', '#2c6e62', '#2a6391', '#b8881a', '#381c4f', '#5a8f7b'];
+
+export default function AccountScreen({ onNav, onCompose }) {
   const acct = DATA.account || {};
   const user = DATA.user || {};
   const team = DATA.team || [];
   const clientSeats = team.filter((m) => !m.isStaff);
   const alloyTeam = team.filter((m) => m.isStaff);
   const services = DATA.recurringServices || [];
+  const projects = DATA.projects || [];
+
+  // Plan & usage — momentum framing (in-motion / delivered / lifetime qualified).
+  const now = new Date();
+  const curQuarter = `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()}`;
+  const inMotion = projects.filter((p) => p.status && p.status !== 'live').length;
+  const delivered = projects.filter((p) => p.status === 'live').length;
+  const qualified = acct.wcQualifiedTotal || 0;
+  // Categories of work = projects grouped by phase, top 6 by count.
+  const phaseCounts = {};
+  projects.forEach((p) => { const k = (p.phase || '').trim() || 'Other'; phaseCounts[k] = (phaseCounts[k] || 0) + 1; });
+  const categories = Object.entries(phaseCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([name, n], i) => ({ name, n, color: CAT_PALETTE[i % CAT_PALETTE.length] }));
+  // On the horizon = focuses from upcoming roadmap quarters.
+  const horizon = (DATA.roadmap || [])
+    .filter((q) => ['next', 'future', 'upcoming'].includes(q.state))
+    .flatMap((q) => (q.focuses || []).map((f) => ({ q: String(q.q || '').split(' ')[0], nm: f.t })))
+    .filter((nd) => nd.nm)
+    .slice(0, 4);
+  const openRequest = () => { if (onCompose) onCompose(); else if (onNav) onNav('tickets'); };
   const invoices = (DATA.invoices || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
   const showBilling = can(user, 'billing');
@@ -133,25 +158,57 @@ export default function AccountScreen({ onNav }) {
 
         <section className="card card-pad-lg">
           <div className="card-head"><span className="kicker">Subscription</span><h3>Plan &amp; usage</h3><div className="grow" /></div>
-          <div className="acct-plan-grid">
-            <div className="plan-limit">
-              <div className="pl-head"><span className="pl-lbl">Always-on services</span><span className="pl-n">{services.length} active</span></div>
-              <div className="pl-track"><span className="pl-fill" style={{ width: services.length ? '100%' : '0%' }} /></div>
-              <div className="pl-hint">{services.length ? services.slice(0, 4).map((s) => s.short || s.name).filter(Boolean).join(' · ') : 'No recurring services configured'}</div>
+
+          <div className="pu-stats">
+            <div className="pu-stat">
+              <div className="n">{inMotion}</div><div className="l">in motion now</div><div className="s">{curQuarter}</div>
             </div>
-            <div className="plan-limit">
-              {/* PLACEHOLDER: locations aren't modeled yet — single-location default. */}
-              <div className="pl-head"><span className="pl-lbl">Locations covered</span><span className="pl-n">1 / 1</span></div>
-              <div className="pl-track"><span className="pl-fill" style={{ width: '100%' }} /></div>
-              <div className="pl-hint">Single market · ask your team to add locations</div>
+            <div className="pu-stat green">
+              <div className="n">{delivered}</div><div className="l">delivered to date</div>
+              <div className="s">{acct.since ? `client since ${acct.since}` : 'since partnership start'}</div>
+            </div>
+            <div className="pu-stat pink">
+              <div className="n">{qualified}</div><div className="l">qualified leads</div>
+              <div className="s">{acct.since ? `since ${acct.since}` : 'lifetime'}</div>
             </div>
           </div>
-          <div className="acct-note">
-            <div style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>
-              <strong style={{ color: 'var(--alloy-purple)' }}>{services.length} always-on services</strong> included · billed monthly
+
+          {categories.length ? (
+            <div className="pu-pills">
+              {categories.map((c) => (
+                <span className="pu-pill" key={c.name} style={{ '--c': c.color }}>
+                  <span className="dot" />{c.name}<span className="n">{c.n}</span>
+                </span>
+              ))}
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => onNav && onNav('playbook')}>View plan →</button>
-          </div>
+          ) : null}
+
+          {horizon.length ? (
+            <div className="pu-horizon">
+              <div className="pu-horizon-head">
+                <span className="t">On the horizon</span>
+                <button className="pu-pull" onClick={openRequest}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5l8 7-8 7V5zm9 0l8 7-8 7V5z" /></svg>
+                  Pull work forward
+                </button>
+              </div>
+              <div className="pu-timeline">
+                {horizon.map((nd, i) => (
+                  <div className="pu-node" key={i}>
+                    <div className="pu-node-line">
+                      {nd.q ? <span className="pu-q">{nd.q}</span> : null}
+                      <span className="nm">{nd.nm}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <footer className="pu-foot">
+            <div className="tx"><strong>{services.length} always-on services</strong> running · included in your plan</div>
+            <button className="btn btn-secondary btn-sm" onClick={openRequest}>Plan with your strategist →</button>
+          </footer>
         </section>
       </div>
 

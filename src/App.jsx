@@ -130,7 +130,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "library": return <LibraryScreen/>;
       case "rewards": return <RecognitionScreen/>;
       case "snapshot": return <SnapshotScreen/>;
-      case "account-details": return <AccountScreen onNav={handleNav}/>;
+      case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }
   })();
