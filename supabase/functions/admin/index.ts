@@ -191,6 +191,107 @@ async function sendSnapshotEmail(admin: any, snapshotId: string) {
   return { sent: to.length };
 }
 
+// --- AI client summary (Claude) ---------------------------------------------
+// Synthesizes a client-facing narrative (headline + note) from the account's
+// real project / lead / ROI / KPI data for the chosen period. Staff-only;
+// drafted into the snapshot's headline + note for human review before publish.
+// Money is MONTHLY end-to-end (see CLAUDE.md) — the model is told to annualize
+// only when it explicitly says so.
+const SUMMARY_MODEL = "claude-opus-4-8";
+const PERIOD_DAYS: Record<string, number> = { week: 7, month: 30, quarter: 91 };
+const PERIOD_LABEL: Record<string, string> = {
+  week: "the past week", month: "the past month", quarter: "the past quarter",
+};
+
+function money(v: unknown): number {
+  const n = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
+  return isFinite(n) ? n : 0;
+}
+
+// Pull everything the model needs for one account, scoped to the period. Runs
+// with the service role (account-scoped by id), so it never leaks across tenants.
+async function gatherSummaryData(admin: any, accountId: string, period: string) {
+  const days = PERIOD_DAYS[period] ?? 30;
+  const since = new Date(Date.now() - days * 864e5);
+
+  const [acctRes, projRes, leadRes, roiRes, kpiRes, actRes] = await Promise.all([
+    admin.from("accounts").select("company, short_name, tier, market, goal_label, goal_current, goal_target").eq("id", accountId).maybeSingle(),
+    admin.from("projects").select("title, phase, status, pct, due_label, pulse").eq("account_id", accountId).order("sort"),
+    admin.from("leads").select("name, source, quality, quotable, value, quote_value, created_at").eq("account_id", accountId),
+    admin.from("roi").select("year_label, invested, contract_value, boards_signed, ratio").eq("account_id", accountId).limit(1).maybeSingle(),
+    admin.from("kpis").select("label, value, trend").eq("account_id", accountId).order("sort"),
+    admin.from("action_items").select("title, due_label").eq("account_id", accountId).order("sort"),
+  ]);
+
+  const projects = projRes.data || [];
+  const leads = leadRes.data || [];
+  const newLeads = leads.filter((l: any) => l.created_at && new Date(l.created_at) >= since);
+  const qualified = newLeads.filter((l: any) => l.quotable === "yes" || l.quality === "qualified");
+  const newLeadsValue = newLeads.reduce((t: number, l: any) => t + money(l.quote_value || l.value), 0);
+  const shipped = projects.filter((p: any) => p.status === "live");
+  const inMotion = projects.filter((p: any) => p.status !== "live");
+
+  return {
+    account: acctRes.data || {},
+    roi: roiRes.data || null,
+    kpis: kpiRes.data || [],
+    actionItems: actRes.data || [],
+    period: PERIOD_LABEL[period] || period,
+    counts: {
+      projectsTotal: projects.length,
+      shipped: shipped.length,
+      inMotion: inMotion.length,
+      newLeads: newLeads.length,
+      qualifiedLeads: qualified.length,
+      newLeadsMonthlyValue: newLeadsValue,
+    },
+    shipped: shipped.slice(0, 12).map((p: any) => ({ title: p.title, phase: p.phase, pulse: p.pulse })),
+    inMotion: inMotion.slice(0, 12).map((p: any) => ({ title: p.title, phase: p.phase, status: p.status, pct: p.pct, due: p.due_label })),
+  };
+}
+
+// Structured output guarantees clean { headline, note } JSON (Opus 4.8).
+const SUMMARY_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    headline: { type: "string", description: "One warm, specific sentence (~12 words max) capturing the period's biggest win or theme. No period label, no emoji." },
+    note: { type: "string", description: "2-4 short client-facing sentences from the Alloy team: concrete progress, value created, and what's next. Warm and direct. Never invent numbers not present in the data." },
+  },
+  required: ["headline", "note"],
+};
+
+async function callClaude(key: string, data: any): Promise<{ headline: string; note: string }> {
+  const system =
+    "You write client-facing status summaries for Alloy Growth Partners, a marketing/growth agency, addressed to the client. " +
+    "Voice: warm, concrete, confident, never salesy or fluffy. Ground every claim in the provided data — never invent metrics, names, or dollar amounts. " +
+    "Money values are MONTHLY; if you cite an annual figure, multiply by 12 and say 'annualized'. " +
+    "If the data is thin, write an honest, steady-state note rather than overstating progress.";
+  const prompt =
+    `Write a summary covering ${data.period} for ${data.account.short_name || data.account.company}. ` +
+    `Here is their real data as JSON:\n\n${JSON.stringify(data, null, 2)}\n\n` +
+    `Return a headline and a note per the schema.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: SUMMARY_MODEL,
+      max_tokens: 2000,
+      output_config: { format: { type: "json_schema", schema: SUMMARY_SCHEMA } },
+      system,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error(`anthropic ${res.status}: ${await res.text()}`);
+  const j = await res.json();
+  if (j.stop_reason === "refusal") throw new Error("model declined to write this summary");
+  const textBlock = (j.content || []).find((b: any) => b.type === "text");
+  if (!textBlock?.text) throw new Error("no summary returned");
+  const parsed = JSON.parse(textBlock.text);
+  return { headline: String(parsed.headline || ""), note: String(parsed.note || "") };
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -525,6 +626,19 @@ Deno.serve(async (req) => {
       const email = body.skipEmail ? { sent: 0, skipped: true } : await sendSnapshotEmail(admin, body.id);
       if (email.sent > 0) await admin.from("weekly_snapshots").update({ sent_at: new Date().toISOString() }).eq("id", body.id);
       return json({ ok: true, email });
+    }
+
+    if (action === "draft_summary") {
+      // AI-write a client-facing headline + note from this account's real data.
+      // Returns text for staff to review/edit; does NOT persist — the caller
+      // saves via update_snapshot, so a human always approves before publish.
+      if (!body.account_id) return json({ error: "account_id required" }, 400);
+      const key = Deno.env.get("ANTHROPIC_API_KEY");
+      if (!key) return json({ error: "ANTHROPIC_API_KEY not set" }, 500);
+      const period = ["week", "month", "quarter"].includes(body.period) ? body.period : "month";
+      const data = await gatherSummaryData(admin, body.account_id, period);
+      const { headline, note } = await callClaude(key, data);
+      return json({ headline, note, period });
     }
 
     return json({ error: "unknown action" }, 400);

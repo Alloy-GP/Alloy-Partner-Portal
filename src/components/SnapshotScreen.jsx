@@ -1,7 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
-import { listSnapshots, updateSnapshot, approveSnapshot, regenerateSnapshot } from '../lib/admin.js';
+import { listSnapshots, updateSnapshot, approveSnapshot, regenerateSnapshot, draftSummary } from '../lib/admin.js';
 
 const { useState, useEffect } = React;
 
@@ -95,6 +95,7 @@ function SnapshotScreen() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [period, setPeriod] = useState('month');
 
   useEffect(() => {
     if (!isStaff || !DATA.account?.id) return;
@@ -130,6 +131,17 @@ function SnapshotScreen() {
       setMsg('Refreshed with the latest data.');
     } catch (e) { setMsg(String(e.message || e)); } finally { setBusy(false); }
   };
+  // Ask Claude to write the headline + note from this client's real data.
+  // Fills the fields for the staff member to edit; nothing is sent until publish.
+  const aiDraft = async () => {
+    setBusy(true); setMsg('Writing summary from the latest data…');
+    try {
+      const r = await draftSummary(DATA.account.id, period);
+      if (r.headline) setHeadline(r.headline);
+      if (r.note) setNote(r.note);
+      setMsg('Draft written — review and edit before publishing.');
+    } catch (e) { setMsg(String(e.message || e)); } finally { setBusy(false); }
+  };
   const publish = async () => {
     setBusy(true); setMsg('');
     try {
@@ -160,7 +172,15 @@ function SnapshotScreen() {
             <span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-muted)', marginBottom: 4 }}>Note to the client (optional)</span>
             <textarea className="input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="A personal line — what to celebrate, what's next…" style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }} />
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <select className="input" value={period} onChange={(e) => setPeriod(e.target.value)} disabled={busy}
+              title="Period the AI summary should cover" style={{ width: 'auto', padding: '6px 8px' }}>
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="quarter">This quarter</option>
+            </select>
+            <button className="btn btn-secondary btn-sm" onClick={aiDraft} disabled={busy}
+              title="Let Claude draft the headline + note from this client's project status and metrics">✨ Draft with AI</button>
             <button className="btn btn-secondary btn-sm" onClick={refresh} disabled={busy} title="Re-pull the latest Monday data into this draft">↻ Refresh from latest</button>
             <button className="btn btn-secondary btn-sm" onClick={save} disabled={busy}>Save draft</button>
             <button className="btn btn-primary btn-sm" onClick={publish} disabled={busy}>{busy ? 'Publishing…' : 'Publish & send'}</button>

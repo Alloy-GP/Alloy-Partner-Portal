@@ -23,6 +23,8 @@ export const snapshotQueue = () => call('snapshot_queue');
 export const updateSnapshot = (id, fields) => call('update_snapshot', { id, ...fields });
 export const regenerateSnapshot = (accountId) => call('regenerate_snapshot', { account_id: accountId });
 export const approveSnapshot = (id) => call('approve_snapshot', { id });
+// AI-drafted client summary (headline + note) for the chosen period.
+export const draftSummary = (accountId, period) => call('draft_summary', { account_id: accountId, period });
 export const addInvite = (accountId, invite) =>
   call('add_invite', { account_id: accountId, redirectTo: window.location.origin, ...invite });
 export const removeInvite = (email) => call('remove_invite', { email });
