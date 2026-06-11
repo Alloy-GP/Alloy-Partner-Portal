@@ -1,24 +1,29 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-// Onboarding ACH capture. Lets a client store a bank account for autopay during
-// onboarding. PCI-safe: raw bank details are tokenized in the browser (Intuit
-// SDK) and never reach us — this function only receives the opaque token and
-// attaches it to the client's QBO customer via the Payments API.
+// QuickBooks payment + autopay setup for onboarding.
 //
-// Actions (JSON body { action }):
-//   - get             → method on file for the caller's account (last-4 only)
+// Client actions (billing-capable role, own account):
+//   - get             → bank method on file for the caller's account (last-4 only)
 //   - createCustomer  → ensure the account has a QBO customer (creates if missing)
 //   - attach          → { token, accountName?, achAuthorized, agreementVersion }
-//                       ensure customer → createFromToken → store ref + ACH auth
+//                       tokenized bank (browser) → createFromToken → store ref + ACH auth
 //
-// Account-scoped; financial writes require billing-capable roles (admin / client
-// owner / client accounting), mirroring perms.js `billing`. verify_jwt: true.
+// Staff actions (Alloy configures billing; clients never set their own price):
+//   - inspectRecurring→ dump QBO recurring templates (shape reference)
+//   - listItems       → QBO service items, for the billing item picker
+//   - createRecurring → { accountId, amount, itemId, description?, dayOfMonth?,
+//                         startDate?, active? } create an Automated ACH sales-receipt
+//                       template. Defaults to Active:false (a DRAFT to verify in QBO).
+//   - deleteRecurring → { recurringId } remove a recurring template (cleanup/retire)
 //
+// PCI: raw bank #s are tokenized in the browser and never reach us. verify_jwt: true.
 // Secrets: QBO_CLIENT_ID/SECRET, optional QBO_ENV. Connection from quickbooks_oauth.
 
 const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 const MINOR_VERSION = "70";
+const ACH_PAYMENT_METHOD = "10";        // QBO PaymentMethod "ACH" (auto-charges bank on file)
+const UNDEPOSITED_FUNDS = "35";         // QBO "Undeposited Funds" account (matches existing templates)
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -66,8 +71,18 @@ async function getAccessToken(db: any): Promise<{ token: string; realmId: string
   return { token: tok.access_token, realmId: row.realm_id };
 }
 
+const qboGet = (realmId: string, token: string, path: string) =>
+  fetch(`${acctBase()}/v3/company/${realmId}/${path}${path.includes("?") ? "&" : "?"}minorversion=${MINOR_VERSION}`,
+    { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
+
+const qboPost = (realmId: string, token: string, path: string, payload: unknown) =>
+  fetch(`${acctBase()}/v3/company/${realmId}/${path}${path.includes("?") ? "&" : "?"}minorversion=${MINOR_VERSION}`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
 // Ensure the account has a QBO customer; create one (Accounting API) if missing.
-// Returns the QBO customer id, persisting it to accounts.quickbooks_customer_id.
 async function ensureCustomer(db: any, token: string, realmId: string, account: any, contact: any): Promise<string> {
   if (account.quickbooks_customer_id) return String(account.quickbooks_customer_id);
 
@@ -76,28 +91,19 @@ async function ensureCustomer(db: any, token: string, realmId: string, account: 
   const payload: Record<string, unknown> = { DisplayName: displayName, CompanyName: account.company || displayName };
   if (contact?.email) payload.PrimaryEmailAddr = { Address: String(contact.email) };
 
-  const url = `${acctBase()}/v3/company/${realmId}/customer?minorversion=${MINOR_VERSION}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
+  const res = await qboPost(realmId, token, "customer", payload);
   let customerId: string | null = null;
   if (res.ok) {
     customerId = String((await res.json())?.Customer?.Id);
   } else {
-    // Duplicate name (6240): fall back to the existing customer with that name.
     const text = await res.text();
     if (/6240|Duplicate Name/i.test(text)) {
       const q = `SELECT Id FROM Customer WHERE DisplayName = '${displayName.replace(/'/g, "\\'")}'`;
-      const qr = await fetch(`${acctBase()}/v3/company/${realmId}/query?query=${encodeURIComponent(q)}&minorversion=${MINOR_VERSION}`,
-        { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
+      const qr = await qboGet(realmId, token, `query?query=${encodeURIComponent(q)}`);
       customerId = String((await qr.json())?.QueryResponse?.Customer?.[0]?.Id || "");
     }
     if (!customerId) throw new Error(`QBO customer create ${res.status}: ${text}`);
   }
-
   await db.from("accounts").update({ quickbooks_customer_id: customerId }).eq("id", account.id);
   return customerId;
 }
@@ -105,6 +111,13 @@ async function ensureCustomer(db: any, token: string, realmId: string, account: 
 function last4Of(masked: unknown): string | null {
   const d = String(masked || "").replace(/\D/g, "");
   return d ? d.slice(-4) : null;
+}
+
+// Default schedule start = first of next month (UTC).
+function firstOfNextMonth(): string {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return d.toISOString().slice(0, 10);
 }
 
 Deno.serve(async (req) => {
@@ -124,35 +137,110 @@ Deno.serve(async (req) => {
 
     const { data: me } = await userClient
       .from("profiles").select("account_id, is_staff, role").eq("id", user.id).maybeSingle();
-    if (!me?.account_id) return json({ error: "forbidden" }, 403);
-
-    // billing-capable: Alloy staff, or client owner/accounting (mirrors perms.js).
+    if (!me) return json({ error: "forbidden" }, 403);
     const billingOk = me.is_staff || me.role === "owner" || me.role === "accounting";
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || "get";
-
     const db = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+    // --- get: method-on-file summary (any authed user, own account) ---
     if (action === "get") {
+      if (!me.account_id) return json({ methods: [] });
       const { data } = await db.from("quickbooks_payment_methods")
         .select("last4, account_name, bank_name, account_type, verification_status, is_default, ach_authorized_at, created_at")
         .eq("account_id", me.account_id).order("created_at", { ascending: false });
       return json({ methods: data || [] });
     }
 
-    // Staff-only diagnostic: inspect existing QBO recurring templates so we can
-    // mirror the exact autopay/ACH field shape when building the create flow.
-    if (action === "inspectRecurring") {
+    // --- staff actions: Alloy configures billing (clients never set their price) ---
+    const staffActions = ["inspectRecurring", "listItems", "createRecurring", "deleteRecurring"];
+    if (staffActions.includes(action)) {
       if (!me.is_staff) return json({ error: "staff only" }, 403);
       const { token, realmId } = await getAccessToken(db);
-      const r = await fetch(
-        `${acctBase()}/v3/company/${realmId}/query?query=${encodeURIComponent("SELECT * FROM RecurringTransaction")}&minorversion=${MINOR_VERSION}`,
-        { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
-      return json(await r.json());
+
+      if (action === "inspectRecurring") {
+        const r = await qboGet(realmId, token, `query?query=${encodeURIComponent("SELECT * FROM RecurringTransaction")}`);
+        return json(await r.json());
+      }
+
+      if (action === "listItems") {
+        const r = await qboGet(realmId, token, `query?query=${encodeURIComponent("SELECT Id, Name, UnitPrice, Type FROM Item WHERE Active = true MAXRESULTS 1000")}`);
+        const items = ((await r.json())?.QueryResponse?.Item || [])
+          .map((i: any) => ({ id: String(i.Id), name: i.Name, type: i.Type, unitPrice: i.UnitPrice }));
+        return json({ items });
+      }
+
+      if (action === "deleteRecurring") {
+        const id = String(body.recurringId || "");
+        if (!id) return json({ error: "recurringId required" }, 400);
+        const g = await qboGet(realmId, token, `recurringtransaction/${id}`);
+        if (!g.ok) return json({ error: `read ${g.status}: ${(await g.text()).slice(0, 300)}` }, 502);
+        const wrap = (await g.json())?.RecurringTransaction || {};
+        const kind = wrap.SalesReceipt ? "SalesReceipt" : wrap.Invoice ? "Invoice" : null;
+        if (!kind) return json({ error: "not a recurring txn" }, 404);
+        const ent = wrap[kind];
+        const del = await qboPost(realmId, token, "recurringtransaction?operation=delete",
+          { [kind]: { Id: ent.Id, SyncToken: ent.SyncToken, RecurringInfo: ent.RecurringInfo } });
+        return json({ ok: del.ok, status: del.status, body: (await del.text()).slice(0, 300) });
+      }
+
+      // createRecurring: build an Automated ACH sales-receipt template (draft by default).
+      const accountId = String(body.accountId || "");
+      if (!accountId) return json({ error: "accountId required" }, 400);
+      const { data: account } = await db.from("accounts")
+        .select("id, company, quickbooks_customer_id").eq("id", accountId).maybeSingle();
+      if (!account) return json({ error: "account not found" }, 404);
+      if (!account.quickbooks_customer_id) return json({ error: "account not linked to a QBO customer" }, 400);
+
+      const amount = Number(body.amount);
+      const itemId = String(body.itemId || "");
+      if (!(amount > 0) || !itemId) return json({ error: "amount (>0) and itemId required" }, 400);
+      const day = Math.min(Math.max(Number(body.dayOfMonth) || 1, 1), 28);   // cap at 28 (every month has it)
+
+      // QBO recurring templates are ALWAYS created active (the API ignores
+      // Active:false on create and on update). So the verification window is the
+      // StartDate: default the first charge to the 1st of next month, and never
+      // allow a past/immediate start — Alloy verifies in QBO before that date.
+      const fallbackStart = firstOfNextMonth();
+      let startDate = String(body.startDate || fallbackStart);
+      if (startDate < fallbackStart) startDate = fallbackStart;   // no past/immediate charges
+
+      const sr = {
+        RecurringInfo: {
+          Name: body.name || `${account.company} Monthly`,
+          RecurType: "Automated",
+          ScheduleInfo: { IntervalType: "Monthly", NumInterval: 1, DayOfMonth: day, StartDate: startDate },
+        },
+        CustomerRef: { value: String(account.quickbooks_customer_id) },
+        Line: [{
+          Description: body.description || null,
+          Amount: amount,
+          DetailType: "SalesItemLineDetail",
+          SalesItemLineDetail: { ItemRef: { value: itemId }, UnitPrice: amount, Qty: 1 },
+        }],
+        PaymentMethodRef: { value: String(body.paymentMethodRef || ACH_PAYMENT_METHOD) },
+        DepositToAccountRef: { value: UNDEPOSITED_FUNDS },
+      };
+
+      const r = await qboPost(realmId, token, "recurringtransaction", { SalesReceipt: sr });
+      if (!r.ok) return json({ error: `recurring create ${r.status}: ${(await r.text()).slice(0, 500)}` }, 502);
+      const c = (await r.json());
+      const created = c?.RecurringTransaction?.SalesReceipt || c?.SalesReceipt || {};
+      return json({
+        ok: true,
+        recurringId: created?.Id || null,
+        name: created?.RecurringInfo?.Name || null,
+        active: created?.RecurringInfo?.Active ?? true,
+        firstChargeDate: startDate,
+        total: created?.TotalAmt ?? amount,
+        note: `Created & active. First auto-draft on ${startDate} — verify in QBO before then (or delete to cancel).`,
+      });
     }
 
+    // --- client billing actions: enter/confirm a bank account (own account) ---
     if (!billingOk) return json({ error: "forbidden: billing role required" }, 403);
+    if (!me.account_id) return json({ error: "no account" }, 403);
 
     const { data: account } = await db.from("accounts")
       .select("id, company, quickbooks_customer_id").eq("id", me.account_id).maybeSingle();
@@ -166,13 +254,12 @@ Deno.serve(async (req) => {
     }
 
     if (action === "attach") {
-      const token2 = String(body.token || "").trim();   // opaque bank token from the browser
-      if (!token2) return json({ error: "token required" }, 400);
+      const bankToken = String(body.token || "").trim();   // opaque bank token from the browser
+      if (!bankToken) return json({ error: "token required" }, 400);
       if (!body.achAuthorized) return json({ error: "ACH authorization required" }, 400);
 
       const customerId = await ensureCustomer(db, token, realmId, account, body.contact || {});
 
-      // Attach the tokenized bank account to the customer (Payments API).
       const res = await fetch(`${payBase()}/quickbooks/v4/customers/${customerId}/bank-accounts/createFromToken`, {
         method: "POST",
         headers: {
@@ -181,7 +268,7 @@ Deno.serve(async (req) => {
           "Accept": "application/json",
           "Request-Id": crypto.randomUUID(),    // Payments idempotency key
         },
-        body: JSON.stringify({ token: token2 }),
+        body: JSON.stringify({ token: bankToken }),
       });
       if (!res.ok) return json({ error: `QBO bank attach ${res.status}: ${(await res.text()).slice(0, 500)}` }, 502);
       const bank = await res.json();
@@ -202,7 +289,6 @@ Deno.serve(async (req) => {
       const { error: insErr } = await db.from("quickbooks_payment_methods")
         .upsert(row, { onConflict: "account_id, qbo_bank_account_id" });
       if (insErr) throw insErr;
-
       return json({ ok: true, method: { last4: row.last4, bankName: row.bank_name, accountType: row.account_type } });
     }
 
