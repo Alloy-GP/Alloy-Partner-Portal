@@ -20,6 +20,21 @@
 .acct-row-lbl { font-size: 12.5px; font-weight: 700; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
 .acct-row-val { font-size: 14px; font-weight: 600; color: var(--alloy-purple); text-align: right; }
 
+/* ---- Locations covered — one row per market, HQ badged ---- */
+.acct-locs-block { padding: 13px 0; border-bottom: 1px solid var(--border-subtle); }
+.acct-locs-lbl { font-size: 12.5px; font-weight: 700; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.acct-loc-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; }
+.acct-loc-row + .acct-loc-row { border-top: 1px solid var(--border-subtle); }
+.acct-locs-lbl + .acct-loc-row { margin-top: 6px; }
+.acct-loc-row:last-child { padding-bottom: 0; }
+.acct-loc-row .pin { color: var(--alloy-pink); flex-shrink: 0; }
+.acct-loc-row .nm { flex: 1; font-size: 14px; font-weight: 600; color: var(--alloy-purple); min-width: 0; }
+.acct-loc-row .hq {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--alloy-purple); color: #fff; flex-shrink: 0;
+}
+
 /* ---- Plan & usage — momentum variant (recap + categories) ---- */
 .pu-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 2px 0 22px; }
 .pu-stat { min-width: 0; }

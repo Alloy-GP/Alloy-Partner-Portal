@@ -103,6 +103,7 @@ export async function loadAccountData(session, accountId, me) {
       shortName: account.short_name,
       tier: account.tier,
       market: account.market,
+      locations: Array.isArray(account.locations) ? account.locations : [],
       since: account.since,
       goalLabel: account.goal_label || 'boards signed',
       goalCurrent: account.goal_current || 0,

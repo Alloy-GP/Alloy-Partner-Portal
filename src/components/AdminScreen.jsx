@@ -14,6 +14,7 @@ const BLANK = {
   company: '', short_name: '', tier: '', market: '', since: '',
   goal_label: 'boards signed', goal_current: 0, goal_target: 0,
   monday_board_id: '', zendesk_org_id: '', whatconverts_profile_id: '', quickbooks_customer_id: '',
+  locations: [],
 };
 
 function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
@@ -67,6 +68,13 @@ function AdminScreen({ startNew, selectId }) {
 
   const newClient = () => { setSelectedId('new'); setForm(BLANK); setInvites([]); setError(''); };
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
+  // Locations editor (HQ + every market they operate in).
+  const locs = Array.isArray(form.locations) ? form.locations : [];
+  const updateLocs = (next) => setForm((f) => ({ ...f, locations: next }));
+  const addLoc = () => updateLocs([...locs, { name: '', hq: locs.length === 0 }]);
+  const removeLoc = (i) => updateLocs(locs.filter((_, idx) => idx !== i));
+  const setLocName = (i, name) => updateLocs(locs.map((l, idx) => (idx === i ? { ...l, name } : l)));
+  const setHQ = (i) => updateLocs(locs.map((l, idx) => ({ ...l, hq: idx === i })));
 
   const save = async () => {
     if (!form.company.trim()) { setError('Company name is required.'); return; }
@@ -207,6 +215,20 @@ function AdminScreen({ startNew, selectId }) {
                 <Field label="Market" value={form.market} onChange={set('market')} placeholder="Austin–Round Rock TX" />
                 <Field label="Client since" value={form.since} onChange={set('since')} placeholder="Mar 2025" />
                 <div />
+              </div>
+
+              <div className="section-title" style={{ marginTop: 18 }}><span className="pip" />Locations covered <span style={{ fontWeight: 500, color: 'var(--fg-muted)', textTransform: 'none', letterSpacing: 0 }}>· HQ + every market they operate in</span></div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {locs.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--fg-muted)' }}>No locations yet — add their HQ first.</div>
+                ) : locs.map((loc, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input className="input" value={loc.name || ''} placeholder="Houston TX" onChange={(e) => setLocName(i, e.target.value)} style={{ flex: 1, boxSizing: 'border-box' }} />
+                    <button type="button" className={`btn btn-sm ${loc.hq ? 'btn-dark' : 'btn-secondary'}`} onClick={() => setHQ(i)} title="Set as headquarters">{loc.hq ? '★ HQ' : 'Set HQ'}</button>
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeLoc(i)} aria-label="Remove location">✕</button>
+                  </div>
+                ))}
+                <div><button type="button" className="btn btn-secondary btn-sm" onClick={addLoc}>+ Add location</button></div>
               </div>
 
               <div className="section-title" style={{ marginTop: 18 }}><span className="pip" />Goal (shown on their dashboard)</div>

@@ -36,6 +36,12 @@ function initialsOf(name, fallback) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
 }
 
+const Pin = () => (
+  <svg className="pin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
 function InvoiceRow({ inv, tier }) {
   const [state, setState] = React.useState('idle'); // idle | loading | ok | err
   const paid = !(Number(inv.balance) > 0);
@@ -81,6 +87,7 @@ export default function AccountScreen({ onNav, onCompose }) {
   const clientSeats = team.filter((m) => !m.isStaff);
   const services = DATA.recurringServices || [];
   const projects = DATA.projects || [];
+  const locations = Array.isArray(acct.locations) ? acct.locations : [];
 
   // Plan & usage — momentum framing (in-motion / delivered / lifetime qualified).
   const now = new Date();
@@ -172,7 +179,20 @@ export default function AccountScreen({ onNav, onCompose }) {
           <div className="card-head"><span className="kicker">Account</span><h3>Company profile</h3><div className="grow" /></div>
           <div className="acct-row"><span className="acct-row-lbl">Company</span><span className="acct-row-val">{acct.company || '—'}</span></div>
           <div className="acct-row"><span className="acct-row-lbl">Display name</span><span className="acct-row-val">{acct.shortName || '—'}</span></div>
-          <div className="acct-row"><span className="acct-row-lbl">Market</span><span className="acct-row-val">{acct.market || '—'}</span></div>
+          {locations.length ? (
+            <div className="acct-locs-block">
+              <div className="acct-locs-lbl">Locations covered</div>
+              {locations.map((loc, i) => (
+                <div className="acct-loc-row" key={i}>
+                  <Pin />
+                  <span className="nm">{loc.name}</span>
+                  {loc.hq ? <span className="hq">HQ</span> : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="acct-row"><span className="acct-row-lbl">Market</span><span className="acct-row-val">{acct.market || '—'}</span></div>
+          )}
           <div className="acct-row"><span className="acct-row-lbl">Client since</span><span className="acct-row-val">{acct.since || '—'}</span></div>
           <div className="acct-row no-line">
             <span className="acct-row-lbl">Plan tier</span>
