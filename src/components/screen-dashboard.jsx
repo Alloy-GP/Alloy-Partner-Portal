@@ -5,6 +5,7 @@ import ProfilePhoto from './ProfilePhoto.jsx';
 import CompanyMark from './CompanyMark.jsx';
 import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
+import { zdList } from '../lib/zendesk.js';
 
 // Dashboard screen — warm, celebratory home
 function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
@@ -444,15 +445,34 @@ function Sparkline({ tone = "pink" }) {
 
 // Action queue — only items waiting on the client (review + blocked)
 function ActionQueue({ onNav }) {
-  const needsYou = (DATA.actionQueue || []).slice(0, 8);
+  // Action queue = the account's Zendesk tickets that are "pending" (waiting on
+  // the customer). Fetched LIVE from Zendesk (source of truth) — no sync table
+  // to drift, and "pending" is the agent's deliberate "ball is in your court".
+  const [pending, setPending] = React.useState(null); // null = still loading
+  React.useEffect(() => {
+    let cancelled = false;
+    zdList()
+      .then((r) => { if (!cancelled) setPending(((r && r.tickets) || []).filter((t) => t.status === "pending")); })
+      .catch(() => { if (!cancelled) setPending([]); });
+    return () => { cancelled = true; };
+  }, [DATA.account?.id]); // refetch when staff switches client
+
   // Needs triage = not yet qualified ("yes") and not marked "not a fit" ("no").
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
+  const items = (pending || []).slice(0, 8);
+  const ago = (iso) => {
+    if (!iso) return "";
+    const s = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h`;
+    return `${Math.floor(s / 86400)}d`;
+  };
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon" data-tour="queue">
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Bolt width={18} height={18}/></div>
         <div className="bc-titles">
-          <div className="bc-kicker">Waiting on your team</div>
+          <div className="bc-kicker">Waiting on you</div>
           <div className="bc-title">Your action queue</div>
         </div>
         <button className="bc-cta bc-cta-pink" onClick={() => onNav("tickets")} aria-label="View all tickets">
@@ -470,17 +490,21 @@ function ActionQueue({ onNav }) {
           <span className="rise-hero-nudge-chev" aria-hidden="true">→</span>
         </button>
       ) : null}
-      {needsYou.length === 0 ? (
+      {pending === null ? (
+        <div style={{marginTop: pendingLeads > 0 ? 14 : 0, padding:"14px 16px", background:"var(--alloy-off-white)", borderRadius:8, fontSize:12.5, color:"var(--fg-muted)"}}>
+          Checking your inbox…
+        </div>
+      ) : items.length === 0 ? (
         <div style={{marginTop: pendingLeads > 0 ? 14 : 0, padding:"14px 16px", background:"var(--alloy-purple-tint)", borderRadius:8, fontSize:12.5, color:"var(--alloy-purple)", display:"flex", alignItems:"center", gap:8}}>
-          <I.Sparkle width={16} height={16}/> Everything else is on track. We'll surface it here when it needs you.
+          <I.Sparkle width={16} height={16}/> Nothing waiting on you — your Alloy team has the ball.
         </div>
       ) : (
         <div className="aq-scroll" style={{display:"flex", flexDirection:"column", gap:10}}>
-          {needsYou.map((p, i) => (
-            <button key={i} className="aq-item" onClick={() => onNav("tickets", p.routeId)}>
+          {items.map((t) => (
+            <button key={t.id} className="aq-item" onClick={() => onNav("tickets", t.id)}>
               <div className="aq-item-body">
-                <div className="aq-item-title">{p.title}</div>
-                <div className="aq-item-sub">{p.dueRel}</div>
+                <div className="aq-item-title">{t.title}</div>
+                <div className="aq-item-sub">Awaiting your reply{ago(t.updated_at) ? ` · ${ago(t.updated_at)}` : ""}</div>
               </div>
               <span className="aq-item-chev" aria-hidden="true">→</span>
             </button>
