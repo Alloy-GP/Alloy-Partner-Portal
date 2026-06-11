@@ -136,6 +136,19 @@ export default function AccountScreen({ onNav, onCompose }) {
   const paidCount = invoices.filter((i) => !(Number(i.balance) > 0)).length;
   const lastPaid = invoices.find((i) => !(Number(i.balance) > 0)) || null;
 
+  // Invoice table: default to the current year (clients can have 300+ all-time).
+  // Year chips switch the view; a soft cap keeps even a heavy year tidy.
+  const invYears = Array.from(new Set(invoices.map((i) => String(i.date).slice(0, 4)))).filter(Boolean).sort((a, b) => b.localeCompare(a));
+  const [invYear, setInvYear] = React.useState(() => {
+    const cy = String(thisYear);
+    return invYears.includes(cy) ? cy : (invYears[0] || cy);
+  });
+  const [invExpanded, setInvExpanded] = React.useState(false);
+  const pickYear = (y) => { setInvYear(y); setInvExpanded(false); };
+  const INV_CAP = 24;
+  const shownInvoices = invYear === 'all' ? invoices : invoices.filter((i) => String(i.date).slice(0, 4) === invYear);
+  const cappedInvoices = invExpanded ? shownInvoices : shownInvoices.slice(0, INV_CAP);
+
   // Connected sources — derived from configured integration ids + data presence.
   const sources = [
     acct.whatconvertsProfileId && { name: 'WhatConverts', sub: 'Lead capture · calls + forms', feeds: 'Leads' },
@@ -231,6 +244,16 @@ export default function AccountScreen({ onNav, onCompose }) {
         <section className="card card-pad-lg" style={{ marginBottom: 20 }}>
           <div className="card-head">
             <span className="kicker">Billing</span><h3>Billing &amp; invoices</h3><div className="grow" />
+            {invoices.length ? (
+              <div className="acct-inv-years">
+                {invYears.map((y) => (
+                  <button key={y} className={`acct-year${invYear === y ? ' on' : ''}`} onClick={() => pickYear(y)}>{y}</button>
+                ))}
+                {invYears.length > 1 ? (
+                  <button className={`acct-year${invYear === 'all' ? ' on' : ''}`} onClick={() => pickYear('all')}>All</button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {invoices.length === 0 ? (
@@ -265,8 +288,15 @@ export default function AccountScreen({ onNav, onCompose }) {
                   <span>Invoice</span><span>Date</span><span className="desc">Description</span>
                   <span className="amt">Amount</span><span className="st">Status</span><span aria-hidden="true" />
                 </div>
-                {invoices.map((inv) => <InvoiceRow key={inv.id} inv={inv} tier={acct.tier} />)}
+                {cappedInvoices.length === 0 ? (
+                  <div className="acct-empty">No invoices in {invYear === 'all' ? 'this account' : invYear}.</div>
+                ) : cappedInvoices.map((inv) => <InvoiceRow key={inv.id} inv={inv} tier={acct.tier} />)}
               </div>
+              {shownInvoices.length > INV_CAP ? (
+                <button className="acct-inv-more" onClick={() => setInvExpanded((v) => !v)}>
+                  {invExpanded ? 'Show fewer' : `Show all ${shownInvoices.length}${invYear === 'all' ? '' : ` in ${invYear}`}`}
+                </button>
+              ) : null}
             </>
           )}
         </section>

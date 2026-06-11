@@ -83,6 +83,22 @@
 .acct-bill-stat.hero .val { color: #fff; }
 .acct-bill-stat.hero .sub { color: rgba(255,255,255,0.7); }
 
+/* ---- Invoice year filter + show-all ---- */
+.acct-inv-years { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.acct-year {
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-subtle);
+  background: #fff; color: var(--fg-muted); font-size: 11.5px; font-weight: 700;
+  font-family: var(--font-mono); transition: all 0.12s ease;
+}
+.acct-year:hover { border-color: var(--border-strong, #c9c1d6); color: var(--alloy-purple); }
+.acct-year.on { background: var(--alloy-purple); border-color: var(--alloy-purple); color: #fff; }
+.acct-inv-more {
+  display: block; width: 100%; margin-top: 10px; padding: 9px 0;
+  border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--alloy-off-white);
+  color: var(--alloy-purple); font-size: 12px; font-weight: 700; transition: border-color 0.12s;
+}
+.acct-inv-more:hover { border-color: var(--alloy-purple); }
+
 /* ---- Invoice table ---- */
 .acct-inv-head, .acct-inv-row {
   display: grid; grid-template-columns: 92px 100px 1fr 90px 76px 96px;
