@@ -19,6 +19,10 @@ const PROJECT_GROUP_TITLES = new Set(["active projects", "strategy & reporting"]
 const SERVICE_GROUP_TITLE = "ongoing services";
 const TICKETS_GROUP_TITLE = "tickets";
 const isCompletedTitle = (t: string) => /^completed\b/i.test((t || "").trim());
+// Planned work = future/queued items (the Account page "On the horizon"). Synced
+// into projects with a forced status of "planned" so they stay out of the active
+// project views (loadData splits them into DATA.plannedProjects).
+const isPlannedTitle = (t: string) => /^planned\b/i.test((t || "").trim());
 
 // Monday Status (source of truth, set by the Zendesk->Monday automation) that
 // surfaces a ticket in the action queue.
@@ -182,11 +186,12 @@ Deno.serve(async (req) => {
       const norm = (s: string) => (s || "").trim().toLowerCase();
       const projectGroupIds = new Set(allGroups.filter((g) => PROJECT_GROUP_TITLES.has(norm(g.title))).map((g) => g.id));
       const completedGroupIds = new Set(allGroups.filter((g) => isCompletedTitle(g.title)).map((g) => g.id));
+      const plannedGroupIds = new Set(allGroups.filter((g) => isPlannedTitle(g.title)).map((g) => g.id));
       const serviceGroupId = allGroups.find((g) => norm(g.title) === SERVICE_GROUP_TITLE)?.id ?? null;
       const ticketsGroupId = allGroups.find((g) => norm(g.title) === TICKETS_GROUP_TITLE)?.id ?? "topics";
 
       const wantedGroups = [
-        ...projectGroupIds, ...completedGroupIds, serviceGroupId, ticketsGroupId,
+        ...projectGroupIds, ...completedGroupIds, ...plannedGroupIds, serviceGroupId, ticketsGroupId,
       ].filter(Boolean) as string[];
 
       // 2) Fetch items for just those groups, requesting the resolved columns.
@@ -218,6 +223,7 @@ Deno.serve(async (req) => {
         const items = g.items_page?.items ?? [];
         const isProjectGroup = projectGroupIds.has(g.id);
         const isCompletedGroup = completedGroupIds.has(g.id);
+        const isPlannedGroup = plannedGroupIds.has(g.id);
 
         items.forEach((it: any) => {
           const cv = cols(it);
@@ -228,9 +234,10 @@ Deno.serve(async (req) => {
           const categoryText = C.category ? cv[C.category] : "";
           const owners = (C.person ? (cv[C.person] || "") : "").split(",").map((s) => initials(s)).filter(Boolean);
 
-          if (isProjectGroup || isCompletedGroup) {
+          if (isProjectGroup || isCompletedGroup || isPlannedGroup) {
             let [status, pct] = STATUS_MAP[statusText] ?? ["in-progress", 50];
             if (isCompletedGroup) { status = "live"; pct = 100; }
+            if (isPlannedGroup) { status = "planned"; pct = 0; }
             projects.push({
               account_id: acct.id, monday_item_id: String(it.id),
               code: (C.taskId ? cv[C.taskId] : "") || null, title: it.name,

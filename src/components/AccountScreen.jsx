@@ -106,12 +106,18 @@ export default function AccountScreen({ onNav, onCompose }) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([name, n], i) => ({ name, n, color: CAT_PALETTE[i % CAT_PALETTE.length] }));
-  // On the horizon = focuses from upcoming roadmap quarters.
-  const horizon = (DATA.roadmap || [])
-    .filter((q) => ['next', 'future', 'upcoming'].includes(q.state))
-    .flatMap((q) => (q.focuses || []).map((f) => ({ q: String(q.q || '').split(' ')[0], nm: f.t })))
+  // On the horizon = planned/queued work from Monday's "Planned Work" group.
+  const quarterOf = (d) => {
+    if (!d) return '';
+    const x = new Date(`${String(d).slice(0, 10)}T00:00:00`);
+    return `Q${Math.floor(x.getMonth() / 3) + 1}`;
+  };
+  const horizon = (DATA.plannedProjects || [])
+    .slice()
+    .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')))
+    .map((p) => ({ q: quarterOf(p.dueDate), nm: p.title, mt: p.phase ? `· ${p.phase}` : (p.dueLabel ? `· ${p.dueLabel}` : '') }))
     .filter((nd) => nd.nm)
-    .slice(0, 4);
+    .slice(0, 5);
   const openRequest = () => { if (onCompose) onCompose(); else if (onNav) onNav('tickets'); };
   const invoices = (DATA.invoices || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
@@ -205,6 +211,7 @@ export default function AccountScreen({ onNav, onCompose }) {
                     <div className="pu-node-line">
                       {nd.q ? <span className="pu-q">{nd.q}</span> : null}
                       <span className="nm">{nd.nm}</span>
+                      {nd.mt ? <span className="mt">{nd.mt}</span> : null}
                     </div>
                   </div>
                 ))}

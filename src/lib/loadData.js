@@ -125,11 +125,19 @@ export async function loadAccountData(session, accountId, me) {
     kpis: (kpisRes.data || []).map((k) => ({
       label: k.label, value: k.value, trend: k.trend, up: k.up, icon: k.icon, tone: k.tone,
     })),
-    projects: (projectsRes.data || []).map((p) => ({
+    // Active/delivered work. Items from Monday's "Planned Work" group (status
+    // 'planned') are split into `plannedProjects` below so they never count in
+    // the active project views (sidebar, dashboard, Projects screen, card stats).
+    projects: (projectsRes.data || []).filter((p) => p.status !== 'planned').map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase, engines: p.engines || [],
       pct: p.pct, status: p.status,
       due: p.due_label || '', dueRel: p.due_rel || relativeDue(p.due_date), dueDate: p.due_date || null,
       owners: p.owners || [], pulse: p.pulse,
+    })),
+    // Planned/queued work → Account page "On the horizon".
+    plannedProjects: (projectsRes.data || []).filter((p) => p.status === 'planned').map((p) => ({
+      id: p.code || p.monday_item_id, title: p.title, phase: p.phase || null,
+      dueDate: p.due_date || null, dueLabel: p.due_label || '',
     })),
     recentLeads: (leadsRes.data || []).map((l) => ({
       id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, source: l.source,
