@@ -99,6 +99,24 @@ async function fetchInvoices(base: string, realmId: string, token: string, custo
   return all;
 }
 
+// List all QBO customers (Id + DisplayName) — used to auto-match portal accounts
+// to QBO customer ids without hand-copying each nameId. Body { listCustomers:true }.
+async function fetchCustomers(base: string, realmId: string, token: string): Promise<any[]> {
+  const all: any[] = [];
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const start = i * PAGE + 1;
+    const url = `${base}/v3/company/${realmId}/query?query=${encodeURIComponent(
+      `SELECT Id, DisplayName, CompanyName, Active FROM Customer STARTPOSITION ${start} MAXRESULTS ${PAGE}`,
+    )}&minorversion=${MINOR_VERSION}`;
+    const res = await fetch(url, { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
+    if (!res.ok) throw new Error(`QBO customer query ${res.status}: ${await res.text()}`);
+    const batch = (await res.json())?.QueryResponse?.Customer || [];
+    all.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return all.map((c: any) => ({ id: String(c.Id), name: c.DisplayName || c.CompanyName || "", active: c.Active !== false }));
+}
+
 function num(v: unknown): number {
   const n = Number(v);
   return isFinite(n) ? n : 0;
@@ -158,6 +176,12 @@ Deno.serve(async (req) => {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { token, realmId } = await getAccessToken(db);
     const base = apiBase();
+
+    // Discovery mode: return the QBO customer list for account matching.
+    if (body.listCustomers) {
+      return Response.json({ ok: true, customers: await fetchCustomers(base, realmId, token) });
+    }
+
     const onlyAccount = body.accountId ? String(body.accountId) : null;
 
     const { data: accounts, error } = await db
