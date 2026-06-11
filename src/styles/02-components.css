@@ -248,6 +248,21 @@
 @keyframes wm-pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(2.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .wm-live::after { animation: none; } }
 
+/* New request (compose ticket) modal */
+.nr-scrim { position: fixed; inset: 0; background: rgba(26,15,38,0.42); z-index: 80; display: grid; place-items: center; padding: 20px; }
+.nr-modal { width: 480px; max-width: 100%; background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(26,15,38,0.3); padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; animation: nr-in .15s ease; }
+@keyframes nr-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.nr-head { display: flex; align-items: flex-start; }
+.nr-kicker { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: var(--alloy-pink); }
+.nr-title { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--alloy-purple); margin-top: 2px; }
+.nr-close { margin-left: auto; border: none; background: var(--alloy-off-white); border-radius: 8px; width: 30px; height: 30px; display: grid; place-items: center; cursor: pointer; color: var(--fg-muted); flex-shrink: 0; }
+.nr-close:hover { color: var(--alloy-pink); }
+.nr-field { display: flex; flex-direction: column; gap: 5px; }
+.nr-field .nr-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-muted); }
+.nr-field .input { width: 100%; box-sizing: border-box; }
+.nr-err { font-size: 12.5px; color: #b03a3a; font-weight: 600; }
+.nr-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
 /* Partnership value — same header design system as the Work-in-motion card. */
 .pv-head { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
 .pv-head .pv-ic { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; background: var(--alloy-yellow-tint); color: #b8881a; display: grid; place-items: center; }

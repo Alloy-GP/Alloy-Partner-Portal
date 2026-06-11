@@ -161,7 +161,7 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   );
 }
 
-function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }) {
+function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, onNewRequest }) {
   const [open, setOpen] = React.useState(false);
   const pending = usePending(); // live Zendesk tickets waiting on the client
   const notifs = pending || [];
@@ -201,7 +201,7 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }
           </div>
         ) : (
           <div className="ds-util-bar">
-            <button className="btn btn-primary" onClick={() => onNav("tickets")}>
+            <button className="btn btn-primary" onClick={() => (onNewRequest ? onNewRequest() : onNav("tickets"))}>
               <I.Plus width={13} height={13}/> New request
             </button>
           </div>

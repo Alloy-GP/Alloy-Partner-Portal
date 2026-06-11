@@ -43,6 +43,18 @@ export function pendingTickets(accountId) {
 export const zdReply = (id, body, opts = {}) =>
   call('reply', { id, body, status: opts.status, uploads: opts.uploads, cc: opts.cc });
 export const zdResolve = (id) => call('resolve', { id });
+
+// Create a new request (ticket) on the account's Zendesk org, as the signed-in
+// user. Separate edge function (zendesk-create). Returns { ok, id }.
+export async function zdCreate({ subject, body, priority }) {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await supabase.functions.invoke('zendesk-create', {
+    body: { accountId: DATA.account && DATA.account.id, subject, body, priority },
+  });
+  if (error) throw error;
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
 export const zdAddCc = (id, cc) => call('add_cc', { id, cc });
 
 // Read a File as base64 and stage it as a Zendesk upload; returns its token.

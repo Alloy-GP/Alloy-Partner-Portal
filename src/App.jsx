@@ -11,6 +11,7 @@ import SnapshotScreen from './components/SnapshotScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour } from './lib/tour.js';
+import NewRequestModal from './components/NewRequestModal.jsx';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 const PATHS = {
@@ -42,6 +43,7 @@ function App({ session, onSignOut, staffNav } = {}) {
   const [editMode, setEditMode] = useState(false);
   const [tweaks, setTweaks] = useState(TWEAKS);
   const [mobileNav, setMobileNav] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   // Sidebar control: expanded | collapsed | hover (expand on hover).
   const [sidebarMode, setSidebarMode] = useState(() => {
     try { return localStorage.getItem("alloy_sidebar_mode") || "expanded"; } catch { return "expanded"; }
@@ -108,7 +110,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     navigate(path || '/');
     setMobileNav(false); window.scrollTo(0, 0);
   };
-  const handleCommand = (cmd) => { if (cmd === "new-ticket") handleNav('tickets'); };
+  const handleCommand = (cmd) => { if (cmd === "new-ticket") setComposeOpen(true); };
 
   const screen = (() => {
     if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav}/>;
@@ -139,7 +141,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       </div>
 
       <main className="main">
-        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut}/>
+        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={() => setComposeOpen(true)}/>
         {active !== "dashboard" ? <RisePageHero title={titles[active].t} subtitle={titles[active].s} mobileNav={mobileNav} setMobileNav={setMobileNav}/> : null}
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
@@ -154,6 +156,13 @@ function App({ session, onSignOut, staffNav } = {}) {
         <button className="tweaks-fab" onClick={() => setEditMode(true)} aria-label="Open tweaks">
           <I.Settings width={18} height={18}/>
         </button>
+      ) : null}
+
+      {composeOpen ? (
+        <NewRequestModal
+          onClose={() => setComposeOpen(false)}
+          onCreated={(id) => { setComposeOpen(false); handleNav('tickets', id); }}
+        />
       ) : null}
     </div>
     </>
