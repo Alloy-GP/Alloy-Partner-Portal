@@ -104,7 +104,7 @@ async function fetchCustomers(base: string, realmId: string, token: string): Pro
   for (let i = 0; i < MAX_PAGES; i++) {
     const start = i * PAGE + 1;
     const url = `${base}/v3/company/${realmId}/query?query=${encodeURIComponent(
-      `SELECT Id, DisplayName, CompanyName, Active FROM Customer STARTPOSITION ${start} MAXRESULTS ${PAGE}`,
+      `SELECT Id, DisplayName, CompanyName, Active, Job, ParentRef FROM Customer STARTPOSITION ${start} MAXRESULTS ${PAGE}`,
     )}&minorversion=${MINOR_VERSION}`;
     const res = await fetch(url, { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
     if (!res.ok) throw new Error(`QBO customer query ${res.status}: ${await res.text()}`);
@@ -112,7 +112,7 @@ async function fetchCustomers(base: string, realmId: string, token: string): Pro
     all.push(...batch);
     if (batch.length < PAGE) break;
   }
-  return all.map((c: any) => ({ id: String(c.Id), name: c.DisplayName || c.CompanyName || "", active: c.Active !== false }));
+  return all.map((c: any) => ({ id: String(c.Id), name: c.DisplayName || c.CompanyName || "", active: c.Active !== false, job: c.Job === true, parent: c?.ParentRef?.value ? String(c.ParentRef.value) : null }));
 }
 
 function num(v: unknown): number {
