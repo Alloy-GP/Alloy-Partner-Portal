@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     }
 
     // --- staff actions: Alloy configures billing (clients never set their price) ---
-    const staffActions = ["inspectRecurring", "listItems", "createRecurring", "deleteRecurring"];
+    const staffActions = ["inspectRecurring", "listItems", "createRecurring", "deleteRecurring", "backfillBankMethods"];
     if (staffActions.includes(action)) {
       if (!me.is_staff) return json({ error: "staff only" }, 403);
       const { token, realmId } = await getAccessToken(db);
@@ -171,6 +171,37 @@ Deno.serve(async (req) => {
         const items = ((await r.json())?.QueryResponse?.Item || [])
           .map((i: any) => ({ id: String(i.Id), name: i.Name, type: i.Type, unitPrice: i.UnitPrice }));
         return json({ items });
+      }
+
+      // One-time backfill: pull each linked client's bank-on-file from QBO Payments
+      // into quickbooks_payment_methods so the Account page card has data before
+      // any client has gone through the onboarding capture flow.
+      if (action === "backfillBankMethods") {
+        const { data: accts } = await db.from("accounts").select("id, quickbooks_customer_id").not("quickbooks_customer_id", "is", null);
+        const summary: any[] = [];
+        for (const a of accts || []) {
+          try {
+            const r = await fetch(`${payBase()}/quickbooks/v4/customers/${a.quickbooks_customer_id}/bank-accounts`,
+              { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
+            if (!r.ok) { summary.push({ account: a.id, ok: false, status: r.status }); continue; }
+            const list = await r.json();
+            const banks = Array.isArray(list) ? list : [];
+            const bank = banks.find((b: any) => b.default) || banks[0];
+            if (!bank) { summary.push({ account: a.id, ok: true, found: 0 }); continue; }
+            await db.from("quickbooks_payment_methods").upsert({
+              account_id: a.id,
+              qbo_bank_account_id: String(bank.id),
+              last4: last4Of(bank.accountNumber),
+              account_name: bank.name || null,
+              bank_name: bank.bankName || null,
+              account_type: bank.accountType || null,
+              verification_status: bank.verificationStatus || null,
+              is_default: bank.default !== false,
+            }, { onConflict: "account_id, qbo_bank_account_id" });
+            summary.push({ account: a.id, ok: true, bank: bank.bankName, last4: last4Of(bank.accountNumber) });
+          } catch (e) { summary.push({ account: a.id, ok: false, error: String(e) }); }
+        }
+        return json({ ok: true, summary });
       }
 
       if (action === "deleteRecurring") {

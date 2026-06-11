@@ -77,6 +77,90 @@ function InvoiceRow({ inv, tier }) {
   );
 }
 
+const BankIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 21h18M4 10h16M5 10l7-5 7 5M6 10v8M10 10v8M14 10v8M18 10v8" />
+  </svg>
+);
+const CalIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+  </svg>
+);
+function prettyAcctType(t) {
+  const s = String(t || '').toUpperCase();
+  if (s.includes('SAVINGS')) return 'Savings';
+  if (s.includes('CHECKING')) return 'Checking';
+  return 'Bank account';
+}
+function ordinal(n) {
+  const d = Number(n) || 1;
+  const suf = ['th', 'st', 'nd', 'rd'], v = d % 100;
+  return d + (suf[(v - 20) % 10] || suf[v] || suf[0]);
+}
+// Next draft = the next billing-day on/after today (and not before the schedule start).
+function nextDraftDate(billingDay, startDate) {
+  const day = Math.min(Math.max(Number(billingDay) || 1, 1), 28);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let cand = new Date(today.getFullYear(), today.getMonth(), day);
+  if (cand < today) cand = new Date(today.getFullYear(), today.getMonth() + 1, day);
+  if (startDate) {
+    const sd = new Date(`${String(startDate).slice(0, 10)}T00:00:00`);
+    if (cand < sd) cand = sd;
+  }
+  return cand;
+}
+
+// Payment method on file + autopay schedule. Data from loadData (DATA.paymentMethod
+// from quickbooks_payment_methods, DATA.autopay from autopay_schedules). Billing-gated.
+function PaymentMethodCard({ pm, autopay }) {
+  if (!pm && !autopay) return null;
+  const active = autopay && autopay.status === 'active';
+  const draft = autopay ? nextDraftDate(autopay.billingDay, autopay.startDate) : null;
+  const amountStr = autopay && autopay.amount
+    ? Number(autopay.amount).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : null;
+  const day = autopay && autopay.billingDay ? ordinal(autopay.billingDay) : null;
+  return (
+    <section className="card card-pad-lg acct-pm" style={{ marginBottom: 20 }}>
+      <div className="card-head">
+        <span className="kicker">Payment method on file</span>
+        <h3>{autopay ? 'Autopay via bank account' : 'Bank account on file'}</h3>
+        <div className="grow" />
+        {active ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--alloy-green-tint, #e7f2ef)', color: 'var(--dark-green, #2c6e62)', fontWeight: 700, fontSize: 12, letterSpacing: '.04em', padding: '5px 12px', borderRadius: 999 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: 'currentColor' }} /> ACTIVE
+          </span>
+        ) : null}
+      </div>
+
+      {pm ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'var(--alloy-purple-tint)', color: 'var(--alloy-purple)' }}><BankIcon /></div>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--alloy-purple)' }}>{pm.bankName || 'Bank account'}</div>
+            <div style={{ fontSize: 13.5, color: 'var(--fg-muted)', marginTop: 2 }}>
+              {prettyAcctType(pm.accountType)} <span className="mono">•••• {pm.last4 || '----'}</span>{day ? ` · drafted monthly on the ${day}` : ''}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="acct-empty">No bank account on file yet.</div>
+      )}
+
+      {draft && amountStr ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, padding: '13px 16px', background: 'var(--alloy-off, #f8f7fc)', borderRadius: 12, color: 'var(--alloy-purple)' }}>
+          <CalIcon />
+          <span style={{ fontSize: 14 }}>Next draft <strong>{fmtDate(draft.toISOString())}</strong> · <strong>{amountStr}</strong></span>
+        </div>
+      ) : null}
+
+      <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 16 }}>
+        Need to change this? <span style={{ color: 'var(--alloy-pink)', fontWeight: 600 }}>Contact your Alloy team</span> — bank details can’t be edited here for security.
+      </div>
+    </section>
+  );
+}
+
 // Deterministic palette for the Plan & usage category pills (project phases).
 const CAT_PALETTE = ['#d9356e', '#2c6e62', '#2a6391', '#b8881a', '#381c4f', '#5a8f7b'];
 
@@ -255,6 +339,9 @@ export default function AccountScreen({ onNav, onCompose }) {
           </footer>
         </section>
       </div>
+
+      {/* ── Payment method on file + autopay (under company profile) ── */}
+      {showBilling ? <PaymentMethodCard pm={DATA.paymentMethod} autopay={DATA.autopay} /> : null}
 
       {/* ── Row 2: Billing & invoices (gated to billing roles) ───── */}
       {showBilling ? (
