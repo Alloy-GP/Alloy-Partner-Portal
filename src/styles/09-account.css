@@ -167,6 +167,14 @@
 .acct-role.ops { background: var(--alloy-blue); color: #1f3d5c; }
 .acct-foot-hint { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle); font-size: 11.5px; color: var(--fg-muted); }
 
+/* ---- Notification prefs (label/desc on the left, toggle on the right) ---- */
+.acct-pref { display: flex; align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border-subtle); }
+.acct-pref:last-child { border-bottom: none; }
+.acct-pref .tx { flex: 1; min-width: 0; }
+.acct-pref .t { font-size: 13.5px; font-weight: 700; color: var(--alloy-purple); }
+.acct-pref .s { font-size: 12px; color: var(--fg-muted); margin-top: 2px; line-height: 1.45; }
+.acct-pref .toggle { flex-shrink: 0; }
+
 /* ---- Connected sources ---- */
 .acct-int-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--alloy-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--alloy-green) 30%, white); }
 .acct-int .feeds { flex-shrink: 0; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: var(--fg-3); background: var(--alloy-off-white); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
