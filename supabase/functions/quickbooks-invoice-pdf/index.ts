@@ -89,17 +89,20 @@ Deno.serve(async (req) => {
     // Service role to resolve the invoice + read tokens.
     const db = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: inv } = await db
-      .from("invoices").select("qbo_invoice_id, account_id, doc_number").eq("id", invoiceId).maybeSingle();
+      .from("invoices").select("qbo_invoice_id, account_id, doc_number, doc_type").eq("id", invoiceId).maybeSingle();
     if (!inv) return err("not found", 404);
     // Account scope: own account only (staff may download any).
     if (!me.is_staff && inv.account_id !== me.account_id) return err("forbidden", 403);
 
     const { token, realmId } = await getAccessToken(db);
-    const pdfUrl = `${apiBase()}/v3/company/${realmId}/invoice/${inv.qbo_invoice_id}/pdf?minorversion=${MINOR_VERSION}`;
+    // Sales receipts and invoices are separate QBO entities with separate PDF paths.
+    const entity = inv.doc_type === "sales_receipt" ? "salesreceipt" : "invoice";
+    const pdfUrl = `${apiBase()}/v3/company/${realmId}/${entity}/${inv.qbo_invoice_id}/pdf?minorversion=${MINOR_VERSION}`;
     const res = await fetch(pdfUrl, { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/pdf" } });
     if (!res.ok) return err(`QBO pdf ${res.status}: ${await res.text()}`, 502);
 
-    const filename = `invoice-${inv.doc_number || inv.qbo_invoice_id}.pdf`;
+    const label = inv.doc_type === "sales_receipt" ? "receipt" : "invoice";
+    const filename = `${label}-${inv.doc_number || inv.qbo_invoice_id}.pdf`;
     return new Response(res.body, {
       status: 200,
       headers: {

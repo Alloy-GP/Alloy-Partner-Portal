@@ -202,7 +202,7 @@ export async function loadAccountData(session, accountId, me) {
     // QuickBooks invoices (synced nightly). Download the PDF on demand via the
     // quickbooks-invoice-pdf function, passing `id`. UI gates on perms `billing`.
     invoices: (invoicesRes.data || []).map((inv) => ({
-      id: inv.id, number: inv.doc_number, date: inv.txn_date, dueDate: inv.due_date,
+      id: inv.id, docType: inv.doc_type, number: inv.doc_number, date: inv.txn_date, dueDate: inv.due_date,
       amount: Number(inv.total_amount), balance: Number(inv.balance),
       status: inv.status, currency: inv.currency,
     })),

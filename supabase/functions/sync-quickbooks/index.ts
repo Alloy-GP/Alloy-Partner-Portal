@@ -1,10 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-// Syncs QuickBooks Online invoices into the portal's `invoices` table, per
+// Syncs QuickBooks Online billing documents — both Invoices and SalesReceipts
+// (clients use one or the other) — into the portal's `invoices` table, per
 // account (accounts.quickbooks_customer_id holds a QBO Customer.Id). Mirrors
-// sync-whatconverts: per-account upsert over the open/recent set. Invoice PDFs
-// are NOT stored — they're fetched on demand by quickbooks-invoice-pdf.
+// sync-whatconverts: per-account clear-then-insert. PDFs are NOT stored —
+// they're fetched on demand by quickbooks-invoice-pdf.
 //
 // OAuth: a single connection to Alloy's own QBO company. The refresh token
 // rotates on every refresh, so it lives in the `quickbooks_oauth` table (not an
@@ -78,21 +79,18 @@ async function getAccessToken(db: any): Promise<{ token: string; realmId: string
   return { token: tok.access_token, realmId: row.realm_id };
 }
 
-// --- Invoice query + mapping -----------------------------------------------
-async function qboQuery(base: string, realmId: string, token: string, query: string): Promise<any[]> {
-  const url = `${base}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}&minorversion=${MINOR_VERSION}`;
-  const res = await fetch(url, { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
-  if (!res.ok) throw new Error(`QBO query ${res.status}: ${await res.text()}`);
-  const j = await res.json();
-  return j?.QueryResponse?.Invoice || [];
-}
-
-async function fetchInvoices(base: string, realmId: string, token: string, customerId: string): Promise<any[]> {
+// --- Billing-document query + mapping --------------------------------------
+// Clients bill via either Invoice (A/R, has balance) or SalesReceipt (paid at
+// sale, no balance). We pull BOTH per customer and store them tagged by type.
+async function fetchDocs(base: string, realmId: string, token: string, customerId: string, entity: string): Promise<any[]> {
   const all: any[] = [];
   for (let i = 0; i < MAX_PAGES; i++) {
     const start = i * PAGE + 1;   // QBO STARTPOSITION is 1-based
-    const q = `SELECT * FROM Invoice WHERE CustomerRef = '${customerId}' ORDERBY TxnDate DESC STARTPOSITION ${start} MAXRESULTS ${PAGE}`;
-    const batch = await qboQuery(base, realmId, token, q);
+    const q = `SELECT * FROM ${entity} WHERE CustomerRef = '${customerId}' ORDERBY TxnDate DESC STARTPOSITION ${start} MAXRESULTS ${PAGE}`;
+    const url = `${base}/v3/company/${realmId}/query?query=${encodeURIComponent(q)}&minorversion=${MINOR_VERSION}`;
+    const res = await fetch(url, { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
+    if (!res.ok) throw new Error(`QBO ${entity} query ${res.status}: ${await res.text()}`);
+    const batch = (await res.json())?.QueryResponse?.[entity] || [];
     all.push(...batch);
     if (batch.length < PAGE) break;
   }
@@ -131,26 +129,39 @@ function invoiceStatus(inv: any, balance: number): string {
   return "open";
 }
 
-function mapInvoice(inv: any, i: number, acctId: string) {
-  const balance = num(inv.Balance);
+// Map a billing document of either type. Sales receipts are always paid (no
+// balance, no due date); invoices carry A/R.
+function mapDoc(doc: any, acctId: string, docType: string) {
+  const isReceipt = docType === "sales_receipt";
+  const balance = isReceipt ? 0 : num(doc.Balance);
   return {
     account_id: acctId,
-    qbo_invoice_id: String(inv.Id),
-    doc_number: inv.DocNumber ? String(inv.DocNumber) : null,
-    txn_date: inv.TxnDate || null,
-    due_date: inv.DueDate || null,
-    total_amount: num(inv.TotalAmt),
+    doc_type: docType,
+    qbo_invoice_id: String(doc.Id),
+    doc_number: doc.DocNumber ? String(doc.DocNumber) : null,
+    txn_date: doc.TxnDate || null,
+    due_date: isReceipt ? null : (doc.DueDate || null),
+    total_amount: num(doc.TotalAmt),
     balance,
-    status: invoiceStatus(inv, balance),
-    currency: inv?.CurrencyRef?.value || "USD",
+    status: isReceipt ? "paid" : invoiceStatus(doc, balance),
+    currency: doc?.CurrencyRef?.value || "USD",
     synced_at: new Date().toISOString(),
-    sort: i,                                  // already TxnDate DESC → newest first
   };
 }
 
 async function syncAccount(db: any, base: string, realmId: string, token: string, acct: any) {
-  const raw = await fetchInvoices(base, realmId, token, acct.quickbooks_customer_id);
-  const rows = raw.map((inv, i) => mapInvoice(inv, i, acct.id));
+  const cid = acct.quickbooks_customer_id;
+  const [invoices, receipts] = await Promise.all([
+    fetchDocs(base, realmId, token, cid, "Invoice"),
+    fetchDocs(base, realmId, token, cid, "SalesReceipt"),
+  ]);
+  const rows = [
+    ...invoices.map((d) => mapDoc(d, acct.id, "invoice")),
+    ...receipts.map((d) => mapDoc(d, acct.id, "sales_receipt")),
+  ]
+    // newest first across both types
+    .sort((a, b) => String(b.txn_date || "").localeCompare(String(a.txn_date || "")))
+    .map((r, i) => ({ ...r, sort: i }));
 
   // Mirror QBO for this account: clear then insert (matches sync-whatconverts).
   const { error: delErr } = await db.from("invoices").delete().eq("account_id", acct.id);
@@ -159,7 +170,7 @@ async function syncAccount(db: any, base: string, realmId: string, token: string
     const { error: insErr } = await db.from("invoices").insert(rows);
     if (insErr) throw new Error(`insert: ${insErr.message}`);
   }
-  return rows.length;
+  return { invoices: invoices.length, receipts: receipts.length };
 }
 
 Deno.serve(async (req) => {
@@ -195,7 +206,7 @@ Deno.serve(async (req) => {
       if (!acct.quickbooks_customer_id) continue;
       try {
         const n = await syncAccount(db, base, realmId, token, acct);
-        summary.push({ account: acct.id, name: acct.short_name || acct.company, ok: true, invoices: n });
+        summary.push({ account: acct.id, name: acct.short_name || acct.company, ok: true, invoices: n.invoices, receipts: n.receipts });
       } catch (e) {
         summary.push({ account: acct.id, name: acct.short_name || acct.company, ok: false, error: e instanceof Error ? e.message : String(e) });
       }
