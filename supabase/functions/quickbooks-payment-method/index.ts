@@ -141,6 +141,17 @@ Deno.serve(async (req) => {
       return json({ methods: data || [] });
     }
 
+    // Staff-only diagnostic: inspect existing QBO recurring templates so we can
+    // mirror the exact autopay/ACH field shape when building the create flow.
+    if (action === "inspectRecurring") {
+      if (!me.is_staff) return json({ error: "staff only" }, 403);
+      const { token, realmId } = await getAccessToken(db);
+      const r = await fetch(
+        `${acctBase()}/v3/company/${realmId}/query?query=${encodeURIComponent("SELECT * FROM RecurringTransaction")}&minorversion=${MINOR_VERSION}`,
+        { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" } });
+      return json(await r.json());
+    }
+
     if (!billingOk) return json({ error: "forbidden: billing role required" }, 403);
 
     const { data: account } = await db.from("accounts")
