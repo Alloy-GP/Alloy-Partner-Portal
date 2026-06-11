@@ -120,6 +120,17 @@ function num(v: unknown): number {
   return isFinite(n) ? n : 0;
 }
 
+// First line-item description (fallback to the item name) — the one-line summary
+// the Account page shows in the invoice list's Description column.
+function firstLineDesc(doc: any): string | null {
+  for (const ln of (Array.isArray(doc.Line) ? doc.Line : [])) {
+    if (ln.DetailType === "SalesItemLineDetail") {
+      return ln.Description || ln.SalesItemLineDetail?.ItemRef?.name || null;
+    }
+  }
+  return null;
+}
+
 // QBO has no single "status" field — derive it from balance + due date.
 function invoiceStatus(inv: any, balance: number): string {
   if (inv?.Void === true || /void/i.test(String(inv?.PrivateNote || ""))) return "void";
@@ -139,6 +150,7 @@ function mapDoc(doc: any, acctId: string, docType: string) {
     doc_type: docType,
     qbo_invoice_id: String(doc.Id),
     doc_number: doc.DocNumber ? String(doc.DocNumber) : null,
+    description: firstLineDesc(doc),
     txn_date: doc.TxnDate || null,
     due_date: isReceipt ? null : (doc.DueDate || null),
     total_amount: num(doc.TotalAmt),

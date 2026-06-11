@@ -61,7 +61,7 @@ function InvoiceRow({ inv, tier }) {
     <div className="acct-inv-row" role="row">
       <span className="mono">{inv.number || '—'}</span>
       <span className="date">{fmtDate(inv.date)}</span>
-      <span className="desc">{tier ? `${tier} · ${monthLabel(inv.date)}` : monthLabel(inv.date)}</span>
+      <span className="desc">{inv.description || (tier ? `${tier} · ${monthLabel(inv.date)}` : monthLabel(inv.date))}</span>
       <span className="amt">{money(inv.amount)}</span>
       <span className="st"><span className={`acct-status ${paid ? 'paid' : 'due'}`}>{paid ? 'Paid' : 'Due'}</span></span>
       <span className="acct-dl-cell">

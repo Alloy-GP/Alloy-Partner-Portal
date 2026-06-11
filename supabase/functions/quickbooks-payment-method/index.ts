@@ -13,9 +13,11 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //   - inspectRecurring→ dump QBO recurring templates (shape reference)
 //   - listItems       → QBO service items, for the billing item picker
 //   - createRecurring → { accountId, amount, itemId, description?, dayOfMonth?,
-//                         startDate?, active? } create an Automated ACH sales-receipt
-//                       template. Defaults to Active:false (a DRAFT to verify in QBO).
-//   - deleteRecurring → { recurringId } remove a recurring template (cleanup/retire)
+//                         startDate? } create an Automated ACH sales-receipt template +
+//                       save it to autopay_schedules. Always active in QBO (the API can't
+//                       create inactive); first charge defaults to 1st of next month so
+//                       Alloy verifies before money moves.
+//   - deleteRecurring → { recurringId } remove a recurring template + its schedule row
 //
 // PCI: raw bank #s are tokenized in the browser and never reach us. verify_jwt: true.
 // Secrets: QBO_CLIENT_ID/SECRET, optional QBO_ENV. Connection from quickbooks_oauth.
@@ -182,7 +184,9 @@ Deno.serve(async (req) => {
         const ent = wrap[kind];
         const del = await qboPost(realmId, token, "recurringtransaction?operation=delete",
           { [kind]: { Id: ent.Id, SyncToken: ent.SyncToken, RecurringInfo: ent.RecurringInfo } });
-        return json({ ok: del.ok, status: del.status, body: (await del.text()).slice(0, 300) });
+        const delText = await del.text();
+        if (del.ok) await db.from("autopay_schedules").delete().eq("qbo_recurring_txn_id", id);
+        return json({ ok: del.ok, status: del.status, body: delText.slice(0, 300) });
       }
 
       // createRecurring: build an Automated ACH sales-receipt template (draft by default).
@@ -227,6 +231,21 @@ Deno.serve(async (req) => {
       if (!r.ok) return json({ error: `recurring create ${r.status}: ${(await r.text()).slice(0, 500)}` }, 502);
       const c = (await r.json());
       const created = c?.RecurringTransaction?.SalesReceipt || c?.SalesReceipt || {};
+
+      // Persist a local copy so the Account page can show "next draft · $X" and
+      // "drafted monthly" without a live QBO call. One active schedule per account.
+      await db.from("autopay_schedules").upsert({
+        account_id: account.id,
+        qbo_recurring_txn_id: created?.Id || null,
+        qbo_item_id: itemId,
+        amount,
+        billing_day: day,
+        start_date: startDate,
+        status: "active",
+        created_by: user.id,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "account_id" });
+
       return json({
         ok: true,
         recurringId: created?.Id || null,
