@@ -140,6 +140,10 @@
 /* ---- Seats / team / sources ---- */
 .acct-seat, .acct-int { display: flex; align-items: center; gap: 13px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
 .acct-seat:last-child, .acct-int:last-child { border-bottom: none; }
+/* The foot-hint supplies its own top border, so the seat right before it must
+   not also draw a bottom border (else a double line). :last-child misses it
+   because the foot-hint is the real last child. */
+.acct-seat:has(+ .acct-foot-hint) { border-bottom: none; }
 .acct-avatar {
   width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
   display: grid; place-items: center; color: #fff;
