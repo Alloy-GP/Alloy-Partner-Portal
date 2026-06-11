@@ -50,6 +50,7 @@ export async function loadAccountData(session, accountId, me) {
     accountRes, recurringRes, projectsRes, leadsRes,
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
+    paymentMethodsRes, autopayRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -67,6 +68,8 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('action_items').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('invoices').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('profiles').select('id, name, initials, avatar_url, role, is_staff').eq('account_id', accountId),
+    supabase.from('quickbooks_payment_methods').select('*').eq('account_id', accountId).order('created_at', { ascending: false }),
+    supabase.from('autopay_schedules').select('*').eq('account_id', accountId).maybeSingle(),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -213,9 +216,19 @@ export async function loadAccountData(session, accountId, me) {
     // quickbooks-invoice-pdf function, passing `id`. UI gates on perms `billing`.
     invoices: (invoicesRes.data || []).map((inv) => ({
       id: inv.id, docType: inv.doc_type, number: inv.doc_number, date: inv.txn_date, dueDate: inv.due_date,
+      description: inv.description,
       amount: Number(inv.total_amount), balance: Number(inv.balance),
       status: inv.status, currency: inv.currency,
     })),
+    // Bank method on file (last-4 only) + the autopay schedule — for the
+    // Account page's Billing section (gated by perms `billing`).
+    paymentMethod: (() => {
+      const m = (paymentMethodsRes.data || [])[0];
+      return m ? { bankName: m.bank_name, accountType: m.account_type, last4: m.last4, status: m.verification_status, authorizedAt: m.ach_authorized_at } : null;
+    })(),
+    autopay: autopayRes.data
+      ? { amount: Number(autopayRes.data.amount), billingDay: autopayRes.data.billing_day, startDate: autopayRes.data.start_date, status: autopayRes.data.status }
+      : null,
     // Everyone on this account. The Account page splits this into client
     // "Team seats" (is_staff=false) and "Your Alloy team" (is_staff=true).
     // Email is not included (lives in auth.users, not client-readable).
