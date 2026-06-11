@@ -90,7 +90,15 @@ export default function AccountScreen({ onNav, onCompose }) {
   const curQuarter = `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()}`;
   const inMotion = projects.filter((p) => p.status && p.status !== 'live').length;
   const delivered = projects.filter((p) => p.status === 'live').length;
-  const qualified = acct.wcQualifiedTotal || 0;
+  // Lifetime qualified = prior-year rollup totals + live YTD qualified leads.
+  // (The leads table only holds the calendar-YTD window; prior years live in
+  // accounts.wc_qualified_by_year. This stays fresher than the weekly rollup.)
+  const yr = now.getFullYear();
+  const priorQualified = Object.entries(acct.wcQualifiedByYear || {})
+    .filter(([y]) => Number(y) < yr)
+    .reduce((s, [, n]) => s + (Number(n) || 0), 0);
+  const ytdQualified = (DATA.recentLeads || []).filter((l) => l.quotable === 'yes').length;
+  const qualified = (priorQualified + ytdQualified) || acct.wcQualifiedTotal || 0;
   // Categories of work = projects grouped by phase, top 6 by count.
   const phaseCounts = {};
   projects.forEach((p) => { const k = (p.phase || '').trim() || 'Other'; phaseCounts[k] = (phaseCounts[k] || 0) + 1; });
