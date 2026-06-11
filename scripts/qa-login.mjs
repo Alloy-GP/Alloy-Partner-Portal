@@ -1,18 +1,15 @@
 #!/usr/bin/env node
-// Mints a FRESH Supabase session for browser QA, on demand, so it never
-// expires mid-task. Chains the long-lived refresh token: exchange it for a new
-// access token, persist the rotated refresh token, print the localStorage blob
-// (base64) for injection.
+// Mint a FRESH Supabase session for browser QA, on demand. Uses the service-role
+// admin API to generate a one-time magic link for the staff QA user and redeem
+// it — so there's NO token to expire (a brand-new session every run). Prints the
+// base64 of the localStorage auth blob for injection (or --json for raw).
 //
-//   node scripts/qa-login.mjs            -> prints base64 of the sb-...-auth-token value
-//   node scripts/qa-login.mjs --json     -> prints the raw session JSON
+//   node scripts/qa-login.mjs           -> base64 of the sb-<ref>-auth-token value
+//   node scripts/qa-login.mjs --json    -> raw session JSON
 //
-// Bootstrap: .qa/session.json must hold a valid { refresh_token }. If the chain
-// is ever broken (refresh revoked), re-seed it from a fresh browser capture.
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-
-const REF = "aryttfcmleukwstknvio";
-const STORE = ".qa/session.json";
+// Requires SUPABASE_SERVICE_ROLE_KEY in .env.local. QA_EMAIL overrides the user.
+import { readFileSync } from "node:fs";
+import { createClient } from "@supabase/supabase-js";
 
 function env(k) {
   const m = readFileSync(".env.local", "utf8").match(new RegExp(`^${k}=(.*)$`, "m"));
@@ -20,42 +17,43 @@ function env(k) {
 }
 const URL = env("VITE_SUPABASE_URL");
 const ANON = env("VITE_SUPABASE_ANON_KEY");
+const SERVICE = env("SUPABASE_SERVICE_ROLE_KEY");
+const EMAIL = process.env.QA_EMAIL || "skyler@alloygp.co";
 
-if (!existsSync(STORE)) {
-  console.error(`No ${STORE}. Seed it with { "refresh_token": "..." } from a fresh browser login.`);
+if (!SERVICE || SERVICE.includes("PASTE")) {
+  console.error("SUPABASE_SERVICE_ROLE_KEY not set in .env.local — see qa-login header.");
   process.exit(1);
 }
-const prev = JSON.parse(readFileSync(STORE, "utf8"));
-const refresh_token = prev.refresh_token;
 
-const res = await fetch(`${URL}/auth/v1/token?grant_type=refresh_token`, {
-  method: "POST",
-  headers: { apikey: ANON, "Content-Type": "application/json" },
-  body: JSON.stringify({ refresh_token }),
-});
-const data = await res.json();
-if (!data.access_token) {
-  console.error("Refresh failed (token revoked/expired). Re-seed .qa/session.json from a fresh browser login.");
-  console.error(JSON.stringify(data).slice(0, 200));
+const opts = { auth: { persistSession: false, autoRefreshToken: false } };
+const admin = createClient(URL, SERVICE, opts);
+
+// Generate (don't email) a magic link for the QA user, then redeem the token
+// for a real session.
+const gen = await admin.auth.admin.generateLink({ type: "magiclink", email: EMAIL });
+if (gen.error || !gen.data?.properties?.hashed_token) {
+  console.error("generateLink failed:", gen.error?.message || "no hashed_token");
   process.exit(2);
 }
+const token_hash = gen.data.properties.hashed_token;
 
-// supabase-js localStorage shape
-const now = Math.floor(Date.now() / 1000);
-const session = {
-  access_token: data.access_token,
-  token_type: data.token_type || "bearer",
-  expires_in: data.expires_in,
-  expires_at: now + (data.expires_in || 3600),
-  refresh_token: data.refresh_token,
-  user: data.user,
-};
-// persist the ROTATED refresh token so the chain continues
-writeFileSync(STORE, JSON.stringify({ refresh_token: data.refresh_token }, null, 2));
-
-if (process.argv.includes("--json")) {
-  console.log(JSON.stringify(session));
-} else {
-  // base64 for safe injection: localStorage.setItem(key, atob('<b64>'))
-  console.log(Buffer.from(JSON.stringify(session)).toString("base64"));
+const anon = createClient(URL, ANON, opts);
+let v = await anon.auth.verifyOtp({ token_hash, type: "magiclink" });
+if (v.error) v = await anon.auth.verifyOtp({ token_hash, type: "email" });
+if (v.error || !v.data?.session) {
+  console.error("verifyOtp failed:", v.error?.message || "no session");
+  process.exit(3);
 }
+
+const s = v.data.session;
+const blob = {
+  access_token: s.access_token,
+  token_type: s.token_type || "bearer",
+  expires_in: s.expires_in,
+  expires_at: s.expires_at,
+  refresh_token: s.refresh_token,
+  user: s.user,
+};
+console.log(process.argv.includes("--json")
+  ? JSON.stringify(blob)
+  : Buffer.from(JSON.stringify(blob)).toString("base64"));

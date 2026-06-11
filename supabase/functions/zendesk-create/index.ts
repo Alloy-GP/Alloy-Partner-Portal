@@ -69,11 +69,19 @@ Deno.serve(async (req) => {
     const priority = ["low", "normal", "high", "urgent"].includes(body.priority) ? body.priority : undefined;
     const uploads = Array.isArray(body.uploads) ? body.uploads.filter(Boolean) : [];
 
-    // Attribute to the signed-in user so replies route back to them.
+    // Ensure the requester EXISTS and is a MEMBER of the account's org, so the
+    // ticket actually lands in that org. Zendesk ties a ticket's organization to
+    // the requester's org membership — passing organization_id alone is dropped
+    // (and even a follow-up PUT is rejected) if the requester isn't a member.
+    // create_or_update is idempotent and also adds the org membership.
+    const reqName = profile.name || (user.email || "there").split("@")[0];
     let requesterId: number | undefined;
     try {
-      const u = await zd(`/users/search.json?query=${encodeURIComponent(user.email || "")}`);
-      if (u.users && u.users[0] && u.users[0].id) requesterId = u.users[0].id;
+      const up = await zd(`/users/create_or_update.json`, {
+        method: "POST",
+        body: JSON.stringify({ user: { email: user.email, name: reqName, organization_id: Number(orgId) } }),
+      });
+      if (up.user && up.user.id) requesterId = up.user.id;
     } catch { /* fall back to inline requester below */ }
 
     const comment: Record<string, unknown> = { body: text, public: true };
@@ -81,7 +89,7 @@ Deno.serve(async (req) => {
     const ticket: Record<string, unknown> = { subject, organization_id: Number(orgId), comment };
     if (priority) ticket.priority = priority;
     if (requesterId) ticket.requester_id = requesterId;
-    else ticket.requester = { name: profile.name || (user.email || "there").split("@")[0], email: user.email };
+    else ticket.requester = { name: reqName, email: user.email };
 
     const r = await zd(`/tickets.json`, { method: "POST", body: JSON.stringify({ ticket }) });
     return json({ ok: true, id: r.ticket && r.ticket.id ? String(r.ticket.id) : null });
