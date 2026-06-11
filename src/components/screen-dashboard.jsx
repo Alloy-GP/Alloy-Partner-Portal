@@ -5,7 +5,20 @@ import ProfilePhoto from './ProfilePhoto.jsx';
 import CompanyMark from './CompanyMark.jsx';
 import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
-import { zdList } from '../lib/zendesk.js';
+import { pendingTickets } from '../lib/zendesk.js';
+
+// Shared "needs you" signal — live Zendesk tickets in "pending" status. Cached
+// in the lib so the queue, hero count, and bell share one network call.
+// Returns null while loading, then an array.
+function usePending() {
+  const [list, setList] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    pendingTickets(DATA.account && DATA.account.id).then((t) => { if (!cancelled) setList(t); });
+    return () => { cancelled = true; };
+  }, [DATA.account && DATA.account.id]);
+  return list;
+}
 
 // Dashboard screen — warm, celebratory home
 function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
@@ -72,8 +85,9 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   const _today = _now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
   const qLabel = `Q${_q} ${_now.getFullYear()} • ${_today}`;
 
-  // Items needing attention — open tickets + projects in "review" status
-  const openTickets = (DATA.tickets || []).filter(t => t.status !== "answered").length;
+  // Items needing attention — pending Zendesk tickets (waiting on the client)
+  // + projects in "review"/"blocked" status.
+  const openTickets = (usePending() || []).length;
   const reviewProjects = (DATA.projects || []).filter(p => p.status === "review" || p.status === "blocked").length;
   const attentionCount = openTickets + reviewProjects;
   const attentionLabel = attentionCount === 0
@@ -149,6 +163,8 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
 
 function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }) {
   const [open, setOpen] = React.useState(false);
+  const pending = usePending(); // live Zendesk tickets waiting on the client
+  const notifs = pending || [];
   const ref = React.useRef(null);
   const [userOpen, setUserOpen] = React.useState(false);
   const userRef = React.useRef(null);
@@ -199,24 +215,29 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut }
           onClick={() => setOpen(o => !o)}
         >
           <I.Bell width={17} height={17}/>
-          <span className="pulse"/>
+          {notifs.length > 0 ? <span className="pulse"/> : null}
         </button>
         {open ? (
           <div className="ds-notif-pop" role="menu">
             <div className="ds-notif-head">
               <span className="ds-notif-title">Notifications</span>
-              <span className="ds-notif-badge">1 new</span>
+              {notifs.length > 0 ? <span className="ds-notif-badge">{notifs.length} waiting</span> : null}
             </div>
-            <button className="ds-notif-item" role="menuitem" onClick={() => setOpen(false)}>
-              <span className="ds-notif-ic"><I.Doc width={15} height={15}/></span>
-              <span className="ds-notif-body">
-                <span className="ds-notif-item-title">New monthly snapshot ready to view</span>
-                <span className="ds-notif-item-sub">Your snapshot for March is ready.</span>
-                <span className="ds-notif-time">Just now · Fri 5:00 PM</span>
-              </span>
-              <span className="ds-notif-unread" aria-hidden="true"/>
-            </button>
-            <button className="ds-notif-foot" onClick={() => setOpen(false)}>View all notifications →</button>
+            {notifs.length === 0 ? (
+              <div style={{ padding: "20px 16px", fontSize: 12.5, color: "var(--fg-muted)", textAlign: "center" }}>
+                You’re all caught up — nothing waiting on you.
+              </div>
+            ) : notifs.slice(0, 8).map((t) => (
+              <button key={t.id} className="ds-notif-item" role="menuitem" onClick={() => { setOpen(false); onNav("tickets", t.id); }}>
+                <span className="ds-notif-ic"><I.Mail width={15} height={15}/></span>
+                <span className="ds-notif-body">
+                  <span className="ds-notif-item-title">Awaiting your reply</span>
+                  <span className="ds-notif-item-sub">{t.title}</span>
+                </span>
+                <span className="ds-notif-unread" aria-hidden="true"/>
+              </button>
+            ))}
+            <button className="ds-notif-foot" onClick={() => { setOpen(false); onNav("tickets"); }}>Open inbox →</button>
           </div>
         ) : null}
         </div>
@@ -448,15 +469,7 @@ function ActionQueue({ onNav }) {
   // Action queue = the account's Zendesk tickets that are "pending" (waiting on
   // the customer). Fetched LIVE from Zendesk (source of truth) — no sync table
   // to drift, and "pending" is the agent's deliberate "ball is in your court".
-  const [pending, setPending] = React.useState(null); // null = still loading
-  React.useEffect(() => {
-    let cancelled = false;
-    zdList()
-      .then((r) => { if (!cancelled) setPending(((r && r.tickets) || []).filter((t) => t.status === "pending")); })
-      .catch(() => { if (!cancelled) setPending([]); });
-    return () => { cancelled = true; };
-  }, [DATA.account?.id]); // refetch when staff switches client
-
+  const pending = usePending(); // null = loading, else array of pending tickets
   // Needs triage = not yet qualified ("yes") and not marked "not a fit" ("no").
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
   const items = (pending || []).slice(0, 8);

@@ -19,6 +19,26 @@ async function call(action, payload = {}) {
 
 export const zdList = () => call('list');
 export const zdThread = (id) => call('thread', { id });
+
+// Pending tickets (status "pending" = waiting on the customer) = the action
+// queue / "needs you" signal, shared across dashboard widgets + the bell.
+// 60s TTL cache dedupes the simultaneous widget fetches into one network call
+// while still refreshing on later visits. Always resolves to an array.
+let _pendingCache = { key: null, at: 0, promise: null };
+export function pendingTickets(accountId) {
+  const key = accountId || (DATA.account && DATA.account.id) || '';
+  const fresh = _pendingCache.key === key && _pendingCache.promise && (Date.now() - _pendingCache.at < 60000);
+  if (!fresh) {
+    _pendingCache = {
+      key, at: Date.now(),
+      promise: call('list')
+        .then((r) => ((r && r.tickets) || []).filter((t) => t.status === 'pending'))
+        .catch(() => []),
+    };
+  }
+  return _pendingCache.promise;
+}
+
 // opts: { status, uploads: [token], cc: [email] }
 export const zdReply = (id, body, opts = {}) =>
   call('reply', { id, body, status: opts.status, uploads: opts.uploads, cc: opts.cc });

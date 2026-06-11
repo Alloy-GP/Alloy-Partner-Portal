@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
+import { pendingTickets } from '../lib/zendesk.js';
 
 // Projects, ROI, Tickets, Playbook, Library, Recognition screens
 const { useState: _useState1 } = React;
@@ -41,8 +42,14 @@ function ProjEngineChips({ engines }) {
 
 function ProjectsScreen({ onNav }) {
   const [filter, setFilter] = useState("all");
-  // "Waiting on you" mirrors the dashboard action queue: tickets in Review.
-  const actionItems = DATA.actionQueue || [];
+  // "Waiting on you" mirrors the dashboard action queue: live Zendesk tickets
+  // that are pending (waiting on the customer).
+  const [actionItems, setActionItems] = React.useState([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    pendingTickets(DATA.account && DATA.account.id).then((t) => { if (!cancelled) setActionItems(t || []); });
+    return () => { cancelled = true; };
+  }, []);
   const filtered = filter === "all" ? DATA.projects : DATA.projects.filter(p => p.status === filter);
   const counts = PROJ_STATUSES.reduce((acc, s) => {
     acc[s.id] = DATA.projects.filter(p => p.status === s.id).length;
@@ -59,12 +66,12 @@ function ProjectsScreen({ onNav }) {
             <div className="proj-section-count">{actionItems.length}</div>
           </div>
           <div className="proj-review-rows">
-            {actionItems.map((a, i) => (
-              <div key={i} className="proj-review-row">
-                <button className="btn btn-sm btn-primary proj-review-row-btn" onClick={() => onNav("tickets", a.routeId)}>Open →</button>
+            {actionItems.map((a) => (
+              <div key={a.id} className="proj-review-row">
+                <button className="btn btn-sm btn-primary proj-review-row-btn" onClick={() => onNav("tickets", a.id)}>Open →</button>
                 <div className="proj-review-row-title">{a.title}</div>
                 <span className="proj-status-pill" style={{color:"var(--alloy-pink)", background:"var(--alloy-pink-tint)"}}>
-                  <span className="dot" style={{background:"var(--alloy-pink)"}}/>In Review
+                  <span className="dot" style={{background:"var(--alloy-pink)"}}/>Awaiting you
                 </span>
               </div>
             ))}
