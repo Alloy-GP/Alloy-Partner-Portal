@@ -16,7 +16,7 @@ const json = (data: unknown, status = 200) =>
 const ACCOUNT_FIELDS = [
   "company", "short_name", "tier", "market", "since",
   "goal_label", "goal_current", "goal_target",
-  "monday_board_id", "zendesk_org_id", "whatconverts_profile_id", "logo_url",
+  "monday_board_id", "zendesk_org_id", "whatconverts_profile_id", "quickbooks_customer_id", "logo_url",
 ];
 function pick(obj: any, fields: string[]) {
   const out: Record<string, unknown> = {};
@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
       const row = {
         email,
         account_id: body.account_id,
-        role: ["owner", "bd", "ops"].includes(body.role) ? body.role : "owner",
+        role: ["admin", "staff", "owner", "accounting"].includes(body.role) ? body.role : "owner",
         is_staff: !!body.is_staff,
         name: body.name || null,
         initials: body.initials || null,

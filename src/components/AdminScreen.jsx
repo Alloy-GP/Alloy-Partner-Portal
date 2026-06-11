@@ -6,13 +6,14 @@ import {
 } from '../lib/admin.js';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import SyncHealth from './SyncHealth.jsx';
+import { CLIENT_ROLES } from '../lib/perms.js';
 
 const { useState, useEffect } = React;
 
 const BLANK = {
   company: '', short_name: '', tier: '', market: '', since: '',
   goal_label: 'boards signed', goal_current: 0, goal_target: 0,
-  monday_board_id: '', zendesk_org_id: '', whatconverts_profile_id: '',
+  monday_board_id: '', zendesk_org_id: '', whatconverts_profile_id: '', quickbooks_customer_id: '',
 };
 
 function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
@@ -220,6 +221,7 @@ function AdminScreen({ startNew, selectId }) {
                 <Field label="Monday board ID" value={form.monday_board_id} onChange={set('monday_board_id')} hint="Projects/services/action queue source" />
                 <Field label="Zendesk org ID" value={form.zendesk_org_id} onChange={set('zendesk_org_id')} hint="Scopes the client's tickets" />
                 <Field label="WhatConverts profile ID" value={form.whatconverts_profile_id} onChange={set('whatconverts_profile_id')} hint="Pulls the client's leads" />
+                <Field label="QuickBooks customer ID" value={form.quickbooks_customer_id} onChange={set('quickbooks_customer_id')} hint="QBO customer — open them in QuickBooks, copy nameId from the URL" />
               </div>
 
               <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
@@ -253,9 +255,7 @@ function AdminScreen({ startNew, selectId }) {
                     <label style={{ display: 'block' }}>
                       <span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', marginBottom: 4 }}>Role</span>
                       <select className="input" value={inviteForm.role} onChange={(e) => setInviteForm((f) => ({ ...f, role: e.target.value }))}>
-                        <option value="owner">Owner</option>
-                        <option value="bd">BD</option>
-                        <option value="ops">Ops</option>
+                        {CLIENT_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                       </select>
                     </label>
                     <button className="btn btn-secondary" onClick={addInviteH} disabled={busyInvite || !inviteForm.email.trim()}>Add</button>

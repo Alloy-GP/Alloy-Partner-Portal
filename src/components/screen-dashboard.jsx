@@ -199,13 +199,13 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, 
               Baseline → Q2 benchmarks
             </button>
           </div>
-        ) : (
+        ) : onNewRequest ? (
           <div className="ds-util-bar">
-            <button className="btn btn-primary" onClick={() => (onNewRequest ? onNewRequest() : onNav("tickets"))}>
+            <button className="btn btn-primary" onClick={onNewRequest}>
               <I.Plus width={13} height={13}/> New request
             </button>
           </div>
-        )}
+        ) : null}
         <div className="ds-notif" ref={ref}>
         <button
           className={`ds-icon-btn${open ? " active" : ""}`}

@@ -11,6 +11,7 @@ import SnapshotScreen from './components/SnapshotScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour } from './lib/tour.js';
+import { can } from './lib/perms.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
@@ -39,7 +40,10 @@ function App({ session, onSignOut, staffNav } = {}) {
   const seg = '/' + (rest[0] || '');
   const active = Object.keys(PATHS).find((id) => PATHS[id] === seg) || 'dashboard';
   const ticketId = active === 'tickets' ? (rest[1] || null) : null;
-  const [role, setRole] = useState("owner");
+  // Real permission level from the signed-in profile (admin | staff | owner |
+  // accounting). `can()` reads this + isStaff against the capability matrix.
+  const [role, setRole] = useState(() => (DATA.user && DATA.user.role) || "owner");
+  const canNewRequest = can(DATA.user, "newRequest");
   const [editMode, setEditMode] = useState(false);
   const [tweaks, setTweaks] = useState(TWEAKS);
   const [mobileNav, setMobileNav] = useState(false);
@@ -141,7 +145,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       </div>
 
       <main className="main">
-        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={() => setComposeOpen(true)}/>
+        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
         {active !== "dashboard" ? <RisePageHero title={titles[active].t} subtitle={titles[active].s} mobileNav={mobileNav} setMobileNav={setMobileNav}/> : null}
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
