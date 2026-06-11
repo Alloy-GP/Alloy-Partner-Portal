@@ -5,6 +5,7 @@ import {
   listInvites, addInvite, removeInvite, uploadLogo,
 } from '../lib/admin.js';
 import AdminAnalytics from './AdminAnalytics.jsx';
+import SyncHealth from './SyncHealth.jsx';
 
 const { useState, useEffect } = React;
 
@@ -131,7 +132,7 @@ function AdminScreen({ startNew, selectId }) {
   return (
     <div className="content" data-screen-label="Admin">
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {['clients', 'analytics'].map((id) => (
+        {['clients', 'analytics', 'health'].map((id) => (
           <button key={id} onClick={() => setTab(id)} className="btn btn-sm"
             style={{ background: tab === id ? 'var(--alloy-purple)' : 'transparent', color: tab === id ? '#fff' : 'var(--alloy-purple)', padding: '6px 14px', textTransform: 'capitalize' }}>
             {id}
@@ -139,7 +140,7 @@ function AdminScreen({ startNew, selectId }) {
         ))}
       </div>
 
-      {tab === 'analytics' ? <AdminAnalytics /> : (
+      {tab === 'health' ? <SyncHealth /> : tab === 'analytics' ? <AdminAnalytics /> : (
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
         {/* Accounts list */}
         <div className="card" style={{ padding: 0, alignSelf: 'start' }}>
