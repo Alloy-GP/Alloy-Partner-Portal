@@ -50,7 +50,7 @@ export async function loadAccountData(session, accountId, me) {
     accountRes, recurringRes, projectsRes, leadsRes,
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
-    paymentMethodsRes, autopayRes, ticketLinksRes,
+    paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -71,6 +71,7 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('quickbooks_payment_methods').select('*').eq('account_id', accountId).order('created_at', { ascending: false }),
     supabase.from('autopay_schedules').select('*').eq('account_id', accountId).maybeSingle(),
     supabase.from('ticket_links').select('zendesk_id, link, pct').eq('account_id', accountId),
+    supabase.from('ticket_summaries').select('zendesk_id, summary').eq('account_id', accountId),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -149,6 +150,10 @@ export async function loadAccountData(session, accountId, me) {
     // button, and → subtask-% (stage progress) for the ticket card bar.
     ticketLinks: Object.fromEntries((ticketLinksRes.data || []).filter((t) => t.link).map((t) => [t.zendesk_id, t.link])),
     ticketProgress: Object.fromEntries((ticketLinksRes.data || []).filter((t) => t.pct != null).map((t) => [t.zendesk_id, t.pct])),
+    // Cached AI one-line summaries (Zone 1 "Waiting on you" cards). Seeded here
+    // so cards show last-known text instantly; ProjectsScreen calls
+    // `summarize-tickets` on mount to refresh/generate any that updated.
+    ticketSummaries: Object.fromEntries((ticketSummariesRes.data || []).filter((t) => t.summary).map((t) => [t.zendesk_id, t.summary])),
     recentLeads: (leadsRes.data || []).map((l) => ({
       id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, source: l.source,
       quality: l.quality, quotable: l.quotable,

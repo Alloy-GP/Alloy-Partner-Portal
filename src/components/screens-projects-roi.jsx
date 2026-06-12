@@ -2,6 +2,7 @@ import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { zdList } from '../lib/zendesk.js';
+import { summarizeTickets } from '../lib/summaries.js';
 
 // Projects, ROI, Tickets, Playbook, Library, Recognition screens
 const { useState: _useState1 } = React;
@@ -64,15 +65,32 @@ function PjAvatars({ ids }) {
     </div>
   );
 }
-function SecHead({ icon, iconBg, iconColor, title, sub, count, countColor, countBg }) {
+// "Waiting on you" mark — an hourglass (waiting / paused on you).
+const WaitingIcon = ({ width = 18, height = 18 }) => (
+  <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 22h14M5 2h14M17 22v-4.17a2 2 0 0 0-.59-1.41L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22M7 2v4.17a2 2 0 0 0 .59 1.41L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2" />
+  </svg>
+);
+
+// "In progress" mark — a loading ring (faint full circle + a leading arc).
+const InProgressIcon = ({ width = 18, height = 18 }) => (
+  <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+    <circle cx="12" cy="12" r="9" opacity="0.35" />
+    <path d="M12 3a9 9 0 0 1 9 9" />
+  </svg>
+);
+
+// `tone` is the zone's accent color; the chip + count pill derive a glassy
+// treatment from it (translucent gradient, colored border, soft glow).
+function SecHead({ icon, tone, title, sub, count }) {
   return (
-    <div className="pj-sec">
-      <span className="pj-sec-ic" style={{ background: iconBg, color: iconColor || "#fff" }}>{icon}</span>
+    <div className="pj-sec" style={{ "--tone": tone }}>
+      <span className="pj-sec-ic">{icon}</span>
       <div className="pj-sec-titles">
         <div className="pj-sec-title">{title}</div>
         {sub ? <div className="pj-sec-sub">{sub}</div> : null}
       </div>
-      {count != null ? <span className="pj-sec-count" style={{ color: countColor, background: countBg }}>{count}</span> : null}
+      {count != null ? <span className="pj-sec-count">{count}</span> : null}
     </div>
   );
 }
@@ -99,13 +117,30 @@ function ProjectsScreen({ onNav, onCompose }) {
   const all = tickets || [];
   const pending = all.filter((t) => t.status === "pending");
   const openTix = all.filter((t) => t.status === "open");
+
+  // AI one-line summaries for the "Waiting on you" cards. Seed from the cache
+  // loaded with the page, then refresh/generate via `summarize-tickets` once
+  // the live ticket list is in (it re-runs the model only for tickets that
+  // updated since last summarized, so this stays cheap).
+  const [summaries, setSummaries] = React.useState(() => DATA.ticketSummaries || {});
+  const pendingIdsKey = pending.map((t) => t.id).join(",");
+  React.useEffect(() => {
+    if (!pendingIdsKey) return;
+    let cancelled = false;
+    summarizeTickets(pendingIdsKey.split(",")).then((m) => {
+      if (!cancelled && m && Object.keys(m).length) setSummaries((prev) => ({ ...prev, ...m }));
+    });
+    return () => { cancelled = true; };
+  }, [pendingIdsKey]);
   const links = DATA.ticketLinks || {};
   const progress = DATA.ticketProgress || {}; // zendesk id → subtask-% (stages)
   const stageColor = () => "#2c7d68"; // green for all stage-progress bars
   const openedByYou = (t) => !String(t.requesterEmail || "").toLowerCase().endsWith("@alloygp.co");
 
   const projects = DATA.projects || [];
-  const inMotion = projects.filter((p) => p.status && p.status !== "live").length;
+  // In motion now = active tickets (waiting-on-you + we're-on-it) + everything
+  // we're driving, minus complete.
+  const inMotion = pending.length + openTix.length + projects.filter((p) => p.status !== "live").length;
   const _now = new Date();
   const _qStart = new Date(_now.getFullYear(), Math.floor(_now.getMonth() / 3) * 3, 1);
   const _qEnd = new Date(_qStart.getFullYear(), _qStart.getMonth() + 3, 1);
@@ -123,18 +158,18 @@ function ProjectsScreen({ onNav, onCompose }) {
   const reqProject = () => { if (onCompose) onCompose(); else onNav("tickets"); };
 
   return (
-    <div className="content pj-screen" data-screen-label="02 Projects">
-      {/* Scorecard */}
-      <div className="pj-scorecard">
-        <div className="pj-stat"><div className="pj-stat-n" style={{ color: "var(--alloy-pink)" }}>{inMotion}</div><div className="pj-stat-l">in motion now</div></div>
-        <div className="pj-stat"><div className="pj-stat-n" style={{ color: "var(--alloy-purple)" }}>{deliveredQtr}</div><div className="pj-stat-l">delivered this quarter</div></div>
-        <div className="pj-stat last"><div className="pj-stat-n" style={{ color: "#2c7d68" }}>{totalCompleted}</div><div className="pj-stat-l">total projects completed</div></div>
+    <div className="content pj-screen" data-screen-label="02 Work in motion">
+      {/* Purple metrics bar (replaces a page title — the app top bar has that) */}
+      <div className="pj-metrics">
+        <div className="pj-metric"><span className="pj-metric-n">{inMotion}</span><span className="pj-metric-l">in motion now</span></div>
+        <div className="pj-metric"><span className="pj-metric-n" style={{ color: "#2c8a6e" }}>{deliveredQtr}</span><span className="pj-metric-l">delivered this quarter</span></div>
+        <div className="pj-metric"><span className="pj-metric-n" style={{ color: "#2c8a6e" }}>{totalCompleted}</span><span className="pj-metric-l">total projects completed</span></div>
       </div>
 
       {/* ===== 1 · Waiting on you ===== */}
-      <SecHead icon={<I.Bolt width={18} height={18} />} iconBg="var(--alloy-pink)"
+      <SecHead icon={<WaitingIcon width={18} height={18} />} tone="#b8881a"
         title="Waiting on you" sub="Paused on you — each one moves forward the moment you weigh in"
-        count={loading ? null : pending.length + (leadsToQualify > 0 ? 1 : 0)} countColor="#fff" countBg="var(--alloy-pink)" />
+        count={loading ? null : pending.length + (leadsToQualify > 0 ? 1 : 0)} />
       <div className="pj-cards">
         {loading ? [0, 1, 2, 3].map((i) => (
           <div key={`sk${i}`} className="pj-card skel" aria-hidden="true">
@@ -148,6 +183,9 @@ function ProjectsScreen({ onNav, onCompose }) {
               <span className="pj-due"><I.Clock width={11} height={11} /> needs you</span>
             </div>
             <div className="pj-card-title">{t.title}</div>
+            {summaries[t.id] ? (
+              <div className="pj-summary"><I.Sparkle width={12} height={12} /><span>{summaries[t.id]}</span></div>
+            ) : null}
             {progress[t.id] != null ? (
               <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
             ) : null}
@@ -163,7 +201,10 @@ function ProjectsScreen({ onNav, onCompose }) {
               <span className="pj-leadtag">Leads</span>
               <span className="pj-due lead"><I.Clock width={11} height={11} /> new today</span>
             </div>
-            <div className="pj-card-title">{leadsToQualify} new {leadsToQualify === 1 ? "lead" : "leads"} to qualify</div>
+            <div className="pj-lead-hero">
+              <div className="pj-lead-num">{leadsToQualify}</div>
+              <div className="pj-lead-sub">new {leadsToQualify === 1 ? "lead" : "leads"} to qualify</div>
+            </div>
             <div className="pj-cta"><span className="pj-card-msg solo lead">Qualify leads <I.Arrow width={14} height={14} /></span></div>
           </div>
         ) : null}
@@ -175,9 +216,9 @@ function ProjectsScreen({ onNav, onCompose }) {
       {/* ===== 2 · In progress · we're on it ===== */}
       {(loading || openTix.length > 0) ? (
         <>
-          <SecHead icon={<I.Check width={17} height={17} />} iconBg="#eef4f1" iconColor="#2c7d68"
+          <SecHead icon={<InProgressIcon width={18} height={18} />} tone="#b8881a"
             title="In progress · we're on it" sub="Open with your team — no action needed, we'll reach out when we need you"
-            count={loading ? null : openTix.length} countColor="#2c7d68" countBg="#e2f0ec" />
+            count={loading ? null : openTix.length} />
           <div className="pj-list">
             {loading ? [0, 1].map((i) => (
               <div key={`skr${i}`} className="pj-row skel" aria-hidden="true"><div className="pj-skel-line w60" style={{ margin: 0 }} /></div>
@@ -196,9 +237,9 @@ function ProjectsScreen({ onNav, onCompose }) {
       ) : null}
 
       {/* ===== 3 · Everything else we're driving ===== */}
-      <SecHead icon={<I.Bolt width={16} height={16} />} iconBg="#ece8f1" iconColor="var(--alloy-purple)"
+      <SecHead icon={<I.Bolt width={16} height={16} />} tone="#b8881a"
         title="Everything else we're driving" sub="Work we're running for you in the background — nothing needed from you"
-        count={projects.length} countColor="var(--alloy-purple)" countBg="#ece8f1" />
+        count={projects.length} />
       <div className="pj-groups">
         {groups.map((g) => {
           const isOpen = open[g.id];

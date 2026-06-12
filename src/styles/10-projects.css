@@ -4,21 +4,40 @@
    ============================================================ */
 .pj-screen { padding-bottom: 40px; }
 
-/* ---- Scorecard ---- */
-.pj-scorecard { display: flex; gap: 26px; justify-content: flex-end; align-items: flex-end; flex-wrap: wrap; margin-bottom: 26px; }
-.pj-stat { text-align: right; border-right: 1px solid #e8e2f0; padding-right: 26px; min-width: 0; }
-.pj-stat.last { border-right: none; padding-right: 0; }
-.pj-stat-n { font-family: var(--font-display); font-size: 30px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
-.pj-stat-l { font-size: 11px; font-weight: 600; color: #8a8395; margin-top: 5px; }
-@media (max-width: 720px) { .pj-scorecard { justify-content: flex-start; gap: 18px; } .pj-stat { padding-right: 18px; } }
+/* ---- Purple metrics bar (full-width, anchors the top of the content) ---- */
+/* Translucent "frosted card" — see-through but clearly a card via the soft
+   border + shadow + backdrop blur. */
+.pj-metrics {
+  display: flex;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 10px 30px rgba(56, 28, 79, 0.10);
+  margin-bottom: 30px;
+}
+.pj-metric { flex: 1; min-width: 0; padding: 22px 30px; display: flex; align-items: baseline; gap: 11px; }
+.pj-metric + .pj-metric { border-left: 1px solid rgba(56, 28, 79, 0.08); }
+.pj-metric-n { font-family: var(--font-display); font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; color: var(--alloy-purple); }
+.pj-metric-l { font-size: 13px; font-weight: 600; color: var(--fg-muted); }
+@media (max-width: 700px) {
+  .pj-metrics { flex-direction: column; }
+  .pj-metric + .pj-metric { border-left: none; border-top: 1px solid #e8e2f0; }
+}
 
 /* ---- Section header ---- */
 .pj-sec { display: flex; align-items: center; gap: 13px; margin-bottom: 15px; }
-.pj-sec-ic { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+/* Same treatment as the dashboard card icon (.hdr-ic): flat tint square,
+   42x42, radius 12, no border/shadow/gradient. Tone tint bg + colored icon. */
+.pj-sec-ic {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0;
+  color: var(--tone, var(--alloy-purple));
+  background: color-mix(in srgb, var(--tone) 15%, #fff);
+}
 .pj-sec-titles { flex: 1; min-width: 0; }
 .pj-sec-title { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--alloy-purple); letter-spacing: -0.01em; }
 .pj-sec-sub { font-size: 12px; font-weight: 600; color: #8a8395; margin-top: 1px; }
-.pj-sec-count { font-family: var(--font-display); font-size: 13px; font-weight: 800; padding: 5px 12px; border-radius: 999px; flex-shrink: 0; }
+.pj-sec-count { font-family: var(--font-display); font-size: 13px; font-weight: 800; padding: 5px 12px; border-radius: 999px; flex-shrink: 0; color: color-mix(in srgb, var(--tone) 78%, #2a1640); background: color-mix(in srgb, var(--tone) 14%, #fff); }
 
 .pj-openedby { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
 .pj-openedby.you { background: #ece8f1; color: #5a4a6e; }
@@ -55,6 +74,8 @@
 .pj-due.lead { color: #a8761a; }
 .pj-leadtag { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; padding: 2px 8px; border-radius: 6px; background: #fbeecb; color: #8a6900; }
 .pj-card-title { font-family: var(--font-display); font-size: 14.5px; font-weight: 800; color: var(--alloy-purple); line-height: 1.28; letter-spacing: -0.01em; margin-bottom: 14px; min-height: 38px; }
+.pj-summary { display: flex; align-items: flex-start; gap: 7px; margin: -4px 0 13px; padding: 9px 11px; background: #f4f1f8; border-radius: 10px; font-size: 12px; line-height: 1.4; color: #4a3a5e; }
+.pj-summary svg { flex-shrink: 0; margin-top: 1px; color: var(--alloy-purple); opacity: 0.8; }
 .pj-card-prog { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .pj-cta { margin-top: auto; display: flex; gap: 8px; }
 
@@ -66,6 +87,11 @@
 /* "Open message" / "Qualify leads" — a button-styled cue; the card carries the click. */
 .pj-card-msg { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 11px 8px; border-radius: 10px; background: #fff; color: var(--alloy-purple); border: 1px solid #e0d8ea; font-family: var(--font-display); font-weight: 800; font-size: 11.5px; white-space: nowrap; }
 .pj-card-msg.lead { background: var(--alloy-purple); color: #fff; border: none; font-size: 12.5px; }
+/* Leads card hero — big centered count that fills the card body. */
+.pj-lead-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 3px; padding: 6px 0 16px; position: relative; }
+.pj-lead-hero::before { content: ""; position: absolute; width: 130px; height: 130px; border-radius: 50%; background: radial-gradient(circle, rgba(227,189,68,0.22) 0%, rgba(227,189,68,0) 70%); pointer-events: none; }
+.pj-lead-num { position: relative; font-family: var(--font-display); font-weight: 800; font-size: 56px; line-height: 0.92; letter-spacing: -0.03em; background: linear-gradient(135deg, #e7b53f 0%, #b07d12 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.pj-lead-sub { position: relative; font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--alloy-purple); letter-spacing: -0.01em; }
 .pj-card.pj-clickable:hover .pj-card-msg { border-color: var(--alloy-purple); }
 .pj-btn-primary, .pj-btn-secondary, .pj-btn-leads {
   flex: 1; cursor: pointer; font-family: var(--font-display); font-weight: 800; font-size: 11.5px;

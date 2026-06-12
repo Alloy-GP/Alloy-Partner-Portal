@@ -9,9 +9,14 @@ import TicketThread from './TicketThread.jsx';
 function TicketDetailPage({ id, onNav }) {
   return (
     <div className="content" data-screen-label="Ticket">
-      <button className="btn btn-ghost btn-sm" onClick={() => onNav('tickets')} style={{ marginBottom: 14 }}>
-        ← Back to tickets
-      </button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button className="btn btn-ghost btn-sm" onClick={() => onNav('tickets')}>
+          ← Back to inbox
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={() => onNav('projects')}>
+          Work in motion →
+        </button>
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--border-subtle)', borderRadius: 14, overflow: 'hidden', background: '#fff', minHeight: 560 }}>
         <TicketThread id={id} />
       </div>

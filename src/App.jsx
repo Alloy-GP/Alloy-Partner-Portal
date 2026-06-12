@@ -100,7 +100,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     leads: { t: "Revenue Engine", s: "Qualify every lead — it flows straight to WhatConverts" },
     snapshot: { t: "Monthly snapshot", s: "Your month with Alloy, every month-end" },
     roi: { t: "ROI & Insight", s: "What Alloy is doing for your top line" },
-    projects: { t: "Projects", s: "Live from Monday — every deliverable in motion" },
+    projects: { t: "Work in motion", s: "Live from Monday — every active deliverable" },
     tickets: { t: "Inbox", s: "One thread between you and your Alloy team" },
     playbook: { t: "Roadmap", s: "Your 2026 growth plan, quarter by quarter" },
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
