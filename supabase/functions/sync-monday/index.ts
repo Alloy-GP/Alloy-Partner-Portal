@@ -29,6 +29,8 @@ const isPlannedTitle = (t: string) => /^planned\b/i.test((t || "").trim());
 const ACTION_STATUSES = new Set(["Review"]);
 // Status labels that mean a ticket is finished (shown in completed work).
 const DONE_TICKET_STATUSES = new Set(["Completed", "Complete", "Solved", "solved"]);
+// Subtask statuses that count as "done" for the stage-progress bar.
+const DONE_SUBTASK = new Set(["Completed", "Complete", "Done", "Solved", "solved"]);
 
 const ZENDESK_BASE = "https://alloycreatives.zendesk.com";
 
@@ -112,6 +114,20 @@ function linkUrl(item: any, colId: string | null): string | null {
   const t = (c.text || "").trim();
   const idx = t.lastIndexOf("http");
   return idx >= 0 ? t.slice(idx).split(" ")[0] : null;
+}
+
+// Stage progress = subtasks marked done / total subtasks. Returns null when the
+// item has no subtasks (caller falls back to the status-derived pct). The
+// subitem board's Status column id varies per board, so detect it by type.
+function subtaskPct(item: any): number | null {
+  const subs = item.subitems || [];
+  if (!subs.length) return null;
+  let done = 0;
+  for (const s of subs) {
+    const cv = (s.column_values || []).find((c: any) => c.column && (c.column.type === "status" || c.column.type === "color"));
+    if (cv && DONE_SUBTASK.has(((cv.text || "")).trim())) done++;
+  }
+  return Math.round((done / subs.length) * 100);
 }
 
 function resolveColumns(columns: any[]): ColMap {
@@ -223,6 +239,7 @@ Deno.serve(async (req) => {
                   name
                   updated_at
                   column_values(ids: ${JSON.stringify(colIds)}) { id text value }
+                  subitems { id column_values { text column { type } } }
                 }
               }
             }
@@ -254,7 +271,8 @@ Deno.serve(async (req) => {
           if (isProjectGroup || isCompletedGroup || isPlannedGroup) {
             let [status, pct] = STATUS_MAP[statusText] ?? ["in-progress", 50];
             if (isCompletedGroup) { status = "live"; pct = 100; }
-            if (isPlannedGroup) { status = "planned"; pct = 0; }
+            else if (isPlannedGroup) { status = "planned"; pct = 0; }
+            else { const sp = subtaskPct(it); if (sp !== null) pct = sp; } // stages done ÷ total
             projects.push({
               account_id: acct.id, monday_item_id: String(it.id),
               code: (C.taskId ? cv[C.taskId] : "") || null, title: it.name,
@@ -277,8 +295,9 @@ Deno.serve(async (req) => {
             // surfaces it as "Open review" on the pending/open ticket cards.
             const zdRef = zendeskRef(it, C.zendesk);
             const reviewLink = linkUrl(it, C.link);
-            if (zdRef.id && reviewLink) {
-              ticketLinks.push({ account_id: acct.id, zendesk_id: zdRef.id, link: reviewLink });
+            const tPct = subtaskPct(it); // stage progress for the ticket card bar
+            if (zdRef.id && (reviewLink || tPct !== null)) {
+              ticketLinks.push({ account_id: acct.id, zendesk_id: zdRef.id, link: reviewLink, pct: tPct });
             }
             if (ACTION_STATUSES.has(statusText)) {
               // Waiting on you (action queue)

@@ -100,6 +100,8 @@ function ProjectsScreen({ onNav, onCompose }) {
   const pending = all.filter((t) => t.status === "pending");
   const openTix = all.filter((t) => t.status === "open");
   const links = DATA.ticketLinks || {};
+  const progress = DATA.ticketProgress || {}; // zendesk id → subtask-% (stages)
+  const stageColor = (p) => (p >= 100 ? "#2c7d68" : "#a8761a");
   const openedByYou = (t) => !String(t.requesterEmail || "").toLowerCase().endsWith("@alloygp.co");
 
   const projects = DATA.projects || [];
@@ -146,6 +148,9 @@ function ProjectsScreen({ onNav, onCompose }) {
               <span className="pj-due"><I.Clock width={11} height={11} /> needs you</span>
             </div>
             <div className="pj-card-title">{t.title}</div>
+            {progress[t.id] != null ? (
+              <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
+            ) : null}
             <div className="pj-cta">
               {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">Review Now <I.External width={12} height={12} /></a> : null}
               <button className={`pj-btn-secondary${links[t.id] ? "" : " solo"}`} onClick={() => onNav("tickets", t.id)}>Open message</button>
@@ -180,6 +185,9 @@ function ProjectsScreen({ onNav, onCompose }) {
               <div key={t.id} className="pj-row">
                 <div className="pj-row-title">{t.title}</div>
                 <OpenedBy you={openedByYou(t)} />
+                {progress[t.id] != null ? (
+                  <div className="pj-row-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
+                ) : null}
                 <div className="pj-row-actions">
                   {links[t.id] ? <a className="pj-view" href={links[t.id]} target="_blank" rel="noopener noreferrer">Review <I.External width={12} height={12} /></a> : null}
                   <button className="pj-view" onClick={() => onNav("tickets", t.id)}>View <I.Arrow width={13} height={13} /></button>
@@ -211,7 +219,6 @@ function ProjectsScreen({ onNav, onCompose }) {
                 <div className="pj-prows">
                   {g.items.map((p) => (
                     <div key={p.id} className="pj-prow">
-                      <div className="pj-id">{p.id}</div>
                       <div className="pj-prow-title">{p.title}</div>
                       <div className="pj-prow-cat"><CatChip name={p.phase} /></div>
                       <div className="pj-prow-owners"><PjAvatars ids={p.owners} /></div>
