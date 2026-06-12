@@ -147,7 +147,7 @@ function ProjectsScreen({ onNav, onCompose }) {
             </div>
             <div className="pj-card-title">{t.title}</div>
             <div className="pj-cta">
-              {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">Open review</a> : null}
+              {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">Review Now <I.External width={12} height={12} /></a> : null}
               <button className={`pj-btn-secondary${links[t.id] ? "" : " solo"}`} onClick={() => onNav("tickets", t.id)}>Open message</button>
             </div>
           </div>
