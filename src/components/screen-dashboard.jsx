@@ -362,6 +362,10 @@ function PartnershipValueCard({ onNav }) {
   const quoteMonthly = leads.reduce((s, l) => s + (Number(l.quoteValue) || 0), 0);
   const salesMonthly = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0);
   const lifetimeQualified = DATA.account?.wcQualifiedTotal || leads.filter(l => l.quotable === "yes").length;
+  // Leads still needing a qualify decision (not yes/no) → lock the value tiles
+  // behind a blur + CTA until they're triaged, so the numbers can't be trusted
+  // as final yet but are still visible behind the glass.
+  const leadsToQualify = leads.filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
   // Management fee -> true contract revenue.
   const CONTRACT = 2.35;
   const fmtBig = (n) => {
@@ -415,14 +419,23 @@ function PartnershipValueCard({ onNav }) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </button>
         </div>
-        <div className="pv-grid">
-          {tiles.map((t) => (
-            <div key={t.lbl} className="pv-tile">
-              <span className="pv-num" style={{ color: t.color }}>{t.num}</span>
-              <span className="pv-lbl">{t.lbl}</span>
-              <span className="pv-sub">{t.sub}</span>
+        <div className="pv-grid-wrap">
+          <div className={`pv-grid${leadsToQualify > 0 ? " locked" : ""}`} aria-hidden={leadsToQualify > 0 ? "true" : undefined}>
+            {tiles.map((t) => (
+              <div key={t.lbl} className="pv-tile">
+                <span className="pv-num" style={{ color: t.color }}>{t.num}</span>
+                <span className="pv-lbl">{t.lbl}</span>
+                <span className="pv-sub">{t.sub}</span>
+              </div>
+            ))}
+          </div>
+          {leadsToQualify > 0 ? (
+            <div className="pv-lock">
+              <div className="pv-lock-num">{leadsToQualify}</div>
+              <div className="pv-lock-sub">new {leadsToQualify === 1 ? "lead" : "leads"} to qualify</div>
+              <button className="pv-lock-btn" onClick={() => onNav && onNav("leads")}>Qualify leads <I.Arrow width={15} height={15} /></button>
             </div>
-          ))}
+          ) : null}
         </div>
       </div>
     </div>
