@@ -29,7 +29,7 @@ function pick(obj: any, fields: string[]) {
 // and kick an immediate sync so their data shows right away. Best-effort: a
 // Monday hiccup must never block saving the account.
 const MONDAY_API = "https://api.monday.com/v2";
-const WEBHOOK_EVENTS = ["change_column_value", "create_item", "item_deleted"];
+const WEBHOOK_EVENTS = ["change_column_value", "create_item", "item_deleted", "change_subitem_column_value", "create_subitem"];
 
 async function mondayApi(query: string, variables: Record<string, unknown>) {
   const token = (Deno.env.get("MONDAY_API_TOKEN") || "").trim();

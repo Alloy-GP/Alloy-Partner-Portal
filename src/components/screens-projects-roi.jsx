@@ -101,7 +101,7 @@ function ProjectsScreen({ onNav, onCompose }) {
   const openTix = all.filter((t) => t.status === "open");
   const links = DATA.ticketLinks || {};
   const progress = DATA.ticketProgress || {}; // zendesk id → subtask-% (stages)
-  const stageColor = (p) => (p >= 100 ? "#2c7d68" : "#a8761a");
+  const stageColor = () => "#2c7d68"; // green for all stage-progress bars
   const openedByYou = (t) => !String(t.requesterEmail || "").toLowerCase().endsWith("@alloygp.co");
 
   const projects = DATA.projects || [];
@@ -142,7 +142,7 @@ function ProjectsScreen({ onNav, onCompose }) {
             <div className="pj-skel-btns"><span /><span /></div>
           </div>
         )) : pending.map((t) => (
-          <div key={t.id} className="pj-card">
+          <div key={t.id} className="pj-card pj-clickable" role="button" tabIndex={0} onClick={() => onNav("tickets", t.id)}>
             <div className="pj-card-top">
               <OpenedBy you={openedByYou(t)} />
               <span className="pj-due"><I.Clock width={11} height={11} /> needs you</span>
@@ -152,19 +152,19 @@ function ProjectsScreen({ onNav, onCompose }) {
               <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
             ) : null}
             <div className="pj-cta">
-              {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">Review Now <I.External width={12} height={12} /></a> : null}
-              <button className={`pj-btn-secondary${links[t.id] ? "" : " solo"}`} onClick={() => onNav("tickets", t.id)}>Open message</button>
+              {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Review Now <I.External width={12} height={12} /></a> : null}
+              <span className={`pj-card-msg${links[t.id] ? "" : " solo"}`}>Open message <I.Arrow width={13} height={13} /></span>
             </div>
           </div>
         ))}
         {leadsToQualify > 0 ? (
-          <div className="pj-card lead">
+          <div className="pj-card lead pj-clickable" role="button" tabIndex={0} onClick={() => onNav("leads")}>
             <div className="pj-card-top">
               <span className="pj-leadtag">Leads</span>
               <span className="pj-due lead"><I.Clock width={11} height={11} /> new today</span>
             </div>
             <div className="pj-card-title">{leadsToQualify} new {leadsToQualify === 1 ? "lead" : "leads"} to qualify</div>
-            <div className="pj-cta"><button className="pj-btn-leads" onClick={() => onNav("leads")}>Qualify leads <I.Arrow width={14} height={14} /></button></div>
+            <div className="pj-cta"><span className="pj-card-msg solo lead">Qualify leads <I.Arrow width={14} height={14} /></span></div>
           </div>
         ) : null}
         {tickets !== null && pending.length === 0 && leadsToQualify === 0 ? (
@@ -182,16 +182,13 @@ function ProjectsScreen({ onNav, onCompose }) {
             {loading ? [0, 1].map((i) => (
               <div key={`skr${i}`} className="pj-row skel" aria-hidden="true"><div className="pj-skel-line w60" style={{ margin: 0 }} /></div>
             )) : openTix.map((t) => (
-              <div key={t.id} className="pj-row">
+              <div key={t.id} className="pj-row pj-clickable" role="button" tabIndex={0} onClick={() => onNav("tickets", t.id)}>
                 <div className="pj-row-title">{t.title}</div>
                 <OpenedBy you={openedByYou(t)} />
                 {progress[t.id] != null ? (
                   <div className="pj-row-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
                 ) : null}
-                <div className="pj-row-actions">
-                  {links[t.id] ? <a className="pj-view" href={links[t.id]} target="_blank" rel="noopener noreferrer">Review <I.External width={12} height={12} /></a> : null}
-                  <button className="pj-view" onClick={() => onNav("tickets", t.id)}>View <I.Arrow width={13} height={13} /></button>
-                </div>
+                <span className="pj-view">View <I.Arrow width={13} height={13} /></span>
               </div>
             ))}
           </div>
@@ -224,7 +221,7 @@ function ProjectsScreen({ onNav, onCompose }) {
                       <div className="pj-prow-owners"><PjAvatars ids={p.owners} /></div>
                       <div className="pj-prow-due"><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
                       <div className="pj-prow-prog">
-                        <PjBar value={p.pct} color={p.pct === 100 ? "#2c7d68" : p.status === "in-progress" ? "#a8761a" : "var(--alloy-purple)"} />
+                        <PjBar value={p.pct} color="#2c7d68" />
                         <span className="pj-pct">{p.pct}%</span>
                       </div>
                     </div>

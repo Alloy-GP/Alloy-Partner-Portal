@@ -203,9 +203,16 @@ Deno.serve(async (req) => {
       .from("accounts").select("id, monday_board_id").not("monday_board_id", "is", null);
     if (accErr) throw accErr;
 
+    // An event from a known account board scopes the sync to that account. An
+    // event from an UNKNOWN board (e.g. the sub-items board, where subtask
+    // status changes fire) isn't tied to one account, so fall through to a full
+    // sync — that's how checking off a subtask updates the stage-progress bars.
+    const knownBoards = new Set((accounts ?? []).map((a) => String(a.monday_board_id)));
+    const scoped = !!eventBoardId && knownBoards.has(eventBoardId);
+
     const summary: any[] = [];
     for (const acct of accounts ?? []) {
-      if (eventBoardId && acct.monday_board_id !== eventBoardId) continue;
+      if (scoped && acct.monday_board_id !== eventBoardId) continue;
 
       // 1) Read this board's structure and resolve ids by title/type.
       const meta = await monday(token, META_QUERY, { board: [acct.monday_board_id] });

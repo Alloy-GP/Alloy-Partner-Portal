@@ -57,6 +57,16 @@
 .pj-card-title { font-family: var(--font-display); font-size: 14.5px; font-weight: 800; color: var(--alloy-purple); line-height: 1.28; letter-spacing: -0.01em; margin-bottom: 14px; min-height: 38px; }
 .pj-card-prog { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .pj-cta { margin-top: auto; display: flex; gap: 8px; }
+
+/* Whole card/row is the click target → open the thread. */
+.pj-clickable { cursor: pointer; }
+.pj-card.pj-clickable { transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+.pj-card.pj-clickable:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(56,28,79,0.14); border-color: #d8cfe6; }
+.pj-card.pj-clickable:focus-visible { outline: 2px solid var(--alloy-pink); outline-offset: 2px; }
+/* "Open message" / "Qualify leads" — a button-styled cue; the card carries the click. */
+.pj-card-msg { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 11px 8px; border-radius: 10px; background: #fff; color: var(--alloy-purple); border: 1px solid #e0d8ea; font-family: var(--font-display); font-weight: 800; font-size: 11.5px; white-space: nowrap; }
+.pj-card-msg.lead { background: var(--alloy-purple); color: #fff; border: none; font-size: 12.5px; }
+.pj-card.pj-clickable:hover .pj-card-msg { border-color: var(--alloy-purple); }
 .pj-btn-primary, .pj-btn-secondary, .pj-btn-leads {
   flex: 1; cursor: pointer; font-family: var(--font-display); font-weight: 800; font-size: 11.5px;
   padding: 11px 8px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
@@ -74,6 +84,10 @@
 .pj-list { background: #fff; border: 1px solid #ece8f1; border-radius: 14px; overflow: hidden; margin-bottom: 46px; box-shadow: 0 2px 8px rgba(56,28,79,0.04); }
 .pj-row { display: flex; align-items: center; gap: 16px; padding: 15px 20px; }
 .pj-row + .pj-row { border-top: 1px solid #f1eef6; }
+.pj-row.pj-clickable { transition: background .12s ease; }
+.pj-row.pj-clickable:hover { background: var(--alloy-off-white); }
+.pj-row.pj-clickable:hover .pj-view { color: var(--alloy-pink); }
+.pj-row .pj-view { margin-left: auto; }
 .pj-row-title { flex: 1; min-width: 0; font-family: var(--font-display); font-size: 14px; font-weight: 800; color: var(--alloy-purple); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pj-row-prog { display: flex; align-items: center; gap: 8px; width: 150px; flex-shrink: 0; }
 .pj-row-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
@@ -107,7 +121,7 @@
 }
 
 .pj-cat-chip { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
-.pj-bar { height: 5px; background: #ece8f1; border-radius: 999px; overflow: hidden; width: 100%; }
+.pj-bar { height: 9px; background: #ece8f1; border-radius: 999px; overflow: hidden; width: 100%; }
 .pj-bar-fill { display: block; height: 100%; border-radius: 999px; }
 .pj-avatars { display: inline-flex; }
 .pj-avatar { width: 23px; height: 23px; border-radius: 999px; color: #fff; font-family: var(--font-display); font-size: 9px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px #fff; flex-shrink: 0; }
