@@ -1,7 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
-import { pendingTickets } from '../lib/zendesk.js';
+import { zdList } from '../lib/zendesk.js';
 
 // Projects, ROI, Tickets, Playbook, Library, Recognition screens
 const { useState: _useState1 } = React;
@@ -40,101 +40,188 @@ function ProjEngineChips({ engines }) {
   );
 }
 
-function ProjectsScreen({ onNav }) {
-  const [filter, setFilter] = useState("all");
-  // "Waiting on you" mirrors the dashboard action queue: live Zendesk tickets
-  // that are pending (waiting on the customer).
-  const [actionItems, setActionItems] = React.useState([]);
+// ---- Projects redesign atoms ----
+const CAT_COLORS = ["#2a6391", "#c12a60", "#2c7d68", "#b8881a", "#381c4f", "#5a7d9a", "#9a6f3a"];
+function catColor(name) {
+  let h = 0; const s = String(name || "");
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return CAT_COLORS[h % CAT_COLORS.length];
+}
+function CatChip({ name }) {
+  if (!name) return null;
+  const c = catColor(name);
+  return <span className="pj-cat-chip" style={{ color: c, background: `${c}1a` }}>{name}</span>;
+}
+function PjBar({ value, color }) {
+  return <div className="pj-bar"><span className="pj-bar-fill" style={{ width: `${value || 0}%`, background: color }} /></div>;
+}
+function PjAvatars({ ids }) {
+  return (
+    <div className="pj-avatars">
+      {(ids || []).slice(0, 4).map((id, i) => (
+        <span key={i} className="pj-avatar" style={{ background: catColor(id), marginLeft: i === 0 ? 0 : -8 }}>{id}</span>
+      ))}
+    </div>
+  );
+}
+function SecHead({ icon, iconBg, iconColor, title, sub, count, countColor, countBg }) {
+  return (
+    <div className="pj-sec">
+      <span className="pj-sec-ic" style={{ background: iconBg, color: iconColor || "#fff" }}>{icon}</span>
+      <div className="pj-sec-titles">
+        <div className="pj-sec-title">{title}</div>
+        {sub ? <div className="pj-sec-sub">{sub}</div> : null}
+      </div>
+      {count != null ? <span className="pj-sec-count" style={{ color: countColor, background: countBg }}>{count}</span> : null}
+    </div>
+  );
+}
+function OpenedBy({ you }) {
+  return <span className={`pj-openedby ${you ? "you" : "we"}`}>{you ? "You opened" : "We opened"}</span>;
+}
+
+// Zone 3 status groups — every non-ticket project, bucketed + collapsible.
+const PJ_GROUPS = [
+  { id: "in-progress", label: "In progress", color: "#a8761a", bg: "#fbeecb", statuses: ["in-progress", "assigned", "waiting"] },
+  { id: "planning", label: "Planning", color: "#8a8780", bg: "#f0eee9", statuses: ["planning"] },
+  { id: "live", label: "Complete", color: "#2c7d68", bg: "#e2f0ec", statuses: ["live"] },
+];
+
+function ProjectsScreen({ onNav, onCompose }) {
+  // Zones 1 & 2 are Zendesk tickets: pending = waiting on you, open = we're on it.
+  const [tickets, setTickets] = React.useState(null);
   React.useEffect(() => {
     let cancelled = false;
-    pendingTickets(DATA.account && DATA.account.id).then((t) => { if (!cancelled) setActionItems(t || []); });
+    zdList().then((r) => { if (!cancelled) setTickets((r && r.tickets) || []); }).catch(() => { if (!cancelled) setTickets([]); });
     return () => { cancelled = true; };
   }, []);
-  const filtered = filter === "all" ? DATA.projects : DATA.projects.filter(p => p.status === filter);
-  const counts = PROJ_STATUSES.reduce((acc, s) => {
-    acc[s.id] = DATA.projects.filter(p => p.status === s.id).length;
-    return acc;
-  }, {});
+  const all = tickets || [];
+  const pending = all.filter((t) => t.status === "pending");
+  const openTix = all.filter((t) => t.status === "open");
+  const links = DATA.ticketLinks || {};
+  const openedByYou = (t) => !String(t.requesterEmail || "").toLowerCase().endsWith("@alloygp.co");
+
+  const projects = DATA.projects || [];
+  const inMotion = projects.filter((p) => p.status && p.status !== "live").length;
+  const _now = new Date();
+  const _qStart = new Date(_now.getFullYear(), Math.floor(_now.getMonth() / 3) * 3, 1);
+  const _qEnd = new Date(_qStart.getFullYear(), _qStart.getMonth() + 3, 1);
+  const inQuarter = (d) => { if (!d) return false; const x = new Date(d); return x >= _qStart && x < _qEnd; };
+  const deliveredQtr = projects.filter((p) => p.status === "live" && inQuarter(p.dueDate)).length;
+  const totalCompleted = projects.filter((p) => p.status === "live").length;
+
+  const leadsToQualify = (DATA.recentLeads || []).filter((l) => l.quotable !== "yes" && l.quotable !== "no").length;
+
+  const groups = PJ_GROUPS
+    .map((g) => ({ ...g, items: projects.filter((p) => g.statuses.includes(p.status)) }))
+    .filter((g) => g.items.length);
+  const [open, setOpen] = React.useState({ "in-progress": true, planning: true, live: false });
+
+  const reqProject = () => { if (onCompose) onCompose(); else onNav("tickets"); };
 
   return (
-    <div className="content proj-screen" data-screen-label="02 Projects">
-      {/* Waiting on you — tickets in Review (same as the dashboard action queue) */}
-      {actionItems.length > 0 && (
-        <div className="proj-review-section">
-          <div className="proj-section-head">
-            <div className="proj-section-title">Waiting on you</div>
-            <div className="proj-section-count">{actionItems.length}</div>
-          </div>
-          <div className="proj-review-rows">
-            {actionItems.map((a) => (
-              <div key={a.id} className="proj-review-row">
-                <button className="btn btn-sm btn-primary proj-review-row-btn" onClick={() => onNav("tickets", a.id)}>Open →</button>
-                <div className="proj-review-row-title">{a.title}</div>
-                <span className="proj-status-pill" style={{color:"var(--alloy-pink)", background:"var(--alloy-pink-tint)"}}>
-                  <span className="dot" style={{background:"var(--alloy-pink)"}}/>Awaiting you
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* All projects */}
-      <div className="proj-all-section">
-        <div className="proj-section-head">
-          <div className="proj-section-title">All projects</div>
-          <div className="proj-section-spacer"/>
-          <div className="proj-chips">
-            <button onClick={() => setFilter("all")} className="proj-chip" data-active={filter==="all"}>All · {DATA.projects.length}</button>
-            {PROJ_STATUSES.map(s => (
-              <button key={s.id} onClick={() => setFilter(s.id)} className="proj-chip" data-active={filter===s.id}
-                style={filter===s.id ? {background:s.color, color:"#fff", borderColor:s.color} : {color:s.color}}
-              >
-                <span className="chip-dot" style={{background: filter===s.id ? "#fff" : s.color}}/>
-                {s.label} · {counts[s.id] || 0}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="proj-table">
-          <div className="proj-table-head">
-            <div>Project</div>
-            <div>Engine</div>
-            <div>Status</div>
-            <div>Due</div>
-          </div>
-          {filtered.map(p => {
-            const st = PROJ_ST[p.status] || PROJ_ST["in-progress"];
-            return (
-            <div key={p.id} className="proj-table-row" style={{background: `${st.color}12`, boxShadow: `inset 3px 0 0 ${st.color}`}}>
-              <div className="proj-table-project">
-                <div className="proj-table-title" title={p.title}>{p.title}</div>
-                <div className="proj-table-pulse">{p.pulse}</div>
-              </div>
-              <div><ProjEngineChips engines={p.engines}/></div>
-              <div><ProjStatusPill status={p.status}/></div>
-              <div className="proj-table-due">
-                <div>{p.due}</div>
-                <div className="proj-table-duerel">{p.dueRel}</div>
-              </div>
-            </div>
-            );
-          })}
-          {filtered.length === 0 ? (
-            <div style={{padding:"32px 16px", textAlign:"center", fontSize:13, color:"var(--fg-muted)"}}>
-              Nothing here. Try a different filter.
-            </div>
-          ) : null}
-        </div>
+    <div className="content pj-screen" data-screen-label="02 Projects">
+      {/* Scorecard */}
+      <div className="pj-scorecard">
+        <div className="pj-stat"><div className="pj-stat-n" style={{ color: "var(--alloy-pink)" }}>{inMotion}</div><div className="pj-stat-l">in motion now</div></div>
+        <div className="pj-stat"><div className="pj-stat-n" style={{ color: "var(--alloy-purple)" }}>{deliveredQtr}</div><div className="pj-stat-l">delivered this quarter</div></div>
+        <div className="pj-stat last"><div className="pj-stat-n" style={{ color: "#2c7d68" }}>{totalCompleted}</div><div className="pj-stat-l">total projects completed</div></div>
       </div>
 
-      {/* Footer — request CTA */}
-      <button
-        className="btn btn-primary"
-        style={{marginTop:18, width:"100%", justifyContent:"center", padding:"14px 16px"}}
-        onClick={() => onNav("tickets")}
-      ><I.Plus width={14} height={14}/> Request a new project</button>
+      {/* ===== 1 · Waiting on you ===== */}
+      <SecHead icon={<I.Bolt width={18} height={18} />} iconBg="var(--alloy-pink)"
+        title="Waiting on you" sub="Paused on you — each one moves forward the moment you weigh in"
+        count={pending.length + (leadsToQualify > 0 ? 1 : 0)} countColor="#fff" countBg="var(--alloy-pink)" />
+      <div className="pj-cards">
+        {pending.map((t) => (
+          <div key={t.id} className="pj-card">
+            <div className="pj-card-top">
+              <OpenedBy you={openedByYou(t)} />
+              <span className="pj-due"><I.Clock width={11} height={11} /> needs you</span>
+            </div>
+            <div className="pj-card-title">{t.title}</div>
+            <div className="pj-cta">
+              {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">Open review</a> : null}
+              <button className={`pj-btn-secondary${links[t.id] ? "" : " solo"}`} onClick={() => onNav("tickets", t.id)}>Open message</button>
+            </div>
+          </div>
+        ))}
+        {leadsToQualify > 0 ? (
+          <div className="pj-card lead">
+            <div className="pj-card-top">
+              <span className="pj-leadtag">Leads</span>
+              <span className="pj-due lead"><I.Clock width={11} height={11} /> new today</span>
+            </div>
+            <div className="pj-card-title">{leadsToQualify} new {leadsToQualify === 1 ? "lead" : "leads"} to qualify</div>
+            <div className="pj-cta"><button className="pj-btn-leads" onClick={() => onNav("leads")}>Qualify leads <I.Arrow width={14} height={14} /></button></div>
+          </div>
+        ) : null}
+        {tickets !== null && pending.length === 0 && leadsToQualify === 0 ? (
+          <div className="pj-empty">Nothing waiting on you — you're all caught up.</div>
+        ) : null}
+      </div>
+
+      {/* ===== 2 · In progress · we're on it ===== */}
+      {openTix.length > 0 ? (
+        <>
+          <SecHead icon={<I.Check width={17} height={17} />} iconBg="#eef4f1" iconColor="#2c7d68"
+            title="In progress · we're on it" sub="Open with your team — no action needed, we'll reach out when we need you"
+            count={openTix.length} countColor="#2c7d68" countBg="#e2f0ec" />
+          <div className="pj-list">
+            {openTix.map((t) => (
+              <div key={t.id} className="pj-row">
+                <div className="pj-row-title">{t.title}</div>
+                <OpenedBy you={openedByYou(t)} />
+                <div className="pj-row-actions">
+                  {links[t.id] ? <a className="pj-view" href={links[t.id]} target="_blank" rel="noopener noreferrer">Review <I.External width={12} height={12} /></a> : null}
+                  <button className="pj-view" onClick={() => onNav("tickets", t.id)}>View <I.Arrow width={13} height={13} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {/* ===== 3 · Everything else we're driving ===== */}
+      <SecHead icon={<I.Bolt width={16} height={16} />} iconBg="#ece8f1" iconColor="var(--alloy-purple)"
+        title="Everything else we're driving" sub="Work we're running for you in the background — nothing needed from you"
+        count={projects.length} countColor="var(--alloy-purple)" countBg="#ece8f1" />
+      <div className="pj-groups">
+        {groups.map((g) => {
+          const isOpen = open[g.id];
+          return (
+            <div key={g.id} className="pj-group">
+              <button className={`pj-group-head${g.id === "live" ? " done" : ""}`} onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))}>
+                <span className={`pj-chev${isOpen ? " open" : ""}`}><I.Chevron width={15} height={15} /></span>
+                <span className="pj-dot" style={{ background: g.color }} />
+                <span className="pj-group-label">{g.label}</span>
+                <span className="pj-group-count" style={{ color: g.color, background: g.bg }}>{g.items.length}</span>
+                <div className="grow" />
+                {g.id === "live" ? <span className="pj-done-note"><I.Check width={13} height={13} /> Delivered &amp; live</span> : null}
+              </button>
+              {isOpen ? (
+                <div className="pj-prows">
+                  {g.items.map((p) => (
+                    <div key={p.id} className="pj-prow">
+                      <div className="pj-id">{p.id}</div>
+                      <div className="pj-prow-title">{p.title}</div>
+                      <div className="pj-prow-cat"><CatChip name={p.phase} /></div>
+                      <div className="pj-prow-owners"><PjAvatars ids={p.owners} /></div>
+                      <div className="pj-prow-due"><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
+                      <div className="pj-prow-prog">
+                        <PjBar value={p.pct} color={p.pct === 100 ? "#2c7d68" : p.status === "in-progress" ? "#a8761a" : "var(--alloy-purple)"} />
+                        <span className="pj-pct">{p.pct}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <button className="pj-footer-cta" onClick={reqProject}><I.Plus width={15} height={15} /> Request a new project</button>
     </div>
   );
 }

@@ -96,8 +96,23 @@ const META_QUERY = `
 
 type ColMap = {
   status: string | null; due: string | null; person: string | null;
-  category: string | null; taskId: string | null; zendesk: string | null;
+  category: string | null; taskId: string | null; zendesk: string | null; link: string | null;
 };
+
+// A Monday "link" column stores { url, text } in `value`. Pull the URL (the
+// client-facing review/Pastel link). Falls back to the first URL in the text.
+function linkUrl(item: any, colId: string | null): string | null {
+  if (!colId) return null;
+  const c = item.column_values.find((x: any) => x.id === colId);
+  if (!c) return null;
+  if (c.value) {
+    try { const v = JSON.parse(c.value); if (v && v.url) return String(v.url); } catch { /* ignore */ }
+  }
+  // Text fallback: Monday serializes link text as "Label - https://…".
+  const t = (c.text || "").trim();
+  const idx = t.lastIndexOf("http");
+  return idx >= 0 ? t.slice(idx).split(" ")[0] : null;
+}
 
 function resolveColumns(columns: any[]): ColMap {
   const norm = (s: string) => (s || "").trim().toLowerCase();
@@ -113,6 +128,7 @@ function resolveColumns(columns: any[]): ColMap {
     category: byTitle("category", "status")?.id ?? null,
     taskId: byTitle("task id", "text")?.id ?? null,
     zendesk: zendesk?.id ?? null,
+    link: byTitle("link", "link")?.id ?? null,
   };
 }
 
@@ -195,7 +211,7 @@ Deno.serve(async (req) => {
       ].filter(Boolean) as string[];
 
       // 2) Fetch items for just those groups, requesting the resolved columns.
-      const colIds = [C.status, C.due, C.person, C.category, C.taskId, C.zendesk].filter(Boolean) as string[];
+      const colIds = [C.status, C.due, C.person, C.category, C.taskId, C.zendesk, C.link].filter(Boolean) as string[];
       const ITEMS_QUERY = `
         query ($board: [ID!], $groups: [String!]) {
           boards(ids: $board) {
@@ -218,6 +234,7 @@ Deno.serve(async (req) => {
       const projects: any[] = [];
       const services: any[] = [];
       const actions: any[] = [];
+      const ticketLinks: any[] = []; // { account_id, zendesk_id, link } for the Projects "Open review" button
 
       for (const g of groups) {
         const items = g.items_page?.items ?? [];
@@ -255,6 +272,14 @@ Deno.serve(async (req) => {
               last_touch: updLabel, note: cat || null, sort: services.length,
             });
           } else if (g.id === ticketsGroupId) {
+            // Capture the Monday "Link" (Pastel/review URL) keyed by Zendesk
+            // ticket id, for any ticket item that has both — the Projects page
+            // surfaces it as "Open review" on the pending/open ticket cards.
+            const zdRef = zendeskRef(it, C.zendesk);
+            const reviewLink = linkUrl(it, C.link);
+            if (zdRef.id && reviewLink) {
+              ticketLinks.push({ account_id: acct.id, zendesk_id: zdRef.id, link: reviewLink });
+            }
             if (ACTION_STATUSES.has(statusText)) {
               // Waiting on you (action queue)
               const zd = zendeskRef(it, C.zendesk);
@@ -279,8 +304,12 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Dedup ticket links by zendesk_id (PK is account_id + zendesk_id).
+      const tlSeen = new Set<string>();
+      const ticketLinksDedup = ticketLinks.filter((t) => (tlSeen.has(t.zendesk_id) ? false : (tlSeen.add(t.zendesk_id), true)));
+
       // Each table mirrors Monday for this account: clear then insert.
-      for (const [table, rows] of [["projects", projects], ["recurring_services", services], ["action_items", actions]] as const) {
+      for (const [table, rows] of [["projects", projects], ["recurring_services", services], ["action_items", actions], ["ticket_links", ticketLinksDedup]] as const) {
         const { error: delErr } = await supabase.from(table).delete().eq("account_id", acct.id);
         if (delErr) throw delErr;
         if (rows.length) {

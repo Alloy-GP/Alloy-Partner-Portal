@@ -50,7 +50,7 @@ export async function loadAccountData(session, accountId, me) {
     accountRes, recurringRes, projectsRes, leadsRes,
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
-    paymentMethodsRes, autopayRes,
+    paymentMethodsRes, autopayRes, ticketLinksRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -70,6 +70,7 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('profiles').select('id, name, initials, avatar_url, role, is_staff').eq('account_id', accountId),
     supabase.from('quickbooks_payment_methods').select('*').eq('account_id', accountId).order('created_at', { ascending: false }),
     supabase.from('autopay_schedules').select('*').eq('account_id', accountId).maybeSingle(),
+    supabase.from('ticket_links').select('zendesk_id, link').eq('account_id', accountId),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -144,6 +145,9 @@ export async function loadAccountData(session, accountId, me) {
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase || null,
       dueDate: p.due_date || null, dueLabel: p.due_label || '',
     })),
+    // Zendesk ticket id → Monday "Link" (Pastel/review URL). Projects page reads
+    // this for the "Open review" button on pending/open ticket cards.
+    ticketLinks: Object.fromEntries((ticketLinksRes.data || []).map((t) => [t.zendesk_id, t.link])),
     recentLeads: (leadsRes.data || []).map((l) => ({
       id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, source: l.source,
       quality: l.quality, quotable: l.quotable,

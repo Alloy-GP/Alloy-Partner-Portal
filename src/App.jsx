@@ -123,7 +123,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     switch (active) {
       case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
       case "roi": return <ROIScreen/>;
-      case "projects": return <ProjectsScreen onNav={handleNav}/>;
+      case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       case "tickets": return <TicketsScreen/>;
       case "leads": return <LeadsScreen/>;
       case "playbook": return <PlaybookScreen onNav={handleNav}/>;
