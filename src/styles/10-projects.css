@@ -26,8 +26,21 @@
 
 /* ---- Zone 1: Waiting on you (cards) ---- */
 .pj-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 46px; }
-@media (max-width: 1100px) { .pj-cards { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 620px) { .pj-cards { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .pj-cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 720px) { .pj-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .pj-cards { grid-template-columns: 1fr; } }
+
+/* Loading skeletons (Zendesk zones) */
+.pj-card.skel { box-shadow: 0 2px 8px rgba(56,28,79,0.04); min-height: 150px; }
+.pj-row.skel { pointer-events: none; }
+.pj-skel-line { height: 11px; border-radius: 6px; margin-bottom: 9px;
+  background: linear-gradient(90deg, #efeaf3 25%, #f7f3fa 50%, #efeaf3 75%); background-size: 200% 100%;
+  animation: pj-shimmer 1.3s ease-in-out infinite; }
+.pj-skel-line.w40 { width: 40%; } .pj-skel-line.w60 { width: 60%; } .pj-skel-line.w70 { width: 70%; } .pj-skel-line.w90 { width: 90%; }
+.pj-skel-btns { margin-top: auto; display: flex; gap: 8px; }
+.pj-skel-btns span { flex: 1; height: 34px; border-radius: 10px; background: #f1edf6; }
+@keyframes pj-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .pj-skel-line { animation: none; } }
 .pj-empty { grid-column: 1 / -1; padding: 22px 4px; font-size: 13px; color: var(--fg-muted); }
 .pj-card {
   background: #fff; border: 1px solid #ece8f1; border-top: 3px solid var(--alloy-pink);

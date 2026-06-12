@@ -95,6 +95,7 @@ function ProjectsScreen({ onNav, onCompose }) {
     zdList().then((r) => { if (!cancelled) setTickets((r && r.tickets) || []); }).catch(() => { if (!cancelled) setTickets([]); });
     return () => { cancelled = true; };
   }, []);
+  const loading = tickets === null; // zdList still in flight
   const all = tickets || [];
   const pending = all.filter((t) => t.status === "pending");
   const openTix = all.filter((t) => t.status === "open");
@@ -131,9 +132,14 @@ function ProjectsScreen({ onNav, onCompose }) {
       {/* ===== 1 · Waiting on you ===== */}
       <SecHead icon={<I.Bolt width={18} height={18} />} iconBg="var(--alloy-pink)"
         title="Waiting on you" sub="Paused on you — each one moves forward the moment you weigh in"
-        count={pending.length + (leadsToQualify > 0 ? 1 : 0)} countColor="#fff" countBg="var(--alloy-pink)" />
+        count={loading ? null : pending.length + (leadsToQualify > 0 ? 1 : 0)} countColor="#fff" countBg="var(--alloy-pink)" />
       <div className="pj-cards">
-        {pending.map((t) => (
+        {loading ? [0, 1, 2, 3].map((i) => (
+          <div key={`sk${i}`} className="pj-card skel" aria-hidden="true">
+            <div className="pj-skel-line w40" /><div className="pj-skel-line w90" /><div className="pj-skel-line w70" />
+            <div className="pj-skel-btns"><span /><span /></div>
+          </div>
+        )) : pending.map((t) => (
           <div key={t.id} className="pj-card">
             <div className="pj-card-top">
               <OpenedBy you={openedByYou(t)} />
@@ -162,13 +168,15 @@ function ProjectsScreen({ onNav, onCompose }) {
       </div>
 
       {/* ===== 2 · In progress · we're on it ===== */}
-      {openTix.length > 0 ? (
+      {(loading || openTix.length > 0) ? (
         <>
           <SecHead icon={<I.Check width={17} height={17} />} iconBg="#eef4f1" iconColor="#2c7d68"
             title="In progress · we're on it" sub="Open with your team — no action needed, we'll reach out when we need you"
-            count={openTix.length} countColor="#2c7d68" countBg="#e2f0ec" />
+            count={loading ? null : openTix.length} countColor="#2c7d68" countBg="#e2f0ec" />
           <div className="pj-list">
-            {openTix.map((t) => (
+            {loading ? [0, 1].map((i) => (
+              <div key={`skr${i}`} className="pj-row skel" aria-hidden="true"><div className="pj-skel-line w60" style={{ margin: 0 }} /></div>
+            )) : openTix.map((t) => (
               <div key={t.id} className="pj-row">
                 <div className="pj-row-title">{t.title}</div>
                 <OpenedBy you={openedByYou(t)} />
