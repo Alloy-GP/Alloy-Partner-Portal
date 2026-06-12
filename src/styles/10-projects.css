@@ -25,10 +25,10 @@
 .pj-openedby.we { background: #e6eef5; color: #2a6391; }
 
 /* ---- Zone 1: Waiting on you (cards) ---- */
-.pj-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 46px; }
-@media (max-width: 1000px) { .pj-cards { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 720px) { .pj-cards { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px) { .pj-cards { grid-template-columns: 1fr; } }
+.pj-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 46px; }
+@media (max-width: 900px) { .pj-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .pj-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 460px) { .pj-cards { grid-template-columns: 1fr; } }
 
 /* Loading skeletons (Zendesk zones) */
 .pj-card.skel { box-shadow: 0 2px 8px rgba(56,28,79,0.04); min-height: 150px; }
