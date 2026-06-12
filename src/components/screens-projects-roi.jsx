@@ -100,9 +100,9 @@ function OpenedBy({ you }) {
 
 // Zone 3 status groups — every non-ticket project, bucketed + collapsible.
 const PJ_GROUPS = [
-  { id: "in-progress", label: "In progress", color: "#a8761a", bg: "#fbeecb", statuses: ["in-progress", "assigned", "waiting"] },
-  { id: "planning", label: "Planning", color: "#8a8780", bg: "#f0eee9", statuses: ["planning"] },
-  { id: "live", label: "Complete", color: "#2c7d68", bg: "#e2f0ec", statuses: ["live"] },
+  { id: "in-progress", label: "In progress", color: "#f3bf72", statuses: ["in-progress", "assigned", "waiting"] },
+  { id: "planning", label: "Planning", color: "#84aef7", statuses: ["planning"] },
+  { id: "live", label: "Complete", color: "#2c7d68", statuses: ["live"] },
 ];
 
 function ProjectsScreen({ onNav, onCompose }) {
@@ -195,7 +195,7 @@ function ProjectsScreen({ onNav, onCompose }) {
             </div>
           </div>
         ))}
-        {leadsToQualify > 0 ? (
+        {!loading && leadsToQualify > 0 ? (
           <div className="pj-card lead pj-clickable" role="button" tabIndex={0} onClick={() => onNav("leads")}>
             <div className="pj-card-top">
               <span className="pj-leadtag">Leads</span>
@@ -244,12 +244,12 @@ function ProjectsScreen({ onNav, onCompose }) {
         {groups.map((g) => {
           const isOpen = open[g.id];
           return (
-            <div key={g.id} className="pj-group">
+            <div key={g.id} className="pj-group" style={{ "--g": g.color }}>
               <button className={`pj-group-head${g.id === "live" ? " done" : ""}`} onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))}>
                 <span className={`pj-chev${isOpen ? " open" : ""}`}><I.Chevron width={15} height={15} /></span>
-                <span className="pj-dot" style={{ background: g.color }} />
+                <span className="pj-dot" />
                 <span className="pj-group-label">{g.label}</span>
-                <span className="pj-group-count" style={{ color: g.color, background: g.bg }}>{g.items.length}</span>
+                <span className="pj-group-count">{g.items.length}</span>
                 <div className="grow" />
                 {g.id === "live" ? <span className="pj-done-note"><I.Check width={13} height={13} /> Delivered &amp; live</span> : null}
               </button>
