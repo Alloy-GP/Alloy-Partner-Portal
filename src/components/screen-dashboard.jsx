@@ -7,6 +7,7 @@ import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
 import { pendingTickets } from '../lib/zendesk.js';
 import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
+import { quarterTrends } from '../lib/flywheel.js';
 
 // Shared "needs you" signal — live Zendesk tickets in "pending" status. Cached
 // in the lib so the queue, hero count, and bell share one network call.
@@ -61,8 +62,14 @@ function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
       {/* Action queue + Projects + Activity — full width, prominent, directly under banner */}
       <div className="dash-spotlight">
         <ActionQueue onNav={onNav} />
-        <ProjectsList onNav={onNav} />
-        <PartnershipValueCard onNav={onNav} />
+        <div className="dash-mid">
+          <RoadmapCard onNav={onNav} />
+          <ProjectsList onNav={onNav} />
+        </div>
+        <div className="dash-right">
+          <PartnershipValueCard onNav={onNav} />
+          <FlywheelMini onNav={onNav} />
+        </div>
       </div>
 
       <DashboardFooter />
@@ -130,6 +137,15 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   // Tier / plan
   const plan = `BoardSuite ${DATA.account?.tier || "Accelerate"}`;
 
+  // Maturity level — the program's spine. Derived from the current roadmap
+  // quarter's title: Foundation → Momentum → Scale → Expansion → Compound.
+  const LADDER = ["Foundation", "Momentum", "Scale", "Expansion", "Compound"];
+  const _nowQ = (DATA.roadmap || []).find(q => q.state === "now") || (DATA.roadmap || [])[0] || {};
+  const _li = Math.max(0, LADDER.findIndex(t => t.toLowerCase() === String(_nowQ.title || "").toLowerCase()));
+  const levelNum = _li + 1;
+  const levelName = LADDER[_li];
+  const nextLevel = LADDER[_li + 1] || null;
+
   return (
     <section className="alloy-hero" aria-label="Account overview" data-tour="hero">
       <div className="alloy-hero-main">
@@ -157,6 +173,11 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
             </div>
           </div>
 
+          <button className="alloy-hero-level" onClick={() => onNav && onNav("playbook")} aria-label={`Level ${levelNum} ${levelName} — view roadmap`}>
+            <span className="ahl-badge">Level {levelNum}</span>
+            <span className="ahl-name">{levelName}</span>
+            <span className="ahl-next">{nextLevel ? `Clear this to reach ${nextLevel}` : "Compounding"}</span>
+          </button>
           <h1 className="alloy-hero-title">Welcome back, {firstName}.</h1>
         </div>
       </div>
@@ -384,6 +405,83 @@ function PastSnapshotCalendar() {
   );
 }
 
+// Roadmap pace card — quarter progress (work done) vs. a "today" marker showing
+// how far we are through the quarter, with an Ahead/On track/Behind pill. Sits
+// on top of the Playbook card in the middle spotlight column.
+function RoadmapCard({ onNav }) {
+  const pb = (DATA.roadmap || []).find(q => q.state === "now") || (DATA.roadmap || [])[0] || {};
+  const allProjects = DATA.projects || [];
+  const pbTotal = allProjects.length;
+  const pbDone = allProjects.filter(p => p.status === "live").length;
+  const pbPct = pbTotal ? Math.round((pbDone / pbTotal) * 100) : 0;
+
+  // Pace — work done vs. how far we are through the quarter.
+  const timePct = quarterTimePct(pb);
+  const paceGap = timePct == null ? null : pbPct - timePct;
+  const pace = paceGap == null ? null
+    : paceGap >= 8  ? { label: "Ahead",    mod: "ahead" }
+    : paceGap <= -8 ? { label: "Behind",   mod: "behind" }
+    :                 { label: "On track", mod: "ontrack" };
+
+  return (
+    <div className="ws-column dash-roadmap">
+      <button className="ws-playbook dash-link" onClick={() => onNav && onNav("playbook")}>
+        <div className="ws-pb-head">
+          <span className="ws-pb-label">Roadmap</span>
+          <span className="ws-pb-link">View roadmap →</span>
+        </div>
+        <div className="ws-pb-metric">
+          <span className="ws-pb-pct">{pbPct}<span className="ws-pb-pct-sym">%</span></span>
+          <span className="ws-pb-sub">{pbDone} of {pbTotal} tasks complete</span>
+          {pace ? <span className={`ws-pb-status ws-pb-status--${pace.mod}`}>{pace.label}</span> : null}
+        </div>
+        <div className="ws-pb-track">
+          <div className="ws-pb-fill" style={{ width: `${pbPct}%` }}/>
+          {timePct != null ? <div className="ws-pb-marker" style={{ left: `${timePct}%` }} aria-hidden="true"/> : null}
+        </div>
+      </button>
+    </div>
+  );
+}
+
+// Flywheel mini — small card under Partnership value. Shows the three flywheel
+// stages and whether each is growing quarter-over-quarter (same elapsed window of
+// this quarter vs last). Reach = demand, Match = qualified, Retain = the reputation
+// loop-back (direct, reviews, referrals).
+function FlywheelMini({ onNav }) {
+  const t = quarterTrends(DATA.recentLeads, Date.now());
+  const rows = [
+    { key: "reach",  label: "Reach",  sub: "leads",      ...t.reach },
+    { key: "match",  label: "Match",  sub: "qualified",  ...t.match },
+    { key: "retain", label: "Retain", sub: "reputation", ...t.retain },
+  ];
+  // Need a prior-quarter baseline to show a trend; otherwise skip the card.
+  if (!t.hasPrior) return null;
+
+  const fmt = (r) => (r.deltaPct == null ? "new" : `${r.deltaPct > 0 ? "+" : ""}${r.deltaPct}%`);
+  const glyph = (d) => (d === "up" ? "▲" : d === "down" ? "▼" : "—");
+
+  return (
+    <button className="fw-mini" onClick={() => onNav && onNav("leads")} aria-label="Flywheel — quarter-over-quarter trend, see leads">
+      <div className="fw-mini-head">
+        <span className="fw-mini-label">Flywheel</span>
+        <span className="fw-mini-link">vs last qtr →</span>
+      </div>
+      <div className="fw-mini-rows">
+        {rows.map((r) => (
+          <div key={r.key} className="fw-mini-row">
+            <span className="fw-mini-dot" style={{ background: ENGINES[r.key].color }} />
+            <span className="fw-mini-name">{r.label}</span>
+            <span className="fw-mini-sub">{r.sub}</span>
+            <span className="fw-mini-val">{Number(r.cur).toLocaleString("en-US")}</span>
+            <span className={`fw-mini-delta fw-${r.dir}`}>{glyph(r.dir)} {fmt(r)}</span>
+          </div>
+        ))}
+      </div>
+    </button>
+  );
+}
+
 function PartnershipValueCard({ onNav }) {
   const leads = DATA.recentLeads || [];
   const quoteMonthly = leads.reduce((s, l) => s + (Number(l.quoteValue) || 0), 0);
@@ -402,22 +500,6 @@ function PartnershipValueCard({ onNav }) {
     return `$${Math.round(n)}`;
   };
 
-  // Quarterly playbook progress (kept above the value tiles).
-  const pb = (DATA.roadmap || []).find(q => q.state === "now") || (DATA.roadmap || [])[0] || {};
-  const allProjects = DATA.projects || [];
-  const pbTotal = allProjects.length;
-  const pbDone = allProjects.filter(p => p.status === "live").length;
-  const pbPct = pbTotal ? Math.round((pbDone / pbTotal) * 100) : 0;
-
-  // Pace — work done vs. how far we are through the quarter. Tells the client
-  // "are we on track?" instead of just "how much is done".
-  const timePct = quarterTimePct(pb);
-  const paceGap = timePct == null ? null : pbPct - timePct;
-  const pace = paceGap == null ? null
-    : paceGap >= 8  ? { label: "Ahead",    mod: "ahead" }
-    : paceGap <= -8 ? { label: "Behind",   mod: "behind" }
-    :                 { label: "On track", mod: "ontrack" };
-
   // All-time relationship value (not a period). The $ tiles are driven by the
   // quote/sales values entered in the qualify flow, so they grow as leads get
   // valued.
@@ -429,24 +511,7 @@ function PartnershipValueCard({ onNav }) {
   ];
 
   return (
-    <div className="ws-column" data-tour="snapshot">
-      <button className="ws-playbook dash-link" onClick={() => onNav && onNav("playbook")}>
-        <div className="ws-pb-head">
-          <span className="ws-pb-label">{pb.q ? `${pb.q} Roadmap` : "Roadmap"}</span>
-          <span className="ws-pb-link">View roadmap →</span>
-        </div>
-        <div className="ws-pb-metric">
-          <span className="ws-pb-pct">{pbPct}<span className="ws-pb-pct-sym">%</span></span>
-          <span className="ws-pb-sub">{pbDone} of {pbTotal} tasks complete</span>
-          {pace ? <span className={`ws-pb-status ws-pb-status--${pace.mod}`}>{pace.label}</span> : null}
-        </div>
-        <div className="ws-pb-track">
-          <div className="ws-pb-fill" style={{ width: `${pbPct}%` }}/>
-          {timePct != null ? <div className="ws-pb-marker" style={{ left: `${timePct}%` }} aria-hidden="true"/> : null}
-        </div>
-      </button>
-
-      <div className="weekly-snapshot dash-link" role="button" tabIndex={0} onClick={() => onNav && onNav("leads")}>
+    <div className="weekly-snapshot dash-link dash-value-full" data-tour="snapshot" role="button" tabIndex={0} onClick={() => onNav && onNav("leads")}>
         <div className="pv-head">
           <span className="pv-ic"><I.TrendUp width={20} height={20} /></span>
           <div className="pv-titles">
@@ -476,7 +541,6 @@ function PartnershipValueCard({ onNav }) {
           ) : null}
         </div>
       </div>
-    </div>
   );
 }
 

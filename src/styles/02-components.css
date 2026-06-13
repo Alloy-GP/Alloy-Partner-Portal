@@ -486,6 +486,10 @@
   .dash-spotlight .dash-feature-card .dash-feature-title { font-size: 20px; }
 }
 
+/* Flywheel mini lives in the right spotlight column; desktop-only (mobile uses a
+   different dashboard layout). Visible styles are in 05-desktop.css. */
+.fw-mini { display: none; }
+
 /* Dashboard feature cards — chunky white card with thick accent top */
 .dash-feature-card { padding: 26px 26px 22px !important; border-radius: 14px; }
 .dash-feature-card .dash-feature-title {
