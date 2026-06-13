@@ -1,0 +1,84 @@
+/* Alloy Client Portal — SEO Performance card (Ahrefs) */
+
+.seo-card {
+  background: #fff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+/* Header */
+.seo-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 20px 24px; color: #fff;
+  background: linear-gradient(135deg, var(--alloy-purple) 0%, var(--alloy-purple-deep) 100%);
+}
+.seo-ic {
+  width: 40px; height: 40px; border-radius: 10px; flex: none;
+  background: rgba(255,255,255,0.12); display: grid; place-items: center; color: var(--alloy-yellow);
+}
+.seo-titles { flex: 1; }
+.seo-kicker { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--alloy-yellow); font-weight: 600; }
+.seo-title { font-family: var(--font-display); font-size: 19px; font-weight: 600; line-height: 1.2; }
+.seo-meta { text-align: right; font-size: 11px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+.seo-meta b { color: #fff; font-weight: 600; }
+
+/* Hero stat tiles */
+.seo-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--border-subtle); border-bottom: 1px solid var(--border-subtle);
+}
+.seo-stat { background: #fff; padding: 18px 16px; }
+.seo-stat .num { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1; }
+.seo-stat .lbl { font-size: 12px; color: var(--fg-3); font-weight: 600; margin-top: 7px; }
+.seo-stat .sub { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+
+/* Lower sections */
+.seo-body { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1px; background: var(--border-subtle); }
+.seo-sec { background: #fff; padding: 18px 22px; }
+.seo-sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.seo-sec-title { font-family: var(--font-display); font-size: 13px; font-weight: 600; color: var(--fg-2); }
+.seo-sec-pill { font-size: 11px; font-weight: 600; color: var(--alloy-purple); background: var(--alloy-purple-tint); padding: 3px 9px; border-radius: 999px; }
+
+/* Keyword rows */
+.kw { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-subtle); }
+.kw:last-child { border-bottom: none; }
+.kw-pos { flex: none; width: 30px; height: 24px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; font-weight: 700; font-family: var(--font-display); }
+.kw-pos.pos-top { background: var(--alloy-green, #aed7d0); color: #0f3b30; }
+.kw-pos.pos-mid { background: var(--alloy-yellow); color: #5a4708; }
+.kw-pos.pos-low { background: #eee; color: #666; }
+.kw-txt { flex: 1; font-size: 12.5px; color: var(--fg-2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kw-vol { flex: none; font-size: 11px; color: var(--fg-muted); }
+
+/* Rank distribution bars */
+.dist { display: flex; flex-direction: column; gap: 10px; }
+.dist-row { display: flex; align-items: center; gap: 10px; }
+.dist-lbl { flex: none; width: 62px; font-size: 11.5px; color: var(--fg-3); font-weight: 600; }
+.dist-track { flex: 1; height: 8px; border-radius: 999px; background: var(--alloy-purple-tint); overflow: hidden; }
+.dist-fill { display: block; height: 100%; border-radius: 999px; }
+.dist-n { flex: none; width: 24px; text-align: right; font-size: 12px; font-weight: 700; color: var(--fg-2); font-family: var(--font-display); }
+
+/* Backlinks mini-stats */
+.seo-backlinks { display: flex; gap: 28px; }
+.seo-backlinks .num { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--alloy-purple); line-height: 1; }
+.seo-backlinks .sub { font-size: 11px; color: var(--fg-muted); margin-top: 3px; }
+
+/* Site health donut */
+.health { display: flex; align-items: center; gap: 16px; }
+.donut { width: 78px; height: 78px; flex: none; border-radius: 50%; display: grid; place-items: center; }
+.donut-inner { width: 58px; height: 58px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-family: var(--font-display); text-align: center; }
+.donut-inner b { font-size: 20px; font-weight: 700; color: var(--fg); line-height: 1; display: block; }
+.donut-inner span { font-size: 9px; color: var(--fg-muted); }
+.health-stats { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+.hrow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); }
+.hdot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.hrow .n { margin-left: auto; font-weight: 700; font-family: var(--font-display); }
+
+.seo-foot { padding: 10px 24px; background: var(--alloy-purple-tint); font-size: 11px; color: var(--fg-muted); text-align: center; }
+
+/* Stack on narrow viewports */
+@media (max-width: 720px) {
+  .seo-stats { grid-template-columns: repeat(2, 1fr); }
+  .seo-body { grid-template-columns: 1fr; }
+}

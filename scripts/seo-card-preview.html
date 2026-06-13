@@ -1,0 +1,218 @@
+<!doctype html>
+<!--
+  POC preview — Ahrefs "SEO Performance" dashboard card, rendered with LIVE data
+  pulled from the Ahrefs API for riseamg.com on 2026-06-13. Standalone so it can
+  be screenshotted without booting the full SPA. The production version lives in
+  src/components/SeoSnapshotCard.jsx and reads the same shape from Supabase.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --alloy-purple:#381c4f; --alloy-purple-deep:#1f0e30; --alloy-purple-tint:#f3f0f7;
+    --alloy-pink:#d9356e; --alloy-pink-tint:#fce6ee; --alloy-yellow:#f5d880;
+    --alloy-blue:#2f6fb0; --alloy-green:#2c8a6e; --alloy-off-white:#f8f7fc;
+    --fg:#1a0f26; --fg-2:#2d1a40; --fg-3:#3f2a55; --fg-muted:#7a6f88;
+    --border-subtle:#ece8f3;
+    --shadow-md:0 6px 18px rgba(56,28,79,.08),0 2px 6px rgba(56,28,79,.05);
+    --radius:10px; --radius-lg:14px;
+    --font-display:"Poppins",sans-serif; --font-body:"Inter",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-body);background:var(--alloy-off-white);color:var(--fg-2);padding:32px;}
+  .wrap{max-width:760px;margin:0 auto;}
+
+  .seo-card{background:#fff;border:1px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);overflow:hidden;}
+
+  /* header */
+  .seo-head{display:flex;align-items:center;gap:14px;padding:20px 24px;background:linear-gradient(135deg,var(--alloy-purple) 0%,var(--alloy-purple-deep) 100%);color:#fff;}
+  .seo-ic{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.12);display:grid;place-items:center;flex:none;}
+  .seo-titles{flex:1;}
+  .seo-kicker{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--alloy-yellow);font-weight:600;}
+  .seo-title{font-family:var(--font-display);font-size:19px;font-weight:600;line-height:1.2;}
+  .seo-meta{text-align:right;font-size:11px;color:rgba(255,255,255,.7);line-height:1.5;}
+  .seo-meta b{color:#fff;font-weight:600;}
+
+  /* hero stat tiles */
+  .seo-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border-subtle);border-bottom:1px solid var(--border-subtle);}
+  .seo-stat{background:#fff;padding:18px 16px;}
+  .seo-stat .num{font-family:var(--font-display);font-size:26px;font-weight:700;line-height:1;}
+  .seo-stat .lbl{font-size:12px;color:var(--fg-3);font-weight:600;margin-top:7px;}
+  .seo-stat .sub{font-size:11px;color:var(--fg-muted);margin-top:2px;}
+
+  /* lower sections */
+  .seo-body{display:grid;grid-template-columns:1.4fr 1fr;gap:1px;background:var(--border-subtle);}
+  .seo-sec{background:#fff;padding:18px 22px;}
+  .seo-sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .seo-sec-title{font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--fg-2);}
+  .seo-sec-pill{font-size:11px;font-weight:600;color:var(--alloy-purple);background:var(--alloy-purple-tint);padding:3px 9px;border-radius:999px;}
+
+  /* keyword rows */
+  .kw{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-subtle);}
+  .kw:last-child{border-bottom:none;}
+  .kw-pos{flex:none;width:30px;height:24px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:700;font-family:var(--font-display);}
+  .pos-top{background:var(--alloy-green);color:#0f3b30;}
+  .pos-mid{background:var(--alloy-yellow);color:#5a4708;}
+  .pos-low{background:#eee;color:#666;}
+  .kw-txt{flex:1;font-size:12.5px;color:var(--fg-2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .kw-vol{flex:none;font-size:11px;color:var(--fg-muted);}
+
+  /* mini bars (rank distribution) */
+  .dist{display:flex;flex-direction:column;gap:10px;}
+  .dist-row{display:flex;align-items:center;gap:10px;}
+  .dist-lbl{flex:none;width:62px;font-size:11.5px;color:var(--fg-3);font-weight:600;}
+  .dist-track{flex:1;height:8px;border-radius:999px;background:var(--alloy-purple-tint);overflow:hidden;}
+  .dist-fill{height:100%;border-radius:999px;}
+  .dist-n{flex:none;width:24px;text-align:right;font-size:12px;font-weight:700;color:var(--fg-2);font-family:var(--font-display);}
+
+  /* health donut */
+  .health{display:flex;align-items:center;gap:16px;}
+  .donut{width:78px;height:78px;flex:none;border-radius:50%;display:grid;place-items:center;
+    background:conic-gradient(var(--alloy-green) 0% 74%, var(--border-subtle) 74% 100%);}
+  .donut-inner{width:58px;height:58px;border-radius:50%;background:#fff;display:grid;place-items:center;font-family:var(--font-display);}
+  .donut-inner b{font-size:20px;font-weight:700;color:var(--fg);line-height:1;}
+  .donut-inner span{font-size:9px;color:var(--fg-muted);}
+  .health-stats{flex:1;display:flex;flex-direction:column;gap:7px;}
+  .hrow{display:flex;align-items:center;gap:8px;font-size:12px;}
+  .hdot{width:8px;height:8px;border-radius:2px;flex:none;}
+  .hrow .n{margin-left:auto;font-weight:700;font-family:var(--font-display);color:var(--fg-2);}
+
+  .seo-foot{padding:10px 24px;background:var(--alloy-purple-tint);font-size:11px;color:var(--fg-muted);text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="seo-card">
+
+    <!-- HEADER -->
+    <div class="seo-head">
+      <div class="seo-ic">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f5d880" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/>
+        </svg>
+      </div>
+      <div class="seo-titles">
+        <div class="seo-kicker">Search performance</div>
+        <div class="seo-title">SEO Performance</div>
+      </div>
+      <div class="seo-meta">Powered by <b>Ahrefs</b><br/>riseamg.com · updated Jun 13</div>
+    </div>
+
+    <!-- HERO STATS -->
+    <div class="seo-stats">
+      <div class="seo-stat">
+        <div class="num" style="color:var(--alloy-purple)">1,757</div>
+        <div class="lbl">Organic traffic</div>
+        <div class="sub">est. visits / mo</div>
+      </div>
+      <div class="seo-stat">
+        <div class="num" style="color:var(--alloy-blue)">360</div>
+        <div class="lbl">Ranking keywords</div>
+        <div class="sub">96 in top 3</div>
+      </div>
+      <div class="seo-stat">
+        <div class="num" style="color:var(--alloy-pink)">31</div>
+        <div class="lbl">Domain Rating</div>
+        <div class="sub">authority / 100</div>
+      </div>
+      <div class="seo-stat">
+        <div class="num" style="color:var(--alloy-green)">$1,531</div>
+        <div class="lbl">Traffic value</div>
+        <div class="sub">equiv. PPC / mo</div>
+      </div>
+    </div>
+
+    <!-- LOWER -->
+    <div class="seo-body">
+
+      <!-- Rank tracking -->
+      <div class="seo-sec">
+        <div class="seo-sec-head">
+          <span class="seo-sec-title">Tracked keywords</span>
+          <span class="seo-sec-pill">58 tracked · 18 in top 10</span>
+        </div>
+        <div class="kw">
+          <span class="kw-pos pos-top">1</span>
+          <span class="kw-txt">rise association management group</span>
+          <span class="kw-vol">900 vol</span>
+        </div>
+        <div class="kw">
+          <span class="kw-pos pos-top">1</span>
+          <span class="kw-txt">rise management</span>
+          <span class="kw-vol">600 vol</span>
+        </div>
+        <div class="kw">
+          <span class="kw-pos pos-top">1</span>
+          <span class="kw-txt">what is a pud in real estate</span>
+          <span class="kw-vol">600 vol</span>
+        </div>
+        <div class="kw">
+          <span class="kw-pos pos-top">3</span>
+          <span class="kw-txt">hoa management austin</span>
+          <span class="kw-vol">200 vol</span>
+        </div>
+        <div class="kw">
+          <span class="kw-pos pos-mid">9</span>
+          <span class="kw-txt">poa vs hoa</span>
+          <span class="kw-vol">800 vol</span>
+        </div>
+        <div class="kw">
+          <span class="kw-pos pos-low">21</span>
+          <span class="kw-txt">what do hoa fees cover</span>
+          <span class="kw-vol">1,000 vol</span>
+        </div>
+      </div>
+
+      <!-- right column: distribution + backlinks + health -->
+      <div class="seo-sec">
+        <div class="seo-sec-head"><span class="seo-sec-title">Rank distribution</span></div>
+        <div class="dist">
+          <div class="dist-row">
+            <span class="dist-lbl">Pos 1–3</span>
+            <span class="dist-track"><span class="dist-fill" style="width:50%;background:var(--alloy-green)"></span></span>
+            <span class="dist-n">12</span>
+          </div>
+          <div class="dist-row">
+            <span class="dist-lbl">Pos 4–10</span>
+            <span class="dist-track"><span class="dist-fill" style="width:25%;background:var(--alloy-yellow)"></span></span>
+            <span class="dist-n">6</span>
+          </div>
+          <div class="dist-row">
+            <span class="dist-lbl">Pos 11+</span>
+            <span class="dist-track"><span class="dist-fill" style="width:25%;background:var(--alloy-pink)"></span></span>
+            <span class="dist-n">6</span>
+          </div>
+        </div>
+
+        <div class="seo-sec-head" style="margin-top:20px;">
+          <span class="seo-sec-title">Backlinks</span>
+        </div>
+        <div class="dist-row" style="gap:18px;">
+          <div><div class="num" style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--alloy-purple)">1,180</div><div class="sub" style="font-size:11px;color:var(--fg-muted)">backlinks</div></div>
+          <div><div class="num" style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--alloy-purple)">417</div><div class="sub" style="font-size:11px;color:var(--fg-muted)">referring domains</div></div>
+        </div>
+
+        <div class="seo-sec-head" style="margin-top:20px;">
+          <span class="seo-sec-title">Site health</span>
+        </div>
+        <div class="health">
+          <div class="donut"><div class="donut-inner"><b>74</b><span>/ 100</span></div></div>
+          <div class="health-stats">
+            <div class="hrow"><span class="hdot" style="background:var(--alloy-pink)"></span>Errors<span class="n">343</span></div>
+            <div class="hrow"><span class="hdot" style="background:var(--alloy-yellow)"></span>Warnings<span class="n">414</span></div>
+            <div class="hrow"><span class="hdot" style="background:var(--alloy-blue)"></span>Notices<span class="n">244</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="seo-foot">Live data · Ahrefs Site Explorer, Rank Tracker &amp; Site Audit · 1,326 pages crawled Jun 11</div>
+  </div>
+</div>
+</body>
+</html>

@@ -16,6 +16,7 @@ import './styles/07-leads.css';
 import './styles/08-tour.css';
 import './styles/09-account.css';
 import './styles/10-projects.css';
+import './styles/11-seo.css';
 
 import AuthGate from './AuthGate.jsx';
 
