@@ -47,7 +47,10 @@ const CAPS = {
   screen_leads: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:staff'],
   screen_projects: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:staff'],
   screen_roadmap: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:staff'],
-  screen_snapshot: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:accounting'],
+  // Monthly snapshot is now an internal/admin tool (clients see "Visibility"
+  // instead) — staff-only.
+  screen_snapshot: ['alloy:admin', 'alloy:staff'],
+  screen_performance: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:staff', 'client:accounting'],
   screen_roi: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:accounting'],
   partnershipValue: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:accounting'],
   billing: ['alloy:admin', 'client:owner', 'client:accounting'],

@@ -34,7 +34,7 @@ const STEPS = [
   {
     element: '[data-tour="projects"]',
     popover: {
-      title: 'Work in motion',
+      title: 'Playbook',
       description: "Everything we're driving for you — what's in motion, what we've delivered this quarter, and the full breadth of work behind your growth.",
       side: 'bottom', align: 'center',
     },
@@ -51,7 +51,7 @@ const STEPS = [
     element: '[data-tour="nav"]',
     popover: {
       title: 'Get around',
-      description: 'Jump to the Revenue Engine, your Roadmap, Inbox, and more from the sidebar.',
+      description: 'Jump to your Pipeline, Roadmap, Inbox, and more from the sidebar.',
       side: 'right', align: 'center',
     },
   },

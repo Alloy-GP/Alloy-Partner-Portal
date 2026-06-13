@@ -31,10 +31,13 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "main" },
     { id: "tickets", label: "Inbox", icon: I.Mail, group: "main", count: pendingTickets || 0 },
-    { id: "leads", label: "Revenue Engine", icon: I.Chart, group: "main", count: leadsToReview },
-    { id: "projects", label: "Work in motion", icon: I.Folder, group: "work", count: openProjects },
-    { id: "snapshot", label: "Monthly snapshot", icon: I.Camera, group: "work" },
+    // The four program pages, ordered as the funnel: plan it -> run it -> see the
+    // demand -> see it convert. NOTE: route ids are historical and don't match the
+    // new labels (id "playbook" = Roadmap page, id "projects" = Playbook page).
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "work" },
+    { id: "projects", label: "Playbook", icon: I.Board, group: "work", count: openProjects },
+    { id: "performance", label: "Visibility", icon: I.Gauge, group: "work" },
+    { id: "leads", label: "Pipeline", icon: I.Chart, group: "work", count: leadsToReview },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Access Assets", icon: I.Doc, group: "account", external: true, href: "https://dam.alloygp.co" },
     { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: "https://dam.alloygp.co" },

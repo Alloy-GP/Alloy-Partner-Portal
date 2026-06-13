@@ -177,9 +177,9 @@ export default function AccountScreen({ onNav, onCompose }) {
   const now = new Date();
   const curQuarter = `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()}`;
   // Same expressions the rest of the portal uses, so these numbers always match:
-  //   in motion         = open projects → sidebar + Dashboard "Work in motion"
+  //   in motion         = open projects → sidebar + Dashboard "Playbook"
   //   delivered this qtr = live projects whose due date lands in the current
-  //                        quarter → identical to Dashboard "Work in motion"
+  //                        quarter → identical to Dashboard "Playbook"
   //   qualified          = wcQualifiedTotal → Leads "qualified all-time" + Dashboard
   const inMotion = projects.filter((p) => p.status && p.status !== 'live').length;
   const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);

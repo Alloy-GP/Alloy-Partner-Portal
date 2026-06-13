@@ -8,6 +8,7 @@ import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx
 import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen, LeadsScreen } from './components/screens-rest.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
 import SnapshotScreen from './components/SnapshotScreen.jsx';
+import PerformanceScreen from './components/PerformanceScreen.jsx';
 import AccountScreen from './components/AccountScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
@@ -18,6 +19,7 @@ import NewRequestModal from './components/NewRequestModal.jsx';
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 const PATHS = {
   dashboard: '/', leads: '/leads', snapshot: '/snapshot', roi: '/roi', projects: '/projects', tickets: '/tickets',
+  performance: '/performance',
   playbook: '/playbook', library: '/library', rewards: '/rewards', 'account-details': '/account',
 };
 
@@ -97,10 +99,11 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },
-    leads: { t: "Revenue Engine", s: "Qualify every lead — it flows straight to WhatConverts" },
+    leads: { t: "Pipeline", s: "Qualify every lead — it flows straight to WhatConverts" },
     snapshot: { t: "Monthly snapshot", s: "Your month with Alloy, every month-end" },
+    performance: { t: "Visibility", s: "How your growth engine is performing" },
     roi: { t: "ROI & Insight", s: "What Alloy is doing for your top line" },
-    projects: { t: "Work in motion", s: "Live from Monday — every active deliverable" },
+    projects: { t: "Playbook", s: "Live from Monday — every active deliverable" },
     tickets: { t: "Inbox", s: "One thread between you and your Alloy team" },
     playbook: { t: "Roadmap", s: "Your 2026 growth plan, quarter by quarter" },
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
@@ -130,6 +133,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "library": return <LibraryScreen/>;
       case "rewards": return <RecognitionScreen/>;
       case "snapshot": return <SnapshotScreen/>;
+      case "performance": return <PerformanceScreen onNav={handleNav}/>;
       case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }

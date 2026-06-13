@@ -3,6 +3,10 @@ import React from 'react';
 // Icon set — minimal hand-drawn line icons sized for portal
 const I = {
   Home: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/></svg>,
+  // Kanban board — active work being moved across stages ("Playbook").
+  Board: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="5" height="13" rx="1.2"/><rect x="9.5" y="4" width="5" height="9" rx="1.2"/><rect x="16" y="4" width="5" height="11" rx="1.2"/></svg>,
+  // Gauge / speedometer — performance at a glance.
+  Gauge: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 18a9 9 0 1 1 17 0"/><path d="M12 14l4-4"/><circle cx="12" cy="14" r="1.4" fill="currentColor" stroke="none"/></svg>,
   Chart: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M6 17V9M11 17V5M16 17v-7M21 17v-3"/></svg>,
   Folder: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>,
   Ticket: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3a2 2 0 0 1 0 4v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a2 2 0 0 1 0-4z"/><path d="M9 5v14"/></svg>,

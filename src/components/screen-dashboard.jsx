@@ -394,7 +394,7 @@ function PartnershipValueCard({ onNav }) {
 
   return (
     <div className="ws-column" data-tour="snapshot">
-      <button className="ws-playbook" onClick={() => onNav && onNav("playbook")}>
+      <button className="ws-playbook dash-link" onClick={() => onNav && onNav("playbook")}>
         <div className="ws-pb-head">
           <span className="ws-pb-label">{pb.q || "Roadmap"} Playbook</span>
           <span className="ws-pb-link">View playbook →</span>
@@ -408,14 +408,14 @@ function PartnershipValueCard({ onNav }) {
         </div>
       </button>
 
-      <div className="weekly-snapshot">
+      <div className="weekly-snapshot dash-link" role="button" tabIndex={0} onClick={() => onNav && onNav("leads")}>
         <div className="pv-head">
           <span className="pv-ic"><I.TrendUp width={20} height={20} /></span>
           <div className="pv-titles">
             <div className="pv-kicker">What we've built together</div>
             <div className="pv-title">Partnership value</div>
           </div>
-          <button className="pv-cta" onClick={() => onNav && onNav("leads")} aria-label="See lead detail">
+          <button className="pv-cta" onClick={(e) => { e.stopPropagation(); onNav && onNav("leads"); }} aria-label="See lead detail">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </button>
         </div>
@@ -433,7 +433,7 @@ function PartnershipValueCard({ onNav }) {
             <div className="pv-lock">
               <div className="pv-lock-num">{leadsToQualify}</div>
               <div className="pv-lock-sub">new {leadsToQualify === 1 ? "lead" : "leads"} to qualify</div>
-              <button className="pv-lock-btn" onClick={() => onNav && onNav("leads")}>Qualify leads <I.Arrow width={15} height={15} /></button>
+              <button className="pv-lock-btn" onClick={(e) => { e.stopPropagation(); onNav && onNav("leads"); }}>Qualify leads <I.Arrow width={15} height={15} /></button>
             </div>
           ) : null}
         </div>
@@ -563,7 +563,7 @@ function ActionQueue({ onNav }) {
   );
 }
 
-// "Work in motion" — a value lens on the work Alloy is driving for the client
+// "Playbook" — a value lens on the work Alloy is driving for the client
 // (NOT a to-do list; anything needing the client lives in the action queue).
 // Shows breadth + delivered proof + always-on services, so it scales past 50
 // projects and reads as value at a glance instead of a truncated list.
@@ -595,14 +595,14 @@ function ProjectsList({ onNav }) {
   const moreCount = byPhase.slice(TOP).reduce((s, [, n]) => s + n, 0);
 
   return (
-    <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon" data-tour="projects">
+    <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon dash-link" data-tour="projects" role="button" tabIndex={0} onClick={() => onNav("projects")}>
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Folder width={20} height={20}/></div>
         <div className="bc-titles">
           <div className="bc-kicker">What we're driving</div>
-          <div className="bc-title">Work in motion</div>
+          <div className="bc-title">Playbook</div>
         </div>
-        <button className="bc-cta" onClick={() => onNav("projects")} aria-label="See work in motion">
+        <button className="bc-cta" onClick={(e) => { e.stopPropagation(); onNav("projects"); }} aria-label="See Playbook">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </button>
       </div>
@@ -630,7 +630,7 @@ function ProjectsList({ onNav }) {
           </div>
         ) : null}
 
-        <button className="recurring-toggle" onClick={() => setShowRecurring(s => !s)} aria-expanded={showRecurring} style={{ marginTop: 14 }}>
+        <button className="recurring-toggle" onClick={(e) => { e.stopPropagation(); setShowRecurring(s => !s); }} aria-expanded={showRecurring} style={{ marginTop: 14 }}>
           <span className="recurring-toggle-dots">
             {services.slice(0, 5).map(s => (<span key={s.id} className="recurring-toggle-dot" style={{ background: TONE[s.color] }}/>))}
           </span>

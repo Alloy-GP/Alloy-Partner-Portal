@@ -14,7 +14,7 @@ function TicketDetailPage({ id, onNav }) {
           ← Back to inbox
         </button>
         <button className="btn btn-ghost btn-sm" onClick={() => onNav('projects')}>
-          Work in motion →
+          Playbook →
         </button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--border-subtle)', borderRadius: 14, overflow: 'hidden', background: '#fff', minHeight: 560 }}>

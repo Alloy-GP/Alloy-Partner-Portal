@@ -158,7 +158,7 @@ function ProjectsScreen({ onNav, onCompose }) {
   const reqProject = () => { if (onCompose) onCompose(); else onNav("tickets"); };
 
   return (
-    <div className="content pj-screen" data-screen-label="02 Work in motion">
+    <div className="content pj-screen" data-screen-label="02 Playbook">
       {/* Purple metrics bar (replaces a page title — the app top bar has that) */}
       <div className="pj-metrics">
         <div className="pj-metric"><span className="pj-metric-n">{inMotion}</span><span className="pj-metric-l">in motion now</span></div>

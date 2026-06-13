@@ -818,7 +818,7 @@ function LeadsScreen() {
   }, [panelId]);
 
   return (
-    <div className="content" data-screen-label="03 Revenue Engine">
+    <div className="content" data-screen-label="03 Pipeline">
       <div className="ld-top">
         {/* Review queue */}
         <div className="banner-card banner-pink ld-queue" style={queueH ? { height: queueH } : undefined}>

@@ -222,7 +222,7 @@
 .aq-item-chev { color: var(--fg-muted); transition: transform .12s ease, color .12s ease; }
 .aq-item:hover .aq-item-chev { color: var(--alloy-pink); transform: translateX(3px); }
 
-/* "Work in motion" — value lens on Alloy's active work (P3 "live pulse"). */
+/* "Playbook" — value lens on Alloy's active work (P3 "live pulse"). */
 .wm-stats { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 15px; }
 .wm-stats .big { font-family: var(--font-display); font-size: 34px; font-weight: 800; color: var(--alloy-purple); line-height: 1; letter-spacing: -0.02em; }
 .wm-stats .big.green { color: #2c8a6e; }
@@ -296,6 +296,26 @@
 .pv-lock-sub { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--alloy-purple); margin-bottom: 8px; }
 .pv-lock-btn { display: inline-flex; align-items: center; gap: 7px; background: var(--alloy-purple); color: #fff; border: none; cursor: pointer; font-family: var(--font-display); font-weight: 800; font-size: 13px; padding: 11px 22px; border-radius: 12px; box-shadow: 0 8px 20px rgba(56,28,79,0.25); transition: background .15s ease; }
 .pv-lock-btn:hover { background: var(--alloy-pink); }
+/* Full-card click targets on the dashboard (Playbook, Partnership value).
+   Unlike the playbook card (which darkens), these BRIGHTEN + lift on hover. */
+.dash-link { cursor: pointer; will-change: transform; transition: transform .14s ease, box-shadow .14s ease; }
+.dash-link:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(56,28,79,0.14); }
+.dash-link:active { transform: translateY(0); transition-duration: .1s; }
+.dash-link:focus-visible { outline: 2px solid var(--alloy-pink); outline-offset: 2px; }
+
+/* Performance page — collapse multi-column bands on narrow viewports.
+   (Grid columns are set inline in PerformanceScreen, so override with !important.) */
+@media (max-width: 1024px) {
+  .perf-screen .perf-hero-grid,
+  .perf-screen .perf-radar-grid,
+  .perf-screen .perf-rank-grid,
+  .perf-screen .perf-sources-grid,
+  .perf-screen .perf-bottom-grid { grid-template-columns: 1fr !important; }
+  .perf-screen .perf-paid-grid { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 560px) {
+  .perf-screen .perf-paid-grid { grid-template-columns: 1fr !important; }
+}
 
 /* Recognition — stat tiles on dark purple (V5 theme) */
 .recognition-tiles-card {
