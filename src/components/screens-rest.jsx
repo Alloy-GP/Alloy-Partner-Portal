@@ -27,7 +27,11 @@ function TicketsScreen() {
       })
       .catch((e) => { setError(String(e.message || e)); setTickets([]); });
   };
-  useEffect(() => { loadList(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Refetch when the VIEWED account changes (staff switching clients reuses
+  // this mounted screen). Without this, the list stayed on the prior client's
+  // tickets while the header relabeled — a cross-tenant leak. Reset state so no
+  // stale ticket/detail from the old account lingers.
+  useEffect(() => { setTickets(null); setActiveId(null); setError(""); loadList(); }, [DATA.account?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Client-facing buckets: pending = waiting on the client ("My Tasks");
   // open/new/hold = team actively working ("In-Progress"); All = everything.
