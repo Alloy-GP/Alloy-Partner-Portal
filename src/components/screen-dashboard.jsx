@@ -6,7 +6,7 @@ import CompanyMark from './CompanyMark.jsx';
 import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
 import { pendingTickets } from '../lib/zendesk.js';
-import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
+import { ENGINES, ENGINE_ORDER, CORE_KEY, enginesOf } from '../lib/engines.js';
 import { quarterTrends } from '../lib/flywheel.js';
 
 // Shared "needs you" signal — live Zendesk tickets in "pending" status. Cached
@@ -153,26 +153,6 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
           <ProfilePhoto />
         </div>
         <div className="alloy-hero-content">
-          <div className="alloy-hero-top">
-            {/* Mobile-only controls — bell + hamburger */}
-            <div className="alloy-hero-controls">
-              <button className="alloy-hero-icon-btn" aria-label="Notifications">
-                <I.Bell width={18} height={18}/>
-                <span className="pulse-dot"/>
-              </button>
-              <button
-                className="alloy-hero-icon-btn"
-                aria-label={mobileNav ? "Close menu" : "Open menu"}
-                onClick={() => setMobileNav && setMobileNav(!mobileNav)}
-              >
-                {mobileNav
-                  ? <I.Close width={20} height={20}/>
-                  : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-                }
-              </button>
-            </div>
-          </div>
-
           <button className="alloy-hero-level" onClick={() => onNav && onNav("playbook")} aria-label={`Level ${levelNum} ${levelName} — view roadmap`}>
             <span className="ahl-badge">Level {levelNum}</span>
             <span className="ahl-name">{levelName}</span>
@@ -693,6 +673,7 @@ function ProjectsList({ onNav }) {
   const enginePills = ENGINE_ORDER
     .filter(e => engineCounts[e])
     .map(e => ({ key: e, label: ENGINES[e].label, color: ENGINES[e].color, n: engineCounts[e] }));
+  const coreCount = engineCounts[CORE_KEY] || 0; // the foundation, shown apart from the engines
 
   return (
     <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon dash-link" data-tour="projects" role="button" tabIndex={0} onClick={() => onNav("projects")}>
@@ -722,6 +703,15 @@ function ProjectsList({ onNav }) {
                 <span className="wm-live" />{p.label}<span className="n">{p.n}</span>
               </span>
             ))}
+          </div>
+        ) : null}
+
+        {coreCount ? (
+          <div className="wm-core">
+            <span className="wm-pill wm-pill-core" style={{ "--c": ENGINES[CORE_KEY].color }}>
+              <span className="wm-live" />{ENGINES[CORE_KEY].label}<span className="n">{coreCount}</span>
+            </span>
+            <span className="wm-core-cap">the foundation the engines run on</span>
           </div>
         ) : null}
 

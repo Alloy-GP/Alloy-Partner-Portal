@@ -6,9 +6,14 @@ export const ENGINES = {
   reach:  { label: "Reach",  color: "#2a6391" },
   match:  { label: "Match",  color: "#d9356e" },
   retain: { label: "Retain", color: "#2c8a6e" },
-  equip:  { label: "Equip",  color: "#b8881a" },
+  // NOT an engine — the Core foundation the three engines run on (people,
+  // training, service delivery). Neutral tone + "Core" label so it never reads
+  // as a fourth engine.
+  equip:  { label: "Core",   color: "#6f6880" },
 };
-export const ENGINE_ORDER = ["reach", "match", "retain", "equip"];
+// The three growth engines (the motions). Core is handled separately.
+export const ENGINE_ORDER = ["reach", "match", "retain"];
+export const CORE_KEY = "equip";
 
 // Monday work category ("phase") → its primary engine. This is the fallback used
 // when a project carries no explicit `engines` tag. Most categories map cleanly

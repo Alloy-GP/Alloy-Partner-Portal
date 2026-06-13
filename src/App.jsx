@@ -141,8 +141,16 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   return (
     <>
-    <div className={`app density-${tweaks.density} mobile-cards-${tweaks.mobileCards || "card"}${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarMode === "hover" ? " sidebar-hover" : ""}${sidebarMode === "hover" && sidebarHover ? " is-hovering" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
-      {/* Mobile top bar — removed; mobile controls now live inside the hero card */}
+    <div className={`app density-${tweaks.density}${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarMode === "hover" ? " sidebar-hover" : ""}${sidebarMode === "hover" && sidebarHover ? " is-hovering" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
+      {/* Mobile top bar — brand + hamburger that opens the sidebar drawer. Hidden ≥961px. */}
+      <div className="mobile-bar">
+        <div className="brand"><img className="mark" src="/alloy-icon.png" alt=""/>{DATA.account.shortName || DATA.account.company}</div>
+        <button className="mobile-bar-menu" aria-label={mobileNav ? "Close menu" : "Open menu"} onClick={() => setMobileNav(!mobileNav)}>
+          {mobileNav
+            ? <I.Close width={22} height={22}/>
+            : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>}
+        </button>
+      </div>
 
       {/* Sidebar (responsive) */}
       <div className={`sidebar-wrap ${mobileNav ? "open" : ""}`}>
@@ -202,14 +210,6 @@ function TweaksFloat({ tweaks, setTweak, onClose }) {
           <div className="seg">
             {["comfortable","compact"].map(d => (
               <button key={d} className={tweaks.density===d?"active":""} onClick={() => setTweak("density", d)}>{d}</button>
-            ))}
-          </div>
-        </div>
-        <div className="row col">
-          <label>Mobile cards</label>
-          <div className="seg">
-            {[{k:"card", lbl:"Card"}, {k:"section", lbl:"Section"}].map(o => (
-              <button key={o.k} className={(tweaks.mobileCards||"card")===o.k?"active":""} onClick={() => setTweak("mobileCards", o.k)}>{o.lbl}</button>
             ))}
           </div>
         </div>

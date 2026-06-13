@@ -196,29 +196,11 @@ function MainHeader({ title, subtitle, onCommand, screen }) {
   );
 }
 
-function RisePageHero({ title, subtitle, mobileNav, setMobileNav }) {
+function RisePageHero({ title, subtitle }) {
   const co = DATA.account.shortName || DATA.account.company;
   return (
     <div className="rise-hero rise-hero-tinted rise-page-hero">
       <div className="rise-hero-body">
-        <div className="rise-hero-topline">
-          <div className="rise-hero-mobile-controls">
-            <button className="rise-hero-icon-btn" aria-label="Notifications">
-              <I.Bell width={20} height={20}/>
-              <span className="rise-hero-dot"/>
-            </button>
-            <button
-              className="rise-hero-icon-btn rise-hero-menu-btn"
-              aria-label={mobileNav ? "Close menu" : "Open menu"}
-              onClick={() => setMobileNav && setMobileNav(!mobileNav)}
-            >
-              {mobileNav
-                ? <I.Close width={24} height={24}/>
-                : <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-              }
-            </button>
-          </div>
-        </div>
         <div className="rise-page-headline">
           <span className="rise-hero-mark-chip rise-page-mark-chip">
             <CompanyMark className="rise-hero-mark-img" size={40}/>
