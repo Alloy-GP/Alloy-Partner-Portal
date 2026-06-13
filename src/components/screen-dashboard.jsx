@@ -6,6 +6,7 @@ import CompanyMark from './CompanyMark.jsx';
 import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
 import { pendingTickets } from '../lib/zendesk.js';
+import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
 
 // Shared "needs you" signal — live Zendesk tickets in "pending" status. Cached
 // in the lib so the queue, hero count, and bell share one network call.
@@ -18,6 +19,32 @@ function usePending() {
     return () => { cancelled = true; };
   }, [DATA.account && DATA.account.id]);
   return list;
+}
+
+// Where we are in a roadmap quarter, 0–100% — drives the "today" pace marker.
+// Parses the quarter's month range ("Apr – Jun") + year ("Q2 2026"); falls back
+// to the calendar quarter if the range can't be read. Returns null if unknown.
+const _MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+function quarterTimePct(pb) {
+  if (!pb) return null;
+  const ym = String(pb.q || "").match(/(\d{4})/);
+  const year = ym ? Number(ym[1]) : new Date().getFullYear();
+  const found = String(pb.months || "").toLowerCase().match(/jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/g);
+  let sM, eM;
+  if (found && found.length) {
+    sM = _MONTHS.indexOf(found[0]);
+    eM = _MONTHS.indexOf(found[found.length - 1]);
+  } else {
+    const qm = String(pb.q || "").match(/Q([1-4])/i);
+    const qi = qm ? Number(qm[1]) - 1 : Math.floor(new Date().getMonth() / 3);
+    sM = qi * 3; eM = qi * 3 + 2;
+  }
+  if (sM < 0 || eM < 0) return null;
+  const start = new Date(year, sM, 1).getTime();
+  const end = new Date(year, eM + 1, 0, 23, 59, 59).getTime();
+  if (!(end > start)) return null;
+  const pct = ((Date.now() - start) / (end - start)) * 100;
+  return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
 // Dashboard screen — warm, celebratory home
@@ -382,6 +409,15 @@ function PartnershipValueCard({ onNav }) {
   const pbDone = allProjects.filter(p => p.status === "live").length;
   const pbPct = pbTotal ? Math.round((pbDone / pbTotal) * 100) : 0;
 
+  // Pace — work done vs. how far we are through the quarter. Tells the client
+  // "are we on track?" instead of just "how much is done".
+  const timePct = quarterTimePct(pb);
+  const paceGap = timePct == null ? null : pbPct - timePct;
+  const pace = paceGap == null ? null
+    : paceGap >= 8  ? { label: "Ahead",    mod: "ahead" }
+    : paceGap <= -8 ? { label: "Behind",   mod: "behind" }
+    :                 { label: "On track", mod: "ontrack" };
+
   // All-time relationship value (not a period). The $ tiles are driven by the
   // quote/sales values entered in the qualify flow, so they grow as leads get
   // valued.
@@ -396,15 +432,17 @@ function PartnershipValueCard({ onNav }) {
     <div className="ws-column" data-tour="snapshot">
       <button className="ws-playbook dash-link" onClick={() => onNav && onNav("playbook")}>
         <div className="ws-pb-head">
-          <span className="ws-pb-label">{pb.q || "Roadmap"} Playbook</span>
-          <span className="ws-pb-link">View playbook →</span>
+          <span className="ws-pb-label">{pb.q ? `${pb.q} Roadmap` : "Roadmap"}</span>
+          <span className="ws-pb-link">View roadmap →</span>
         </div>
         <div className="ws-pb-metric">
           <span className="ws-pb-pct">{pbPct}<span className="ws-pb-pct-sym">%</span></span>
           <span className="ws-pb-sub">{pbDone} of {pbTotal} tasks complete</span>
+          {pace ? <span className={`ws-pb-status ws-pb-status--${pace.mod}`}>{pace.label}</span> : null}
         </div>
         <div className="ws-pb-track">
           <div className="ws-pb-fill" style={{ width: `${pbPct}%` }}/>
+          {timePct != null ? <div className="ws-pb-marker" style={{ left: `${timePct}%` }} aria-hidden="true"/> : null}
         </div>
       </button>
 
@@ -583,16 +621,14 @@ function ProjectsList({ onNav }) {
     pink: "var(--alloy-pink)", yellow: "var(--alloy-yellow)", purple: "var(--alloy-purple)",
     blue: "#2a6391", green: "var(--alloy-green)",
   };
-  const PCOLORS = ["#d9356e", "#2a6391", "#2c6e62", "#381c4f", "#b8881a", "#9b6dc4", "#c2703d", "#5a7d9a"];
-  // Breadth by category: show plenty of areas (fills the card, reads as value),
-  // fold only the long tail into "+N more". Skip projects with no category set.
-  const TOP = 8;
-  const byPhase = Object.entries(
-    all.filter(p => p.phase).reduce((m, p) => { m[p.phase] = (m[p.phase] || 0) + 1; return m; }, {})
-  ).sort((a, b) => b[1] - a[1]);
-  const topPhases = byPhase.slice(0, TOP);
-  const moreCats = byPhase.length - topPhases.length;
-  const moreCount = byPhase.slice(TOP).reduce((s, [, n]) => s + n, 0);
+  // Breadth by engine: count each project under every engine it serves (a project
+  // can serve more than one, so counts overlap — this is a coverage view, not a
+  // partition). Falls back to the category→engine map until Monday sends tags.
+  const engineCounts = {};
+  all.forEach(p => { enginesOf(p).forEach(e => { engineCounts[e] = (engineCounts[e] || 0) + 1; }); });
+  const enginePills = ENGINE_ORDER
+    .filter(e => engineCounts[e])
+    .map(e => ({ key: e, label: ENGINES[e].label, color: ENGINES[e].color, n: engineCounts[e] }));
 
   return (
     <div className="banner-card banner-yellow active-projects-front dash-feature-card hdr-icon dash-link" data-tour="projects" role="button" tabIndex={0} onClick={() => onNav("projects")}>
@@ -615,18 +651,13 @@ function ProjectsList({ onNav }) {
           <span className="lbl muted">delivered this qtr</span>
         </div>
 
-        {topPhases.length ? (
+        {enginePills.length ? (
           <div className="wm-pills">
-            {topPhases.map(([name, n], i) => (
-              <span key={name} className="wm-pill" style={{ "--c": PCOLORS[i % PCOLORS.length] }}>
-                <span className="wm-live" />{name}<span className="n">{n}</span>
+            {enginePills.map(p => (
+              <span key={p.key} className="wm-pill" style={{ "--c": p.color }}>
+                <span className="wm-live" />{p.label}<span className="n">{p.n}</span>
               </span>
             ))}
-            {moreCats > 0 ? (
-              <span className="wm-pill rest">
-                <span className="dot" />{moreCats} more {moreCats === 1 ? "area" : "areas"}<span className="n">{moreCount}</span>
-              </span>
-            ) : null}
           </div>
         ) : null}
 

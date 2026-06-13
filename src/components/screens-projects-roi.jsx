@@ -3,6 +3,7 @@ import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { zdList } from '../lib/zendesk.js';
 import { summarizeTickets } from '../lib/summaries.js';
+import { ENGINES, enginesOf } from '../lib/engines.js';
 
 // Projects, ROI, Tickets, Playbook, Library, Recognition screens
 const { useState: _useState1 } = React;
@@ -52,6 +53,19 @@ function CatChip({ name }) {
   if (!name) return null;
   const c = catColor(name);
   return <span className="pj-cat-chip" style={{ color: c, background: `${c}1a` }}>{name}</span>;
+}
+// Growth engine(s) a project serves — the strategic layer above its discipline.
+// Real Monday tags win, else the category→engine map (see lib/engines.js).
+function EngineChips({ project }) {
+  const list = enginesOf(project);
+  if (!list.length) return null;
+  return (
+    <>
+      {list.map((e) => (
+        <span key={e} className="pj-engine-chip" style={{ color: ENGINES[e].color, background: `${ENGINES[e].color}1a` }}>{ENGINES[e].label}</span>
+      ))}
+    </>
+  );
 }
 function PjBar({ value, color }) {
   return <div className="pj-bar"><span className="pj-bar-fill" style={{ width: `${value || 0}%`, background: color }} /></div>;
@@ -258,7 +272,7 @@ function ProjectsScreen({ onNav, onCompose }) {
                   {g.items.map((p) => (
                     <div key={p.id} className="pj-prow">
                       <div className="pj-prow-title">{p.title}</div>
-                      <div className="pj-prow-cat"><CatChip name={p.phase} /></div>
+                      <div className="pj-prow-cat"><EngineChips project={p} /><CatChip name={p.phase} /></div>
                       <div className="pj-prow-owners"><PjAvatars ids={p.owners} /></div>
                       <div className="pj-prow-due"><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
                       <div className="pj-prow-prog">

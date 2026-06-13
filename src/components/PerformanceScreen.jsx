@@ -262,6 +262,11 @@ function PerformanceScreen() {
   const paidSearch = L.paidSearch || PAID_SEARCH;
   const isSample = (k) => !L[k];
   const anyLive = !!(live && live.configured);
+  const domain = (live && live.website) || A_CLIENT.domain;
+  // Hero delta + quarter-start derive from the live trend when available.
+  const heroDelta = (anyLive && trafficSeries.length > 1 && trafficSeries[0])
+    ? Math.round((trafficSeries[trafficSeries.length - 1] - trafficSeries[0]) / trafficSeries[0] * 100) : 85;
+  const heroStart = (anyLive && trafficSeries.length) ? Number(trafficSeries[0]).toLocaleString('en-US') : '4,120';
 
   return (
     <div className="content perf-screen" data-screen-label="05 Performance" style={{ fontFamily: 'var(--font-body)' }}>
@@ -269,7 +274,7 @@ function PerformanceScreen() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: '#fff', border: '1px solid #ece8f1', borderRadius: 10, padding: '9px 14px' }}>
           <AIc.globe s={16} />
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: A_PURPLE }}>{A_CLIENT.domain}</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: A_PURPLE }}>{domain}</span>
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, color: '#8a8395' }}>
           <ADot c={A_GREEN} size={7} /> Data synced · {A_CLIENT.range}
@@ -306,7 +311,7 @@ function PerformanceScreen() {
                       <span style={{ fontSize: 11, color: '#a8a0b5' }}>{m.unit}</span>
                     </div>
                   </div>
-                  <Delta v={m.delta} suffix={m.deltaSuffix || '%'} />
+                  {m.delta != null ? <Delta v={m.delta} suffix={m.deltaSuffix || '%'} /> : null}
                 </div>
               ))}
             </div>
@@ -315,19 +320,19 @@ function PerformanceScreen() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: A_PURPLE }}>Organic traffic</div>
-                <div style={{ fontSize: 12, color: '#8a8395', marginTop: 1 }}>Monthly visits · trending up 12 weeks straight</div>
+                <div style={{ fontSize: 12, color: '#8a8395', marginTop: 1 }}>{anyLive ? 'Monthly organic visits · last 12 months' : 'Monthly visits · trending up 12 weeks straight'}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, justifyContent: 'flex-end' }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 800, color: A_PURPLE, letterSpacing: '-0.02em', lineHeight: 1 }}>{organicTraffic}</span>
-                  <Delta v={85} />
+                  <Delta v={heroDelta} />
                 </div>
-                <div style={{ fontSize: 11, color: '#a8a0b5', marginTop: 3 }}>vs 4,120 at quarter start</div>
+                <div style={{ fontSize: 11, color: '#a8a0b5', marginTop: 3 }}>vs {heroStart} {anyLive ? 'a year ago' : 'at quarter start'}</div>
               </div>
             </div>
             <AreaChart data={trafficSeries} color={A_PINK} w={620} h={184} />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 10, color: '#b3acc0', fontWeight: 600 }}>
-              <span>Apr</span><span>May</span><span>Jun</span>
+              {anyLive ? (<><span>12 mo ago</span><span /><span>now</span></>) : (<><span>Apr</span><span>May</span><span>Jun</span></>)}
             </div>
           </div>
         </div>
@@ -390,7 +395,7 @@ function PerformanceScreen() {
       {/* RANKINGS */}
       <ABand style={{ marginBottom: 16 }}>
         <ABandHead sample={isSample('rankTracker')} icon={<AIc.rank s={19} />} color={A_PINK} bg="#fbe2eb" kicker="Rank Tracker"
-          title="Climbing the page-1 ladder" takeaway={`${rankTracker.top3} keywords now sit in the top 3 and ${rankTracker.improved} improved this quarter — the searches your buyers actually use.`} />
+          title="Climbing the page-1 ladder" takeaway={`${rankTracker.top3} keywords sit in the top 3 and ${rankTracker.top10} in the top 10 — the searches your buyers actually use.`} />
         <div className="perf-rank-grid" style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 24, alignItems: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[{ n: rankTracker.top3, l: 'in top 3', c: A_GREEN }, { n: rankTracker.top10, l: 'in top 10', c: A_BLUE }, { n: rankTracker.tracked, l: 'tracked total', c: A_PURPLE }].map(s => (
@@ -399,10 +404,12 @@ function PerformanceScreen() {
                 <span style={{ fontSize: 12.5, color: '#6a5c7a', fontWeight: 600 }}>{s.l}</span>
               </div>
             ))}
-            <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid #f1eef6' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a8395', marginBottom: 6 }}>Top-3 keywords over time</div>
-              <Sparkline data={top3Series} color={A_GREEN} w={210} h={36} />
-            </div>
+            {isSample('rankTracker') ? (
+              <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid #f1eef6' }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a8395', marginBottom: 6 }}>Top-3 keywords over time</div>
+                <Sparkline data={top3Series} color={A_GREEN} w={210} h={36} />
+              </div>
+            ) : null}
           </div>
           <div>
             {rankTracker.keywords.map((k, i) => (
@@ -410,7 +417,7 @@ function PerformanceScreen() {
                 <span style={{ fontSize: 13, color: '#43406a', fontWeight: 600 }}>{k.kw}</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifySelf: 'start' }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: A_PURPLE }}>#{k.pos}</span>
-                  <Delta v={k.prev - k.pos} />
+                  {k.prev != null ? <Delta v={k.prev - k.pos} /> : null}
                 </span>
                 <span style={{ fontSize: 12, color: '#a8a0b5', textAlign: 'right' }}>{k.vol}/mo</span>
               </div>
