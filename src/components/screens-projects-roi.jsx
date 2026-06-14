@@ -108,8 +108,13 @@ function SecHead({ icon, tone, title, sub, count }) {
     </div>
   );
 }
-function OpenedBy({ you }) {
-  return <span className={`pj-openedby ${you ? "you" : "we"}`}>{you ? "You opened" : "We opened"}</span>;
+// Who opened the ticket — names the requester so multiple openers are clear.
+// Alloy-raised tickets (requester @alloygp.co) collapse to just "Alloy opened".
+function OpenedBy({ t }) {
+  const alloy = String(t.requesterEmail || "").toLowerCase().endsWith("@alloygp.co");
+  const first = String(t.requester || "").trim().split(" ")[0];
+  const label = alloy ? "Alloy opened" : (first ? `${first} opened` : "Client opened");
+  return <span className={`pj-openedby ${alloy ? "we" : "you"}`}>{label}</span>;
 }
 
 // Zone 3 status groups — every non-ticket project, bucketed + collapsible.
@@ -152,7 +157,6 @@ function ProjectsScreen({ onNav, onCompose }) {
   const links = DATA.ticketLinks || {};
   const progress = DATA.ticketProgress || {}; // zendesk id → subtask-% (stages)
   const stageColor = () => "#2c7d68"; // green for all stage-progress bars
-  const openedByYou = (t) => !String(t.requesterEmail || "").toLowerCase().endsWith("@alloygp.co");
 
   const projects = DATA.projects || [];
   // In motion now = active tickets (waiting-on-you + we're-on-it) + everything
@@ -162,6 +166,9 @@ function ProjectsScreen({ onNav, onCompose }) {
   const _qStart = new Date(_now.getFullYear(), Math.floor(_now.getMonth() / 3) * 3, 1);
   const _qEnd = new Date(_qStart.getFullYear(), _qStart.getMonth() + 3, 1);
   const inQuarter = (d) => { if (!d) return false; const x = new Date(d); return x >= _qStart && x < _qEnd; };
+  const _today0 = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
+  // Past-due: a due date before today on work that isn't already complete.
+  const isOverdue = (p) => p.status !== "live" && p.dueDate && new Date(`${p.dueDate}T00:00:00`) < _today0;
   const deliveredQtr = projects.filter((p) => p.status === "live" && inQuarter(p.dueDate)).length;
   const totalCompleted = projects.filter((p) => p.status === "live").length;
 
@@ -195,19 +202,8 @@ function ProjectsScreen({ onNav, onCompose }) {
           </div>
         )) : pending.map((t) => (
           <div key={t.id} className="pj-card pj-clickable" role="button" tabIndex={0} onClick={() => onNav("tickets", t.id)}>
-            <div className="pj-card-top">
-              <OpenedBy you={openedByYou(t)} />
-              <span className="pj-due"><I.Clock width={11} height={11} /> needs you</span>
-            </div>
-            <div className="pj-card-title">{t.title}</div>
-            {summaries[t.id] ? (
-              <div className="pj-summary"><I.Sparkle width={12} height={12} /><span>{summaries[t.id]}</span></div>
-            ) : null}
-            {progress[t.id] != null ? (
-              <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
-            ) : null}
             {t.requester ? (
-              <div className="pj-card-req">
+              <div className="pj-card-req head">
                 <span className="pj-req-av" style={{ background: catColor(t.requester) }}>{t.requester.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase()}</span>
                 <span className="pj-req-name">Requested by <strong>{t.requester}</strong></span>
                 {counts[t.id] != null ? (
@@ -217,6 +213,13 @@ function ProjectsScreen({ onNav, onCompose }) {
                   </span>
                 ) : null}
               </div>
+            ) : null}
+            <div className="pj-card-title">{t.title}</div>
+            {summaries[t.id] ? (
+              <div className="pj-summary"><I.Sparkle width={12} height={12} /><span>{summaries[t.id]}</span></div>
+            ) : null}
+            {progress[t.id] != null ? (
+              <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
             ) : null}
             <div className="pj-cta">
               {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Review Now <I.External width={12} height={12} /></a> : null}
@@ -254,7 +257,7 @@ function ProjectsScreen({ onNav, onCompose }) {
             )) : openTix.map((t) => (
               <div key={t.id} className="pj-row pj-clickable" role="button" tabIndex={0} onClick={() => onNav("tickets", t.id)}>
                 <div className="pj-row-title">{t.title}</div>
-                <OpenedBy you={openedByYou(t)} />
+                <OpenedBy t={t} />
                 {progress[t.id] != null ? (
                   <div className="pj-row-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
                 ) : null}
@@ -289,7 +292,7 @@ function ProjectsScreen({ onNav, onCompose }) {
                       <div className="pj-prow-title">{p.title}</div>
                       <div className="pj-prow-cat"><EngineChips project={p} /><CatChip name={p.phase} /></div>
                       <div className="pj-prow-owners"><PjAvatars ids={p.owners} /></div>
-                      <div className="pj-prow-due"><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
+                      <div className={`pj-prow-due${isOverdue(p) ? " overdue" : ""}`}><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
                       <div className="pj-prow-prog">
                         <PjBar value={p.pct} color="#2c7d68" />
                         <span className="pj-pct">{p.pct}%</span>
