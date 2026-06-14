@@ -193,6 +193,22 @@ function PerfEmpty({ domain }) {
   );
 }
 
+// Format a trend point's date for the chart axis. Monthly windows show
+// "Jul '25"; daily windows show "Jul 3". Dates are 'YYYY-MM-DD' → read in UTC
+// so the day doesn't shift across timezones.
+function fmtTick(iso, monthly) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const mo = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  return monthly ? `${mo} '${String(d.getUTCFullYear()).slice(2)}` : `${mo} ${d.getUTCDate()}`;
+}
+// Up to 5 evenly-spaced indices across a series, for axis ticks.
+function tickIdxs(n) {
+  if (!n) return [];
+  const count = Math.min(5, n);
+  return Array.from({ length: count }, (_, i) => Math.round((i * (n - 1)) / (count - 1)));
+}
+
 // Window copy for the trend chart, keyed by the timeframe toggle.
 const RANGE_META = {
   '30d': { sub: 'last 30 days', ago: '30 days ago', vs: '30 days ago' },
@@ -233,6 +249,7 @@ function PerformanceScreen() {
   // unwired or empty source is omitted rather than backfilled with fake numbers.
   const scorecard = data.scorecard;
   const trafficSeries = data.trafficSeries;
+  const trafficDates = data.trafficDates;
   const organicTraffic = data.organicTraffic;
   const siteExplorer = data.siteExplorer;
   const rankTracker = data.rankTracker;
@@ -310,7 +327,9 @@ function PerformanceScreen() {
             </div>
             <AreaChart data={trafficSeries} color={A_PINK} w={620} h={184} />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 10, color: '#b3acc0', fontWeight: 600 }}>
-              <span>{range.ago}</span><span /><span>now</span>
+              {(trafficDates && trafficDates.length === trafficSeries.length)
+                ? tickIdxs(trafficDates.length).map((idx, i) => <span key={i}>{fmtTick(trafficDates[idx], timeframe === '12mo' || timeframe === 'All')}</span>)
+                : (<><span>{range.ago}</span><span /><span>now</span></>)}
             </div>
           </div>
           )}

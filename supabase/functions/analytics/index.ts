@@ -77,13 +77,16 @@ async function buildPayload(website: string, rangeKey: string): Promise<Record<s
       const m = metrics?.metrics || metrics || {};
       const orgTraffic = m.org_traffic ?? m.organic_traffic ?? null;
       const orgCostCents = m.org_cost ?? m.organic_cost ?? null;
-      const series = (hist?.metrics || hist?.metrics_history || []).map((x: any) => x.org_traffic ?? x.organic_traffic ?? 0);
+      const histRows = (hist?.metrics || hist?.metrics_history || []) as any[];
+      const series = histRows.map((x: any) => x.org_traffic ?? x.organic_traffic ?? 0);
+      const dates = histRows.map((x: any) => x.date ?? x.date_to ?? x.period ?? null);
       const sc: any[] = [];
       if (orgTraffic != null) sc.push({ key: "traffic", label: "Organic traffic", value: fmtNum(orgTraffic), unit: "/mo", color: "#d9356e" });
       if (orgCostCents != null) sc.push({ key: "trafficVal", label: "Traffic value", value: fmtK(orgCostCents / 100), unit: "/mo", color: "#2c7d68" });
       if (drv != null) sc.push({ key: "dr", label: "Domain Rating", value: String(Math.round(drv)), unit: "/100", color: "#2a6391" });
       out.scorecard = sc.length ? sc : null;
       out.trafficSeries = series.length ? series : null;
+      out.trafficDates = series.length ? dates : null;
       out.organicTraffic = orgTraffic != null ? fmtNum(orgTraffic) : null;
     } catch { out.scorecard = null; out.trafficSeries = null; }
   };
