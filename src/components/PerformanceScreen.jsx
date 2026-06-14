@@ -527,7 +527,13 @@ function PerformanceScreen() {
             <div><div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}><span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: A_PURPLE }}>{siteExplorer.backlinks}</span>{siteExplorer.backlinksDelta != null ? <Delta v={siteExplorer.backlinksDelta} /> : null}</div><div style={{ fontSize: 10.5, color: '#8a8395', marginTop: 2 }}>backlinks</div></div>
             <div><div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}><span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: A_PURPLE }}>{siteExplorer.refDomains}</span>{siteExplorer.refDomainsDelta != null ? <Delta v={siteExplorer.refDomainsDelta} /> : null}</div><div style={{ fontSize: 10.5, color: '#8a8395', marginTop: 2 }}>referring domains</div></div>
           </div>
-          {(siteExplorer.topPages || []).length ? <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', color: '#a8a0b5', marginBottom: 9 }}>Top pages</div> : null}
+          {(siteExplorer.topPages || []).length ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 56px 50px', gap: 8, marginBottom: 4, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', color: '#a8a0b5' }}>
+              <span>Top pages</span>
+              <span style={{ textAlign: 'right' }}>Traffic</span>
+              <span style={{ textAlign: 'right' }}>Value</span>
+            </div>
+          ) : null}
           {(siteExplorer.topPages || []).slice(0, 4).map((p, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 56px 50px', gap: 8, alignItems: 'center', padding: '8px 0', borderTop: i ? '1px solid #f4f1f8' : 'none' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: A_BLUE, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.url}</span>
