@@ -1,21 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-// Performance page data. Account-scoped (clients only their own account; staff
-// any). Ahrefs v3, all auto-matched by the account's domain — no per-account
-// project IDs needed. Defensive: each source in try/catch → errors return that
-// section null so the client falls back to sample per-section.
+// Performance page data. Account-scoped. Ahrefs v3, auto-matched by domain.
+// LIVE: scorecard, traffic trend, Site Explorer, Rankings, Keywords, Site Audit,
+// Traffic sources (Ahrefs Web Analytics). NOT wired: Brand Radar (no data yet),
+// Paid Search (Google Ads). Secrets: AHREFS_API_KEY. Per-account: accounts.website.
 //
-// LIVE from Ahrefs: scorecard (DR / organic traffic / traffic value), 12-month
-// traffic trend, Site Explorer (backlinks / ref domains / top pages), Rankings
-// + Keyword opportunities (organic keywords), Site Audit (health + issues,
-// matched by domain in /site-audit/projects).
-// NOT wired: Brand Radar (Ahrefs API 404s on this plan), GA4 (web analytics),
-// Google Ads (paid search).
-//
-// Secrets: AHREFS_API_KEY. Per-account: accounts.website (domain).
-// Staff `{action:"discover"}` lists Ahrefs projects / site-audit projects.
-// Money note: Ahrefs monetary values are USD CENTS — divide by 100.
+// The five Ahrefs source blocks run CONCURRENTLY (Promise.all) so total latency
+// is the slowest single source, not the sum. The organic-traffic trend window is
+// driven by the page's timeframe toggle via body.range (30d | 90d | 12mo | All).
 
 const AH_BASE = "https://api.ahrefs.com/v3";
 const CORS = {
@@ -34,7 +27,6 @@ function normDomain(u: string): string {
   if (s.endsWith("/")) s = s.slice(0, -1);
   return s;
 }
-
 async function ah(path: string, params: Record<string, string> = {}): Promise<any> {
   const key = Deno.env.get("AHREFS_API_KEY");
   if (!key) throw new Error("no AHREFS_API_KEY");
@@ -61,7 +53,6 @@ Deno.serve(async (req) => {
     if (!me?.account_id && !me?.is_staff) return json({ error: "forbidden" }, 403);
     const body = await req.json().catch(() => ({}));
 
-    // Staff-only: list Ahrefs projects / site-audit projects (for diagnostics).
     if (body.action === "discover") {
       if (!me.is_staff) return json({ error: "forbidden" }, 403);
       const probe = async (path: string, params: Record<string, string> = {}) => {
@@ -83,14 +74,25 @@ Deno.serve(async (req) => {
     if (!hasKey || !website) return json({ configured: false, website: website || null, reason: !hasKey ? "no_key" : "no_website" });
 
     const out: Record<string, unknown> = { configured: true, website };
-    const t = today(), from = daysAgo(365);
+    const t = today();
+    // Trend window for the organic-traffic chart, driven by the page's timeframe
+    // toggle. Short windows group daily; long ones group monthly.
+    const RANGE: Record<string, { days: number; grouping: string }> = {
+      "30d": { days: 30, grouping: "daily" },
+      "90d": { days: 90, grouping: "daily" },
+      "12mo": { days: 365, grouping: "monthly" },
+      "All": { days: 365 * 5, grouping: "monthly" },
+    };
+    const r = RANGE[String(body.range)] || RANGE["12mo"];
+    const from = daysAgo(r.days);
 
-    // --- Scorecard (DR / organic traffic / traffic value) + 12-month trend ---
+    // --- Scorecard (DR / organic traffic / traffic value) + traffic trend ---
+    const scorecardBlock = async () => {
     try {
       const [dr, metrics, hist] = await Promise.all([
         ah("/site-explorer/domain-rating", { target: website, date: t, protocol: "both" }).catch(() => null),
         ah("/site-explorer/metrics", { target: website, date: t, volume_mode: "monthly", protocol: "both" }).catch(() => null),
-        ah("/site-explorer/metrics-history", { target: website, date_from: from, date_to: t, volume_mode: "monthly", protocol: "both", history_grouping: "monthly" }).catch(() => null),
+        ah("/site-explorer/metrics-history", { target: website, date_from: from, date_to: t, volume_mode: "monthly", protocol: "both", history_grouping: r.grouping }).catch(() => null),
       ]);
       const drv = dr?.domain_rating?.domain_rating ?? dr?.domain_rating ?? null;
       const m = metrics?.metrics || metrics || {};
@@ -105,8 +107,10 @@ Deno.serve(async (req) => {
       out.trafficSeries = series.length ? series : null;
       out.organicTraffic = orgTraffic != null ? fmtNum(orgTraffic) : null;
     } catch { out.scorecard = null; out.trafficSeries = null; }
+    };
 
     // --- Site Explorer: backlinks + referring domains + top pages ---
+    const siteExplorerBlock = async () => {
     try {
       const bs = await ah("/site-explorer/backlinks-stats", { target: website, date: t, protocol: "both" }).catch(() => null);
       let pages: any[] = [];
@@ -125,8 +129,10 @@ Deno.serve(async (req) => {
         ? { backlinks: backlinks != null ? fmtNum(backlinks) : "—", refDomains: refDomains != null ? fmtNum(refDomains) : "—", topPages: pages }
         : null;
     } catch { out.siteExplorer = null; }
+    };
 
     // --- Rankings + Keyword opportunities (organic keywords, by position) ---
+    const rankingsBlock = async () => {
     try {
       const ok = await ah("/site-explorer/organic-keywords", {
         target: website, country: "us", date: t, protocol: "both",
@@ -147,8 +153,10 @@ Deno.serve(async (req) => {
         out.keywords = opps.length ? opps : null;
       } else { out.rankTracker = null; out.keywords = null; }
     } catch { out.rankTracker = null; out.keywords = null; }
+    };
 
     // --- Site Audit (Technical health) — matched by domain in the audit list ---
+    const siteAuditBlock = async () => {
     try {
       const sa = await ah("/site-audit/projects");
       const w = normDomain(website);
@@ -162,10 +170,54 @@ Deno.serve(async (req) => {
         ],
       } : null;
     } catch { out.siteAudit = null; }
+    };
 
-    // Not wired: Brand Radar (Ahrefs API 404 on this plan), GA4, Google Ads.
+    // --- Traffic sources (Ahrefs Web Analytics — first-party, by project) ---
+    const webAnalyticsBlock = async () => {
+    try {
+      const proj = await ah("/management/projects").catch(() => null);
+      const w = normDomain(website);
+      const p = (proj?.projects || []).find((x: any) => normDomain(x.url) === w || normDomain(x.url).includes(w));
+      const pid = p?.project_id ? String(p.project_id) : null;
+      if (pid) {
+        const r90 = { date_from: daysAgo(90), date_to: today() };
+        const rPrev = { date_from: daysAgo(180), date_to: daysAgo(91) };
+        const [stats, prev, ch, cities, dev] = await Promise.all([
+          ah("/web-analytics/stats", { ...r90, project_id: pid }).catch(() => null),
+          ah("/web-analytics/stats", { ...rPrev, project_id: pid }).catch(() => null),
+          ah("/web-analytics/source-channels", { ...r90, project_id: pid }).catch(() => null),
+          ah("/web-analytics/cities", { ...r90, project_id: pid }).catch(() => null),
+          ah("/web-analytics/devices", { ...r90, project_id: pid }).catch(() => null),
+        ]);
+        const visits = stats?.stats?.visits ?? stats?.stats?.visitors ?? null;
+        const prevVisits = prev?.stats?.visits ?? prev?.stats?.visitors ?? null;
+        const visitsDelta = (visits != null && prevVisits) ? Math.round((visits - prevVisits) / prevVisits * 100) : null;
+        const CH: Record<string, [string, string]> = {
+          search: ["Organic search", "#2c7d68"], direct: ["Direct", "#381c4f"], referral: ["Referral", "#2a6391"],
+          social: ["Social", "#d9356e"], paid: ["Paid", "#a8761a"], paid_search: ["Paid", "#a8761a"], "search/paid": ["Paid", "#a8761a"], email: ["Email", "#2a6391"],
+        };
+        const chRows = (ch?.stats || []).filter((c: any) => c.source_channel !== "internal");
+        const chTotal = chRows.reduce((s: number, c: any) => s + (c.visitors || 0), 0) || 1;
+        const channels = chRows.map((c: any) => {
+          const meta = CH[c.source_channel] || [c.source_channel, "#8a8395"];
+          return { name: meta[0], color: meta[1], value: Math.round((c.visitors || 0) / chTotal * 100) };
+        }).sort((a: any, b: any) => b.value - a.value).slice(0, 5);
+        const organicPct = (channels.find((c: any) => /organic/i.test(c.name)) || {}).value ?? null;
+        const cityRows = cities?.stats || [];
+        const cityTotal = cityRows.reduce((s: number, c: any) => s + (c.visitors || 0), 0) || 1;
+        const geo = cityRows.slice(0, 5).map((c: any) => ({ name: c.city || c.name || "—", value: Math.round((c.visitors || 0) / cityTotal * 100) }));
+        const DEV: Record<string, string> = { Desktop: "Desktop", Smartphone: "Mobile", Mobile: "Mobile", Tablet: "Tablet" };
+        const devRows = (dev?.stats || []).filter((c: any) => c.device && c.device !== "Unknown" && (c.visitors || 0) > 0);
+        const devTotal = devRows.reduce((s: number, c: any) => s + (c.visitors || 0), 0) || 1;
+        const devices = devRows.map((c: any) => ({ name: DEV[c.device] || c.device, value: Math.round((c.visitors || 0) / devTotal * 100) }));
+        out.webAnalytics = visits != null ? { visits: fmtNum(visits), visitsDelta, organicPct, channels, devices, geo } : null;
+      } else out.webAnalytics = null;
+    } catch { out.webAnalytics = null; }
+    };
+
+    await Promise.all([scorecardBlock(), siteExplorerBlock(), rankingsBlock(), siteAuditBlock(), webAnalyticsBlock()]);
+
     out.brandRadar = null;
-    out.webAnalytics = null;
     out.paidSearch = null;
     return json(out);
   } catch (e) {

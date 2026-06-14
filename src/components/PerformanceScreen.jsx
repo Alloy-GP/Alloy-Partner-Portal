@@ -5,21 +5,21 @@ import { fetchPerformance } from '../lib/analytics.js';
 // ============================================================
 // Visibility — client-facing SEO / web-analytics page.
 // Ported from the "Web Analytics · Story Scroll" design handoff.
-// Blends six sources into one top-to-bottom narrative: organic traffic,
+// Blends the live sources into one top-to-bottom narrative: organic traffic,
 // Brand Radar (AI search), rankings, traffic sources, paid search, and
 // authority/health.
 //
-// NOTE: the data below is the design's SAMPLE data (fictional "Westwind
-// HOA Group"). The real sources — Ahrefs (Site Explorer / Rank Tracker /
-// Keywords / Site Audit / Brand Radar), GA4, and Google Ads — are not yet
-// wired. When they are, replace the constants with the assembled per-account,
-// per-timeframe payload and keep the component shapes identical.
+// LIVE ONLY — no sample/placeholder numbers. Data comes from the `analytics`
+// edge function, keyed by the account's domain. Three states:
+//   • loading  → skeleton (PerfSkeleton)
+//   • not connected (no website / no key) → empty state (PerfEmpty)
+//   • connected → every section that returned data renders; sources that
+//     aren't wired yet (currently Brand Radar / GA4 web analytics / Google
+//     Ads paid search) are simply omitted rather than faked.
 // ============================================================
 
 const A_PURPLE = '#381c4f', A_PINK = '#d9356e', A_YELLOW = '#f5d880',
       A_GREEN = '#2c7d68', A_BLUE = '#2a6391', A_AMBER = '#a8761a';
-
-const A_CLIENT = { domain: 'westwindhoa.com', range: 'Last 90 days · this quarter' };
 
 // ---- path helpers ----
 function _pts(data, w, h, pad = 0) {
@@ -125,104 +125,11 @@ const AIc = {
   money: (p) => <svg width={p.s || 16} height={p.s || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>,
 };
 
-// ---- SAMPLE DATA (replace with live per-account payload) ----
-const SERIES = {
-  traffic: [4120, 4380, 4510, 4690, 4980, 5240, 5610, 6050, 6380, 6720, 7180, 7640],
-  trafficVal: [6.1, 6.4, 6.7, 7.0, 7.6, 8.1, 8.8, 9.5, 10.2, 11.0, 11.9, 12.7],
-  dr: [38, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48],
-  top3: [22, 24, 27, 29, 33, 36, 41, 45, 52, 58, 64, 71],
-  health: [78, 79, 80, 82, 83, 85, 86, 88, 90, 91, 92, 94],
-};
-const SCORECARD = [
-  { key: 'traffic', label: 'Organic traffic', value: '7,640', unit: '/mo', delta: 85, color: A_PINK },
-  { key: 'trafficVal', label: 'Traffic value', value: '$12.7K', unit: '/mo', delta: 108, color: A_GREEN },
-  { key: 'dr', label: 'Domain Rating', value: '48', unit: '/100', delta: 10, deltaSuffix: ' pts', color: A_BLUE },
-  { key: 'health', label: 'Site health', value: '94', unit: '/100', delta: 16, deltaSuffix: ' pts', color: A_AMBER },
-];
-const BRAND_RADAR = {
-  share: 36, citations: 184, citationsDelta: 147,
-  platforms: [
-    { name: 'ChatGPT', share: 42, color: A_GREEN },
-    { name: 'Google AI Overviews', share: 38, color: A_BLUE },
-    { name: 'Perplexity', share: 29, color: A_PINK },
-    { name: 'Claude', share: 24, color: A_PURPLE },
-  ],
-  prompts: [
-    { q: 'best HOA management company in Austin', rank: 'Cited #1', good: true },
-    { q: 'how to switch HOA management', rank: 'Cited #2', good: true },
-    { q: 'HOA management cost Texas', rank: 'Cited #3', good: true },
-    { q: 'Westwind HOA reviews', rank: 'Not cited', good: false },
-  ],
-};
-const SITE_EXPLORER = {
-  backlinks: '8,420', backlinksDelta: 23, refDomains: '612', refDomainsDelta: 18,
-  topPages: [
-    { url: '/hoa-management-austin', traffic: '1,840', value: '$3.1K' },
-    { url: '/services/financial', traffic: '1,210', value: '$2.2K' },
-    { url: '/blog/hoa-budget-guide', traffic: '980', value: '$1.4K' },
-    { url: '/areas/round-rock', traffic: '720', value: '$1.1K' },
-  ],
-};
-const RANK_TRACKER = {
-  tracked: 248, top3: 71, top10: 134, improved: 89,
-  keywords: [
-    { kw: 'hoa management austin', pos: 1, prev: 3, vol: '2.4K' },
-    { kw: 'austin hoa companies', pos: 2, prev: 5, vol: '1.9K' },
-    { kw: 'hoa management cost', pos: 4, prev: 9, vol: '1.1K' },
-    { kw: 'round rock hoa management', pos: 3, prev: 8, vol: '880' },
-    { kw: 'switch hoa management company', pos: 6, prev: 14, vol: '640' },
-  ],
-};
-const WEB_ANALYTICS = {
-  visits: '22,180', visitsDelta: 64,
-  channels: [
-    { name: 'Organic search', value: 58, color: A_GREEN },
-    { name: 'Direct', value: 21, color: A_PURPLE },
-    { name: 'Referral', value: 12, color: A_BLUE },
-    { name: 'Social', value: 9, color: A_PINK },
-  ],
-  devices: [{ name: 'Mobile', value: 64 }, { name: 'Desktop', value: 31 }, { name: 'Tablet', value: 5 }],
-  geo: [
-    { name: 'Austin, TX', value: 48 }, { name: 'Round Rock, TX', value: 19 },
-    { name: 'Cedar Park, TX', value: 12 }, { name: 'Georgetown, TX', value: 9 }, { name: 'Other', value: 12 },
-  ],
-};
-const PAID_SEARCH = {
-  spend: '$8,400', spendDelta: 12, leads: 142, leadsDelta: 68,
-  costPerLead: '$59', cplDelta: -33, roas: '5.2x', roasDelta: 41, revenue: '$43.7K', convRate: 7.4,
-  spendSeries: [680, 660, 700, 690, 710, 700, 720, 700, 690, 700, 680, 700],
-  leadsSeries: [6, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-  cplSeries: [88, 84, 80, 76, 72, 68, 66, 64, 62, 61, 60, 59],
-  campaigns: [
-    { name: 'HOA Management — Austin', spend: '$3,180', leads: 61, cpl: '$52', roas: '6.1x', best: true },
-    { name: 'Switch Your HOA Co.', spend: '$2,140', leads: 38, cpl: '$56', roas: '5.4x' },
-    { name: 'Round Rock / Cedar Park', spend: '$1,790', leads: 29, cpl: '$62', roas: '4.8x' },
-    { name: 'Brand — Westwind', spend: '$1,290', leads: 14, cpl: '$92', roas: '3.2x' },
-  ],
-};
-const KEYWORDS = [
-  { kw: 'hoa management software', vol: '3,600', kd: 42, intent: 'Commercial' },
-  { kw: 'self managed hoa vs management company', vol: '1,300', kd: 28, intent: 'Informational' },
-  { kw: 'hoa reserve study cost', vol: '890', kd: 19, intent: 'Commercial' },
-  { kw: 'best hoa management software 2026', vol: '720', kd: 35, intent: 'Commercial' },
-];
-const SITE_AUDIT = {
-  health: 94,
-  issues: [
-    { label: 'Errors', count: 3, color: A_PINK },
-    { label: 'Warnings', count: 9, color: A_AMBER },
-    { label: 'Notices', count: 24, color: A_BLUE },
-  ],
-};
-
 // ---- layout primitives ----
 function ABand({ children, style }) {
   return <div style={{ background: '#fff', border: '1px solid #ece8f1', borderRadius: 16, padding: '24px 26px', boxShadow: '0 2px 10px rgba(56,28,79,0.05)', ...style }}>{children}</div>;
 }
-function SampleTag() {
-  return <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', padding: '3px 8px', borderRadius: 6, background: '#f0edf4', color: '#8a8395', flexShrink: 0 }}>Sample</span>;
-}
-function ABandHead({ icon, color, bg, kicker, title, takeaway, sample }) {
+function ABandHead({ icon, color, bg, kicker, title, takeaway }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13, marginBottom: 18 }}>
       <span style={{ width: 38, height: 38, borderRadius: 10, background: bg, color, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{icon}</span>
@@ -231,53 +138,116 @@ function ABandHead({ icon, color, bg, kicker, title, takeaway, sample }) {
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 800, color: A_PURPLE, letterSpacing: '-0.01em', lineHeight: 1.2 }}>{title}</div>
         {takeaway && <div style={{ fontSize: 13, color: '#6a5c7a', marginTop: 5, lineHeight: 1.45, maxWidth: 760 }}>{takeaway}</div>}
       </div>
-      {sample && <SampleTag />}
     </div>
   );
 }
 
+// ---- loading + empty states (shown instead of any placeholder numbers) ----
+function Sk({ w = '100%', h = 14, r = 8, style }) {
+  return <div className="perf-sk" style={{ width: w, height: h, borderRadius: r, ...style }} />;
+}
+function PerfSkeleton() {
+  return (
+    <div className="content perf-screen" data-screen-label="05 Performance" style={{ fontFamily: 'var(--font-body)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+        <Sk w={190} h={38} r={10} />
+        <Sk w={160} h={18} r={8} />
+        <div style={{ flex: 1 }} />
+        <Sk w={190} h={34} r={9} />
+      </div>
+      <ABand style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 28 }}>
+          <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {[0, 1, 2, 3].map(i => <Sk key={i} h={42} />)}
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Sk w={220} h={18} /><Sk h={186} />
+          </div>
+        </div>
+      </ABand>
+      {[0, 1].map(i => (
+        <ABand key={i} style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 13, marginBottom: 18 }}>
+            <Sk w={38} h={38} r={10} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}><Sk w={140} h={12} /><Sk w={260} h={18} /></div>
+          </div>
+          <Sk h={120} />
+        </ABand>
+      ))}
+    </div>
+  );
+}
+function PerfEmpty({ domain }) {
+  return (
+    <div className="content perf-screen" data-screen-label="05 Performance" style={{ fontFamily: 'var(--font-body)' }}>
+      <ABand style={{ textAlign: 'center', padding: '60px 32px', maxWidth: 560, margin: '40px auto' }}>
+        <span style={{ width: 54, height: 54, borderRadius: 14, background: '#f0edf4', color: A_PURPLE, display: 'grid', placeItems: 'center', margin: '0 auto 18px' }}><AIc.globe s={26} /></span>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, color: A_PURPLE, marginBottom: 8 }}>Analytics aren't connected yet</div>
+        <div style={{ fontSize: 13.5, color: '#6a5c7a', lineHeight: 1.5 }}>
+          {domain
+            ? <>We're wiring up live SEO &amp; web analytics for <strong style={{ color: A_PURPLE }}>{domain}</strong>. Your dashboard will fill in as each source comes online.</>
+            : <>Once this account's website is connected, your live SEO &amp; web-analytics dashboard appears here — organic traffic, rankings, authority, and more.</>}
+        </div>
+      </ABand>
+    </div>
+  );
+}
+
+// Window copy for the trend chart, keyed by the timeframe toggle.
+const RANGE_META = {
+  '30d': { sub: 'last 30 days', ago: '30 days ago', vs: '30 days ago' },
+  '90d': { sub: 'last 90 days', ago: '90 days ago', vs: '90 days ago' },
+  '12mo': { sub: 'last 12 months', ago: '12 mo ago', vs: 'a year ago' },
+  'All': { sub: 'all time', ago: 'start', vs: 'the start' },
+};
+
 function PerformanceScreen() {
-  const [timeframe, setTimeframe] = React.useState('90d');
-  const [live, setLive] = React.useState(null);
+  const [timeframe, setTimeframe] = React.useState('12mo');
+  const [data, setData] = React.useState(null);
+  const [pending, setPending] = React.useState(true);
   const acctId = DATA.account?.id;
   React.useEffect(() => {
     let cancelled = false;
-    fetchPerformance(acctId).then((d) => { if (!cancelled) setLive(d); });
+    setPending(true);
+    // Keep showing the current data while a timeframe switch is in flight, so
+    // toggling the range dims the chart rather than flashing the skeleton.
+    fetchPerformance(acctId, timeframe).then((d) => { if (!cancelled) { setData(d); setPending(false); } });
     return () => { cancelled = true; };
-  }, [acctId]);
+  }, [acctId, timeframe]);
 
-  // Merge live data over the sample fallback, per section. `L[k]` present →
-  // that section is live; otherwise the sample renders with a "Sample" tag.
-  const L = (live && live.configured) ? live : {};
-  const scorecard = L.scorecard || SCORECARD;
-  const trafficSeries = L.trafficSeries || SERIES.traffic;
-  const organicTraffic = L.organicTraffic || '7,640';
-  const siteExplorer = L.siteExplorer || SITE_EXPLORER;
-  const rankTracker = L.rankTracker || RANK_TRACKER;
-  const top3Series = (L.rankTracker && L.rankTracker.top3Series) || SERIES.top3;
-  const keywords = L.keywords || KEYWORDS;
-  const siteAudit = L.siteAudit || SITE_AUDIT;
-  const brandRadar = L.brandRadar || BRAND_RADAR;
-  const webAnalytics = L.webAnalytics || WEB_ANALYTICS;
-  const paidSearch = L.paidSearch || PAID_SEARCH;
-  const isSample = (k) => !L[k];
-  const anyLive = !!(live && live.configured);
-  const domain = (live && live.website) || A_CLIENT.domain;
-  // Hero delta + quarter-start derive from the live trend when available.
-  const heroDelta = (anyLive && trafficSeries.length > 1 && trafficSeries[0])
-    ? Math.round((trafficSeries[trafficSeries.length - 1] - trafficSeries[0]) / trafficSeries[0] * 100) : 85;
-  const heroStart = (anyLive && trafficSeries.length) ? Number(trafficSeries[0]).toLocaleString('en-US') : '4,120';
+  if (pending && !data) return <PerfSkeleton />;
+  if (!data || !data.configured) return <PerfEmpty domain={data && data.website} />;
+  const range = RANGE_META[timeframe] || RANGE_META['12mo'];
+
+  // Live only — each section renders ONLY when its source returned data; an
+  // unwired or empty source is omitted rather than backfilled with fake numbers.
+  const scorecard = data.scorecard;
+  const trafficSeries = data.trafficSeries;
+  const organicTraffic = data.organicTraffic;
+  const siteExplorer = data.siteExplorer;
+  const rankTracker = data.rankTracker;
+  const keywords = data.keywords;
+  const siteAudit = data.siteAudit;
+  const brandRadar = data.brandRadar;
+  const webAnalytics = data.webAnalytics;
+  const paidSearch = data.paidSearch;
+  const domain = data.website;
+  // Hero delta + start derive from the live 12-month trend.
+  const heroDelta = (trafficSeries && trafficSeries.length > 1 && trafficSeries[0])
+    ? Math.round((trafficSeries[trafficSeries.length - 1] - trafficSeries[0]) / trafficSeries[0] * 100) : null;
+  const heroStart = (trafficSeries && trafficSeries.length) ? Number(trafficSeries[0]).toLocaleString('en-US') : null;
+  const showHero = !!(scorecard || trafficSeries);
 
   return (
     <div className="content perf-screen" data-screen-label="05 Performance" style={{ fontFamily: 'var(--font-body)' }}>
-      {/* header row: domain + synced + timeframe toggle */}
+      {/* header row: domain + live + timeframe toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: '#fff', border: '1px solid #ece8f1', borderRadius: 10, padding: '9px 14px' }}>
           <AIc.globe s={16} />
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: A_PURPLE }}>{domain}</span>
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, color: '#8a8395' }}>
-          <ADot c={A_GREEN} size={7} /> Data synced · {A_CLIENT.range}
+          <ADot c={A_GREEN} size={7} /> Live data
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'inline-flex', borderRadius: 9, overflow: 'hidden', border: '1px solid #e0d8ea' }}>
@@ -287,18 +257,14 @@ function PerformanceScreen() {
         </div>
       </div>
 
-      {!anyLive && live !== null ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 16, padding: '11px 15px', borderRadius: 12, background: '#f4f1f8', border: '1px solid #e6e0ef', fontSize: 12.5, color: '#6a5c7a' }}>
-          <span style={{ width: 7, height: 7, borderRadius: 999, background: '#a8a0b5', flexShrink: 0 }} />
-          Showing sample data. Connect this account's domain + Ahrefs/GA4/Google Ads to go live.
-        </div>
-      ) : null}
-
+      <div style={{ opacity: pending ? 0.5 : 1, transition: 'opacity .2s ease', pointerEvents: pending ? 'none' : 'auto' }}>
       {/* HERO — growth story */}
+      {showHero && (
       <ABand style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
-        <div className="perf-hero-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr' }}>
+        <div className="perf-hero-grid" style={{ display: 'grid', gridTemplateColumns: scorecard ? '320px 1fr' : '1fr' }}>
+          {scorecard && (
           <div style={{ background: 'linear-gradient(160deg, #faf7fb, #f4eef8)', borderRight: '1px solid #f1eef6', padding: '26px' }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: A_PINK, marginBottom: 8 }}>This quarter at a glance</div>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: A_PINK, marginBottom: 8 }}>At a glance</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 800, color: A_PURPLE, letterSpacing: '-0.01em', lineHeight: 1.25, marginBottom: 20 }}>Your organic engine is compounding.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {scorecard.map(m => (
@@ -316,29 +282,34 @@ function PerformanceScreen() {
               ))}
             </div>
           </div>
+          )}
+          {trafficSeries && (
           <div style={{ padding: '24px 28px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: A_PURPLE }}>Organic traffic</div>
-                <div style={{ fontSize: 12, color: '#8a8395', marginTop: 1 }}>{anyLive ? 'Monthly organic visits · last 12 months' : 'Monthly visits · trending up 12 weeks straight'}</div>
+                <div style={{ fontSize: 12, color: '#8a8395', marginTop: 1 }}>Organic visits · {range.sub}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, justifyContent: 'flex-end' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 800, color: A_PURPLE, letterSpacing: '-0.02em', lineHeight: 1 }}>{organicTraffic}</span>
-                  <Delta v={heroDelta} />
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 800, color: A_PURPLE, letterSpacing: '-0.02em', lineHeight: 1 }}>{organicTraffic || '—'}</span>
+                  {heroDelta != null ? <Delta v={heroDelta} /> : null}
                 </div>
-                <div style={{ fontSize: 11, color: '#a8a0b5', marginTop: 3 }}>vs {heroStart} {anyLive ? 'a year ago' : 'at quarter start'}</div>
+                {heroStart ? <div style={{ fontSize: 11, color: '#a8a0b5', marginTop: 3 }}>vs {heroStart} {range.vs}</div> : null}
               </div>
             </div>
             <AreaChart data={trafficSeries} color={A_PINK} w={620} h={184} />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 10, color: '#b3acc0', fontWeight: 600 }}>
-              {anyLive ? (<><span>12 mo ago</span><span /><span>now</span></>) : (<><span>Apr</span><span>May</span><span>Jun</span></>)}
+              <span>{range.ago}</span><span /><span>now</span>
             </div>
           </div>
+          )}
         </div>
       </ABand>
+      )}
 
       {/* BRAND RADAR */}
+      {brandRadar && (
       <div style={{ background: 'linear-gradient(125deg, #381c4f 0%, #290d41 70%)', borderRadius: 16, padding: '26px 28px', marginBottom: 16, color: '#fff', position: 'relative', overflow: 'hidden', boxShadow: '0 14px 36px rgba(56,28,79,0.26)' }}>
         <div style={{ position: 'absolute', right: -50, top: -50, width: 200, height: 200, borderRadius: 999, background: 'radial-gradient(circle, rgba(217,53,110,0.34), transparent 68%)' }} />
         <div style={{ position: 'relative' }}>
@@ -347,7 +318,7 @@ function PerformanceScreen() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.12em', color: A_YELLOW, marginBottom: 3 }}>Brand Radar · our edge</div>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 800, letterSpacing: '-0.01em' }}>You're winning the AI search era</div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.66)', marginTop: 5, lineHeight: 1.45, maxWidth: 720 }}>When buyers ask ChatGPT, Google AI, Perplexity or Claude about HOA management, you're cited more than 1 in 3 times — up from almost nothing last quarter.</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.66)', marginTop: 5, lineHeight: 1.45, maxWidth: 720 }}>When buyers ask ChatGPT, Google AI, Perplexity or Claude about your category, you're cited {brandRadar.share}% of the time.</div>
             </div>
           </div>
           <div className="perf-radar-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr 250px', gap: 18 }}>
@@ -358,7 +329,7 @@ function PerformanceScreen() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{brandRadar.citations}</span>
-                  <Delta v={brandRadar.citationsDelta} />
+                  {brandRadar.citationsDelta != null ? <Delta v={brandRadar.citationsDelta} /> : null}
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>AI citations<br />this quarter</div>
               </div>
@@ -366,7 +337,7 @@ function PerformanceScreen() {
             <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 13, padding: '16px 18px' }}>
               <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(255,255,255,0.5)', marginBottom: 12 }}>Where you're cited</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                {brandRadar.platforms.map(p => (
+                {(brandRadar.platforms || []).map(p => (
                   <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ width: 140, fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>{p.name}</span>
                     <div style={{ flex: 1, height: 7, background: 'rgba(255,255,255,0.12)', borderRadius: 999, overflow: 'hidden' }}>
@@ -380,7 +351,7 @@ function PerformanceScreen() {
             <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 13, padding: '16px' }}>
               <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(255,255,255,0.5)', marginBottom: 12 }}>Tracked prompts</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {brandRadar.prompts.map((p, i) => (
+                {(brandRadar.prompts || []).map((p, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                     <span style={{ width: 15, height: 15, borderRadius: 999, background: p.good ? 'rgba(44,125,104,0.3)' : 'rgba(255,255,255,0.1)', color: p.good ? '#7fd9be' : 'rgba(255,255,255,0.4)', display: 'grid', placeItems: 'center', flexShrink: 0, marginTop: 1 }}>{p.good ? <AIc.check s={9} /> : <AIc.dot s={6} />}</span>
                     <div><div style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', lineHeight: 1.3 }}>"{p.q}"</div><div style={{ fontSize: 10, fontWeight: 700, color: p.good ? '#7fd9be' : 'rgba(255,255,255,0.45)', marginTop: 1 }}>{p.rank}</div></div>
@@ -391,10 +362,12 @@ function PerformanceScreen() {
           </div>
         </div>
       </div>
+      )}
 
       {/* RANKINGS */}
+      {rankTracker && (
       <ABand style={{ marginBottom: 16 }}>
-        <ABandHead sample={isSample('rankTracker')} icon={<AIc.rank s={19} />} color={A_PINK} bg="#fbe2eb" kicker="Rank Tracker"
+        <ABandHead icon={<AIc.rank s={19} />} color={A_PINK} bg="#fbe2eb" kicker="Rank Tracker"
           title="Climbing the page-1 ladder" takeaway={`${rankTracker.top3} keywords sit in the top 3 and ${rankTracker.top10} in the top 10 — the searches your buyers actually use.`} />
         <div className="perf-rank-grid" style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 24, alignItems: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -404,15 +377,15 @@ function PerformanceScreen() {
                 <span style={{ fontSize: 12.5, color: '#6a5c7a', fontWeight: 600 }}>{s.l}</span>
               </div>
             ))}
-            {isSample('rankTracker') ? (
+            {rankTracker.top3Series ? (
               <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid #f1eef6' }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a8395', marginBottom: 6 }}>Top-3 keywords over time</div>
-                <Sparkline data={top3Series} color={A_GREEN} w={210} h={36} />
+                <Sparkline data={rankTracker.top3Series} color={A_GREEN} w={210} h={36} />
               </div>
             ) : null}
           </div>
           <div>
-            {rankTracker.keywords.map((k, i) => (
+            {(rankTracker.keywords || []).map((k, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px', gap: 12, alignItems: 'center', padding: '11px 0', borderTop: i ? '1px solid #f4f1f8' : 'none' }}>
                 <span style={{ fontSize: 13, color: '#43406a', fontWeight: 600 }}>{k.kw}</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifySelf: 'start' }}>
@@ -425,18 +398,20 @@ function PerformanceScreen() {
           </div>
         </div>
       </ABand>
+      )}
 
       {/* TRAFFIC SOURCES */}
+      {webAnalytics && (
       <ABand style={{ marginBottom: 16 }}>
-        <ABandHead sample={isSample('webAnalytics')} icon={<AIc.chart s={19} />} color={A_GREEN} bg="#e2f0ec" kicker="Web Analytics"
-          title="Where your visitors come from" takeaway={`${webAnalytics.visits} visits this quarter, ${webAnalytics.visitsDelta}% up — and the majority arrive through organic search you don't pay per click for.`} />
+        <ABandHead icon={<AIc.chart s={19} />} color={A_GREEN} bg="#e2f0ec" kicker="Web Analytics"
+          title="Where your visitors come from" takeaway={`${webAnalytics.visits} visits this quarter — most arriving through organic search you don't pay per click for.`} />
         <div className="perf-sources-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24 }}>
           <div>
             <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', color: '#a8a0b5', marginBottom: 13 }}>Channels</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <Donut size={112} stroke={15} segments={webAnalytics.channels} center={<div><div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: A_PURPLE, lineHeight: 1 }}>58%</div><div style={{ fontSize: 8.5, color: '#8a8395' }}>organic</div></div>} />
+              <Donut size={112} stroke={15} segments={webAnalytics.channels || []} center={<div><div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: A_PURPLE, lineHeight: 1 }}>{webAnalytics.organicPct != null ? webAnalytics.organicPct : ((webAnalytics.channels && webAnalytics.channels[0] && webAnalytics.channels[0].value) || 0)}%</div><div style={{ fontSize: 8.5, color: '#8a8395' }}>organic</div></div>} />
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {webAnalytics.channels.map(c => (
+                {(webAnalytics.channels || []).map(c => (
                   <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ADot c={c.color} size={8} /><span style={{ flex: 1, fontSize: 11.5, color: '#43406a', fontWeight: 600 }}>{c.name}</span><span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 800, color: A_PURPLE }}>{c.value}%</span></div>
                 ))}
               </div>
@@ -445,7 +420,7 @@ function PerformanceScreen() {
           <div>
             <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', color: '#a8a0b5', marginBottom: 13 }}>Top locations</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {webAnalytics.geo.map(g => (
+              {(webAnalytics.geo || []).map(g => (
                 <div key={g.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ width: 110, fontSize: 12, color: '#43406a', fontWeight: 600 }}>{g.name}</span>
                   <div style={{ flex: 1, height: 7, background: '#f0edf4', borderRadius: 999, overflow: 'hidden' }}><div style={{ width: g.value * 2 + '%', height: '100%', background: A_BLUE, borderRadius: 999 }} /></div>
@@ -457,7 +432,7 @@ function PerformanceScreen() {
           <div>
             <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', color: '#a8a0b5', marginBottom: 13 }}>Devices</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {webAnalytics.devices.map(d => (
+              {(webAnalytics.devices || []).map(d => (
                 <div key={d.name}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}><span style={{ fontSize: 12, color: '#43406a', fontWeight: 600 }}>{d.name}</span><span style={{ fontFamily: 'var(--font-display)', fontSize: 12.5, fontWeight: 800, color: A_PURPLE }}>{d.value}%</span></div>
                   <div style={{ height: 7, background: '#f0edf4', borderRadius: 999, overflow: 'hidden' }}><div style={{ width: d.value + '%', height: '100%', background: A_PINK, borderRadius: 999 }} /></div>
@@ -467,22 +442,24 @@ function PerformanceScreen() {
           </div>
         </div>
       </ABand>
+      )}
 
       {/* PAID SEARCH */}
+      {paidSearch && (
       <ABand style={{ marginBottom: 16 }}>
-        <ABandHead sample={isSample('paidSearch')} icon={<AIc.money s={19} />} color={A_AMBER} bg="#fbeecb" kicker="Paid Search · Google Ads"
-          title="Every ad dollar is pulling its weight" takeaway={`This quarter your ads turned ${paidSearch.spend} of spend into ${paidSearch.leads} qualified leads and ${paidSearch.revenue} in attributed revenue — a ${paidSearch.roas} return, while your cost per lead kept falling.`} />
+        <ABandHead icon={<AIc.money s={19} />} color={A_AMBER} bg="#fbeecb" kicker="Paid Search · Google Ads"
+          title="Every ad dollar is pulling its weight" takeaway={`This quarter your ads turned ${paidSearch.spend} of spend into ${paidSearch.leads} qualified leads and ${paidSearch.revenue} in attributed revenue — a ${paidSearch.roas} return.`} />
         <div className="perf-paid-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
           {[
             { label: 'Ad spend', value: paidSearch.spend, sub: 'this quarter', delta: paidSearch.spendDelta, color: A_PURPLE, series: paidSearch.spendSeries },
             { label: 'Qualified leads', value: paidSearch.leads, sub: `${paidSearch.convRate}% conversion rate`, delta: paidSearch.leadsDelta, color: A_GREEN, series: paidSearch.leadsSeries },
-            { label: 'Cost per lead', value: paidSearch.costPerLead, sub: 'down from $88', delta: paidSearch.cplDelta, color: A_BLUE, series: paidSearch.cplSeries, invert: true },
+            { label: 'Cost per lead', value: paidSearch.costPerLead, sub: 'cost per qualified lead', delta: paidSearch.cplDelta, color: A_BLUE, series: paidSearch.cplSeries, invert: true },
             { label: 'Return on ad spend', value: paidSearch.roas, sub: `${paidSearch.revenue} attributed`, delta: paidSearch.roasDelta, color: A_PINK, hero: true },
           ].map(m => (
             <div key={m.label} style={{ background: m.hero ? 'linear-gradient(160deg, #fdf0f4, #fce6ee)' : '#faf8fc', border: `1px solid ${m.hero ? '#f6cdda' : '#f1eef6'}`, borderRadius: 13, padding: '15px 16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 9 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#8a8395' }}>{m.label}</span>
-                <Delta v={m.delta} invert={m.invert} />
+                {m.delta != null ? <Delta v={m.delta} invert={m.invert} /> : null}
               </div>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, color: m.hero ? A_PINK : A_PURPLE, letterSpacing: '-0.02em', lineHeight: 1 }}>{m.value}</div>
               <div style={{ fontSize: 10.5, color: '#a8a0b5', marginTop: 4, marginBottom: m.series ? 10 : 0 }}>{m.sub}</div>
@@ -496,7 +473,7 @@ function PerformanceScreen() {
             <span key={h} style={{ fontSize: 10.5, fontWeight: 700, color: '#a8a0b5', textAlign: i === 0 ? 'left' : 'right' }}>{h}</span>
           ))}
         </div>
-        {paidSearch.campaigns.map((c, i) => (
+        {(paidSearch.campaigns || []).map((c, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 96px 80px 80px 70px', gap: 12, alignItems: 'center', padding: '12px 0', borderTop: i ? '1px solid #f7f4fb' : 'none' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: '#43406a', fontWeight: 700 }}>{c.name}</span>
@@ -509,17 +486,20 @@ function PerformanceScreen() {
           </div>
         ))}
       </ABand>
+      )}
 
       {/* BOTTOM ROW */}
+      {(siteExplorer || siteAudit || keywords) && (
       <div className="perf-bottom-grid" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr', gap: 16 }}>
+        {siteExplorer && (
         <ABand>
-          <ABandHead sample={isSample('siteExplorer')} icon={<AIc.search s={18} />} color={A_BLUE} bg="#e6eef5" kicker="Site Explorer" title="Authority & backlinks" />
+          <ABandHead icon={<AIc.search s={18} />} color={A_BLUE} bg="#e6eef5" kicker="Site Explorer" title="Authority & backlinks" />
           <div style={{ display: 'flex', gap: 22, marginBottom: 16 }}>
-            <div><div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}><span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: A_PURPLE }}>{siteExplorer.backlinks}</span><Delta v={siteExplorer.backlinksDelta} /></div><div style={{ fontSize: 10.5, color: '#8a8395', marginTop: 2 }}>backlinks</div></div>
-            <div><div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}><span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: A_PURPLE }}>{siteExplorer.refDomains}</span><Delta v={siteExplorer.refDomainsDelta} /></div><div style={{ fontSize: 10.5, color: '#8a8395', marginTop: 2 }}>referring domains</div></div>
+            <div><div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}><span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: A_PURPLE }}>{siteExplorer.backlinks}</span>{siteExplorer.backlinksDelta != null ? <Delta v={siteExplorer.backlinksDelta} /> : null}</div><div style={{ fontSize: 10.5, color: '#8a8395', marginTop: 2 }}>backlinks</div></div>
+            <div><div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}><span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: A_PURPLE }}>{siteExplorer.refDomains}</span>{siteExplorer.refDomainsDelta != null ? <Delta v={siteExplorer.refDomainsDelta} /> : null}</div><div style={{ fontSize: 10.5, color: '#8a8395', marginTop: 2 }}>referring domains</div></div>
           </div>
-          <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', color: '#a8a0b5', marginBottom: 9 }}>Top pages</div>
-          {siteExplorer.topPages.slice(0, 4).map((p, i) => (
+          {(siteExplorer.topPages || []).length ? <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', color: '#a8a0b5', marginBottom: 9 }}>Top pages</div> : null}
+          {(siteExplorer.topPages || []).slice(0, 4).map((p, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 56px 50px', gap: 8, alignItems: 'center', padding: '8px 0', borderTop: i ? '1px solid #f4f1f8' : 'none' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: A_BLUE, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.url}</span>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: '#43406a', textAlign: 'right' }}>{p.traffic}</span>
@@ -527,32 +507,39 @@ function PerformanceScreen() {
             </div>
           ))}
         </ABand>
+        )}
 
+        {siteAudit && (
         <ABand>
-          <ABandHead sample={isSample('siteAudit')} icon={<AIc.audit s={18} />} color={A_AMBER} bg="#fbeecb" kicker="Site Audit" title="Technical health" />
+          <ABandHead icon={<AIc.audit s={18} />} color={A_AMBER} bg="#fbeecb" kicker="Site Audit" title="Technical health" />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
             <Donut size={108} stroke={14} segments={[{ value: siteAudit.health, color: A_GREEN }]} center={<div><div style={{ fontFamily: 'var(--font-display)', fontSize: 25, fontWeight: 800, color: A_PURPLE, lineHeight: 1 }}>{siteAudit.health}</div><div style={{ fontSize: 9, color: '#8a8395' }}>/ 100</div></div>} />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {siteAudit.issues.map(it => (
+              {(siteAudit.issues || []).map(it => (
                 <div key={it.label} style={{ display: 'flex', alignItems: 'center', gap: 9 }}><ADot c={it.color} size={9} /><span style={{ flex: 1, fontSize: 12, color: '#43406a', fontWeight: 600 }}>{it.label}</span><span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: A_PURPLE }}>{it.count}</span></div>
               ))}
             </div>
           </div>
         </ABand>
+        )}
 
+        {keywords && (
         <ABand>
-          <ABandHead sample={isSample('keywords')} icon={<AIc.key s={18} />} color={A_PURPLE} bg="#ece8f1" kicker="Keywords Explorer" title="Next opportunities" />
+          <ABandHead icon={<AIc.key s={18} />} color={A_PURPLE} bg="#ece8f1" kicker="Keywords Explorer" title="Next opportunities" />
           {keywords.map((k, i) => (
             <div key={i} style={{ padding: '9px 0', borderTop: i ? '1px solid #f4f1f8' : 'none' }}>
               <div style={{ fontSize: 12.5, color: '#43406a', fontWeight: 600, marginBottom: 4 }}>{k.kw}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11 }}>
                 <span style={{ color: '#8a8395' }}>{k.vol}/mo</span>
                 <span style={{ fontWeight: 800, color: k.kd < 30 ? A_GREEN : A_AMBER }}>KD {k.kd}</span>
-                <span style={{ color: '#a8a0b5' }}>{k.intent}</span>
+                {k.intent && k.intent !== '—' ? <span style={{ color: '#a8a0b5' }}>{k.intent}</span> : null}
               </div>
             </div>
           ))}
         </ABand>
+        )}
+      </div>
+      )}
       </div>
     </div>
   );

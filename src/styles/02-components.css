@@ -308,6 +308,10 @@
 .dash-link:active { transform: translateY(0); transition-duration: .1s; }
 .dash-link:focus-visible { outline: 2px solid var(--alloy-pink); outline-offset: 2px; }
 
+/* Performance page — loading skeleton shimmer. */
+.perf-sk { background: linear-gradient(90deg, #f0edf4 25%, #e7e1ef 37%, #f0edf4 63%); background-size: 400% 100%; animation: perf-sk 1.4s ease infinite; }
+@keyframes perf-sk { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
 /* Performance page — collapse multi-column bands on narrow viewports.
    (Grid columns are set inline in PerformanceScreen, so override with !important.) */
 @media (max-width: 1024px) {
