@@ -6,9 +6,15 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Traffic sources (Ahrefs Web Analytics). NOT wired: Brand Radar (no data yet),
 // Paid Search (Google Ads). Secrets: AHREFS_API_KEY. Per-account: accounts.website.
 //
-// The five Ahrefs source blocks run CONCURRENTLY (Promise.all) so total latency
-// is the slowest single source, not the sum. The organic-traffic trend window is
-// driven by the page's timeframe toggle via body.range (30d | 90d | 12mo | All).
+// CACHING: Ahrefs is slow (~8-9s/account even with the 5 source blocks run
+// concurrently). Results are cached in `analytics_cache` keyed by (account_id,
+// range). The read path serves cache when fresh (<26h) and lazily fills on
+// miss/stale. A daily cron hits {action:"refresh"} (secret-guarded) to pre-warm
+// the default range for every account, so the common load is instant.
+//
+// verify_jwt is FALSE (like the other cron-callable functions): the data path
+// still enforces auth in-code via getUser; the refresh path is guarded by a
+// secret stored in app_config.
 
 const AH_BASE = "https://api.ahrefs.com/v3";
 const CORS = {
@@ -39,55 +45,28 @@ const fmtNum = (n: number) => Math.round(n).toLocaleString("en-US");
 const fmtK = (n: number) => (n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${Math.round(n)}`);
 const fmtVol = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(Math.round(n || 0)));
 
-Deno.serve(async (req) => {
-  try {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-    const authorization = req.headers.get("Authorization") || "";
-    if (!authorization) return json({ error: "unauthorized" }, 401);
-    const url = Deno.env.get("SUPABASE_URL")!;
-    const userClient = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authorization } } });
-    const { data: auth } = await userClient.auth.getUser();
-    const user = auth?.user;
-    if (!user) return json({ error: "unauthorized" }, 401);
-    const { data: me } = await userClient.from("profiles").select("account_id, is_staff").eq("id", user.id).maybeSingle();
-    if (!me?.account_id && !me?.is_staff) return json({ error: "forbidden" }, 403);
-    const body = await req.json().catch(() => ({}));
+// Trend window for the organic-traffic chart, driven by the page's timeframe
+// toggle. Short windows group daily; long ones group monthly.
+const RANGE: Record<string, { days: number; grouping: string }> = {
+  "30d": { days: 30, grouping: "daily" },
+  "90d": { days: 90, grouping: "daily" },
+  "12mo": { days: 365, grouping: "monthly" },
+  "All": { days: 365 * 5, grouping: "monthly" },
+};
+const normRange = (v: unknown) => (RANGE[String(v)] ? String(v) : "12mo");
+const CACHE_FRESH_MS = 26 * 3600 * 1000; // a touch over 24h so the daily cron always counts as fresh
 
-    if (body.action === "discover") {
-      if (!me.is_staff) return json({ error: "forbidden" }, 403);
-      const probe = async (path: string, params: Record<string, string> = {}) => {
-        try { return await ah(path, params); } catch (e) { return { error: String(e).slice(0, 240) }; }
-      };
-      const [projects, siteAudit, brandRadar] = await Promise.all([
-        probe("/management/projects"),
-        probe("/site-audit/projects"),
-        probe("/management/brand-radar-reports"),
-      ]);
-      return json({ projects, siteAudit, brandRadar });
-    }
+// Build the live payload for one domain + range by hitting Ahrefs. The five
+// source blocks run concurrently; each has its own try/catch so a failing
+// source nulls only its own keys.
+async function buildPayload(website: string, rangeKey: string): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { configured: true, website };
+  const t = today();
+  const r = RANGE[rangeKey] || RANGE["12mo"];
+  const from = daysAgo(r.days);
 
-    const accountId = me.is_staff && body.accountId ? String(body.accountId) : me.account_id;
-    const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: acct } = await admin.from("accounts").select("website").eq("id", accountId).maybeSingle();
-    const website = (acct?.website || "").trim();
-    const hasKey = !!Deno.env.get("AHREFS_API_KEY");
-    if (!hasKey || !website) return json({ configured: false, website: website || null, reason: !hasKey ? "no_key" : "no_website" });
-
-    const out: Record<string, unknown> = { configured: true, website };
-    const t = today();
-    // Trend window for the organic-traffic chart, driven by the page's timeframe
-    // toggle. Short windows group daily; long ones group monthly.
-    const RANGE: Record<string, { days: number; grouping: string }> = {
-      "30d": { days: 30, grouping: "daily" },
-      "90d": { days: 90, grouping: "daily" },
-      "12mo": { days: 365, grouping: "monthly" },
-      "All": { days: 365 * 5, grouping: "monthly" },
-    };
-    const r = RANGE[String(body.range)] || RANGE["12mo"];
-    const from = daysAgo(r.days);
-
-    // --- Scorecard (DR / organic traffic / traffic value) + traffic trend ---
-    const scorecardBlock = async () => {
+  // --- Scorecard (DR / organic traffic / traffic value) + traffic trend ---
+  const scorecardBlock = async () => {
     try {
       const [dr, metrics, hist] = await Promise.all([
         ah("/site-explorer/domain-rating", { target: website, date: t, protocol: "both" }).catch(() => null),
@@ -107,10 +86,10 @@ Deno.serve(async (req) => {
       out.trafficSeries = series.length ? series : null;
       out.organicTraffic = orgTraffic != null ? fmtNum(orgTraffic) : null;
     } catch { out.scorecard = null; out.trafficSeries = null; }
-    };
+  };
 
-    // --- Site Explorer: backlinks + referring domains + top pages ---
-    const siteExplorerBlock = async () => {
+  // --- Site Explorer: backlinks + referring domains + top pages ---
+  const siteExplorerBlock = async () => {
     try {
       const bs = await ah("/site-explorer/backlinks-stats", { target: website, date: t, protocol: "both" }).catch(() => null);
       let pages: any[] = [];
@@ -129,10 +108,10 @@ Deno.serve(async (req) => {
         ? { backlinks: backlinks != null ? fmtNum(backlinks) : "—", refDomains: refDomains != null ? fmtNum(refDomains) : "—", topPages: pages }
         : null;
     } catch { out.siteExplorer = null; }
-    };
+  };
 
-    // --- Rankings + Keyword opportunities (organic keywords, by position) ---
-    const rankingsBlock = async () => {
+  // --- Rankings + Keyword opportunities (organic keywords, by position) ---
+  const rankingsBlock = async () => {
     try {
       const ok = await ah("/site-explorer/organic-keywords", {
         target: website, country: "us", date: t, protocol: "both",
@@ -153,10 +132,10 @@ Deno.serve(async (req) => {
         out.keywords = opps.length ? opps : null;
       } else { out.rankTracker = null; out.keywords = null; }
     } catch { out.rankTracker = null; out.keywords = null; }
-    };
+  };
 
-    // --- Site Audit (Technical health) — matched by domain in the audit list ---
-    const siteAuditBlock = async () => {
+  // --- Site Audit (Technical health) — matched by domain in the audit list ---
+  const siteAuditBlock = async () => {
     try {
       const sa = await ah("/site-audit/projects");
       const w = normDomain(website);
@@ -170,10 +149,10 @@ Deno.serve(async (req) => {
         ],
       } : null;
     } catch { out.siteAudit = null; }
-    };
+  };
 
-    // --- Traffic sources (Ahrefs Web Analytics — first-party, by project) ---
-    const webAnalyticsBlock = async () => {
+  // --- Traffic sources (Ahrefs Web Analytics — first-party, by project) ---
+  const webAnalyticsBlock = async () => {
     try {
       const proj = await ah("/management/projects").catch(() => null);
       const w = normDomain(website);
@@ -213,13 +192,84 @@ Deno.serve(async (req) => {
         out.webAnalytics = visits != null ? { visits: fmtNum(visits), visitsDelta, organicPct, channels, devices, geo } : null;
       } else out.webAnalytics = null;
     } catch { out.webAnalytics = null; }
-    };
+  };
 
-    await Promise.all([scorecardBlock(), siteExplorerBlock(), rankingsBlock(), siteAuditBlock(), webAnalyticsBlock()]);
+  await Promise.all([scorecardBlock(), siteExplorerBlock(), rankingsBlock(), siteAuditBlock(), webAnalyticsBlock()]);
 
-    out.brandRadar = null;
-    out.paidSearch = null;
-    return json(out);
+  out.brandRadar = null;
+  out.paidSearch = null;
+  return out;
+}
+
+Deno.serve(async (req) => {
+  try {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const body = await req.json().catch(() => ({}));
+
+    // --- Daily cron pre-warm (secret-guarded; no user). Rebuilds the cache for
+    // the default range across every account with a website. ---
+    if (body.action === "refresh") {
+      const { data: cfg } = await admin.from("app_config").select("value").eq("key", "analytics_cron_secret").maybeSingle();
+      if (!cfg?.value || body.secret !== cfg.value) return json({ error: "forbidden" }, 403);
+      if (!Deno.env.get("AHREFS_API_KEY")) return json({ error: "no_key" }, 200);
+      const rangeKey = normRange(body.range);
+      const { data: accts } = await admin.from("accounts").select("id, website").not("website", "is", null);
+      let refreshed = 0; const errors: string[] = [];
+      for (const a of (accts || [])) {
+        const w = String((a as any).website || "").trim();
+        if (!w) continue;
+        try {
+          const payload = await buildPayload(w, rangeKey);
+          await admin.from("analytics_cache").upsert({ account_id: (a as any).id, range: rangeKey, payload, fetched_at: new Date().toISOString() });
+          refreshed++;
+        } catch (e) { errors.push(`${w}: ${String(e).slice(0, 120)}`); }
+      }
+      return json({ refreshed, range: rangeKey, errors });
+    }
+
+    // --- User-facing path (auth enforced in-code via getUser) ---
+    const authorization = req.headers.get("Authorization") || "";
+    if (!authorization) return json({ error: "unauthorized" }, 401);
+    const userClient = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authorization } } });
+    const { data: auth } = await userClient.auth.getUser();
+    const user = auth?.user;
+    if (!user) return json({ error: "unauthorized" }, 401);
+    const { data: me } = await userClient.from("profiles").select("account_id, is_staff").eq("id", user.id).maybeSingle();
+    if (!me?.account_id && !me?.is_staff) return json({ error: "forbidden" }, 403);
+
+    // Staff-only: list Ahrefs projects / site-audit projects (for diagnostics).
+    if (body.action === "discover") {
+      if (!me.is_staff) return json({ error: "forbidden" }, 403);
+      const probe = async (path: string, params: Record<string, string> = {}) => {
+        try { return await ah(path, params); } catch (e) { return { error: String(e).slice(0, 240) }; }
+      };
+      const [projects, siteAudit, brandRadar] = await Promise.all([
+        probe("/management/projects"),
+        probe("/site-audit/projects"),
+        probe("/management/brand-radar-reports"),
+      ]);
+      return json({ projects, siteAudit, brandRadar });
+    }
+
+    const accountId = me.is_staff && body.accountId ? String(body.accountId) : me.account_id;
+    const { data: acct } = await admin.from("accounts").select("website").eq("id", accountId).maybeSingle();
+    const website = (acct?.website || "").trim();
+    const hasKey = !!Deno.env.get("AHREFS_API_KEY");
+    if (!hasKey || !website) return json({ configured: false, website: website || null, reason: !hasKey ? "no_key" : "no_website" });
+
+    const rangeKey = normRange(body.range);
+
+    // Serve from cache when fresh; otherwise build live + cache it.
+    const { data: cached } = await admin.from("analytics_cache").select("payload, fetched_at").eq("account_id", accountId).eq("range", rangeKey).maybeSingle();
+    if (cached && cached.fetched_at && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_FRESH_MS) {
+      return json({ ...(cached.payload as Record<string, unknown>), cached: true, fetchedAt: cached.fetched_at });
+    }
+
+    const payload = await buildPayload(website, rangeKey);
+    await admin.from("analytics_cache").upsert({ account_id: accountId, range: rangeKey, payload, fetched_at: new Date().toISOString() });
+    return json({ ...payload, cached: false, fetchedAt: new Date().toISOString() });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

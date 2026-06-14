@@ -218,6 +218,16 @@ function PerformanceScreen() {
   if (pending && !data) return <PerfSkeleton />;
   if (!data || !data.configured) return <PerfEmpty domain={data && data.website} />;
   const range = RANGE_META[timeframe] || RANGE_META['12mo'];
+  // Data is cached + refreshed daily, so show its age rather than implying real-time.
+  const updatedLabel = (() => {
+    if (!data.fetchedAt) return 'Live data';
+    const mins = Math.floor((Date.now() - new Date(data.fetchedAt).getTime()) / 60000);
+    if (mins < 2) return 'Updated just now';
+    if (mins < 60) return `Updated ${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `Updated ${hrs}h ago`;
+    return `Updated ${Math.floor(hrs / 24)}d ago`;
+  })();
 
   // Live only — each section renders ONLY when its source returned data; an
   // unwired or empty source is omitted rather than backfilled with fake numbers.
@@ -247,7 +257,7 @@ function PerformanceScreen() {
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: A_PURPLE }}>{domain}</span>
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, color: '#8a8395' }}>
-          <ADot c={A_GREEN} size={7} /> Live data
+          <ADot c={A_GREEN} size={7} /> {updatedLabel}
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'inline-flex', borderRadius: 9, overflow: 'hidden', border: '1px solid #e0d8ea' }}>
