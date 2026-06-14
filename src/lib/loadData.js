@@ -71,7 +71,7 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('quickbooks_payment_methods').select('*').eq('account_id', accountId).order('created_at', { ascending: false }),
     supabase.from('autopay_schedules').select('*').eq('account_id', accountId).maybeSingle(),
     supabase.from('ticket_links').select('zendesk_id, link, pct').eq('account_id', accountId),
-    supabase.from('ticket_summaries').select('zendesk_id, summary').eq('account_id', accountId),
+    supabase.from('ticket_summaries').select('zendesk_id, summary, comment_count').eq('account_id', accountId),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -154,6 +154,8 @@ export async function loadAccountData(session, accountId, me) {
     // so cards show last-known text instantly; ProjectsScreen calls
     // `summarize-tickets` on mount to refresh/generate any that updated.
     ticketSummaries: Object.fromEntries((ticketSummariesRes.data || []).filter((t) => t.summary).map((t) => [t.zendesk_id, t.summary])),
+    // Cached public comment count per ticket → "X messages" on the Zone 1 cards.
+    ticketCounts: Object.fromEntries((ticketSummariesRes.data || []).filter((t) => t.comment_count != null).map((t) => [t.zendesk_id, t.comment_count])),
     recentLeads: (leadsRes.data || []).map((l) => ({
       id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, source: l.source,
       quality: l.quality, quotable: l.quotable,

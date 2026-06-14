@@ -17,7 +17,8 @@ export async function summarizeTickets(ids) {
       body: { accountId: DATA.account?.id, ids: list },
     });
     if (error) throw error;
-    return (data && data.summaries) || {};
+    // { summaries: {id: text}, counts: {id: n} }
+    return data || {};
   } catch {
     return {};
   }

@@ -36,7 +36,7 @@ function Pill({ n, label, tone }) {
   );
 }
 
-function SnapshotQueue({ onReview }) {
+function SnapshotQueue({ onReview, excludeIds }) {
   const [q, setQ] = useState(null);
   const [busy, setBusy] = useState('');
 
@@ -44,7 +44,9 @@ function SnapshotQueue({ onReview }) {
   useEffect(() => { load(); }, []);
 
   if (!q) return null;
-  const rows = (q.queue || []).filter((r) => r.draftId || (r.flags && r.flags.length));
+  // Drop internal/admin accounts (e.g. Alloy) — they don't get client snapshots.
+  const skip = excludeIds || new Set();
+  const rows = (q.queue || []).filter((r) => !skip.has(r.id) && (r.draftId || (r.flags && r.flags.length)));
   if (rows.length === 0) return null;
 
   const publish = async (id) => {
@@ -104,7 +106,11 @@ function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient, onR
     getPortfolio().then((r) => setClients(r.clients || [])).catch((e) => setError(String(e.message || e)));
   }, []);
 
-  const totals = (clients || []).reduce((t, c) => ({
+  // The Alloy org itself is tier 'internal' — keep it on the portfolio as the
+  // admin tile, but never count or total it as a client.
+  const real = (clients || []).filter((c) => c.tier !== 'internal');
+  const internal = (clients || []).filter((c) => c.tier === 'internal');
+  const totals = real.reduce((t, c) => ({
     open: t.open + c.openActions, past: t.past + c.pastDue, users: t.users + c.activeUsers,
   }), { open: 0, past: 0, users: 0 });
 
@@ -131,14 +137,14 @@ function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient, onR
         {error ? <div style={{ color: 'var(--alloy-pink)', fontSize: 13 }}>Couldn’t load the portfolio. {error}</div> : null}
         {clients === null && !error ? <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>Loading clients…</div> : null}
 
-        {onReviewSnapshot ? <SnapshotQueue onReview={onReviewSnapshot} /> : null}
+        {onReviewSnapshot ? <SnapshotQueue onReview={onReviewSnapshot} excludeIds={new Set(internal.map((c) => c.id))} /> : null}
 
         {clients && clients.length > 0 ? (
           <>
             {/* Summary */}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
               {[
-                { label: 'Clients', value: clients.length },
+                { label: 'Clients', value: real.length },
                 { label: 'Open tickets', value: totals.open },
                 { label: 'Past-due', value: totals.past },
                 { label: 'Active users (30d)', value: totals.users },
@@ -152,7 +158,21 @@ function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient, onR
 
             {/* Client cards */}
             <div className="col-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
-              {clients.map((c) => {
+              {internal.map((c) => (
+                <button key={c.id} onClick={() => (onAdmin ? onAdmin() : onEnter(c.id))} className="card card-pad"
+                  style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--alloy-purple)', background: 'var(--alloy-purple-tint)', display: 'block' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Mark c={c} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)' }}>{c.short_name || c.company}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>Your team · admin</div>
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', padding: '3px 8px', borderRadius: 6, background: 'var(--alloy-purple)', color: '#fff', flexShrink: 0 }}>Admin</span>
+                    <span aria-hidden="true" style={{ color: 'var(--fg-muted)' }}>→</span>
+                  </div>
+                </button>
+              ))}
+              {real.map((c) => {
                 const needs = c.openActions + c.pastDue > 0;
                 const pct = c.goal_target ? Math.round((c.goal_current / c.goal_target) * 100) : 0;
                 return (

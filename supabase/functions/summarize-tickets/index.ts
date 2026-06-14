@@ -69,29 +69,31 @@ Deno.serve(async (req) => {
 
     const { data: me } = await userClient
       .from("profiles").select("account_id, is_staff").eq("id", user.id).maybeSingle();
-    if (!me?.account_id) return json({ error: "forbidden" }, 403);
+    if (!me?.account_id && !me?.is_staff) return json({ error: "forbidden" }, 403);
 
     const body = await req.json().catch(() => ({}));
     // Cross-tenant: clients only their own account; staff may target any.
     const accountId = me.is_staff && body.accountId ? String(body.accountId) : me.account_id;
     const ids: string[] = Array.isArray(body.ids) ? body.ids.map(String).slice(0, 20) : [];
-    if (!ids.length) return json({ summaries: {} });
+    if (!ids.length) return json({ summaries: {}, counts: {} });
 
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Org scope — only summarize tickets that belong to this account's org.
     const { data: acct } = await admin.from("accounts").select("zendesk_org_id, company, short_name").eq("id", accountId).maybeSingle();
     const orgId = acct?.zendesk_org_id ? String(acct.zendesk_org_id) : null;
-    if (!orgId) return json({ summaries: {} });
+    if (!orgId) return json({ summaries: {}, counts: {} });
     const clientName = (acct?.short_name || acct?.company || "the customer").trim();
 
     const { data: cachedRows } = await admin
-      .from("ticket_summaries").select("zendesk_id, summary, source_updated_at")
+      .from("ticket_summaries").select("zendesk_id, summary, source_updated_at, comment_count")
       .eq("account_id", accountId).in("zendesk_id", ids);
-    const cache: Record<string, { summary: string; source_updated_at: string | null }> = {};
-    for (const c of cachedRows || []) cache[c.zendesk_id] = { summary: c.summary, source_updated_at: c.source_updated_at };
+    const cache: Record<string, { summary: string; source_updated_at: string | null; comment_count: number | null }> = {};
+    for (const c of cachedRows || []) cache[c.zendesk_id] = { summary: c.summary, source_updated_at: c.source_updated_at, comment_count: c.comment_count };
 
     const out: Record<string, string> = {};
+    const counts: Record<string, number> = {};
+    const publicCount = (cm: any) => (cm?.comments || []).filter((x: any) => x.public).length;
     for (const id of ids) {
       try {
         const t = await zd(`/tickets/${id}.json`);
@@ -101,14 +103,26 @@ Deno.serve(async (req) => {
         const c = cache[id];
         if (c && c.source_updated_at && new Date(c.source_updated_at).getTime() >= new Date(upd).getTime()) {
           out[id] = c.summary; // fresh cache — no model call
+          if (c.comment_count != null) counts[id] = c.comment_count;
+          else {
+            // Backfill the count for a row cached before this column existed —
+            // one comments fetch, no model call, then it's cached.
+            try {
+              const n = publicCount(await zd(`/tickets/${id}/comments.json`));
+              counts[id] = n;
+              await admin.from("ticket_summaries").update({ comment_count: n }).eq("account_id", accountId).eq("zendesk_id", id);
+            } catch { /* count optional */ }
+          }
           continue;
         }
         const cm = await zd(`/tickets/${id}/comments.json`);
+        const n = publicCount(cm);
+        counts[id] = n;
         const convo = (cm.comments || []).filter((x: any) => x.public).map((x: any) => x.body).join("\n---\n");
         const sum = await summarize(`Subject: ${tk.subject}\n\n${convo}`, clientName);
         if (sum) {
           await admin.from("ticket_summaries").upsert(
-            { account_id: accountId, zendesk_id: id, summary: sum, source_updated_at: upd, generated_at: new Date().toISOString() },
+            { account_id: accountId, zendesk_id: id, summary: sum, source_updated_at: upd, comment_count: n, generated_at: new Date().toISOString() },
             { onConflict: "account_id,zendesk_id" },
           );
           out[id] = sum;
@@ -116,10 +130,10 @@ Deno.serve(async (req) => {
           out[id] = c.summary; // model unavailable — keep last good
         }
       } catch {
-        if (cache[id]) out[id] = cache[id].summary;
+        if (cache[id]) { out[id] = cache[id].summary; if (cache[id].comment_count != null) counts[id] = cache[id].comment_count; }
       }
     }
-    return json({ summaries: out });
+    return json({ summaries: out, counts });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

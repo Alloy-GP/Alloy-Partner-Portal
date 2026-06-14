@@ -137,12 +137,15 @@ function ProjectsScreen({ onNav, onCompose }) {
   // the live ticket list is in (it re-runs the model only for tickets that
   // updated since last summarized, so this stays cheap).
   const [summaries, setSummaries] = React.useState(() => DATA.ticketSummaries || {});
+  const [counts, setCounts] = React.useState(() => DATA.ticketCounts || {});
   const pendingIdsKey = pending.map((t) => t.id).join(",");
   React.useEffect(() => {
     if (!pendingIdsKey) return;
     let cancelled = false;
-    summarizeTickets(pendingIdsKey.split(",")).then((m) => {
-      if (!cancelled && m && Object.keys(m).length) setSummaries((prev) => ({ ...prev, ...m }));
+    summarizeTickets(pendingIdsKey.split(",")).then((r) => {
+      if (cancelled || !r) return;
+      if (r.summaries && Object.keys(r.summaries).length) setSummaries((prev) => ({ ...prev, ...r.summaries }));
+      if (r.counts && Object.keys(r.counts).length) setCounts((prev) => ({ ...prev, ...r.counts }));
     });
     return () => { cancelled = true; };
   }, [pendingIdsKey]);
@@ -202,6 +205,18 @@ function ProjectsScreen({ onNav, onCompose }) {
             ) : null}
             {progress[t.id] != null ? (
               <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
+            ) : null}
+            {t.requester ? (
+              <div className="pj-card-req">
+                <span className="pj-req-av" style={{ background: catColor(t.requester) }}>{t.requester.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase()}</span>
+                <span className="pj-req-name">Requested by <strong>{t.requester}</strong></span>
+                {counts[t.id] != null ? (
+                  <span className="pj-req-count" title={`${counts[t.id]} messages`}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg>
+                    {counts[t.id]}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
             <div className="pj-cta">
               {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Review Now <I.External width={12} height={12} /></a> : null}
