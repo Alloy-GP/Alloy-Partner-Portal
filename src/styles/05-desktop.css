@@ -351,7 +351,10 @@
 
   /* ----- Spotlight — 3-column row ----- */
   .dash-spotlight {
-    grid-template-columns: 1fr 1fr 1fr;
+    /* minmax(0,1fr) (not bare 1fr → minmax(auto,1fr)) lets columns stay fixed at
+       a third each; otherwise a long always-on service name forces its column
+       wider. With this, long names truncate (…) + show their title on hover. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: 22px;
     align-items: stretch;
     margin: 0 0 28px;
@@ -486,7 +489,7 @@
   }
   .weekly-snapshot {
     background:
-      linear-gradient(135deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.32) 100%),
+      linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.12) 100%),
       radial-gradient(120% 80% at 0% 0%, rgba(217,53,110,0.06) 0%, transparent 60%);
     -webkit-backdrop-filter: blur(22px) saturate(1.7);
     backdrop-filter: blur(22px) saturate(1.7);
@@ -558,9 +561,8 @@
   .ws-column .ws-pb-sub {
     font-size: 12px; font-weight: 600; color: var(--fg-2);
   }
-  /* Pace pill — "On track" / "Ahead" / "Behind", pushed to the right edge. */
+  /* Pace pill — "On track" / "Ahead" / "Behind", sits next to the Roadmap title. */
   .ws-column .ws-pb-status {
-    margin-left: auto; align-self: center;
     font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em;
     text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
   }

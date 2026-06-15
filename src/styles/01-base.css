@@ -147,10 +147,7 @@ a:hover { text-decoration: underline; }
   background: linear-gradient(90deg, rgba(217,53,110,0.18) 0%, rgba(217,53,110,0.04) 100%);
   color: #fff; font-weight: 600;
 }
-.nav-item[data-active="true"]::before {
-  content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
-  background: var(--alloy-pink); border-radius: 0 3px 3px 0;
-}
+/* Active nav item is marked by the gradient pill + yellow icon (no left accent bar). */
 .nav-item .icon { display: grid; place-items: center; width: 18px; opacity: 0.85; flex-shrink: 0; }
 /* ── Animated nav icons (hover micro-interactions, Vimeo-style) ──
    Base: every icon gets a springy lift+scale. Bespoke: specific glyphs move a

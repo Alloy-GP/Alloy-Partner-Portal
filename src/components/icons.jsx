@@ -5,6 +5,12 @@ const I = {
   Home: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/></svg>,
   // Kanban board — active work being moved across stages ("Playbook").
   Board: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="5" height="13" rx="1.2"/><rect x="9.5" y="4" width="5" height="9" rx="1.2"/><rect x="16" y="4" width="5" height="11" rx="1.2"/></svg>,
+  // Book with a bookmark ribbon — the "play-book" of active plays.
+  Book: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M10 2v8l3-3 3 3V2"/></svg>,
+  // Eye — "Visibility" (being seen / found), distinct from Search's magnifier.
+  Eye: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>,
+  // Image / media — the asset library (frame, sun, mountain).
+  Image: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>,
   // Gauge / speedometer — performance at a glance.
   Gauge: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 18a9 9 0 1 1 17 0"/><path className="ic-needle" d="M12 14l4-4"/><circle cx="12" cy="14" r="1.4" fill="currentColor" stroke="none"/></svg>,
   Chart: (p) => <svg width={p?.width||16} height={p?.height||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M6 17V9M11 17V5M16 17v-7M21 17v-3"/></svg>,

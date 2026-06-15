@@ -276,7 +276,9 @@
 .nr-attach:hover { border-color: var(--alloy-purple); }
 
 /* Partnership value — same header design system as the Work-in-motion card. */
-.pv-head { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
+/* Header divider matches the Action queue card: full-bleed hairline under the
+   title (extends past the card's 22px padding), ~18px above & below. */
+.pv-head { display: flex; align-items: center; gap: 13px; margin: 0 -22px 18px; padding: 0 22px 18px; border-bottom: 1px solid var(--border-subtle); }
 .pv-head .pv-ic { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; background: var(--alloy-yellow-tint); color: #b8881a; display: grid; place-items: center; }
 .pv-head .pv-titles { flex: 1; min-width: 0; }
 .pv-head .pv-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--alloy-pink); margin-bottom: 4px; }
@@ -286,7 +288,7 @@
 
 /* Partnership value — 4 all-time relationship metrics. */
 .pv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 2px; }
-.pv-tile { background: var(--alloy-off-white); border-radius: 14px; padding: 16px 14px; display: flex; flex-direction: column; min-height: 92px; justify-content: center; }
+.pv-tile { background: rgba(255,255,255,0.72); border: 1px solid rgba(255,255,255,0.8); border-radius: 14px; padding: 16px 14px; display: flex; flex-direction: column; min-height: 92px; justify-content: center; box-shadow: 0 1px 3px rgba(56,28,79,0.05); }
 .pv-num { font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 1; letter-spacing: -0.01em; }
 .pv-lbl { font-size: 12px; font-weight: 700; color: var(--fg-2); margin-top: 8px; }
 .pv-sub { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
@@ -311,6 +313,9 @@
 .dash-link:focus-visible { outline: 2px solid var(--alloy-pink); outline-offset: 2px; }
 .dash-link:hover .pv-cta { background: var(--alloy-pink); }
 .dash-link:hover .bc-cta { background: var(--alloy-pink) !important; }
+/* Action queue: hovering anywhere on the card activates its pink arrow's hover
+   state (CSS-only, so the inner item/nudge buttons keep their own click behavior). */
+.banner-card.banner-yellow[data-tour="queue"]:hover .bc-cta.bc-cta-pink { background: #c12a60 !important; }
 
 /* Performance page — loading skeleton shimmer. */
 .perf-sk { background: linear-gradient(90deg, #f0edf4 25%, #e7e1ef 37%, #f0edf4 63%); background-size: 400% 100%; animation: perf-sk 1.4s ease infinite; }
