@@ -93,12 +93,19 @@ Deno.serve(async (req) => {
 
     const out: Record<string, string> = {};
     const counts: Record<string, number> = {};
+    const openers: Record<string, boolean> = {};
     const publicCount = (cm: any) => (cm?.comments || []).filter((x: any) => x.public).length;
     for (const id of ids) {
       try {
-        const t = await zd(`/tickets/${id}.json`);
+        const t = await zd(`/tickets/${id}.json?include=users`);
         const tk = t.ticket;
         if (!tk || String(tk.organization_id) !== orgId) continue; // scope guard
+        // Who created it (submitter) vs who it's for (requester). An Alloy-domain
+        // submitter means we opened it proactively, even though the client is requester.
+        const tUsers: Record<string, any> = {};
+        for (const u of t.users || []) tUsers[String(u.id)] = u;
+        const subEmail = String(tUsers[String(tk.submitter_id)]?.email || "").toLowerCase();
+        openers[id] = subEmail.endsWith("@alloygp.co");
         const upd = tk.updated_at;
         const c = cache[id];
         if (c && c.source_updated_at && new Date(c.source_updated_at).getTime() >= new Date(upd).getTime()) {
@@ -133,7 +140,7 @@ Deno.serve(async (req) => {
         if (cache[id]) { out[id] = cache[id].summary; if (cache[id].comment_count != null) counts[id] = cache[id].comment_count; }
       }
     }
-    return json({ summaries: out, counts });
+    return json({ summaries: out, counts, openers });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

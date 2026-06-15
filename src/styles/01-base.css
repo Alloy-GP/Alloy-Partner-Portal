@@ -152,6 +152,21 @@ a:hover { text-decoration: underline; }
   background: var(--alloy-pink); border-radius: 0 3px 3px 0;
 }
 .nav-item .icon { display: grid; place-items: center; width: 18px; opacity: 0.85; flex-shrink: 0; }
+/* ── Animated nav icons (hover micro-interactions, Vimeo-style) ──
+   Base: every icon gets a springy lift+scale. Bespoke: specific glyphs move a
+   part (the cubic-bezier overshoots slightly, which is what reads as "alive"). */
+.nav-item .icon svg { transition: transform .26s cubic-bezier(.34,1.56,.64,1); }
+.nav-item:hover .icon svg { transform: translateY(-1px) scale(1.12); }
+.nav-item:active .icon svg { transform: scale(0.95); transition-duration: .08s; }
+/* Upload — the arrow lifts out of the tray */
+.nav-item .icon .ic-up { transition: transform .28s cubic-bezier(.34,1.56,.64,1); }
+.nav-item:hover .icon .ic-up { transform: translateY(-2.5px); }
+/* Gauge (Visibility) — the needle sweeps up */
+.nav-item .icon .ic-needle { transition: transform .34s cubic-bezier(.34,1.56,.64,1); transform-box: view-box; transform-origin: 12px 14px; }
+.nav-item:hover .icon .ic-needle { transform: rotate(-34deg); }
+@media (prefers-reduced-motion: reduce) {
+  .nav-item:hover .icon svg, .nav-item:hover .icon .ic-up, .nav-item:hover .icon .ic-needle { transform: none; }
+}
 /* Labels clip rather than squeeze the icon, so the icon never drifts as the
    rail widens (the longer the label, the worse the drift otherwise). */
 .nav-item > span:not(.icon) { min-width: 0; overflow: hidden; }

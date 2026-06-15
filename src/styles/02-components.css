@@ -110,7 +110,7 @@
   font-family: var(--font-display);
   font-weight: 700; font-size: 13px;
   display: inline-flex; align-items: center; gap: 6px;
-  white-space: nowrap;
+  white-space: nowrap; transition: background .15s ease;
 }
 .banner-card-body { padding: 22px 24px; }
 
@@ -303,10 +303,14 @@
 .pv-lock-btn:hover { background: var(--alloy-pink); }
 /* Full-card click targets on the dashboard (Playbook, Partnership value).
    Unlike the playbook card (which darkens), these BRIGHTEN + lift on hover. */
-.dash-link { cursor: pointer; will-change: transform; transition: transform .14s ease, box-shadow .14s ease; }
-.dash-link:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(56,28,79,0.14); }
-.dash-link:active { transform: translateY(0); transition-duration: .1s; }
+/* Soft, slow, natural lift — long ease-out so it glides up and settles. */
+/* Clickable cards — no hover lift (kept the click target + focus ring only).
+   Hovering the card lights the arrow CTA's pink state, so the whole card reads
+   as the click target. */
+.dash-link { cursor: pointer; }
 .dash-link:focus-visible { outline: 2px solid var(--alloy-pink); outline-offset: 2px; }
+.dash-link:hover .pv-cta { background: var(--alloy-pink); }
+.dash-link:hover .bc-cta { background: var(--alloy-pink) !important; }
 
 /* Performance page — loading skeleton shimmer. */
 .perf-sk { background: linear-gradient(90deg, #f0edf4 25%, #e7e1ef 37%, #f0edf4 63%); background-size: 400% 100%; animation: perf-sk 1.4s ease infinite; }

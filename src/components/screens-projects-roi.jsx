@@ -143,6 +143,7 @@ function ProjectsScreen({ onNav, onCompose }) {
   // updated since last summarized, so this stays cheap).
   const [summaries, setSummaries] = React.useState(() => DATA.ticketSummaries || {});
   const [counts, setCounts] = React.useState(() => DATA.ticketCounts || {});
+  const [openers, setOpeners] = React.useState({}); // id → opened by Alloy (proactive)
   const pendingIdsKey = pending.map((t) => t.id).join(",");
   React.useEffect(() => {
     if (!pendingIdsKey) return;
@@ -151,6 +152,7 @@ function ProjectsScreen({ onNav, onCompose }) {
       if (cancelled || !r) return;
       if (r.summaries && Object.keys(r.summaries).length) setSummaries((prev) => ({ ...prev, ...r.summaries }));
       if (r.counts && Object.keys(r.counts).length) setCounts((prev) => ({ ...prev, ...r.counts }));
+      if (r.openers && Object.keys(r.openers).length) setOpeners((prev) => ({ ...prev, ...r.openers }));
     });
     return () => { cancelled = true; };
   }, [pendingIdsKey]);
@@ -202,21 +204,24 @@ function ProjectsScreen({ onNav, onCompose }) {
           </div>
         )) : pending.map((t) => (
           <div key={t.id} className="pj-card pj-clickable" role="button" tabIndex={0} onClick={() => onNav("tickets", t.id)}>
-            {t.requester ? (
-              <div className="pj-card-req head">
-                <span className="pj-req-av" style={{ background: catColor(t.requester) }}>{t.requester.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase()}</span>
-                <span className="pj-req-name">Requested by <strong>{t.requester}</strong></span>
-                {counts[t.id] != null ? (
-                  <span className="pj-req-count" title={`${counts[t.id]} messages`}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg>
-                    {counts[t.id]}
-                  </span>
-                ) : null}
+            <div className="pj-card-head2">
+              <span className="pj-req-av" style={{ background: catColor(t.requester || t.id) }}>{(t.requester || "?").split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"}</span>
+              <div className="pj-head2-main">
+                <span className="pj-head2-name">{t.requester || "New request"}</span>
+                <div className="pj-head2-sub">
+                  <span className="pj-head2-meta">{`${openers[t.id] ? "Alloy" : (DATA.account?.shortName || DATA.account?.company || "Client")} started this${counts[t.id] != null ? ` · ${counts[t.id]} ${counts[t.id] === 1 ? "reply" : "replies"}` : ""}`}</span>
+                </div>
               </div>
-            ) : null}
+            </div>
             <div className="pj-card-title">{t.title}</div>
             {summaries[t.id] ? (
-              <div className="pj-summary"><I.Sparkle width={12} height={12} /><span>{summaries[t.id]}</span></div>
+              <div className="pj-summary">
+                <I.Sparkle width={13} height={13} />
+                <div className="pj-summary-body">
+                  <div className="pj-summary-kicker">Your move</div>
+                  <div>{summaries[t.id]}</div>
+                </div>
+              </div>
             ) : null}
             {progress[t.id] != null ? (
               <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
