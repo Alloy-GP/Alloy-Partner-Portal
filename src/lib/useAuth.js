@@ -23,8 +23,16 @@ export function useAuth() {
       setLoading(false);
     });
 
+    // supabase-js fires TOKEN_REFRESHED / SIGNED_IN on tab focus-recovery and on
+    // its periodic token refresh. Each fires with a NEW session object; replacing
+    // our state every time re-runs the gate's getMe/loadAccountData effects (keyed
+    // on session), which flashes the splash and re-fetches the whole app on every
+    // tab return. The client refreshes its own JWT internally, and we only read
+    // session.user.{id,email} downstream — both stable across a refresh — so keep
+    // the same object while the signed-in user is unchanged; only swap on a real
+    // sign-in / sign-out / account switch.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
+      setSession((prev) => (prev?.user?.id === next?.user?.id ? prev : next));
     });
 
     return () => sub.subscription.unsubscribe();
