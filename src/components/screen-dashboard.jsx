@@ -7,7 +7,6 @@ import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
 import { pendingTickets } from '../lib/zendesk.js';
 import { ENGINES, ENGINE_ORDER, CORE_KEY, enginesOf } from '../lib/engines.js';
-import { quarterTrends } from '../lib/flywheel.js';
 
 // Shared "needs you" signal — live Zendesk tickets in "pending" status. Cached
 // in the lib so the queue, hero count, and bell share one network call.
@@ -68,7 +67,6 @@ function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
         </div>
         <div className="dash-right">
           <PartnershipValueCard onNav={onNav} />
-          <FlywheelMini onNav={onNav} />
         </div>
       </div>
 
@@ -421,44 +419,6 @@ function RoadmapCard({ onNav }) {
         </div>
       </button>
     </div>
-  );
-}
-
-// Flywheel mini — small card under Partnership value. Shows the three flywheel
-// stages and whether each is growing quarter-over-quarter (same elapsed window of
-// this quarter vs last). Reach = demand, Match = qualified, Retain = the reputation
-// loop-back (direct, reviews, referrals).
-function FlywheelMini({ onNav }) {
-  const t = quarterTrends(DATA.recentLeads, Date.now());
-  const rows = [
-    { key: "reach",  label: "Reach",  sub: "leads",      ...t.reach },
-    { key: "match",  label: "Match",  sub: "qualified",  ...t.match },
-    { key: "retain", label: "Retain", sub: "reputation", ...t.retain },
-  ];
-  // Need a prior-quarter baseline to show a trend; otherwise skip the card.
-  if (!t.hasPrior) return null;
-
-  const fmt = (r) => (r.deltaPct == null ? "new" : `${r.deltaPct > 0 ? "+" : ""}${r.deltaPct}%`);
-  const glyph = (d) => (d === "up" ? "▲" : d === "down" ? "▼" : "—");
-
-  return (
-    <button className="fw-mini" onClick={() => onNav && onNav("leads")} aria-label="Flywheel — quarter-over-quarter trend, see leads">
-      <div className="fw-mini-head">
-        <span className="fw-mini-label">Flywheel</span>
-        <span className="fw-mini-link">vs last qtr →</span>
-      </div>
-      <div className="fw-mini-rows">
-        {rows.map((r) => (
-          <div key={r.key} className="fw-mini-row">
-            <span className="fw-mini-dot" style={{ background: ENGINES[r.key].color }} />
-            <span className="fw-mini-name">{r.label}</span>
-            <span className="fw-mini-sub">{r.sub}</span>
-            <span className="fw-mini-val">{Number(r.cur).toLocaleString("en-US")}</span>
-            <span className={`fw-mini-delta fw-${r.dir}`}>{glyph(r.dir)} {fmt(r)}</span>
-          </div>
-        ))}
-      </div>
-    </button>
   );
 }
 
