@@ -111,7 +111,9 @@ const RIc = {
 
 // ---- coin milestone badge (with hover tooltip) ----
 function RMedal({ m, stageKey, size = 74 }) {
-  const c = STAGE_COIN[stageKey] || STAGE_COIN.foundation;
+  // All complete badges use one green family (#2f6b51 / #dcebe3) — per-stage
+  // color families are forgone. Locked/upcoming coins stay grey (handled below).
+  const c = STAGE_COIN.foundation;
   const done = m.done, fresh = m.fresh;
   const [tip, setTip] = React.useState(false);
   const gid = "coin-" + stageKey + "-" + (m.key || m.label || "").replace(/[^a-z0-9]/gi, "").slice(0, 14) + "-" + (done ? "d" : "l");
