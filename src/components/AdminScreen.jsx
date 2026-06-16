@@ -38,7 +38,7 @@ function AdminScreen({ startNew, selectId }) {
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
   const [invites, setInvites] = useState([]);
-  const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'owner' });
+  const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'owner', is_staff: false });
   const [busyInvite, setBusyInvite] = useState(false);
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('clients');
@@ -110,7 +110,7 @@ function AdminScreen({ startNew, selectId }) {
       setNotice(res && res.emailed
         ? `Invite email sent to ${email}.`
         : `${email} added — they already have an account and can sign in.`);
-      setInviteForm({ email: '', name: '', role: 'owner' });
+      setInviteForm({ email: '', name: '', role: 'owner', is_staff: false });
       const r = await listInvites(selectedId); setInvites(r.invites || []);
     } catch (e) { setError(String(e.message || e)); } finally { setBusyInvite(false); }
   };
@@ -279,6 +279,10 @@ function AdminScreen({ startNew, selectId }) {
                       <select className="input" value={inviteForm.role} onChange={(e) => setInviteForm((f) => ({ ...f, role: e.target.value }))}>
                         {CLIENT_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                       </select>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--alloy-purple)', whiteSpace: 'nowrap' }} title="Alloy team member — full portfolio access to every client. Leave off for client users.">
+                      <input type="checkbox" checked={!!inviteForm.is_staff} onChange={(e) => setInviteForm((f) => ({ ...f, is_staff: e.target.checked }))} />
+                      Alloy staff
                     </label>
                     <button className="btn btn-secondary" onClick={addInviteH} disabled={busyInvite || !inviteForm.email.trim()}>Add</button>
                   </div>
