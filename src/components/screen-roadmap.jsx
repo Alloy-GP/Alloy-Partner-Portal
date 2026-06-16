@@ -379,7 +379,7 @@ function QuarterCard({ q, projects, now, openDoc }) {
         </span>
       </div>
       {/* card */}
-      <div style={{ background: "#fff", border: `1px solid ${state === "now" ? R_PINK : "#ece8f1"}`, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", flex: 1, boxShadow: state === "now" ? "0 10px 26px rgba(217,53,110,0.16)" : "0 2px 8px rgba(56,28,79,0.06)" }}>
+      <div style={{ background: state === "done" ? "#f1f9f5" : "#fff", border: `1px solid ${state === "now" ? R_PINK : state === "done" ? "#bfe3d3" : "#ece8f1"}`, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", flex: 1, boxShadow: state === "now" ? "0 10px 26px rgba(217,53,110,0.16)" : "0 2px 8px rgba(56,28,79,0.06)" }}>
         <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid #f1eef6" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
             <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: state === "now" ? R_PINK : R_PURPLE, letterSpacing: "-0.02em" }}>Q{qNum}</span>
