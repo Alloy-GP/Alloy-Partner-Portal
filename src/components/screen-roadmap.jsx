@@ -169,7 +169,7 @@ function RMedal({ m, stageKey, size = 74 }) {
 function JourneyRail({ locations }) {
   const N = STAGES_DEF.length;
   const centerPct = (i) => ((i + 0.5) / N) * 100;
-  const [open, setOpen] = React.useState(locations[0]?.id ?? null);
+  const [open, setOpen] = React.useState(null); // all collapsed by default
   const [hover, setHover] = React.useState(null);
   const [stageView, setStageView] = React.useState({});
   const toggle = (id) => setOpen((cur) => (cur === id ? null : id));
@@ -222,6 +222,8 @@ function JourneyRail({ locations }) {
         {locations.map((loc) => {
           const stg = loc.stage;
           const isOpen = open === loc.id;
+          const hovered = hover === loc.id;
+          const lit = isOpen || hovered; // pink accents light up on hover or when open
           const vStage = isOpen ? (stageView[loc.id] ?? loc.stage) : loc.stage;
           return (
             <div key={loc.id}
@@ -229,13 +231,13 @@ function JourneyRail({ locations }) {
               style={{ borderRadius: 14, overflow: "hidden", border: "1px solid #ece8f1", background: "#fff", boxShadow: isOpen ? "0 6px 20px rgba(56,28,79,0.08)" : "none", transition: "box-shadow .18s" }}>
               <div onClick={() => toggle(loc.id)} role="button" style={{
                 display: "grid", gridTemplateColumns: `200px repeat(${N}, 1fr) 132px`, alignItems: "center",
-                cursor: "pointer", padding: "16px 14px", background: "#fff",
-                opacity: isOpen ? 1 : (hover === loc.id ? 0.74 : 0.46), transition: "opacity .18s",
+                cursor: "pointer", padding: "16px 14px", background: hovered && !isOpen ? "#faf7fd" : "#fff",
+                opacity: open == null ? 1 : (isOpen ? 1 : (hovered ? 0.74 : 0.46)), transition: "opacity .18s, background .18s",
               }}>
                 {/* label */}
                 <div style={{ paddingRight: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <span style={{ color: isOpen ? R_PINK : "#9a8fb0", display: "flex" }}><RIc.pin s={13} /></span>
+                    <span style={{ color: lit ? R_PINK : "#9a8fb0", display: "flex" }}><RIc.pin s={13} /></span>
                     <span style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: R_PURPLE, letterSpacing: "-0.01em" }}>{loc.name}</span>
                   </div>
                   <div style={{ fontSize: 10.5, color: "#a8a0b5", fontWeight: 600, marginTop: 3, paddingLeft: 20 }}>{[loc.role, loc.age].filter(Boolean).join(" · ")}</div>
@@ -266,7 +268,7 @@ function JourneyRail({ locations }) {
 
                 {/* right: chevron only */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", paddingLeft: 10 }}>
-                  <span style={{ width: 28, height: 28, borderRadius: 999, display: "grid", placeItems: "center", flexShrink: 0, background: isOpen ? R_PINK : "#ece5f3", color: isOpen ? "#fff" : "#9a93a8", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .18s" }}><RIc.chevron s={15} /></span>
+                  <span style={{ width: 28, height: 28, borderRadius: 999, display: "grid", placeItems: "center", flexShrink: 0, background: lit ? R_PINK : "#ece5f3", color: lit ? "#fff" : "#9a93a8", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .18s, background .15s, color .15s" }}><RIc.chevron s={15} /></span>
                 </div>
               </div>
 
@@ -355,7 +357,9 @@ function QuarterCard({ q, projects, now, openDoc }) {
   const { end, qNum, range } = qInfo(q.quarterStart);
   const start = new Date(`${q.quarterStart}T00:00:00`);
   const state = now > end ? "done" : now >= start ? "now" : "next";
+  const upcoming = state === "next";
   const sm = STATE_META[state];
+  const blurStyle = upcoming ? { filter: "blur(3px) grayscale(0.4)", opacity: 0.4, pointerEvents: "none" } : null;
   const inits = projects.filter((p) => { if (!p.dueDate) return false; const dd = new Date(`${p.dueDate}T00:00:00`); return dd >= start && dd <= end; });
   const done = inits.filter((p) => p.status === "live").length;
   const pct = inits.length ? Math.round((done / inits.length) * 100) : 0;
@@ -382,38 +386,50 @@ function QuarterCard({ q, projects, now, openDoc }) {
             <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", padding: "3px 9px", borderRadius: 999, background: sm.bg, color: sm.color, whiteSpace: "nowrap" }}>{sm.label}</span>
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "#a8a0b5", fontWeight: 600, marginTop: 4 }}>{range}</div>
-          <div style={{ fontSize: 11.5, color: "#7a7388", lineHeight: 1.4, marginTop: 8, minHeight: 48 }}>{q.proof || (state === "next" ? "Plan locks in at the quarter kickoff." : "Results recap posts at the quarterly review.")}</div>
+          <div style={{ fontSize: 11.5, color: "#7a7388", lineHeight: 1.4, marginTop: 8, minHeight: 48 }}>{q.proof || (state === "next" ? "" : "Results recap posts at the quarterly review.")}</div>
         </div>
-        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 13, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: R_PURPLE, lineHeight: 1 }}>{inits.length}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#7a7388" }}>key initiative{inits.length === 1 ? "" : "s"}</span>
-          </div>
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#8a8395" }}>{inits.length ? `${done} of ${inits.length} delivered` : "Not started"}</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: barColor }}>{pct}%</span>
+        {/* body + footer — grayed/blurred behind an "Up next" overlay for future quarters */}
+        <div style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 13, flex: 1, ...blurStyle }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+              <span style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: R_PURPLE, lineHeight: 1 }}>{inits.length}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#7a7388" }}>key initiative{inits.length === 1 ? "" : "s"}</span>
             </div>
-            <div style={{ height: 6, background: "#ece8f1", borderRadius: 999, overflow: "hidden" }}><div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 999 }} /></div>
-          </div>
-          {engines.length ? (
             <div>
-              <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".09em", color: "#a8a0b5", marginBottom: 7 }}>Engines in play</div>
-              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{engines.map((e) => <EngineChip key={e} engine={e} />)}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#8a8395" }}>{inits.length ? `${done} of ${inits.length} delivered` : "Not started"}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: barColor }}>{pct}%</span>
+              </div>
+              <div style={{ height: 6, background: "#ece8f1", borderRadius: 999, overflow: "hidden" }}><div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 999 }} /></div>
+            </div>
+            {engines.length ? (
+              <div>
+                <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".09em", color: "#a8a0b5", marginBottom: 7 }}>Engines in play</div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{engines.map((e) => <EngineChip key={e} engine={e} />)}</div>
+              </div>
+            ) : null}
+          </div>
+          {links.length ? (
+            <div style={{ padding: "12px 16px", borderTop: "1px solid #f1eef6", display: "flex", flexDirection: "column", gap: 7, background: "#faf8fc", ...blurStyle }}>
+              {links.map((l) => (
+                <button key={l.kind} onClick={() => openDoc(l.url, `Q${qNum} ${l.kind} · ${range}`)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", width: "100%", padding: "9px 11px", borderRadius: 9, fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 11.5, border: l.primary ? "none" : "1px solid #e6e0ee", background: l.primary ? R_PINK : "#fff", color: l.primary ? "#fff" : R_PURPLE, boxShadow: l.primary ? "0 5px 13px rgba(217,53,110,0.26)" : "none" }}>
+                  <span style={{ flex: 1, textAlign: "left" }}>{l.kind}</span>
+                  <span aria-hidden="true">↗</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {upcoming ? (
+            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center", padding: 16 }}>
+              <div>
+                <div style={{ width: 34, height: 34, borderRadius: 999, background: "#f1edf6", color: "#9a8fb0", display: "grid", placeItems: "center", margin: "0 auto 8px" }}><RIc.lock s={16} /></div>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 13, fontWeight: 800, color: R_PURPLE }}>Up next</div>
+                <div style={{ fontSize: 11, color: "#8a8395", fontWeight: 600, marginTop: 3 }}>Plan locks at kickoff</div>
+              </div>
             </div>
           ) : null}
         </div>
-        {links.length ? (
-          <div style={{ padding: "12px 16px", borderTop: "1px solid #f1eef6", display: "flex", flexDirection: "column", gap: 7, background: "#faf8fc" }}>
-            {links.map((l) => (
-              <button key={l.kind} onClick={() => openDoc(l.url, `Q${qNum} ${l.kind} · ${range}`)}
-                style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", width: "100%", padding: "9px 11px", borderRadius: 9, fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 11.5, border: l.primary ? "none" : "1px solid #e6e0ee", background: l.primary ? R_PINK : "#fff", color: l.primary ? "#fff" : R_PURPLE, boxShadow: l.primary ? "0 5px 13px rgba(217,53,110,0.26)" : "none" }}>
-                <span style={{ flex: 1, textAlign: "left" }}>{l.kind}</span>
-                <span aria-hidden="true">↗</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
     </div>
   );

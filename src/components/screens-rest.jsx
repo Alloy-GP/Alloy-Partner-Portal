@@ -5,6 +5,7 @@ import { BadgeMedalSmall } from './screen-dashboard.jsx';
 import TicketThread from './TicketThread.jsx';
 import { zdList } from '../lib/zendesk.js';
 import { qualifyLead } from '../lib/leads.js';
+import { supabase } from '../lib/supabase.js';
 
 // Tickets, Playbook, Library, Recognition
 const { useState: _useState2, useEffect: _useEffect2 } = React;
@@ -803,6 +804,23 @@ function LeadsScreen() {
   const panelStat = panelLead ? leadStatCards(panelLead.fields) : { cards: [], used: new Set() };
   const panelExtra = panelLead ? (panelLead.fields || []).filter((f) => !panelStat.used.has(f.name)) : [];
 
+  // Lazy-load the heavy panel-only columns (journey, message) for the open lead —
+  // they're excluded from the bulk load to keep page-load fast.
+  const [heavy, setHeavy] = useState({}); // wc_lead_id -> { journey, note }
+  useEffect(() => {
+    if (!panelId || heavy[panelId]) return;
+    let cancelled = false;
+    supabase.from("leads").select("wc_lead_id, journey, message").eq("wc_lead_id", panelId).maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setHeavy((h) => ({ ...h, [panelId]: { journey: Array.isArray(data.journey) ? data.journey : null, note: data.message || "" } }));
+      });
+    return () => { cancelled = true; };
+  }, [panelId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const panelHeavy = heavy[panelId] || null;
+  const panelJourney = panelHeavy ? panelHeavy.journey : (panelLead && panelLead.journey) || null;
+  const panelNote = panelHeavy ? panelHeavy.note : (panelLead && panelLead.note) || "";
+
   // Seed the free-form value inputs whenever a lead's panel opens.
   useEffect(() => {
     if (!panelLead) return;
@@ -1023,10 +1041,10 @@ function LeadsScreen() {
                   <button className="ld-val-save" onClick={() => saveValues(panelLead.id, editQuote, editSales)}>{savedFlash ? "Saved" : "Save value"}</button>
                 </div>
               </div>
-              {panelLead.note ? (
+              {panelNote ? (
                 <div className="ld-panel-sec">
                   <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : "Their message"}</div>
-                  <div className="ld-panel-note">{panelLead.note}</div>
+                  <div className="ld-panel-note">{panelNote}</div>
                 </div>
               ) : null}
               {panelExtra.length ? (
@@ -1044,8 +1062,8 @@ function LeadsScreen() {
               ) : null}
               <div className="ld-panel-sec">
                 <div className="sec-lbl">Customer journey</div>
-                {panelLead.journey && panelLead.journey.length ? (
-                  <LeadJourney steps={panelLead.journey} context={panelLead.context} />
+                {panelJourney && panelJourney.length ? (
+                  <LeadJourney steps={panelJourney} context={panelLead.context} />
                 ) : (
                   <div className="ld-journey">
                     <div className="step"><span className="dot" /><span className="tx"><b>{panelLead.source}</b>{panelLead.context ? ` — ${panelLead.context}` : ""}</span></div>
