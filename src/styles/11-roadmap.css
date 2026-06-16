@@ -1,0 +1,27 @@
+/* Roadmap — Growth Journey card interactions. */
+
+/* Coin badge "just hit" — a pulsing ring behind a freshly-earned coin. */
+.coin-holder { position: relative; }
+.coin-holder.halo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 3px solid var(--halo, var(--alloy-pink));
+  opacity: 0.5;
+  animation: haloPulse 1.9s ease-out infinite;
+}
+@keyframes haloPulse {
+  0%   { transform: scale(0.9); opacity: 0.6; }
+  70%  { transform: scale(1.32); opacity: 0; }
+  100% { transform: scale(1.32); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coin-holder.halo::before { animation: none; opacity: 0.4; }
+}
+
+/* Rail nodes are the stage navigation — hover/active feedback on the dot. */
+.rail-node .rail-dot { transition: transform .12s ease, box-shadow .12s ease; }
+.rail-node:hover { background: rgba(56,28,79,0.06) !important; }
+.rail-node:hover .rail-dot { transform: scale(1.18); }
+.rail-node:active .rail-dot { transform: scale(1.06); }

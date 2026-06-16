@@ -223,16 +223,7 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, 
       </div>
       <div className="grow"/>
       <div className="ds-utilities">
-        {active === "playbook" ? (
-          <div className="ds-util-bar">
-            <button className="btn btn-secondary" title="View previous years" aria-label="Previous years">
-              <span aria-hidden="true">←</span> Previous years
-            </button>
-            <button className="btn btn-primary" title="Compare baseline (when you started) to this quarter">
-              Baseline → Q2 benchmarks
-            </button>
-          </div>
-        ) : onNewRequest ? (
+        {onNewRequest ? (
           <div className="ds-util-bar">
             <button className="btn btn-primary" onClick={onNewRequest}>
               <I.Plus width={13} height={13}/> New request

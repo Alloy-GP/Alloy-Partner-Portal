@@ -5,7 +5,8 @@ import { DATA } from './data.js';
 import { Sidebar, RisePageHero } from './components/shell.jsx';
 import { Dashboard, DesktopTopBar } from './components/screen-dashboard.jsx';
 import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx';
-import { TicketsScreen, PlaybookScreen, LibraryScreen, RecognitionScreen, LeadsScreen } from './components/screens-rest.jsx';
+import { TicketsScreen, LibraryScreen, RecognitionScreen, LeadsScreen } from './components/screens-rest.jsx';
+import RoadmapScreen from './components/screen-roadmap.jsx';
 import TicketDetailPage from './components/TicketDetailPage.jsx';
 import SnapshotScreen from './components/SnapshotScreen.jsx';
 import PerformanceScreen from './components/PerformanceScreen.jsx';
@@ -105,7 +106,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     roi: { t: "ROI & Insight", s: "What Alloy is doing for your top line" },
     projects: { t: "Playbook", s: "Live from Monday — every active deliverable" },
     tickets: { t: "Inbox", s: "One thread between you and your Alloy team" },
-    playbook: { t: "Roadmap", s: "Your 2026 growth plan, quarter by quarter" },
+    playbook: { t: "Roadmap", s: "Every market's journey across the five growth stages" },
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
     rewards: { t: "Recognition", s: "Wins, made tangible" },
     'account-details': { t: "Account Details", s: "Your plan, team, and account settings" },
@@ -129,7 +130,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       case "tickets": return <TicketsScreen/>;
       case "leads": return <LeadsScreen/>;
-      case "playbook": return <PlaybookScreen onNav={handleNav}/>;
+      case "playbook": return <RoadmapScreen onNav={handleNav}/>;
       case "library": return <LibraryScreen/>;
       case "rewards": return <RecognitionScreen/>;
       case "snapshot": return <SnapshotScreen/>;

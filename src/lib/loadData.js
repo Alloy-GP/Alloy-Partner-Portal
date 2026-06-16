@@ -20,6 +20,18 @@ function relativeDue(dateStr) {
   return `in ${Math.ceil(days / 7)} wks`;
 }
 
+// "8 months in" / "2 years in" — a market's age from its onboarded date.
+function monthsSinceLabel(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(`${dateStr}T00:00:00`);
+  const now = new Date();
+  const months = Math.max(0, (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth()));
+  if (months < 1) return 'Just launched';
+  if (months < 12) return `${months} months in`;
+  const years = Math.floor(months / 12);
+  return years === 1 ? '1 year in' : `${years} years in`;
+}
+
 /**
  * Lightweight "who am I": is this a staff member, and (for clients) which
  * account are they locked to. Drives the staff-vs-client branch in AuthGate.
@@ -50,7 +62,7 @@ export async function loadAccountData(session, accountId, me) {
     accountRes, recurringRes, projectsRes, leadsRes,
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
-    paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes,
+    paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -72,6 +84,8 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('autopay_schedules').select('*').eq('account_id', accountId).maybeSingle(),
     supabase.from('ticket_links').select('zendesk_id, link, pct').eq('account_id', accountId),
     supabase.from('ticket_summaries').select('zendesk_id, summary, comment_count').eq('account_id', accountId),
+    supabase.from('locations').select('*, location_milestones(*)').eq('account_id', accountId).order('sort'),
+    supabase.from('program_quarters').select('*').eq('account_id', accountId).order('sort'),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -194,6 +208,31 @@ export async function loadAccountData(session, accountId, me) {
         .slice()
         .sort((a, b) => (a.sort || 0) - (b.sort || 0))
         .map((f) => ({ t: f.text, s: f.status })),
+    })),
+    // Growth Roadmap markets (tracks). Each market sits at a stage (0-4); its
+    // current-stage milestones come from Monday subitems (done flags). msDone =
+    // how many hit; msFresh = the most-recently-hit one (the "JUST HIT" coin).
+    locations: (locationsRes.data || []).map((l) => {
+      const ms = (l.location_milestones || []).slice().sort((a, b) => (a.idx || 0) - (b.idx || 0));
+      const done = ms.filter((m) => m.done);
+      let msFresh = -1, freshAt = 0;
+      done.forEach((m) => { const t = m.done_at ? new Date(m.done_at).getTime() : 0; if (t >= freshAt) { freshAt = t; msFresh = m.idx; } });
+      return {
+        id: l.id, name: l.name, role: l.role || '', onboarded: l.onboarded || null,
+        age: monthsSinceLabel(l.onboarded),
+        stage: l.stage || 0,
+        msDone: done.length,
+        msFresh: freshAt ? msFresh : -1,
+        metric: { value: l.metric_value || null, label: l.metric_label || null, delta: l.metric_delta || null },
+        milestones: ms.map((m) => ({ idx: m.idx, label: m.label, done: !!m.done, doneAt: m.done_at || null })),
+      };
+    }),
+    // Growth Engine program quarters (Plan -> Build -> Prove). Calendar quarters
+    // from the client's start; proof + deliverable links from the Monday Program
+    // board. Initiatives are reused from DATA.projects (grouped by quarter).
+    programQuarters: (programRes.data || []).filter((q) => q.quarter_start).map((q) => ({
+      id: q.id, label: q.label, quarterStart: q.quarter_start, proof: q.proof || null,
+      playbookUrl: q.playbook_url || null, reportUrl: q.report_url || null, sort: q.sort,
     })),
     badges: (badgesRes.data || []).map((ab) => ({
       id: ab.badges?.slug,
