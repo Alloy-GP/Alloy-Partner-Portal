@@ -177,31 +177,25 @@ function JourneyRail({ locations }) {
   const toggle = (id) => setOpen((cur) => (cur === id ? null : id));
   const selectStage = (id, i, e) => { e.stopPropagation(); setOpen(id); setStageView((s) => ({ ...s, [id]: i })); };
 
-  const projects = DATA.projects || [];
-  const stats = [
-    { n: locations.length, l: "active markets", c: R_PURPLE },
-    { n: projects.filter((p) => p.status === "live").length, l: "initiatives delivered", c: R_GREEN },
-    { n: projects.filter((p) => p.status !== "live").length, l: "in motion now", c: R_PINK },
-  ];
-
   return (
-    <div style={{ background: "#fff", border: "1px solid #ece8f1", borderRadius: 16, padding: "22px 26px 26px", marginBottom: 26, boxShadow: "0 2px 10px rgba(56,28,79,0.05)" }}>
+    <div style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.66) 0%, rgba(255,255,255,0.40) 100%)", WebkitBackdropFilter: "blur(22px) saturate(1.5)", backdropFilter: "blur(22px) saturate(1.5)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "22px 26px 26px", marginBottom: 26, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(56,28,79,0.05), 0 14px 36px rgba(56,28,79,0.09)" }}>
       {/* header: title left, portfolio stats right */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11, flex: "1 1 auto", minWidth: 0 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 9, background: R_PURPLE, color: "#fff", display: "grid", placeItems: "center", flexShrink: 0 }}><RIc.trend s={16} /></span>
+        <div style={{ display: "flex", alignItems: "center", gap: 13, flex: "1 1 auto", minWidth: 0 }}>
+          <span style={{ width: 42, height: 42, borderRadius: 12, background: R_PURPLE, color: "#fff", display: "grid", placeItems: "center", flexShrink: 0 }}><RIc.trend s={20} /></span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 800, color: R_PURPLE, letterSpacing: "-0.01em" }}>The growth journey</div>
-            <div style={{ fontSize: 12, color: "#8a8395", fontWeight: 600 }}>Every market climbs the same five stages. Here's where each of yours stands today.</div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, color: R_PURPLE, letterSpacing: "-0.01em" }}>The growth journey</div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 0, flexShrink: 0 }}>
-          {stats.map((s, i) => (
-            <div key={i} style={{ textAlign: "center", padding: "0 22px", borderLeft: i > 0 ? "1px solid #e8e2f0" : "none" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: s.c, lineHeight: 1, letterSpacing: "-0.02em" }}>{s.n}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#8a8395", marginTop: 6 }}>{s.l}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0 }}>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 46, fontWeight: 800, color: R_PURPLE, lineHeight: 1, letterSpacing: "-0.03em" }}>{locations.length}</div>
+          <div style={{ width: 2, height: 42, background: "#e3dcec", borderRadius: 2 }} />
+          <div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 800, color: R_PURPLE, letterSpacing: "-0.01em" }}>active markets</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 3, fontSize: 13, fontWeight: 600, color: "#8a8395" }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: R_GREEN, flexShrink: 0 }} /> growing in parallel
             </div>
-          ))}
+          </div>
         </div>
       </div>
 

@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
     }
 
     const { data: accounts, error: accErr } = await supabase
-      .from("accounts").select("id, monday_board_id").not("monday_board_id", "is", null);
+      .from("accounts").select("id, monday_board_id, monday_service_group_id").not("monday_board_id", "is", null);
     if (accErr) throw accErr;
 
     // An event from a known account board scopes the sync to that account. An
@@ -226,7 +226,10 @@ Deno.serve(async (req) => {
       const projectGroupIds = new Set(allGroups.filter((g) => PROJECT_GROUP_TITLES.has(norm(g.title))).map((g) => g.id));
       const completedGroupIds = new Set(allGroups.filter((g) => isCompletedTitle(g.title)).map((g) => g.id));
       const plannedGroupIds = new Set(allGroups.filter((g) => isPlannedTitle(g.title)).map((g) => g.id));
-      const serviceGroupId = allGroups.find((g) => norm(g.title) === SERVICE_GROUP_TITLE)?.id ?? null;
+      // Ongoing-services group: pinned by ID per account when set (robust to
+      // renames), else any group whose title starts with "Ongoing".
+      const serviceGroupId = (acct.monday_service_group_id ? String(acct.monday_service_group_id) : null)
+        || allGroups.find((g) => /^ongoing\b/.test(norm(g.title)))?.id || null;
       const ticketsGroupId = allGroups.find((g) => norm(g.title) === TICKETS_GROUP_TITLE)?.id ?? "topics";
 
       const wantedGroups = [

@@ -531,6 +531,15 @@ Deno.serve(async (req) => {
 
     return json({ error: "unknown action" }, 400);
   } catch (e) {
-    return json({ error: String(e) }, 500);
+    const msg = String(e);
+    // Friendly guardrail message for the unique Monday-board-id indexes — a
+    // board may belong to only one account (prevents cross-tenant data bleed).
+    if (/accounts_monday_(board|roadmap_board|program_board)_id_uniq/.test(msg) || /duplicate key/i.test(msg)) {
+      const which = /roadmap_board/.test(msg) ? "Markets (roadmap) board"
+        : /program_board/.test(msg) ? "Program board"
+        : "Monday board";
+      return json({ error: `That ${which} ID is already assigned to another client. Each board can belong to only one account.` }, 409);
+    }
+    return json({ error: msg }, 500);
   }
 });
