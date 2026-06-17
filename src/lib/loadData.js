@@ -63,6 +63,7 @@ export async function loadAccountData(session, accountId, me) {
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
+    toolkitRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -89,6 +90,7 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('ticket_summaries').select('zendesk_id, summary, comment_count').eq('account_id', accountId),
     supabase.from('locations').select('*, location_milestones(*)').eq('account_id', accountId).order('sort'),
     supabase.from('program_quarters').select('*').eq('account_id', accountId).order('sort'),
+    supabase.from('toolkit_systems').select('name, sort').eq('account_id', accountId).order('sort'),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -154,10 +156,12 @@ export async function loadAccountData(session, accountId, me) {
     // the active project views (sidebar, dashboard, Projects screen, card stats).
     projects: (projectsRes.data || []).filter((p) => p.status !== 'planned').map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase, engines: p.engines || [],
-      pct: p.pct, status: p.status,
+      pct: p.pct, status: p.status, origin: p.origin || 'added',
       due: p.due_label || '', dueRel: p.due_rel || relativeDue(p.due_date), dueDate: p.due_date || null,
       owners: p.owners || [], pulse: p.pulse,
     })),
+    // Opt-in systems the client has switched on (Monday "Toolkit" group).
+    toolkit: (toolkitRes.data || []).map((t) => ({ name: t.name })),
     // Planned/queued work → Account page "On the horizon".
     plannedProjects: (projectsRes.data || []).filter((p) => p.status === 'planned').map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase || null,
@@ -185,7 +189,7 @@ export async function loadAccountData(session, accountId, me) {
     })),
     tickets: (ticketsRes.data || []).map((t) => ({
       id: t.code, title: t.title, priority: t.priority, status: t.status,
-      agent: t.agent, time: t.time_label, excerpt: t.excerpt,
+      agent: t.agent, time: t.time_label, excerpt: t.excerpt, createdAt: t.created_at,
     })),
     weeklySnapshot: {
       weekLabel: snap?.week_label || '',

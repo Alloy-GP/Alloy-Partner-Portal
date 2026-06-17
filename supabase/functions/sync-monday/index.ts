@@ -99,6 +99,7 @@ const META_QUERY = `
 type ColMap = {
   status: string | null; due: string | null; person: string | null;
   category: string | null; taskId: string | null; zendesk: string | null; link: string | null;
+  workType: string | null;
 };
 
 // A Monday "link" column stores { url, text } in `value`. Pull the URL (the
@@ -145,6 +146,7 @@ function resolveColumns(columns: any[]): ColMap {
     taskId: byTitle("task id", "text")?.id ?? null,
     zendesk: zendesk?.id ?? null,
     link: byTitle("link", "link")?.id ?? null,
+    workType: byTitle("type", "status")?.id ?? null, // origin: "Playbook"=planned, else added
   };
 }
 
@@ -231,13 +233,15 @@ Deno.serve(async (req) => {
       const serviceGroupId = (acct.monday_service_group_id ? String(acct.monday_service_group_id) : null)
         || allGroups.find((g) => /^ongoing\b/.test(norm(g.title)))?.id || null;
       const ticketsGroupId = allGroups.find((g) => norm(g.title) === TICKETS_GROUP_TITLE)?.id ?? "topics";
+      // Toolkit group: opt-in systems the client switched on (any group titled "Toolkit").
+      const toolkitGroupId = allGroups.find((g) => /^toolkit/.test(norm(g.title)))?.id || null;
 
       const wantedGroups = [
-        ...projectGroupIds, ...completedGroupIds, ...plannedGroupIds, serviceGroupId, ticketsGroupId,
+        ...projectGroupIds, ...completedGroupIds, ...plannedGroupIds, serviceGroupId, ticketsGroupId, toolkitGroupId,
       ].filter(Boolean) as string[];
 
       // 2) Fetch items for just those groups, requesting the resolved columns.
-      const colIds = [C.status, C.due, C.person, C.category, C.taskId, C.zendesk, C.link].filter(Boolean) as string[];
+      const colIds = [C.status, C.due, C.person, C.category, C.taskId, C.zendesk, C.link, C.workType].filter(Boolean) as string[];
       const ITEMS_QUERY = `
         query ($board: [ID!], $groups: [String!]) {
           boards(ids: $board) {
@@ -261,6 +265,7 @@ Deno.serve(async (req) => {
       const projects: any[] = [];
       const services: any[] = [];
       const actions: any[] = [];
+      const toolkit: any[] = []; // { account_id, name } for the "Your toolkit" dashboard row
       const ticketLinks: any[] = []; // { account_id, zendesk_id, link } for the Projects "Open review" button
 
       for (const g of groups) {
@@ -268,17 +273,27 @@ Deno.serve(async (req) => {
         const isProjectGroup = projectGroupIds.has(g.id);
         const isCompletedGroup = completedGroupIds.has(g.id);
         const isPlannedGroup = plannedGroupIds.has(g.id);
+        // "Ongoing" group items are now real projects (status + progress bar),
+        // NOT watered-down background services — so sync them as projects.
+        const isServiceGroup = !!serviceGroupId && g.id === serviceGroupId;
+        const isToolkitGroup = !!toolkitGroupId && g.id === toolkitGroupId;
 
         items.forEach((it: any) => {
+          if (isToolkitGroup) {
+            toolkit.push({ account_id: acct.id, monday_item_id: String(it.id), name: it.name, sort: toolkit.length });
+            return;
+          }
           const cv = cols(it);
           const dueRaw = C.due ? (cv[C.due] || "") : "";
           const upd = it.updated_at ? new Date(it.updated_at) : null;
           const updLabel = upd ? `Updated ${MONTHS[upd.getUTCMonth()]} ${upd.getUTCDate()}` : null;
           const statusText = C.status ? cv[C.status] : "";
+          // Origin (Cut A): "Playbook" = planned work; anything else = added/unplanned.
+          const origin = norm(C.workType ? (cv[C.workType] || "") : "") === "playbook" ? "planned" : "added";
           const categoryText = C.category ? cv[C.category] : "";
           const owners = (C.person ? (cv[C.person] || "") : "").split(",").map((s) => initials(s)).filter(Boolean);
 
-          if (isProjectGroup || isCompletedGroup || isPlannedGroup) {
+          if (isProjectGroup || isCompletedGroup || isPlannedGroup || isServiceGroup) {
             let [status, pct] = STATUS_MAP[statusText] ?? ["in-progress", 50];
             if (isCompletedGroup) { status = "live"; pct = 100; }
             else if (isPlannedGroup) { status = "planned"; pct = 0; }
@@ -286,18 +301,10 @@ Deno.serve(async (req) => {
             projects.push({
               account_id: acct.id, monday_item_id: String(it.id),
               code: (C.taskId ? cv[C.taskId] : "") || null, title: it.name,
-              phase: categoryText || null, engines: [],
+              phase: categoryText || null, engines: [], origin,
               status, pct,
               due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null, due_rel: null,
               owners, pulse: updLabel, sort: projects.length,
-            });
-          } else if (g.id === serviceGroupId) {
-            const cat = categoryText;
-            services.push({
-              account_id: acct.id, monday_item_id: String(it.id), name: it.name,
-              short: (cat || it.name).slice(0, 3).toUpperCase(), cadence: "Ongoing",
-              lane: cat || null, color: TONE_BY_CAT[cat] || "purple",
-              last_touch: updLabel, note: cat || null, sort: services.length,
             });
           } else if (g.id === ticketsGroupId) {
             // Capture the Monday "Link" (Pastel/review URL) keyed by Zendesk
@@ -323,7 +330,7 @@ Deno.serve(async (req) => {
               projects.push({
                 account_id: acct.id, monday_item_id: String(it.id),
                 code: (C.taskId ? cv[C.taskId] : "") || null, title: it.name,
-                phase: categoryText || null, engines: [],
+                phase: categoryText || null, engines: [], origin,
                 status: "live", pct: 100,
                 due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null, due_rel: null,
                 owners, pulse: updLabel, sort: projects.length,
@@ -338,7 +345,7 @@ Deno.serve(async (req) => {
       const ticketLinksDedup = ticketLinks.filter((t) => (tlSeen.has(t.zendesk_id) ? false : (tlSeen.add(t.zendesk_id), true)));
 
       // Each table mirrors Monday for this account: clear then insert.
-      for (const [table, rows] of [["projects", projects], ["recurring_services", services], ["action_items", actions], ["ticket_links", ticketLinksDedup]] as const) {
+      for (const [table, rows] of [["projects", projects], ["recurring_services", services], ["action_items", actions], ["ticket_links", ticketLinksDedup], ["toolkit_systems", toolkit]] as const) {
         const { error: delErr } = await supabase.from(table).delete().eq("account_id", acct.id);
         if (delErr) throw delErr;
         if (rows.length) {
@@ -347,7 +354,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      summary.push({ account: acct.id, projects: projects.length, services: services.length, actions: actions.length });
+      summary.push({ account: acct.id, projects: projects.length, services: services.length, actions: actions.length, toolkit: toolkit.length });
     }
 
     return Response.json({ ok: true, summary });

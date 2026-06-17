@@ -7,6 +7,30 @@ import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
 import { pendingTickets } from '../lib/zendesk.js';
 import { ENGINES, ENGINE_ORDER, CORE_KEY, enginesOf } from '../lib/engines.js';
+import { quarterStats } from '../lib/quarterStats.js';
+import lottie from 'lottie-web/build/player/lottie_light';
+// Every .json in assets/lotties auto-joins the rotation — drop new ones in.
+const SMILE_LOTTIES = Object.values(
+  import.meta.glob('../assets/lotties/*.json', { eager: true }),
+).map((m) => m.default || m);
+
+// Renders a Lottie animation (plays once) into a sized box. The animation is
+// fully parsed first and its start is deferred until the page has settled, so
+// the first frames don't drop while the dashboard is still mounting.
+function LottieIcon({ data, className }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!ref.current) return undefined;
+    const anim = lottie.loadAnimation({
+      container: ref.current, renderer: 'svg', loop: false, autoplay: false,
+      animationData: data, rendererSettings: { progressiveLoad: false },
+    });
+    const ric = window.requestIdleCallback;
+    const id = ric ? ric(() => anim.play(), { timeout: 600 }) : window.setTimeout(() => anim.play(), 400);
+    return () => { (ric ? window.cancelIdleCallback : window.clearTimeout)(id); anim.destroy(); };
+  }, [data]);
+  return <span className={className} ref={ref} aria-hidden="true" />;
+}
 
 // Shared "needs you" signal — live Zendesk tickets in "pending" status. Cached
 // in the lib so the queue, hero count, and bell share one network call.
@@ -62,8 +86,7 @@ function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
       <div className="dash-spotlight">
         <ActionQueue onNav={onNav} />
         <div className="dash-mid">
-          <RoadmapCard onNav={onNav} />
-          <ProjectsList onNav={onNav} />
+          <ThisQuarterCard onNav={onNav} />
         </div>
         <div className="dash-right">
           <PartnershipValueCard onNav={onNav} />
@@ -374,6 +397,127 @@ function PastSnapshotCalendar() {
   );
 }
 
+// "This quarter" — the single source-of-truth card for the current quarter's
+// work. One dataset (quarter's dated projects), two cuts that sum to the same
+// total: origin (planned vs added) and status (delivered vs in motion). All
+// numbers come from quarterStats() so they never drift across the portal.
+// Replaces the old Roadmap + Playbook middle cards.
+// The Alloy Toolkit catalog — the full set of opt-in systems. A system reads as
+// "on" when a matching item lives in the client's Monday "Toolkit" group;
+// otherwise it's locked. `kw` is matched case-insensitively against the synced
+// toolkit item names (so "Alloy Proposal System" lights up "Proposal System").
+const TOOLKIT_CATALOG = [
+  { name: "Proposal System", kw: "proposal" },
+  { name: "Review Program", kw: "review" },
+  { name: "Board Surveys", kw: "board survey" },
+  { name: "Staff Surveys", kw: "staff survey" },
+];
+
+function ThisQuarterCard({ onNav }) {
+  const s = quarterStats(DATA.projects || []);
+  const onNames = (DATA.toolkit || []).map((t) => String(t.name || "").toLowerCase());
+  const toolkit = TOOLKIT_CATALOG.map((c) => ({ name: c.name, on: onNames.some((n) => n.includes(c.kw)) }));
+  const onCount = toolkit.filter((t) => t.on).length;
+
+  if (!s.hasData) {
+    return (
+      <div className="tq-card tq-empty">
+        <div className="tq-head">
+          <span className="tq-ic"><I.TrendUp width={22} height={22} /></span>
+          <div className="tq-head-txt"><div className="tq-eyebrow">This quarter</div><div className="tq-title">{s.label}</div></div>
+        </div>
+        <p className="tq-empty-msg">No dated work scheduled for {s.label} yet. Projects appear here once they have a due date in the quarter.</p>
+        <div className="tq-foot">
+          <button className="tq-link" onClick={() => onNav("playbook")}>View roadmap <I.Arrow width={13} height={13} /></button>
+          <button className="tq-link" onClick={() => onNav("projects")}>Open playbook <I.Arrow width={13} height={13} /></button>
+        </div>
+      </div>
+    );
+  }
+
+  const greenPct = (s.delivered / s.total) * 100;
+  const plannedPct = (s.planned / s.total) * 100;
+  const unplannedShare = Math.round((s.added / s.total) * 100);
+  const onTrack = s.pace === "On track";
+
+  return (
+    <div className="tq-card">
+      <div className="tq-head">
+        <span className="tq-ic"><I.TrendUp width={22} height={22} /></span>
+        <div className="tq-head-txt">
+          <div className="tq-eyebrow">This quarter</div>
+          <div className="tq-title">{s.label}</div>
+        </div>
+        <span className={`tq-pace${onTrack ? "" : " behind"}`}><span className="tq-pace-dot" />{s.pace}</span>
+      </div>
+
+      <div className="tq-hero">
+        <div className="tq-pct">{s.pct}<span className="tq-sym">%</span></div>
+        <div className="tq-cap">of this quarter's<br />work is complete</div>
+      </div>
+
+      <div className="tq-seg" role="img" aria-label={`${s.delivered} delivered, ${s.inMotion} in motion, ${s.total} total`}>
+        {s.delivered > 0 ? <div className="tq-seg-g" style={{ width: `${greenPct}%` }}><span>{s.delivered}</span></div> : null}
+        {s.inMotion > 0 ? <div className="tq-seg-p" style={{ width: `${100 - greenPct}%` }}><span>{s.inMotion}</span></div> : null}
+      </div>
+      <div className="tq-legend">
+        <span className="tq-lg"><span className="tq-sw g" /><b>{s.delivered}</b> delivered</span>
+        <span className="tq-lg"><span className="tq-sw p" /><b>{s.inMotion}</b> in motion</span>
+      </div>
+
+      <div className="tq-scope">
+        <div className="tq-scope-top">
+          <span className="tq-scope-lbl">How this quarter was scoped</span>
+          {s.planned > 0 ? <span className="tq-scope-delta">+{s.scopeDelta}% scope</span> : null}
+        </div>
+        <div className="tq-scope-bar">
+          {s.planned > 0 ? <div className="tq-sp-planned" style={{ width: `${plannedPct}%` }} /> : null}
+          {s.added > 0 ? <div className="tq-sp-added" style={{ width: `${100 - plannedPct}%` }} /> : null}
+        </div>
+        <div className="tq-scope-keys">
+          <div className="tq-scope-key"><span className="tq-sw planned" /><span className="tq-n">{s.planned}</span><span className="tq-t">planned</span></div>
+          <div className="tq-scope-key"><span className="tq-sw added" /><span className="tq-n added">+{s.added}</span><span className="tq-t">added</span></div>
+        </div>
+        {s.added > 0 ? (
+          <div className="tq-scope-note">
+            <span className="tq-tip-wrap" tabIndex={0}>
+              <b>{unplannedShare}% unplanned</b>
+              <span className="tq-tip" role="tooltip">{s.added} of {s.total} items this quarter weren't in the kickoff plan — work you added as needs came up. We flex to absorb it, which is why some planned work is still in motion.</span>
+            </span> — added as needs came up.
+          </div>
+        ) : null}
+      </div>
+
+      <div className="tq-divider" />
+      <div className="tq-toolkit">
+        <div className="tq-tk-head">
+          <span className="tq-tk-label">Alloy Toolkit · {toolkit.length} systems</span>
+          <span className="tq-tk-meta">{onCount} on</span>
+        </div>
+        <div className="tq-tk-grid">
+          {toolkit.map((t) => (
+            <div key={t.name} className={`tq-tk-tile${t.on ? "" : " locked"}`}>
+              <span className="tq-tk-nm">{t.name}</span>
+              {t.on ? (
+                <span className="tq-tk-st on">On</span>
+              ) : (
+                <span className="tq-tk-st locked" title="Not switched on">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="tq-foot">
+        <button className="tq-link" onClick={() => onNav("playbook")}>View roadmap <I.Arrow width={13} height={13} /></button>
+        <button className="tq-link" onClick={() => onNav("projects")}>Open playbook <I.Arrow width={13} height={13} /></button>
+      </div>
+    </div>
+  );
+}
+
 // Roadmap pace card — quarter progress (work done) vs. a "today" marker showing
 // how far we are through the quarter, with an Ahead/On track/Behind pill. Sits
 // on top of the Playbook card in the middle spotlight column.
@@ -413,15 +557,72 @@ function RoadmapCard({ onNav }) {
   );
 }
 
+// Scales its (single-line, nowrap) content down to fit the container width —
+// so a row like the smile counter stays on one line however big the number
+// gets. Re-measures on resize and once web fonts finish loading.
+function ScaleToFit({ className, innerClassName, children }) {
+  const wrap = React.useRef(null);
+  const inner = React.useRef(null);
+  const [scale, setScale] = React.useState(1);
+  React.useLayoutEffect(() => {
+    const el = wrap.current, ie = inner.current;
+    if (!el || !ie) return;
+    const fit = () => {
+      const cs = getComputedStyle(el);
+      const avail = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const need = ie.scrollWidth;
+      setScale(avail > 0 && need > avail ? avail / need : 1);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    ro.observe(ie); // refit when the content (e.g. a bigger number) changes too
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit).catch(() => {});
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div className={className} ref={wrap}>
+      <div className={innerClassName} ref={inner} style={{ transform: `scale(${scale})`, transformOrigin: "left center" }}>{children}</div>
+    </div>
+  );
+}
+
+// Animate a number from 0 → target once on mount (easeOut). Respects
+// prefers-reduced-motion (jumps straight to the value).
+function useCountUp(target, duration = 1300) {
+  const tgt = Number(target) || 0;
+  const [val, setVal] = React.useState(0);
+  React.useEffect(() => {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setVal(tgt); return; }
+    let raf, start;
+    const tick = (t) => {
+      if (start == null) start = t;
+      const p = Math.min(1, (t - start) / duration);
+      setVal(Math.round((1 - Math.pow(1 - p, 3)) * tgt)); // easeOutCubic
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [tgt, duration]);
+  return val;
+}
+
 function PartnershipValueCard({ onNav }) {
   const leads = DATA.recentLeads || [];
   const quoteMonthly = leads.reduce((s, l) => s + (Number(l.quoteValue) || 0), 0);
   const salesMonthly = leads.reduce((s, l) => s + (Number(l.salesValue) || 0), 0);
   const lifetimeQualified = DATA.account?.wcQualifiedTotal || leads.filter(l => l.quotable === "yes").length;
-  // Leads still needing a qualify decision (not yes/no) → lock the value tiles
-  // behind a blur + CTA until they're triaged, so the numbers can't be trusted
-  // as final yet but are still visible behind the glass.
-  const leadsToQualify = leads.filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
+  // "Times we made you smile this quarter" = tickets handled this quarter +
+  // projects delivered this quarter (both quarter-scoped via quarterStats).
+  const _q = quarterStats(DATA.projects || []);
+  const ticketsThisQuarter = (DATA.tickets || []).filter((t) => {
+    const d = t.createdAt ? new Date(t.createdAt) : null;
+    return d && d >= _q.start && d <= _q.end;
+  }).length;
+  const smiles = ticketsThisQuarter + _q.delivered;
+  const smileAnim = React.useMemo(() => SMILE_LOTTIES[Math.floor(Math.random() * SMILE_LOTTIES.length)] || SMILE_LOTTIES[0], []);
+  const smilesShown = useCountUp(smiles);            // animated count-up value
+  const smilesStr = Number(smiles).toLocaleString("en-US"); // final, for reserving width
   // Management fee -> true contract revenue.
   const CONTRACT = 2.35;
   const fmtBig = (n) => {
@@ -444,7 +645,7 @@ function PartnershipValueCard({ onNav }) {
   return (
     <div className="weekly-snapshot dash-link dash-value-full" data-tour="snapshot" role="button" tabIndex={0} onClick={() => onNav && onNav("leads")}>
         <div className="pv-head">
-          <span className="pv-ic"><I.TrendUp width={20} height={20} /></span>
+          <span className="pv-ic"><I.TrendUp width={22} height={22} /></span>
           <div className="pv-titles">
             <div className="pv-kicker">What we've built together</div>
             <div className="pv-title">Partnership value</div>
@@ -454,7 +655,7 @@ function PartnershipValueCard({ onNav }) {
           </button>
         </div>
         <div className="pv-grid-wrap">
-          <div className={`pv-grid${leadsToQualify > 0 ? " locked" : ""}`} aria-hidden={leadsToQualify > 0 ? "true" : undefined}>
+          <div className="pv-grid">
             {tiles.map((t) => (
               <div key={t.lbl} className="pv-tile">
                 <span className="pv-num" style={{ color: t.color }}>{t.num}</span>
@@ -463,13 +664,11 @@ function PartnershipValueCard({ onNav }) {
               </div>
             ))}
           </div>
-          {leadsToQualify > 0 ? (
-            <div className="pv-lock">
-              <div className="pv-lock-num">{leadsToQualify}</div>
-              <div className="pv-lock-sub">new {leadsToQualify === 1 ? "lead" : "leads"} to qualify</div>
-              <button className="pv-lock-btn" onClick={(e) => { e.stopPropagation(); onNav && onNav("leads"); }}>Qualify leads <I.Arrow width={15} height={15} /></button>
-            </div>
-          ) : null}
+          <div className="pv-smiles">
+            <LottieIcon data={smileAnim} className="pv-smile-lottie" />
+            <span className="pv-smile-num" style={{ minWidth: `${smilesStr.length}ch` }}>{smilesShown.toLocaleString("en-US")}</span>
+            <span className="pv-smile-lbl">Times we made you<br />smile this quarter</span>
+          </div>
         </div>
       </div>
   );
@@ -550,7 +749,7 @@ function ActionQueue({ onNav }) {
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon" data-tour="queue">
       <div className="banner-card-head">
-        <div className="hdr-ic"><I.Bolt width={18} height={18}/></div>
+        <div className="hdr-ic"><I.Bolt width={22} height={22}/></div>
         <div className="bc-titles">
           <div className="bc-kicker">Waiting on you</div>
           <div className="bc-title">Your action queue</div>
@@ -561,21 +760,26 @@ function ActionQueue({ onNav }) {
       </div>
       <div className="banner-card-body">
       {pendingLeads > 0 ? (
-        <button className="rise-hero-nudge aq-nudge aq-nudge-top" onClick={() => onNav("leads")}>
-          <span className="rise-hero-nudge-badge">{pendingLeads}</span>
-          <span className="rise-hero-nudge-body">
-            <span className="rise-hero-nudge-title">Qualify {pendingLeads} pending {pendingLeads === 1 ? "lead" : "leads"}</span>
-            <span className="rise-hero-nudge-sub">Each one keeps your pipeline live</span>
-          </span>
-          <span className="rise-hero-nudge-chev" aria-hidden="true">→</span>
-        </button>
+        <div className="aq-leads">
+          <div className="aq-leads-head">
+            <span className="aq-leads-pulse"><span className="d" />Leads · new today</span>
+          </div>
+          <div className="aq-leads-row">
+            <div className="aq-leads-num">{pendingLeads}</div>
+            <div className="aq-leads-txt">
+              <div className="aq-leads-title">{pendingLeads === 1 ? "lead" : "leads"} ready to qualify</div>
+              <div className="aq-leads-sub">Each one keeps your pipeline live</div>
+            </div>
+          </div>
+          <button className="aq-leads-cta" onClick={() => onNav("leads")}>Qualify {pendingLeads === 1 ? "lead" : "leads"} <I.Arrow width={16} height={16} /></button>
+        </div>
       ) : null}
       {pending === null ? (
-        <div style={{marginTop: pendingLeads > 0 ? 14 : 0, padding:"14px 16px", background:"var(--alloy-off-white)", borderRadius:8, fontSize:12.5, color:"var(--fg-muted)"}}>
+        <div style={{padding:"14px 16px", background:"var(--alloy-off-white)", borderRadius:8, fontSize:12.5, color:"var(--fg-muted)"}}>
           Checking your inbox…
         </div>
       ) : items.length === 0 ? (
-        <div style={{marginTop: pendingLeads > 0 ? 14 : 0, padding:"14px 16px", background:"var(--alloy-purple-tint)", borderRadius:8, fontSize:12.5, color:"var(--alloy-purple)", display:"flex", alignItems:"center", gap:8}}>
+        <div style={{padding:"14px 16px", background:"var(--alloy-purple-tint)", borderRadius:8, fontSize:12.5, color:"var(--alloy-purple)", display:"flex", alignItems:"center", gap:8}}>
           <I.Sparkle width={16} height={16}/> Nothing waiting on you — your Alloy team has the ball.
         </div>
       ) : (

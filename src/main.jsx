@@ -17,6 +17,7 @@ import './styles/08-tour.css';
 import './styles/09-account.css';
 import './styles/10-projects.css';
 import './styles/11-roadmap.css';
+import './styles/12-quarter-card.css';
 
 import AuthGate from './AuthGate.jsx';
 

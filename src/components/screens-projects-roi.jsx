@@ -3,7 +3,8 @@ import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { zdList } from '../lib/zendesk.js';
 import { summarizeTickets } from '../lib/summaries.js';
-import { ENGINES, enginesOf } from '../lib/engines.js';
+import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
+import { quarterStats } from '../lib/quarterStats.js';
 
 // Projects, ROI, Tickets, Playbook, Library, Recognition screens
 const { useState: _useState1 } = React;
@@ -96,18 +97,19 @@ const InProgressIcon = ({ width = 18, height = 18 }) => (
 
 // `tone` is the zone's accent color; the chip + count pill derive a glassy
 // treatment from it (translucent gradient, colored border, soft glow).
-function SecHead({ icon, tone, title, sub, count, countBg, countFg }) {
+function SecHead({ icon, tone, title, sub, count, countBg, countFg, right }) {
   // The count lives inside the leading box (the number replaces the icon),
   // colored per section. Falls back to the icon when there's no count.
   const showCount = count != null;
   const boxStyle = showCount && countBg ? { background: countBg, color: countFg } : undefined;
   return (
     <div className="pj-sec" style={{ "--tone": tone }}>
-      <span className={`pj-sec-ic${showCount ? " num" : ""}`} style={boxStyle}>{showCount ? count : icon}</span>
+      <span className={`pj-sec-ic${showCount ? " num" : ""}`} style={boxStyle}>{showCount ? <span className="pj-sec-numv">{count}</span> : icon}</span>
       <div className="pj-sec-titles">
         <div className="pj-sec-title">{title}</div>
         {sub ? <div className="pj-sec-sub">{sub}</div> : null}
       </div>
+      {right ? <div className="pj-sec-right">{right}</div> : null}
     </div>
   );
 }
@@ -164,19 +166,18 @@ function ProjectsScreen({ onNav, onCompose }) {
   const stageColor = () => "#2c7d68"; // green for all stage-progress bars
 
   const projects = DATA.projects || [];
-  const services = DATA.recurringServices || []; // Monday "Ongoing Services"
-  // In motion now = everything in the "we're driving" section that isn't complete:
-  // open tickets + ongoing services + non-live projects (in-progress + planning).
-  // (Waiting-on-you tickets live in the top card, so they're excluded here.)
-  const inMotion = openTix.length + services.length + projects.filter((p) => p.status !== "live").length;
+  // Canonical quarter numbers — ONE source of truth, shared with the dashboard
+  // "This quarter" card and the roadmap. in motion / delivered always agree.
+  const qs = quarterStats(projects);
+  // In motion = the quarter's non-delivered projects + the OPEN ("we're on it")
+  // tickets shown in "Projects we're driving" — those are actively being worked.
+  // Pending / waiting-on-you tickets (top card) are NOT counted: they're waiting
+  // on the client, not us. Engine chips below break down the project portion only.
+  const inMotion = qs.inMotion + openTix.length;
   const _now = new Date();
-  const _qStart = new Date(_now.getFullYear(), Math.floor(_now.getMonth() / 3) * 3, 1);
-  const _qEnd = new Date(_qStart.getFullYear(), _qStart.getMonth() + 3, 1);
-  const inQuarter = (d) => { if (!d) return false; const x = new Date(d); return x >= _qStart && x < _qEnd; };
   const _today0 = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
   // Past-due: a due date before today on work that isn't already complete.
   const isOverdue = (p) => p.status !== "live" && p.dueDate && new Date(`${p.dueDate}T00:00:00`) < _today0;
-  const deliveredQtr = projects.filter((p) => p.status === "live" && inQuarter(p.dueDate)).length;
   const leadsToQualify = (DATA.recentLeads || []).filter((l) => l.quotable !== "yes" && l.quotable !== "no").length;
   // Skeleton count: the synced tickets snapshot lags live Zendesk, so remember
   // last visit's real "Waiting on you" count per account and render that many
@@ -195,20 +196,8 @@ function ProjectsScreen({ onNav, onCompose }) {
     try { if (n >= 1) localStorage.setItem(waitCountKey, String(n)); } catch { /* ignore */ }
   }, [loading, pending.length, leadsToQualify, waitCountKey]);
 
-  // Ongoing services (Monday "Ongoing Services") fold into the In-progress group
-  // as always-on items — no due date, a cadence pill instead of a progress bar.
-  const serviceItems = services.map((s) => ({
-    id: `svc-${s.id}`, title: s.name, phase: s.lane || null, engines: [],
-    owners: [], pct: null, status: "in-progress", due: "", dueRel: "",
-    service: true, cadence: s.cadence || "Ongoing",
-  }));
   const groups = PJ_GROUPS
-    .map((g) => ({
-      ...g,
-      items: g.id === "in-progress"
-        ? [...projects.filter((p) => g.statuses.includes(p.status)), ...serviceItems]
-        : projects.filter((p) => g.statuses.includes(p.status)),
-    }))
+    .map((g) => ({ ...g, items: projects.filter((p) => g.statuses.includes(p.status)) }))
     .filter((g) => g.items.length);
   const [open, setOpen] = React.useState({ tickets: true, "in-progress": true, planning: true, live: false });
 
@@ -225,7 +214,7 @@ function ProjectsScreen({ onNav, onCompose }) {
           <div className="pj-wait-stats">
             {[
               { n: inMotion, l: "in motion now", c: "#d9356e" },
-              { n: deliveredQtr, l: "delivered this quarter", c: "#2c8a6e" },
+              { n: qs.delivered, l: "delivered this quarter", c: "#2c8a6e" },
             ].map((s, i) => (
               <div key={i} className="pj-wait-stat" style={{ borderLeft: i > 0 ? "1px solid #e8e2f0" : "none" }}>
                 <div className="pj-wait-stat-n" style={{ color: s.c }}>{loading ? "—" : s.n}</div>
@@ -291,19 +280,18 @@ function ProjectsScreen({ onNav, onCompose }) {
       </div>
       </div>
 
-      {/* ===== Everything we're driving — tickets we're on + background work ===== */}
-      <div className="pj-driving-card">
-      <SecHead icon={<I.Bolt width={16} height={16} />} tone="#8a8395"
-        title="Everything we're driving" countBg="rgba(52,29,76,0.09)" countFg="#341d4c"
-        count={loading ? null : inMotion} />
-      <div className="pj-groups">
-        {/* From your tickets — open tickets we're actively on (no action needed) */}
-        {openTix.length ? (
+      {/* ===== We're on it — open tickets we're actively handling (no client action) ===== */}
+      {!loading && openTix.length ? (
+        <div className="pj-driving-card pj-onit-card">
+          <SecHead icon={<I.Ticket width={16} height={16} />} tone="#2c7d68"
+            title="We're on it" countBg="rgba(44,125,104,0.12)" countFg="#2c7d68"
+            count={openTix.length} />
+          <div className="pj-sec-divider" />
           <div className="pj-group pj-group-tix" style={{ "--g": "#2c7d68" }}>
             <button className="pj-group-head" onClick={() => setOpen((o) => ({ ...o, tickets: !o.tickets }))}>
               <span className={`pj-chev${open.tickets ? " open" : ""}`}><I.Chevron width={15} height={15} /></span>
               <span className="pj-dot" />
-              <span className="pj-group-label">From your tickets</span>
+              <span className="pj-group-label">Open tickets</span>
               <span className="pj-group-count">{openTix.length}</span>
               <div className="grow" />
               <span className="pj-bg-note">No action needed</span>
@@ -326,7 +314,28 @@ function ProjectsScreen({ onNav, onCompose }) {
               </div>
             ) : null}
           </div>
-        ) : null}
+        </div>
+      ) : null}
+
+      {/* ===== Projects we're driving — in-motion projects ===== */}
+      <div className="pj-driving-card">
+      <SecHead icon={<I.Bolt width={16} height={16} />} tone="#8a8395"
+        title="Projects we're driving" countBg="rgba(52,29,76,0.09)" countFg="#341d4c"
+        count={loading ? null : qs.inMotion}
+        right={qs.inMotion > 0 ? (
+          <div className="pj-motion-engines">
+            {ENGINE_ORDER.map((e) => {
+              const n = qs.engines[e] || 0;
+              return (
+                <span key={e} className={`tq-chip${n === 0 ? " zero" : ""}`} style={n > 0 ? { color: ENGINES[e].color, background: `${ENGINES[e].color}1a` } : undefined}>
+                  <span className="tq-chip-dot" style={n > 0 ? { background: ENGINES[e].color } : undefined} />{ENGINES[e].label}<span className="tq-chip-n">{n}</span>
+                </span>
+              );
+            })}
+          </div>
+        ) : null} />
+      <div className="pj-sec-divider" />
+      <div className="pj-groups">
         {groups.map((g) => {
           const isOpen = open[g.id];
           return (
@@ -337,7 +346,7 @@ function ProjectsScreen({ onNav, onCompose }) {
                 <span className="pj-group-label">{g.label}</span>
                 <span className="pj-group-count">{g.items.length}</span>
                 <div className="grow" />
-                {g.id === "live" ? <span className="pj-done-note"><I.Check width={13} height={13} /> Delivered &amp; live</span> : <span className="pj-bg-note">background</span>}
+                {g.id === "live" ? <span className="pj-done-note"><I.Check width={13} height={13} /> Delivered &amp; live</span> : null}
               </button>
               {isOpen ? (
                 <div className="pj-prows">
@@ -348,14 +357,8 @@ function ProjectsScreen({ onNav, onCompose }) {
                       <div className="pj-prow-owners"><PjAvatars ids={p.owners} /></div>
                       <div className={`pj-prow-due${isOverdue(p) ? " overdue" : ""}`}><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
                       <div className="pj-prow-prog">
-                        {p.service ? (
-                          <span className="pj-svc-cadence">{p.cadence}</span>
-                        ) : (
-                          <>
-                            <PjBar value={p.pct} color="#2c7d68" />
-                            <span className="pj-pct">{p.pct}%</span>
-                          </>
-                        )}
+                        <PjBar value={p.pct} color="#2c7d68" />
+                        <span className="pj-pct">{p.pct}%</span>
                       </div>
                     </div>
                   ))}

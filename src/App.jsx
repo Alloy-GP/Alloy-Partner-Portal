@@ -104,7 +104,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     snapshot: { t: "Monthly snapshot", s: "Your month with Alloy, every month-end" },
     performance: { t: "Visibility", s: "How your growth engine is performing" },
     roi: { t: "ROI & Insight", s: "What Alloy is doing for your top line" },
-    projects: { t: "Playbook", s: "Live from Monday — every active deliverable" },
+    projects: { t: "Quarterly Playbook", s: "Live from Monday — every active deliverable" },
     tickets: { t: "Inbox", s: "One thread between you and your Alloy team" },
     playbook: { t: "Roadmap", s: "Every market's journey across the five growth stages" },
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
