@@ -217,9 +217,6 @@ export default function AccountScreen({ onNav, onCompose }) {
     .sort((a, b) => String(a.dueDate || a.date).localeCompare(String(b.dueDate || b.date)));
   const nextInv = open[0] || null;
   const thisYear = new Date().getFullYear();
-  const ytd = invoices
-    .filter((i) => String(i.date).slice(0, 4) === String(thisYear))
-    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
   const paidCount = invoices.filter((i) => !(Number(i.balance) > 0)).length;
   const lastPaid = invoices.find((i) => !(Number(i.balance) > 0)) || null;
 
@@ -372,7 +369,6 @@ export default function AccountScreen({ onNav, onCompose }) {
                 <div className="acct-bill-stat">
                   <div className="lbl">Billing cycle</div>
                   <div className="val-sm">Monthly</div>
-                  <div className="sub">{thisYear} invested {money(ytd, true)}</div>
                 </div>
                 <div className="acct-bill-stat">
                   <div className="lbl">Invoices</div>
