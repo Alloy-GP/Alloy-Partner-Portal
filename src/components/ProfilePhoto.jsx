@@ -70,18 +70,20 @@ function ProfilePhoto() {
       {url ? (
         <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       ) : (
-        <span
-          style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: '4px', textAlign: 'center',
-            padding: '6px', color: 'var(--alloy-purple)',
-          }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-            <circle cx="12" cy="13" r="4"/>
+        <span style={{ position: 'absolute', inset: 0, background: '#c4c8ce' }}>
+          {/* Standard person silhouette — body circle clipped by the avatar circle. */}
+          <svg viewBox="0 0 96 96" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} fill="#eceef1">
+            <circle cx="48" cy="37" r="16" />
+            <circle cx="48" cy="92" r="28" />
           </svg>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '10px', letterSpacing: '.02em', lineHeight: 1.05 }}>Upload photo</span>
+          {/* "+" add badge, bottom-right. */}
+          <span style={{
+            position: 'absolute', right: '10px', bottom: '10px', width: '24px', height: '24px',
+            borderRadius: '50%', background: 'var(--alloy-purple)', border: '2.5px solid #fff',
+            color: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 1px 3px rgba(40,13,65,0.35)',
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </span>
         </span>
       )}
       {busy || failed ? (
