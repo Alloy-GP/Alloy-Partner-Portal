@@ -120,15 +120,27 @@ function num(v: unknown): number {
   return isFinite(n) ? n : 0;
 }
 
-// First line-item description (fallback to the item name) — the one-line summary
-// the Account page shows in the invoice list's Description column.
-function firstLineDesc(doc: any): string | null {
+// Tidy a single line's description: drop "– Detail: <url>" tails and stray URLs.
+function cleanLineDesc(s: unknown): string {
+  let t = String(s || "").trim();
+  t = t.split(/\s+[–—-]\s*Detail\s*:/i)[0];      // strip "— Detail: https://…" tail
+  t = t.replace(/https?:\/\/\S+/g, "").trim();   // strip any stray URL
+  return t.replace(/[·\-–—\s]+$/, "").trim();    // trailing punctuation/space
+}
+
+// Summary of ALL line items (description preferred, item name fallback), deduped
+// and joined — the one-line summary the Account page shows in the Description column.
+function summarizeLines(doc: any): string | null {
+  const parts: string[] = [];
   for (const ln of (Array.isArray(doc.Line) ? doc.Line : [])) {
-    if (ln.DetailType === "SalesItemLineDetail") {
-      return ln.Description || ln.SalesItemLineDetail?.ItemRef?.name || null;
-    }
+    if (ln.DetailType !== "SalesItemLineDetail") continue;
+    const d = cleanLineDesc(ln.Description) || String(ln.SalesItemLineDetail?.ItemRef?.name || "").trim();
+    if (d && !parts.includes(d)) parts.push(d);
   }
-  return null;
+  if (!parts.length) return null;
+  let out = parts.join(" · ");
+  if (out.length > 140) out = out.slice(0, 137).trimEnd() + "…";
+  return out;
 }
 
 // QBO has no single "status" field — derive it from balance + due date.
@@ -150,7 +162,7 @@ function mapDoc(doc: any, acctId: string, docType: string) {
     doc_type: docType,
     qbo_invoice_id: String(doc.Id),
     doc_number: doc.DocNumber ? String(doc.DocNumber) : null,
-    description: firstLineDesc(doc),
+    description: summarizeLines(doc),
     txn_date: doc.TxnDate || null,
     due_date: isReceipt ? null : (doc.DueDate || null),
     total_amount: num(doc.TotalAmt),
