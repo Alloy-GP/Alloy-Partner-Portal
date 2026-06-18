@@ -197,22 +197,14 @@ function MainHeader({ title, subtitle, onCommand, screen }) {
   );
 }
 
-function RisePageHero({ title, subtitle }) {
-  const co = DATA.account.shortName || DATA.account.company;
+// Mobile page header (non-dashboard screens). Mirrors the desktop topbar's
+// logo + page-name treatment — NOT the old mint tinted card. The persistent
+// mobile top bar (brand + hamburger) lives in App.jsx; this is just the title.
+function RisePageHero({ title }) {
   return (
-    <div className="rise-hero rise-hero-tinted rise-page-hero">
-      <div className="rise-hero-body">
-        <div className="rise-page-headline">
-          <span className="rise-hero-mark-chip rise-page-mark-chip">
-            <CompanyMark className="rise-hero-mark-img" size={40}/>
-          </span>
-          <div className="rise-page-headline-text">
-            <span className="rise-page-eyebrow">{co}</span>
-            <h1 className="rise-page-title">{title}</h1>
-          </div>
-        </div>
-        {subtitle ? <p className="rise-page-sub">{subtitle}</p> : null}
-      </div>
+    <div className="rise-page-hero">
+      <CompanyMark className="rise-page-mark" size={36}/>
+      <h1 className="rise-page-title">{title}</h1>
     </div>
   );
 }

@@ -836,14 +836,14 @@ function LeadsScreen() {
   }, [panelId]);
 
   return (
-    <div className="content" data-screen-label="03 Pipeline">
+    <div className="content" data-screen-label="03 Partnership">
       <div className="ld-top">
         {/* Review queue */}
         <div className="banner-card banner-pink ld-queue" style={queueH ? { height: queueH } : undefined}>
           <div className="banner-card-head">
             <span className="ld-queue-count">{reviewLeads.length}</span>
             <div className="bc-titles">
-              <div className="bc-kicker">Pipeline growth · Live</div>
+              <div className="bc-kicker">Partnership growth · Live</div>
               <div className="bc-title">{reviewLeads.length > 0 ? "Leads waiting on you" : "Lead review"}</div>
             </div>
           </div>

@@ -79,42 +79,32 @@
 /* Page hero — slimmer variant used on non-dashboard screens (mobile only).
    Hidden by DEFAULT so a flaky/partial stylesheet load can never stack it
    on top of the desktop topbar. Only the mobile media query reveals it. */
+/* Clean logo + page-name row mirroring the desktop topbar's .ds-brand, NOT a
+   mint tinted card. Hidden by default so a partial stylesheet load can't stack
+   it on top of the desktop topbar. */
 .rise-page-hero {
   display: none;
-  margin-bottom: 22px;
-  position: sticky; top: 0; z-index: 30;
-  box-shadow: 0 6px 20px rgba(56,28,79,0.10);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 2px 2px 14px;
+  border-bottom: 1px solid rgba(56,28,79,0.10);
 }
 @media (max-width: 1023px) {
   .rise-page-hero { display: flex; }
 }
-.rise-page-hero .rise-hero-body { padding: 15px 22px 16px; }
 .rise-hero-topline { display: flex; justify-content: flex-end; }
-.rise-page-headline { display: flex; align-items: center; gap: 16px; }
-.rise-page-headline .rise-page-mark-chip {
-  width: 60px; height: 60px; border-radius: 13px;
-  background: #fff; box-shadow: 0 1px 3px rgba(56,28,79,0.10), inset 0 0 0 1px rgba(56,28,79,0.06);
+.rise-page-hero .rise-page-mark {
+  width: 38px; height: 38px; object-fit: contain; display: block; flex-shrink: 0;
 }
-.rise-page-headline .rise-hero-mark-img { width: 40px; height: 40px; }
-.rise-page-headline-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.rise-page-eyebrow {
-  font-family: var(--font-display); font-weight: 800; font-size: 11px;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--rise-blue, #005765);
-}
-.rise-page-headline .rise-page-title { margin: 0; }
-.rise-page-title {
+.rise-page-hero .rise-page-title {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(22px, 3.2vw, 28px);
+  font-size: 24px;
   color: var(--alloy-purple);
   letter-spacing: -0.01em;
-  margin: 4px 0 0;
-}
-.rise-page-sub {
-  font-size: 13px;
-  color: var(--fg-muted);
-  margin: 4px 0 0;
-  max-width: 56ch;
+  line-height: 1.1;
+  margin: 0;
 }
 .rise-hero-mark { width: 20px; height: 20px; flex-shrink: 0; }
 .rise-hero-brand-text {

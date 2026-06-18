@@ -168,6 +168,20 @@ function RMedal({ m, stageKey, size = 74 }) {
   );
 }
 
+// Live ≤1023px check (matches the mobile page-hero breakpoint). The rail's
+// desktop layout is a fixed 200px + 5×1fr + 132px grid that can't fit a phone,
+// so JourneyRail renders a stacked per-market layout below this width.
+function useIsMobile(bp = 1023) {
+  const [m, setM] = React.useState(() => typeof window !== "undefined" && window.matchMedia(`(max-width: ${bp}px)`).matches);
+  React.useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${bp}px)`);
+    const on = () => setM(mq.matches);
+    mq.addEventListener("change", on); on();
+    return () => mq.removeEventListener("change", on);
+  }, [bp]);
+  return m;
+}
+
 function JourneyRail({ locations }) {
   const N = STAGES_DEF.length;
   const centerPct = (i) => ((i + 0.5) / N) * 100;
@@ -176,6 +190,71 @@ function JourneyRail({ locations }) {
   const [stageView, setStageView] = React.useState({});
   const toggle = (id) => setOpen((cur) => (cur === id ? null : id));
   const selectStage = (id, i, e) => { e.stopPropagation(); setOpen(id); setStageView((s) => ({ ...s, [id]: i })); };
+  const isMobile = useIsMobile();
+
+  const wrapStyle = { background: "linear-gradient(135deg, rgba(255,255,255,0.66) 0%, rgba(255,255,255,0.40) 100%)", WebkitBackdropFilter: "blur(22px) saturate(1.5)", backdropFilter: "blur(22px) saturate(1.5)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(56,28,79,0.05), 0 14px 36px rgba(56,28,79,0.09)" };
+
+  // ---- Mobile: stacked per-market cards (name + current stage + progress) ----
+  if (isMobile) {
+    return (
+      <div style={{ ...wrapStyle, padding: "18px 16px 20px", marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 5 }}>
+          <span style={{ width: 38, height: 38, borderRadius: 11, background: R_PURPLE, color: "#fff", display: "grid", placeItems: "center", flexShrink: 0 }}><RIc.trend s={18} /></span>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 800, color: R_PURPLE, letterSpacing: "-0.01em" }}>The growth journey</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, paddingLeft: 49, marginBottom: 16, fontSize: 12.5, fontWeight: 600, color: "#8a8395" }}>
+          <span style={{ fontWeight: 800, color: R_PURPLE }}>{locations.length} active markets</span>
+          <span style={{ width: 5, height: 5, borderRadius: 999, background: R_GREEN, flexShrink: 0 }} /> growing in parallel
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {locations.map((loc) => {
+            const stg = loc.stage;
+            const isOpen = open === loc.id;
+            const stageName = STAGES_DEF[stg] ? STAGES_DEF[stg].name : "";
+            const pct = N > 1 ? Math.max(6, (stg / (N - 1)) * 100) : 100;
+            return (
+              <div key={loc.id} style={{ borderRadius: 14, border: "1px solid #ece8f1", background: "#fff", overflow: "hidden" }}>
+                <div onClick={() => toggle(loc.id)} role="button" style={{ padding: "14px 15px", cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: R_PINK, display: "flex" }}><RIc.pin s={13} /></span>
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: R_PURPLE, flex: 1, minWidth: 0, letterSpacing: "-0.01em" }}>{loc.name}</span>
+                    <span style={{ width: 26, height: 26, borderRadius: 999, display: "grid", placeItems: "center", flexShrink: 0, background: isOpen ? R_PINK : "#ece5f3", color: isOpen ? "#fff" : "#9a93a8", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .18s" }}><RIc.chevron s={14} /></span>
+                  </div>
+                  {(loc.role || loc.age) ? <div style={{ fontSize: 10.5, color: "#a8a0b5", fontWeight: 600, marginTop: 3, paddingLeft: 21 }}>{[loc.role, loc.age].filter(Boolean).join(" · ")}</div> : null}
+                  <div style={{ marginTop: 11, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: R_PINK, textTransform: "uppercase", letterSpacing: ".04em" }}>{stageName}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#9a93a8" }}>Stage {stg + 1} of {N}</span>
+                  </div>
+                  <div style={{ marginTop: 6, height: 6, borderRadius: 999, background: "#e4ddee", position: "relative", overflow: "hidden" }}>
+                    <span style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: `${pct}%`, background: `linear-gradient(90deg, ${R_GREEN}, ${stg === 0 ? R_GREEN : R_PINK})`, borderRadius: 999 }} />
+                  </div>
+                </div>
+                {isOpen ? (() => {
+                  const vKey = STAGES_DEF[stg].key;
+                  const vMedals = STAGE_MILESTONES[vKey].map((m, i) => {
+                    const lm = (loc.milestones || []).find((x) => x.idx === i);
+                    return { ...m, done: !!(lm && lm.done), fresh: i === loc.msFresh };
+                  });
+                  const vDone = vMedals.filter((m) => m.done).length;
+                  return (
+                    <div style={{ padding: "14px 15px 16px", borderTop: "1px solid #f1eef6" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                        <span style={{ fontFamily: "var(--font-display)", fontSize: 11, fontWeight: 800, color: R_PURPLE, textTransform: "uppercase", letterSpacing: ".08em" }}>{stageName} milestones</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: vDone === vMedals.length ? R_GREEN : R_PINK, background: vDone === vMedals.length ? "#e2f0ec" : "#fbe9f1", padding: "2px 8px", borderRadius: 999 }}>{vDone}/{vMedals.length} hit</span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
+                        {vMedals.map((m, i) => <RMedal key={i} m={m} stageKey={vKey} size={62} />)}
+                      </div>
+                    </div>
+                  );
+                })() : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.66) 0%, rgba(255,255,255,0.40) 100%)", WebkitBackdropFilter: "blur(22px) saturate(1.5)", backdropFilter: "blur(22px) saturate(1.5)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "22px 26px 26px", marginBottom: 26, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(56,28,79,0.05), 0 14px 36px rgba(56,28,79,0.09)" }}>
@@ -453,6 +532,7 @@ function EngineCard({ quarters, openDoc }) {
   const projects = DATA.projects || [];
   const now = new Date();
   const merged = quarters.length ? buildQuarters(quarters, now) : [];
+  const isMobile = useIsMobile();
   const rowRef = React.useRef(null);
   const nowIndex = merged.findIndex((q) => { const { start, end } = qInfo(q.quarterStart); return now >= start && now <= end; });
   React.useEffect(() => {
@@ -462,7 +542,7 @@ function EngineCard({ quarters, openDoc }) {
   }, [nowIndex, merged.length]);
   if (!merged.length) return null;
   return (
-    <div style={{ position: "relative", overflow: "hidden", background: "linear-gradient(135deg, #381c4f 0%, #290d41 72%)", borderRadius: 16, padding: "24px 26px 28px", boxShadow: "0 16px 40px rgba(56,28,79,0.26)" }}>
+    <div style={{ position: "relative", overflow: "hidden", background: "linear-gradient(135deg, #381c4f 0%, #290d41 72%)", borderRadius: 16, padding: isMobile ? "18px 15px 22px" : "24px 26px 28px", boxShadow: "0 16px 40px rgba(56,28,79,0.26)" }}>
       <div style={{ position: "absolute", right: -70, top: -80, width: 250, height: 250, borderRadius: 999, background: "radial-gradient(circle, rgba(217,53,110,0.30), transparent 68%)" }} />
       <div style={{ position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 5 }}>
@@ -471,7 +551,7 @@ function EngineCard({ quarters, openDoc }) {
             <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".15em", textTransform: "uppercase", color: R_YELLOW, marginBottom: 3 }}>The growth engine</div>
             <div style={{ fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: "-0.01em" }}>Program roadmap · the 90-day cycle</div>
           </div>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.85)", letterSpacing: ".04em", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.16)", padding: "6px 13px", borderRadius: 999, whiteSpace: "nowrap" }}>Plan · Build · Prove</span>
+          {isMobile ? null : <span style={{ fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.85)", letterSpacing: ".04em", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.16)", padding: "6px 13px", borderRadius: 999, whiteSpace: "nowrap" }}>Plan · Build · Prove</span>}
         </div>
         <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.62)", fontWeight: 600, marginBottom: 14, paddingLeft: 48 }}>The always-on Core powering every market — Proposal system · Review engine · Board surveys</div>
         <div ref={rowRef} style={{ display: "flex", gap: 18, alignItems: "stretch", overflowX: "auto", paddingTop: 10, paddingBottom: 6 }}>

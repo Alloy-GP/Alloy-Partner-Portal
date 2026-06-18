@@ -159,6 +159,7 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
       <div className="alloy-hero-footer">
         <button
           className="alloy-hero-cta"
+          data-tour="roadmap-cta"
           onClick={() => onNav && onNav("playbook")}
           aria-label="View Roadmap"
         >
@@ -402,7 +403,7 @@ function ThisQuarterCard({ onNav }) {
 
   if (!s.hasData) {
     return (
-      <div className="tq-card tq-empty">
+      <div className="tq-card tq-empty" data-tour="quarterly-playbook">
         <div className="tq-head">
           <span className="tq-ic"><I.Book width={22} height={22} /></span>
           <div className="tq-head-txt"><div className="tq-eyebrow">{s.label}</div><div className="tq-title">Quarterly Playbook</div></div>
@@ -422,7 +423,7 @@ function ThisQuarterCard({ onNav }) {
   const onTrack = s.pace === "On track";
 
   return (
-    <div className="tq-card dash-link" role="button" tabIndex={0} onClick={() => onNav("projects")} onKeyDown={(e) => { if (e.key === "Enter") onNav("projects"); }}>
+    <div className="tq-card dash-link" data-tour="quarterly-playbook" role="button" tabIndex={0} onClick={() => onNav("projects")} onKeyDown={(e) => { if (e.key === "Enter") onNav("projects"); }}>
       <div className="tq-head">
         <span className="tq-ic"><I.Book width={22} height={22} /></span>
         <div className="tq-head-txt">

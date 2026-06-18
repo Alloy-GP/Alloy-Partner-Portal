@@ -18,10 +18,14 @@ import { can } from './lib/perms.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
+// NOTE: the KEYS are historical screen-ids (kept stable so analytics + onNav
+// calls don't churn); the VALUES are the user-facing URLs, which match the nav
+// labels and page titles. id "playbook" = the Roadmap page, id "projects" = the
+// Playbook page, id "leads" = the Partnership page, id "performance" = Visibility.
 const PATHS = {
-  dashboard: '/', leads: '/leads', snapshot: '/snapshot', roi: '/roi', projects: '/projects', tickets: '/tickets',
-  performance: '/performance',
-  playbook: '/playbook', library: '/library', rewards: '/rewards', 'account-details': '/account',
+  dashboard: '/', leads: '/partnership', snapshot: '/snapshot', roi: '/roi', projects: '/playbook', tickets: '/tickets',
+  performance: '/visibility',
+  playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account',
 };
 
 // App entry — composes Sidebar + screen
@@ -104,7 +108,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     snapshot: { t: "Monthly snapshot", s: "Your month with Alloy, every month-end" },
     performance: { t: "Visibility", s: "How your growth engine is performing" },
     roi: { t: "ROI & Insight", s: "What Alloy is doing for your top line" },
-    projects: { t: "Quarterly Playbook", s: "Live from Monday — every active deliverable" },
+    projects: { t: "Playbook", s: "Live from Monday — every active deliverable" },
     tickets: { t: "Inbox", s: "One thread between you and your Alloy team" },
     playbook: { t: "Roadmap", s: "Every market's journey across the five growth stages" },
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
@@ -145,7 +149,11 @@ function App({ session, onSignOut, staffNav } = {}) {
     <div className={`app density-${tweaks.density}${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarMode === "hover" ? " sidebar-hover" : ""}${sidebarMode === "hover" && sidebarHover ? " is-hovering" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
       {/* Mobile top bar — brand + hamburger that opens the sidebar drawer. Hidden ≥961px. */}
       <div className="mobile-bar">
-        <div className="brand"><img className="mark" src="/alloy-icon.png" alt=""/>{DATA.account.shortName || DATA.account.company}</div>
+        <div className="brand" role="button" tabIndex={0} aria-label="Go to dashboard"
+          onClick={() => handleNav("dashboard")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleNav("dashboard"); } }}>
+          <img className="mark" src="/alloy-icon.png" alt=""/>Alloy Partner Portal
+        </div>
         <button className="mobile-bar-menu" aria-label={mobileNav ? "Close menu" : "Open menu"} onClick={() => setMobileNav(!mobileNav)}>
           {mobileNav
             ? <I.Close width={22} height={22}/>

@@ -889,3 +889,12 @@
   }
   .rh-next-tier strong { color: #2c8f2c; font-weight: 800; }
 }
+
+/* The 3-up dashboard spotlight needs ~300px per card or its internals crush
+   together (icon over title, squished bars). Between the desktop breakpoint
+   (1024px) and 1280px the columns fall to ~213–280px — too tight — so stack to
+   a single column until there's real room for three. */
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  .dash-spotlight { grid-template-columns: 1fr; }
+  .dash-mid, .dash-right { height: auto; }
+}

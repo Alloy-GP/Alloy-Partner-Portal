@@ -19,8 +19,16 @@ const STEPS = [
     element: '[data-tour="hero"]',
     popover: {
       title: 'Your account at a glance',
-      description: 'Your current goal and progress live here, with quick actions like viewing your roadmap.',
+      description: 'Your current goal and progress live here, updated as we execute.',
       side: 'bottom', align: 'start',
+    },
+  },
+  {
+    element: '[data-tour="roadmap-cta"]',
+    popover: {
+      title: 'Your Growth Roadmap',
+      description: "Open your roadmap to see the bigger picture — the stage-by-stage journey we're driving in each of your markets, from Foundation all the way to Dominance.",
+      side: 'top', align: 'start',
     },
   },
   {
@@ -32,10 +40,10 @@ const STEPS = [
     },
   },
   {
-    element: '[data-tour="projects"]',
+    element: '[data-tour="quarterly-playbook"]',
     popover: {
-      title: 'Playbook',
-      description: "Everything we're driving for you — what's in motion, what we've delivered this quarter, and the full breadth of work behind your growth.",
+      title: 'Quarterly Playbook',
+      description: "This quarter at a glance — what's planned, what we've added, and what's been delivered. Click in for the full breadth of work behind your growth.",
       side: 'bottom', align: 'center',
     },
   },
