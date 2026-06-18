@@ -170,7 +170,7 @@
 /* === Header variant D — icon chip + arrow button (Active projects) === */
 .dash-spotlight .banner-card.hdr-icon .banner-card-head {
   background: transparent;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid rgba(56,28,79,0.08);
   gap: 13px;
   padding: 0 24px;       /* uniform header height across all 3 spotlight cards */
   min-height: 84px;
@@ -209,18 +209,20 @@
 
 /* Action-queue item cards (route to a ticket) — clear clickable hover. */
 /* Action-queue leads CTA — soft yellow hero at the top of the queue, pink CTA. */
-.aq-leads { border-radius: 16px; padding: 18px 20px; margin-bottom: 14px; background: linear-gradient(150deg, #fbf0c4 0%, #f5e296 100%); border: 1px solid #efd884; box-shadow: 0 10px 24px -16px rgba(170,135,25,0.45); }
+.aq-leads { border-radius: 16px; padding: 18px 20px; margin-bottom: 14px; cursor: pointer; background: linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.28) 100%); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgba(255,255,255,0.85); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 2px rgba(56,28,79,0.04), 0 12px 26px -16px rgba(56,28,79,0.22); transition: transform .15s ease, box-shadow .15s ease; }
+.aq-leads:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 4px rgba(56,28,79,0.05), 0 16px 32px -16px rgba(56,28,79,0.28); }
 .aq-leads-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.aq-leads-grp { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .aq-leads-pulse { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; background: rgba(138,109,20,0.13); color: #8a6d14; }
 .aq-leads-pulse .d { width: 7px; height: 7px; border-radius: 999px; background: #b8881a; animation: aq-pl 1.8s ease-in-out infinite; }
 @keyframes aq-pl { 0%,100%{ opacity: .4; } 50%{ opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .aq-leads-pulse .d { animation: none; } }
-.aq-leads-row { display: flex; align-items: center; gap: 15px; }
-.aq-leads-num { font-family: var(--font-display); font-weight: 800; font-size: 46px; line-height: 0.85; letter-spacing: -0.04em; flex-shrink: 0; color: #a07c1a; font-variant-numeric: tabular-nums; }
+.aq-leads-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.aq-leads-num { font-family: var(--font-display); font-weight: 800; font-size: 54px; line-height: 0.9; letter-spacing: -0.035em; flex-shrink: 0; color: var(--alloy-pink); font-variant-numeric: tabular-nums; }
 .aq-leads-txt { flex: 1; min-width: 0; }
-.aq-leads-title { font-family: var(--font-display); font-weight: 800; font-size: 17px; letter-spacing: -0.01em; color: var(--alloy-purple); line-height: 1.15; }
+.aq-leads-title { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; color: var(--alloy-purple); line-height: 1.12; }
 .aq-leads-sub { font-size: 12.5px; margin-top: 3px; color: #6f6450; line-height: 1.3; }
-.aq-leads-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 14px; padding: 12px; border-radius: 11px; border: none; font-family: var(--font-display); font-weight: 800; font-size: 14px; cursor: pointer; background: var(--alloy-pink); color: #fff; box-shadow: 0 8px 18px -8px rgba(217,53,110,0.6); transition: transform .15s ease, filter .15s ease; }
+.aq-leads-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; padding: 11px 18px; border-radius: 11px; border: none; font-family: var(--font-display); font-weight: 800; font-size: 13.5px; cursor: pointer; background: var(--alloy-pink); color: #fff; white-space: nowrap; box-shadow: 0 8px 18px -8px rgba(217,53,110,0.6); transition: transform .15s ease, filter .15s ease; }
 .aq-leads-cta:hover { transform: translateY(-1px); filter: brightness(1.04); }
 .aq-item {
   display: flex; align-items: center; gap: 14px; text-align: left; width: 100%; cursor: pointer;
@@ -237,6 +239,61 @@
 .aq-item-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
 .aq-item-chev { color: var(--fg-muted); transition: transform .12s ease, color .12s ease; }
 .aq-item:hover .aq-item-chev { color: var(--alloy-pink); transform: translateX(3px); }
+
+/* Scroll affordance — fade + "N more" pill, shown only while more is below */
+.aq-scroll-wrap { position: relative; }
+.aq-scroll-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 60px;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 7px;
+  pointer-events: none; opacity: 0; transform: translateY(4px);
+  transition: opacity .22s ease, transform .22s ease;
+  background: linear-gradient(to bottom, rgba(248,246,251,0) 0%, rgba(248,246,251,0.55) 55%, rgba(248,246,251,0.92) 100%);
+  border-radius: 0 0 12px 12px;
+}
+.aq-scroll-wrap.has-more:not(.at-end) .aq-scroll-fade { opacity: 1; transform: none; }
+.aq-scroll-more {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-display); font-weight: 800; font-size: 11px; letter-spacing: 0.02em;
+  color: #fff; background: var(--alloy-purple); padding: 4px 11px 4px 9px; border-radius: 999px;
+  box-shadow: 0 6px 14px -6px rgba(56,28,79,0.5); animation: aq-more-bob 1.7s ease-in-out infinite;
+}
+.aq-scroll-more svg { margin-top: 0.5px; }
+@keyframes aq-more-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+@media (prefers-reduced-motion: reduce) { .aq-scroll-more { animation: none; } }
+
+/* Reply threads — show 4, scroll the rest within the card */
+.aq-scroll { display: flex; flex-direction: column; gap: 9px; max-height: 206px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; margin-right: -4px; -ms-overflow-style: none; scrollbar-width: thin; scrollbar-color: rgba(56,28,79,0.22) transparent; }
+.aq-scroll::-webkit-scrollbar { width: 6px; }
+.aq-scroll::-webkit-scrollbar-track { background: transparent; }
+.aq-scroll::-webkit-scrollbar-thumb { background: rgba(56,28,79,0.18); border-radius: 999px; }
+.aq-scroll::-webkit-scrollbar-thumb:hover { background: rgba(56,28,79,0.32); }
+/* keep the lift on hover from clipping at the scroll edge */
+.aq-scroll .aq-ticket { margin: 1px 0; }
+/* Reply threads — section label + urgency-coded rows (dot + age chip share tone) */
+.aq-sec-head { display: flex; align-items: center; gap: 9px; margin: 18px 0 10px; }
+.aq-sec-label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #a89fb5; }
+.aq-sec-count { font-family: var(--font-display); font-weight: 800; font-size: 11px; color: var(--alloy-pink); background: var(--alloy-pink-tint); padding: 2px 8px; border-radius: 999px; }
+.aq-ticket {
+  display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; cursor: pointer;
+  padding: 13px 15px; border-radius: 11px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.24) 100%);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3);
+  border: 1px solid rgba(255,255,255,0.75);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 6px 16px -12px rgba(56,28,79,0.18);
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.aq-ticket:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.95); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 10px 22px -12px rgba(56,28,79,0.26); }
+.aq-dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
+.aq-dot.fresh { background: var(--green-ink, #2c8a6e); }
+.aq-dot.mid { background: #d6a52a; }
+.aq-dot.stale { background: var(--alloy-pink); }
+.aq-ticket-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: var(--alloy-purple); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aq-age { font-family: var(--font-display); font-weight: 800; font-size: 11px; padding: 3px 9px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; }
+.aq-age.fresh { background: var(--green-tint, #e6f3f0); color: var(--green-ink, #2c8a6e); }
+.aq-age.mid { background: var(--alloy-yellow-tint, #fdf6e0); color: var(--gold-ink, #8a6a1a); }
+.aq-age.stale { background: var(--alloy-pink-tint); color: var(--alloy-pink); }
+.aq-ticket-chev { color: #b9b0c6; flex-shrink: 0; display: inline-flex; transition: transform .12s ease, color .12s ease; }
+.aq-ticket:hover .aq-ticket-chev { color: var(--alloy-pink); transform: translateX(3px); }
 
 /* "Playbook" — value lens on Alloy's active work (P3 "live pulse"). */
 .wm-stats { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 15px; }
@@ -294,7 +351,7 @@
 /* Partnership value — same header design system as the Work-in-motion card. */
 /* Header divider matches the Action queue card: full-bleed hairline under the
    title (extends past the card's 22px padding), ~18px above & below. */
-.pv-head { display: flex; align-items: center; gap: 13px; min-height: 84px; margin: 0 -22px 18px; padding: 0 22px; border-bottom: 1px solid var(--border-subtle); }
+.pv-head { display: flex; align-items: center; gap: 13px; min-height: 84px; margin: 0 -22px 18px; padding: 0 22px; border-bottom: 1px solid rgba(56,28,79,0.08); }
 .pv-head .pv-ic { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; background: var(--alloy-yellow-tint); color: #b8881a; display: grid; place-items: center; }
 .pv-head .pv-titles { flex: 1; min-width: 0; }
 .pv-head .pv-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--alloy-pink); margin-bottom: 4px; }

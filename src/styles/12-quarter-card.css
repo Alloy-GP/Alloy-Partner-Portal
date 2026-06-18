@@ -9,7 +9,7 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(56,28,79,0.05), 0 22px 50px rgba(56,28,79,0.14);
   padding: 0 28px 26px; display: flex; flex-direction: column; height: 100%;
 }
-.tq-head { display: flex; align-items: center; gap: 13px; min-height: 84px; margin: 0 -28px 18px; padding: 0 28px; border-bottom: 1px solid var(--border-subtle, #ece8f3); }
+.tq-head { display: flex; align-items: center; gap: 13px; min-height: 84px; margin: 0 0 18px; padding: 0; border-bottom: 1px solid rgba(56,28,79,0.08); }
 .tq-ic { width: 42px; height: 42px; border-radius: 12px; background: var(--alloy-pink-tint, #fce6ee); color: var(--alloy-pink, #d9356e); display: grid; place-items: center; flex-shrink: 0; }
 .tq-head-txt { flex: 1; min-width: 0; }
 .tq-eyebrow { font-family: var(--font-display); font-weight: 800; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alloy-pink, #d9356e); white-space: nowrap; }
@@ -18,10 +18,45 @@
 .tq-pace-dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
 .tq-pace.behind { background: var(--alloy-yellow-tint, #fdf6e0); color: #b8881a; }
 
-.tq-hero { display: flex; align-items: center; gap: 15px; margin-top: 2px; }
-.tq-pct { font-family: var(--font-display); font-weight: 800; font-size: 44px; line-height: 0.85; letter-spacing: -0.035em; color: var(--alloy-purple, #381c4f); }
-.tq-pct .tq-sym { font-size: 26px; color: #2c8a6e; }
-.tq-cap { font-size: 14px; font-weight: 600; color: var(--fg-muted, #7a6f88); line-height: 1.35; }
+.tq-cta { width: 38px; height: 38px; border: none; cursor: pointer; border-radius: 10px; background: var(--alloy-purple, #381c4f); color: #fff; display: grid; place-items: center; flex-shrink: 0; transition: background .15s ease; }
+.tq-cta:hover { background: var(--alloy-pink, #d9356e); }
+.tq-hero { display: flex; align-items: flex-end; gap: 16px; margin-top: 8px; }
+.tq-pct { font-family: var(--font-display); font-weight: 800; font-size: 54px; line-height: 0.82; letter-spacing: -0.035em; color: var(--alloy-purple, #381c4f); }
+.tq-pct .tq-sym { font-size: 30px; color: #2c8a6e; }
+.tq-cap { font-size: 14px; font-weight: 600; color: var(--fg-muted, #7a6f88); line-height: 1.35; padding-bottom: 5px; }
+.tq-hero .tq-pace { margin-left: auto; align-self: flex-end; margin-bottom: 5px; }
+
+/* Overflow bar — one continuous green/pink bar; a dot-capped marker sits at the
+   planned baseline, work past it is the "+added" scope. */
+.of-wrap { position: relative; height: 30px; margin-top: 44px; }
+.of-track { display: flex; gap: 3px; height: 100%; }
+/* Green = delivered. The part past the planned marker (--of-split) gets the same
+   diagonal stripes as the pink, so "beyond plan = added scope" reads at a glance. */
+.of-green {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.28), rgba(255,255,255,0.28) 7px, transparent 7px, transparent 14px),
+    linear-gradient(90deg,#38a589,#2c8a6e);
+  background-repeat: no-repeat, no-repeat;
+  background-size: calc(100% - var(--of-split, 100%)) 100%, 100% 100%;
+  background-position: right center, left center;
+  border-radius: 999px 6px 6px 999px; height: 100%;
+}
+.of-pink { background: repeating-linear-gradient(45deg, #d9356e, #d9356e 7px, #e2588a 7px, #e2588a 14px); border-radius: 6px 999px 999px 6px; height: 100%; }
+.of-green:only-child, .of-pink:only-child { border-radius: 999px; }
+.of-marker { position: absolute; top: -12px; bottom: -10px; width: 2px; }
+.of-marker .ob-line { position: absolute; inset: 0; background: var(--alloy-purple, #381c4f); opacity: 0.5; border-radius: 2px; }
+.of-marker .ob-line::before, .of-marker .ob-line::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 999px; background: var(--alloy-purple, #381c4f); }
+.of-marker .ob-line::before { top: -2px; } .of-marker .ob-line::after { bottom: -2px; }
+.of-plan-lbl { position: absolute; top: -24px; left: 0; text-align: center; padding-right: 18px; font-family: var(--font-display); font-weight: 800; font-size: 11px; letter-spacing: 0.04em; color: var(--alloy-purple, #381c4f); }
+.of-extra-lbl { position: absolute; top: -24px; right: 0; text-align: center; padding-left: 18px; font-family: var(--font-display); font-weight: 800; font-size: 11px; letter-spacing: 0.04em; color: var(--alloy-pink, #d9356e); }
+.of-legend { display: flex; align-items: center; gap: 18px; margin-top: 24px; font-size: 12.5px; color: var(--fg-muted, #7a6f88); }
+.of-legend .lg { display: flex; align-items: center; gap: 7px; }
+.of-legend .sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+.of-legend .sw.g { background: #2c8a6e; }
+.of-legend .sw.p { background: var(--alloy-pink, #d9356e); }
+.of-legend b { color: var(--alloy-purple, #381c4f); font-family: var(--font-display); font-weight: 800; }
+.of-legend .grow { margin-left: auto; white-space: nowrap; }
+.of-legend .grow b { color: var(--alloy-pink, #d9356e); }
 
 .tq-seg { display: flex; gap: 4px; height: 28px; margin-top: 24px; }
 .tq-seg-g, .tq-seg-p { display: flex; align-items: center; padding: 0 12px; font-family: var(--font-display); font-weight: 800; font-size: 13.5px; color: #fff; min-width: 30px; }
@@ -73,11 +108,11 @@
 .tq-chip-n { font-family: var(--font-display); font-weight: 800; font-size: 13.5px; }
 .tq-chip.zero { background: #f4f2f7; color: #b1a9bd; } .tq-chip.zero .tq-chip-dot { background: #cfc8da; }
 
-.tq-divider { height: 1px; background: var(--border-subtle, #ece8f3); margin-top: 18px; }
+.tq-divider { height: 1px; background: var(--border-subtle, #ece8f3); margin-top: 28px; }
 
 /* Toolkit — full catalog with On / locked states (named grid) */
-.tq-toolkit { margin-top: 15px; }
-.tq-tk-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.tq-toolkit { margin-top: 22px; }
+.tq-tk-head { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 .tq-tk-label { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #a89fb5; }
 .tq-tk-meta { margin-left: auto; font-size: 11.5px; font-weight: 700; color: #2c8a6e; }
 .tq-tk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }

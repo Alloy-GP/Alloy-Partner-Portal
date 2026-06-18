@@ -5,9 +5,9 @@ import ProfilePhoto from './ProfilePhoto.jsx';
 import CompanyMark from './CompanyMark.jsx';
 import { listSnapshots } from '../lib/admin.js';
 import { startPortalTour } from '../lib/tour.js';
-import { pendingTickets } from '../lib/zendesk.js';
 import { ENGINES, ENGINE_ORDER, CORE_KEY, enginesOf } from '../lib/engines.js';
-import { quarterStats } from '../lib/quarterStats.js';
+import { quarterStats, inMotionNow } from '../lib/quarterStats.js';
+import { usePending } from '../lib/usePending.js';
 import lottie from 'lottie-web/build/player/lottie_light';
 // Every .json in assets/lotties auto-joins the rotation — drop new ones in.
 const SMILE_LOTTIES = Object.values(
@@ -30,19 +30,6 @@ function LottieIcon({ data, className }) {
     return () => { (ric ? window.cancelIdleCallback : window.clearTimeout)(id); anim.destroy(); };
   }, [data]);
   return <span className={className} ref={ref} aria-hidden="true" />;
-}
-
-// Shared "needs you" signal — live Zendesk tickets in "pending" status. Cached
-// in the lib so the queue, hero count, and bell share one network call.
-// Returns null while loading, then an array.
-function usePending() {
-  const [list, setList] = React.useState(null);
-  React.useEffect(() => {
-    let cancelled = false;
-    pendingTickets(DATA.account && DATA.account.id).then((t) => { if (!cancelled) setList(t); });
-    return () => { cancelled = true; };
-  }, [DATA.account && DATA.account.id]);
-  return list;
 }
 
 // Where we are in a roadmap quarter, 0–100% — drives the "today" pace marker.
@@ -424,7 +411,7 @@ function ThisQuarterCard({ onNav }) {
       <div className="tq-card tq-empty">
         <div className="tq-head">
           <span className="tq-ic"><I.TrendUp width={22} height={22} /></span>
-          <div className="tq-head-txt"><div className="tq-eyebrow">This quarter</div><div className="tq-title">{s.label}</div></div>
+          <div className="tq-head-txt"><div className="tq-eyebrow">{s.label}</div><div className="tq-title">Quarterly Playbook</div></div>
         </div>
         <p className="tq-empty-msg">No dated work scheduled for {s.label} yet. Projects appear here once they have a due date in the quarter.</p>
         <div className="tq-foot">
@@ -445,47 +432,37 @@ function ThisQuarterCard({ onNav }) {
       <div className="tq-head">
         <span className="tq-ic"><I.TrendUp width={22} height={22} /></span>
         <div className="tq-head-txt">
-          <div className="tq-eyebrow">This quarter</div>
-          <div className="tq-title">{s.label}</div>
+          <div className="tq-eyebrow">{s.label}</div>
+          <div className="tq-title">Quarterly Playbook</div>
         </div>
-        <span className={`tq-pace${onTrack ? "" : " behind"}`}><span className="tq-pace-dot" />{s.pace}</span>
+        <button className="tq-cta" onClick={() => onNav("projects")} aria-label="Open Quarterly Playbook">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </button>
       </div>
 
       <div className="tq-hero">
         <div className="tq-pct">{s.pct}<span className="tq-sym">%</span></div>
         <div className="tq-cap">of this quarter's<br />work is complete</div>
+        <span className={`tq-pace${onTrack ? "" : " behind"}`}><span className="tq-pace-dot" />{s.pace}</span>
       </div>
 
-      <div className="tq-seg" role="img" aria-label={`${s.delivered} delivered, ${s.inMotion} in motion, ${s.total} total`}>
-        {s.delivered > 0 ? <div className="tq-seg-g" style={{ width: `${greenPct}%` }}><span>{s.delivered}</span></div> : null}
-        {s.inMotion > 0 ? <div className="tq-seg-p" style={{ width: `${100 - greenPct}%` }}><span>{s.inMotion}</span></div> : null}
-      </div>
-      <div className="tq-legend">
-        <span className="tq-lg"><span className="tq-sw g" /><b>{s.delivered}</b> delivered</span>
-        <span className="tq-lg"><span className="tq-sw p" /><b>{s.inMotion}</b> in motion</span>
-      </div>
-
-      <div className="tq-scope">
-        <div className="tq-scope-top">
-          <span className="tq-scope-lbl">How this quarter was scoped</span>
-          {s.planned > 0 ? <span className="tq-scope-delta">+{s.scopeDelta}% scope</span> : null}
+      <div className="of-wrap">
+        <div className="of-track">
+          {s.delivered > 0 ? <div className="of-green" style={{ width: `${greenPct}%`, "--of-split": `${Math.min(100, (plannedPct / greenPct) * 100)}%` }} /> : null}
+          {s.inFlight > 0 ? <div className="of-pink" style={{ width: `${100 - greenPct}%` }} /> : null}
         </div>
-        <div className="tq-scope-bar">
-          {s.planned > 0 ? <div className="tq-sp-planned" style={{ width: `${plannedPct}%` }} /> : null}
-          {s.added > 0 ? <div className="tq-sp-added" style={{ width: `${100 - plannedPct}%` }} /> : null}
-        </div>
-        <div className="tq-scope-keys">
-          <div className="tq-scope-key"><span className="tq-sw planned" /><span className="tq-n">{s.planned}</span><span className="tq-t">planned</span></div>
-          <div className="tq-scope-key"><span className="tq-sw added" /><span className="tq-n added">+{s.added}</span><span className="tq-t">added</span></div>
-        </div>
-        {s.added > 0 ? (
-          <div className="tq-scope-note">
-            <span className="tq-tip-wrap" tabIndex={0}>
-              <b>{unplannedShare}% unplanned</b>
-              <span className="tq-tip" role="tooltip">{s.added} of {s.total} items this quarter weren't in the kickoff plan — work you added as needs came up. We flex to absorb it, which is why some planned work is still in motion.</span>
-            </span> — added as needs came up.
-          </div>
+        {s.planned > 0 && s.added > 0 ? (
+          <>
+            <span className="of-plan-lbl" style={{ right: `${100 - plannedPct}%` }}>{s.planned} planned</span>
+            <span className="of-extra-lbl" style={{ left: `${plannedPct}%` }}>+{s.added} added</span>
+            <span className="of-marker" style={{ left: `${plannedPct}%` }}><span className="ob-line" /></span>
+          </>
         ) : null}
+      </div>
+      <div className="of-legend">
+        <span className="lg"><span className="sw g" /><b>{s.delivered}</b>&nbsp;delivered</span>
+        <span className="lg"><span className="sw p" /><b>{s.inFlight}</b>&nbsp;in flight</span>
+        {s.planned > 0 ? <span className="grow">scope <b>+{s.scopeDelta}%</b></span> : null}
       </div>
 
       <div className="tq-divider" />
@@ -508,11 +485,6 @@ function ThisQuarterCard({ onNav }) {
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="tq-foot">
-        <button className="tq-link" onClick={() => onNav("playbook")}>View roadmap <I.Arrow width={13} height={13} /></button>
-        <button className="tq-link" onClick={() => onNav("projects")}>Open playbook <I.Arrow width={13} height={13} /></button>
       </div>
     </div>
   );
@@ -738,7 +710,7 @@ function ActionQueue({ onNav }) {
   const pending = usePending(); // null = loading, else array of pending tickets
   // Needs triage = not yet qualified ("yes") and not marked "not a fit" ("no").
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
-  const items = (pending || []).slice(0, 8);
+  const items = (pending || []).slice(0, 20);
   const ago = (iso) => {
     if (!iso) return "";
     const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -746,13 +718,31 @@ function ActionQueue({ onNav }) {
     if (s < 86400) return `${Math.floor(s / 3600)}h`;
     return `${Math.floor(s / 86400)}d`;
   };
+  // Urgency by age of last reply — dot + chip share the tone so staleness reads
+  // at a glance: ≤24h green (fresh), 1–3d gold (mid), >3d pink (stale).
+  const urgency = (iso) => {
+    if (!iso) return "mid";
+    const h = (Date.now() - new Date(iso).getTime()) / 3600000;
+    return h <= 24 ? "fresh" : h <= 72 ? "mid" : "stale";
+  };
+  // Scroll affordance: track whether the list overflows and whether we're at the
+  // bottom, so a bottom fade + "more" hint shows only while there's more to see.
+  const scrollRef = React.useRef(null);
+  const [sc, setSc] = React.useState({ more: false, atEnd: true });
+  const onScroll = React.useCallback(() => {
+    const el = scrollRef.current; if (!el) return;
+    const more = el.scrollHeight > el.clientHeight + 2;
+    const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+    setSc(prev => (prev.more === more && prev.atEnd === atEnd ? prev : { more, atEnd }));
+  }, []);
+  React.useLayoutEffect(() => { onScroll(); }, [items.length, onScroll]);
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon" data-tour="queue">
       <div className="banner-card-head">
         <div className="hdr-ic"><I.Bolt width={22} height={22}/></div>
         <div className="bc-titles">
           <div className="bc-kicker">Waiting on you</div>
-          <div className="bc-title">Your action queue</div>
+          <div className="bc-title">Your Action Queue</div>
         </div>
         <button className="bc-cta bc-cta-pink" onClick={() => onNav("tickets")} aria-label="View all tickets">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -760,18 +750,14 @@ function ActionQueue({ onNav }) {
       </div>
       <div className="banner-card-body">
       {pendingLeads > 0 ? (
-        <div className="aq-leads">
-          <div className="aq-leads-head">
-            <span className="aq-leads-pulse"><span className="d" />Leads · new today</span>
-          </div>
+        <div className="aq-leads" role="button" tabIndex={0} onClick={() => onNav("leads")}>
           <div className="aq-leads-row">
-            <div className="aq-leads-num">{pendingLeads}</div>
-            <div className="aq-leads-txt">
-              <div className="aq-leads-title">{pendingLeads === 1 ? "lead" : "leads"} ready to qualify</div>
-              <div className="aq-leads-sub">Each one keeps your pipeline live</div>
+            <div className="aq-leads-grp">
+              <span className="aq-leads-num">{pendingLeads}</span>
+              <span className="aq-leads-title">{pendingLeads === 1 ? "Lead to" : "Leads to"}<br />Qualify</span>
             </div>
+            <button className="aq-leads-cta" onClick={(e) => { e.stopPropagation(); onNav("leads"); }}>Qualify Now</button>
           </div>
-          <button className="aq-leads-cta" onClick={() => onNav("leads")}>Qualify {pendingLeads === 1 ? "lead" : "leads"} <I.Arrow width={16} height={16} /></button>
         </div>
       ) : null}
       {pending === null ? (
@@ -783,17 +769,35 @@ function ActionQueue({ onNav }) {
           <I.Sparkle width={16} height={16}/> Nothing waiting on you — your Alloy team has the ball.
         </div>
       ) : (
-        <div className="aq-scroll" style={{display:"flex", flexDirection:"column", gap:10}}>
-          {items.map((t) => (
-            <button key={t.id} className="aq-item" onClick={() => onNav("tickets", t.id)}>
-              <div className="aq-item-body">
-                <div className="aq-item-title">{t.title}</div>
-                <div className="aq-item-sub">Awaiting your reply{ago(t.updated_at) ? ` · ${ago(t.updated_at)}` : ""}</div>
-              </div>
-              <span className="aq-item-chev" aria-hidden="true">→</span>
-            </button>
-          ))}
+        <>
+        <div className="aq-sec-head">
+          <span className="aq-sec-label">Awaiting your reply</span>
+          <span className="aq-sec-count">{items.length}</span>
         </div>
+        <div className={`aq-scroll-wrap${sc.more ? " has-more" : ""}${sc.atEnd ? " at-end" : ""}`}>
+          <div className="aq-scroll" ref={scrollRef} onScroll={onScroll}>
+            {items.map((t) => {
+              const u = urgency(t.updated_at);
+              return (
+                <button key={t.id} className="aq-ticket" onClick={() => onNav("tickets", t.id)}>
+                  <span className={`aq-dot ${u}`} />
+                  <span className="aq-ticket-title">{t.title}</span>
+                  <span className={`aq-age ${u}`}>{ago(t.updated_at)}</span>
+                  <span className="aq-ticket-chev" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="aq-scroll-fade" aria-hidden="true">
+            <span className="aq-scroll-more">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              {items.length - 4} more
+            </span>
+          </div>
+        </div>
+        </>
       )}
       </div>
     </div>
@@ -806,7 +810,8 @@ function ActionQueue({ onNav }) {
 // projects and reads as value at a glance instead of a truncated list.
 function ProjectsList({ onNav }) {
   const all = DATA.projects || [];
-  const inMotion = all.filter(p => p.status !== "live");
+  // Canonical "in motion now" — shared selector, identical to every other surface.
+  const inMotionCount = inMotionNow(all);
   // "Delivered this quarter" — live projects whose due date lands in the current
   // calendar quarter (due_date is the best delivery signal we sync).
   const _now = new Date();
@@ -844,7 +849,7 @@ function ProjectsList({ onNav }) {
       </div>
       <div className="banner-card-body">
         <div className="wm-stats">
-          <span className="big">{inMotion.length}</span>
+          <span className="big">{inMotionCount}</span>
           <span className="lbl">in motion now</span>
           <span className="wm-div" aria-hidden="true" />
           <span className="big green">{deliveredQtr}</span>

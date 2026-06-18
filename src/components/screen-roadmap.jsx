@@ -312,11 +312,16 @@ function JourneyRail({ locations }) {
 
 // ---------- The Growth Engine (program quarters) ----------
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Snap any quarterStart to its CALENDAR quarter (Jan–Mar, Apr–Jun, Jul–Sep,
+// Oct–Dec) so windows never overlap and always match quarterStats() — a synced
+// start of e.g. Sep 1 is treated as the Jul–Sep quarter, not a floating Sep–Nov.
 function qInfo(quarterStart) {
   const d = new Date(`${quarterStart}T00:00:00`);
-  const m = d.getMonth(), y = d.getFullYear();
-  const end = new Date(y, m + 3, 0);
-  return { start: d, end, qNum: Math.floor(m / 3) + 1, range: `${MONTHS[m]} – ${MONTHS[(m + 2) % 12]} ${y}` };
+  const qm = Math.floor(d.getMonth() / 3) * 3; // calendar-quarter start month (0/3/6/9)
+  const y = d.getFullYear();
+  const start = new Date(y, qm, 1);
+  const end = new Date(y, qm + 3, 0); // last day of the calendar quarter
+  return { start, end, qNum: qm / 3 + 1, range: `${MONTHS[qm]} – ${MONTHS[qm + 2]} ${y}` };
 }
 const STATE_META = {
   done: { label: "Complete", color: R_GREEN, bg: "#e2f0ec" },
@@ -328,17 +333,24 @@ const STATE_META = {
 // past the current one (empty "Up next" cards) so the active quarter isn't stuck
 // at the right edge. Gaps between synced quarters are filled too.
 function buildQuarters(synced, now) {
-  const sorted = synced.slice().sort((a, b) => String(a.quarterStart).localeCompare(String(b.quarterStart)));
+  // Key everything by CALENDAR quarter (year + 0..3) so synced quarters whose
+  // start day isn't on a calendar boundary still line up with the loop steps —
+  // otherwise a Sep-1 start (calendar Q3) was missed by the Jul/Oct/Jan/Apr
+  // walk and got dropped, and the gaps were filled with offset windows.
+  const calKey = (d) => `${d.getFullYear()}-${Math.floor(d.getMonth() / 3)}`;
   const byKey = {};
-  sorted.forEach((q) => { const d = new Date(`${q.quarterStart}T00:00:00`); byKey[`${d.getFullYear()}-${d.getMonth()}`] = q; });
+  const starts = [];
+  synced.forEach((q) => { const d = new Date(`${q.quarterStart}T00:00:00`); byKey[calKey(d)] = q; starts.push(d); });
+  starts.sort((a, b) => a - b);
   const curStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
   const targetEnd = new Date(curStart.getFullYear(), curStart.getMonth() + 6, 1); // current + 2 quarters
-  const first = sorted.length ? new Date(`${sorted[0].quarterStart}T00:00:00`) : curStart;
-  const lastSynced = sorted.length ? new Date(`${sorted[sorted.length - 1].quarterStart}T00:00:00`) : curStart;
+  const firstRaw = starts.length ? starts[0] : curStart;
+  const first = new Date(firstRaw.getFullYear(), Math.floor(firstRaw.getMonth() / 3) * 3, 1); // align to calendar quarter
+  const lastSynced = starts.length ? starts[starts.length - 1] : curStart;
   const end = lastSynced > targetEnd ? lastSynced : targetEnd;
   const out = [];
   for (let d = new Date(first); d <= end; d = new Date(d.getFullYear(), d.getMonth() + 3, 1)) {
-    const k = `${d.getFullYear()}-${d.getMonth()}`;
+    const k = calKey(d);
     if (byKey[k]) out.push(byKey[k]);
     else out.push({ id: `syn-${k}`, label: `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`, quarterStart: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`, proof: null, playbookUrl: null, reportUrl: null });
   }
@@ -382,7 +394,6 @@ function QuarterCard({ q, projects, now, openDoc }) {
             <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", padding: "3px 9px", borderRadius: 999, background: sm.bg, color: sm.color, whiteSpace: "nowrap" }}>{sm.label}</span>
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "#a8a0b5", fontWeight: 600, marginTop: 4 }}>{range}</div>
-          <div style={{ fontSize: 11.5, color: "#7a7388", lineHeight: 1.4, marginTop: 8, minHeight: 48 }}>{q.proof || (state === "next" ? "" : "Results recap posts at the quarterly review.")}</div>
         </div>
         {/* body + footer — grayed/blurred behind an "Up next" overlay for future quarters */}
         <div style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>
@@ -402,6 +413,13 @@ function QuarterCard({ q, projects, now, openDoc }) {
               <div>
                 <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".09em", color: "#a8a0b5", marginBottom: 7 }}>Engines in play</div>
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{engines.map((e) => <EngineChip key={e} engine={e} />)}</div>
+              </div>
+            ) : null}
+            {/* Summary moved to the bottom (margin-top:auto) — removes the awkward
+                reserved space the header used to hold. */}
+            {(q.proof || state !== "next") ? (
+              <div style={{ marginTop: "auto", paddingTop: 6, fontSize: 11.5, color: "#7a7388", lineHeight: 1.4 }}>
+                {q.proof || "Results recap posts at the quarterly review."}
               </div>
             ) : null}
           </div>

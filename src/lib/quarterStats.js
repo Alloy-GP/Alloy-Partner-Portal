@@ -1,14 +1,27 @@
-// ONE SOURCE OF TRUTH for the current quarter's numbers.
+// PROJECT COUNTING — ONE SOURCE OF TRUTH for the whole portal.
 //
-// One dataset — this quarter's projects (those with a due date inside the
-// quarter) — viewed through two cuts that must sum to the same total:
-//   Cut A · origin  →  planned ("Playbook" in Monday) + added (everything else)
-//   Cut B · status  →  delivered (live) + inMotion (everything not live)
-//   invariant:  planned + added  ===  total  ===  delivered + inMotion
+// Status partition — every project is exactly ONE of these:
+//   • delivered  → status "live"                 (done / shipped)
+//   • planned    → status "planned"              (queued; shown as "On the horizon")
+//   • in motion  → any other status              (in-progress / assigned / waiting
+//                                                  / planning — actively being driven)
 //
-// Every surface (dashboard "This quarter" card, Playbook, roadmap) reads these
-// numbers from here so they never drift. Computed, never hardcoded.
+// Two DIFFERENT kinds of number the UI shows — keep them straight:
+//   1. "In motion now"  → inMotionNow(): count of in-motion projects, ALL-TIME,
+//      purely status-based (NO due-date requirement). This is the single value
+//      behind every "in motion" label (sidebar badge, Playbook page, account).
+//   2. "This quarter"   → quarterStats(): a COMPLETION view of the projects DUE
+//      this quarter (delivered vs in-flight; planned-origin vs added). It is
+//      quarter-scoped by design, and its not-yet-delivered segment is called
+//      "in flight" — NOT "in motion" — so the words never collide.
+//
+// Plus deliveredThisQuarter(): live projects whose due date lands in the quarter.
 import { enginesOf } from "./engines.js";
+
+// --- the canonical status partition ---
+export const isDelivered = (p) => p && p.status === "live";
+export const isPlanned   = (p) => p && p.status === "planned";
+export const isInMotion  = (p) => !!(p && p.status) && !isDelivered(p) && !isPlanned(p);
 
 export function currentQuarter(now = new Date()) {
   const y = now.getFullYear();
@@ -19,22 +32,45 @@ export function currentQuarter(now = new Date()) {
 }
 
 const toDate = (d) => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`) : null);
+const inRange = (d, start, end) => { const x = toDate(d); return !!x && x >= start && x <= end; };
 
+// CANONICAL "in motion now" — active projects being driven. Status-based,
+// all-time, no due-date requirement (an active project with no date set still
+// counts — that's what was wrongly dropping clients to 0/undercounting).
+export function inMotionNow(projects = []) {
+  return (projects || []).filter(isInMotion).length;
+}
+
+// In-motion projects broken down by primary engine — for the "Projects we're
+// driving" chips, so they describe the SAME set as the in-motion badge.
+export function inMotionByEngine(projects = []) {
+  const e = { reach: 0, match: 0, retain: 0 };
+  for (const p of (projects || []).filter(isInMotion)) {
+    const k = enginesOf(p)[0];
+    if (k && e[k] != null) e[k] += 1;
+  }
+  return e;
+}
+
+// Live projects delivered within the current quarter ("delivered this qtr").
+export function deliveredThisQuarter(projects = [], now = new Date()) {
+  const { start, end } = currentQuarter(now);
+  return (projects || []).filter((p) => isDelivered(p) && inRange(p.dueDate, start, end)).length;
+}
+
+// COMPLETION view of THIS QUARTER's work (projects due inside the quarter).
+// delivered + inFlight === total === planned-origin + added.
 export function quarterStats(projects = [], now = new Date()) {
   const { start, end, label, q, year } = currentQuarter(now);
 
   // This quarter's work = projects with a due date inside the quarter.
-  // No due date → not shown (keeps the invariant clean).
-  const items = (projects || []).filter((p) => {
-    const d = toDate(p.dueDate);
-    return d && d >= start && d <= end;
-  });
+  const items = (projects || []).filter((p) => inRange(p.dueDate, start, end));
 
   const total = items.length;
-  const delivered = items.filter((p) => p.status === "live").length;
-  const inMotion = total - delivered; // everything not live
-  const planned = items.filter((p) => p.origin === "planned").length;
-  const added = total - planned; // anything not "Playbook"
+  const delivered = items.filter(isDelivered).length;
+  const inFlight = total - delivered;                       // due this qtr, not yet delivered
+  const planned = items.filter((p) => p.origin === "planned").length; // origin cut (Cut A)
+  const added = total - planned;                            // anything not "Playbook"
 
   const pct = total ? Math.round((delivered / total) * 100) : 0;
   const scopeDelta = planned ? Math.round((added / planned) * 100) : 0;
@@ -45,19 +81,10 @@ export function quarterStats(projects = [], now = new Date()) {
   const elapsedPct = span ? Math.round((elapsed / span) * 100) : 0;
   const pace = pct >= elapsedPct ? "On track" : "Behind";
 
-  // Engine chips = the IN-MOTION items grouped by primary engine (Core/no-engine
-  // items aren't shown; the three chips can sum to ≤ inMotion).
-  const engines = { reach: 0, match: 0, retain: 0 };
-  for (const p of items) {
-    if (p.status === "live") continue;
-    const e = enginesOf(p)[0];
-    if (e && engines[e] != null) engines[e] += 1;
-  }
-
   return {
     label, q, year, start, end,
-    total, planned, added, delivered, inMotion,
-    pct, scopeDelta, elapsedPct, pace, engines,
+    total, planned, added, delivered, inFlight,
+    pct, scopeDelta, elapsedPct, pace,
     hasData: total > 0,
   };
 }

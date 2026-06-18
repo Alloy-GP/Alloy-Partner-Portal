@@ -4,7 +4,7 @@ import { DATA } from '../data.js';
 import { zdList } from '../lib/zendesk.js';
 import { summarizeTickets } from '../lib/summaries.js';
 import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
-import { quarterStats } from '../lib/quarterStats.js';
+import { quarterStats, inMotionNow, inMotionByEngine, currentQuarter } from '../lib/quarterStats.js';
 
 // Projects, ROI, Tickets, Playbook, Library, Recognition screens
 const { useState: _useState1 } = React;
@@ -126,7 +126,7 @@ function OpenedBy({ t }) {
 const PJ_GROUPS = [
   { id: "in-progress", label: "In progress", color: "#f3bf72", statuses: ["in-progress", "assigned", "waiting"] },
   { id: "planning", label: "Planning", color: "#84aef7", statuses: ["planning"] },
-  { id: "live", label: "Complete", color: "#2c7d68", statuses: ["live"] },
+  { id: "live", label: "Completed this quarter", color: "#2c7d68", statuses: ["live"] },
 ];
 
 function ProjectsScreen({ onNav, onCompose }) {
@@ -166,14 +166,13 @@ function ProjectsScreen({ onNav, onCompose }) {
   const stageColor = () => "#2c7d68"; // green for all stage-progress bars
 
   const projects = DATA.projects || [];
-  // Canonical quarter numbers — ONE source of truth, shared with the dashboard
-  // "This quarter" card and the roadmap. in motion / delivered always agree.
+  // Canonical numbers — ONE source of truth (src/lib/quarterStats.js), shared
+  // with the dashboard + account page so the counts always agree:
+  //   inMotion  = active projects (status-based, all-time)
+  //   delivered this quarter = live + due this quarter
   const qs = quarterStats(projects);
-  // In motion = the quarter's non-delivered projects + the OPEN ("we're on it")
-  // tickets shown in "Projects we're driving" — those are actively being worked.
-  // Pending / waiting-on-you tickets (top card) are NOT counted: they're waiting
-  // on the client, not us. Engine chips below break down the project portion only.
-  const inMotion = qs.inMotion + openTix.length;
+  const inMotion = inMotionNow(projects);
+  const motionEngines = inMotionByEngine(projects); // breakdown of the same set
   const _now = new Date();
   const _today0 = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
   // Past-due: a due date before today on work that isn't already complete.
@@ -196,8 +195,19 @@ function ProjectsScreen({ onNav, onCompose }) {
     try { if (n >= 1) localStorage.setItem(waitCountKey, String(n)); } catch { /* ignore */ }
   }, [loading, pending.length, leadsToQualify, waitCountKey]);
 
+  // Cap the "Completed" group to THIS calendar quarter — older delivered work is
+  // history and lives on the Roadmap, so the Playbook stays focused on the now.
+  const { start: _qStart, end: _qEnd } = currentQuarter();
+  const _inThisQuarter = (p) => {
+    const d = p.dueDate ? new Date(`${String(p.dueDate).slice(0, 10)}T00:00:00`) : null;
+    return !!d && d >= _qStart && d <= _qEnd;
+  };
   const groups = PJ_GROUPS
-    .map((g) => ({ ...g, items: projects.filter((p) => g.statuses.includes(p.status)) }))
+    .map((g) => {
+      let items = projects.filter((p) => g.statuses.includes(p.status));
+      if (g.id === "live") items = items.filter(_inThisQuarter);
+      return { ...g, items };
+    })
     .filter((g) => g.items.length);
   const [open, setOpen] = React.useState({ tickets: true, "in-progress": true, planning: true, live: false });
 
@@ -321,11 +331,11 @@ function ProjectsScreen({ onNav, onCompose }) {
       <div className="pj-driving-card">
       <SecHead icon={<I.Bolt width={16} height={16} />} tone="#8a8395"
         title="Projects we're driving" countBg="rgba(52,29,76,0.09)" countFg="#341d4c"
-        count={loading ? null : qs.inMotion}
-        right={qs.inMotion > 0 ? (
+        count={loading ? null : inMotion}
+        right={inMotion > 0 ? (
           <div className="pj-motion-engines">
             {ENGINE_ORDER.map((e) => {
-              const n = qs.engines[e] || 0;
+              const n = motionEngines[e] || 0;
               return (
                 <span key={e} className={`tq-chip${n === 0 ? " zero" : ""}`} style={n > 0 ? { color: ENGINES[e].color, background: `${ENGINES[e].color}1a` } : undefined}>
                   <span className="tq-chip-dot" style={n > 0 ? { background: ENGINES[e].color } : undefined} />{ENGINES[e].label}<span className="tq-chip-n">{n}</span>

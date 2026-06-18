@@ -3,6 +3,7 @@ import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import CompanyMark from './CompanyMark.jsx';
 import { zdList } from '../lib/zendesk.js';
+import { inMotionNow } from '../lib/quarterStats.js';
 
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
@@ -11,9 +12,6 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
   const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [ctrlOpen, setCtrlOpen] = useState(false);
 
-  // Projects badge: active (non-live) projects. Tickets badge: the client's
-  // open tasks = pending Zendesk tickets (matches the "{client} Tasks" bucket).
-  const openProjects = (DATA.projects || []).filter((p) => p.status && p.status !== 'live').length;
   // Leads badge: leads still needing triage (not yet qualified or marked no).
   const leadsToReview = (DATA.recentLeads || []).filter((l) => l.quotable !== 'yes' && l.quotable !== 'no').length;
   const [pendingTickets, setPendingTickets] = useState(null);
@@ -28,6 +26,10 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     return () => { cancelled = true; };
   }, [DATA.account?.id]); // refetch when switching client
 
+  // Playbook badge = CANONICAL "in motion now" — dated, not-live projects.
+  // Identical to every other surface.
+  const openProjects = inMotionNow(DATA.projects || []);
+
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "main" },
     { id: "tickets", label: "Inbox", icon: I.Mail, group: "main", count: pendingTickets || 0 },
@@ -39,7 +41,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     { id: "performance", label: "Visibility", icon: I.Eye, group: "work" },
     { id: "leads", label: "Pipeline", icon: I.Chart, group: "work", count: leadsToReview },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
-    { id: "assets", label: "Assets", icon: I.Image, group: "account", external: true, href: "https://dam.alloygp.co" },
+    { id: "assets", label: "Assets", icon: I.Image, group: "account" },
     { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: "https://dam.alloygp.co" },
     // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
   ].filter(n => !n.staff || isStaff);

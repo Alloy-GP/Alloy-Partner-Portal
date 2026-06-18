@@ -5,8 +5,26 @@
 /* Desktop-only widgets — hidden by default, shown in the desktop media query */
 .desktop-topbar { display: none; }
 .activity-card { display: none; }
-.weekly-snapshot { display: none; }
 .ws-column { display: none; }
+
+/* Partnership-value card chrome — shared by mobile + desktop (the card shows on
+   both now). Desktop-specific sizing (height:100%, flex in .dash-right) stays in
+   the desktop media query below. */
+.weekly-snapshot {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.12) 100%),
+    radial-gradient(120% 80% at 0% 0%, rgba(217,53,110,0.06) 0%, transparent 60%);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7);
+  backdrop-filter: blur(22px) saturate(1.7);
+  border: 1px solid rgba(255,255,255,0.9);
+  border-radius: 16px; padding: 0 22px 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    inset 0 0 0 1px rgba(255,255,255,0.25),
+    0 1px 2px rgba(56,28,79,0.04),
+    0 24px 50px rgba(56,28,79,0.16);
+  display: flex; flex-direction: column;
+}
 
 @media (min-width: 1024px) {
 
@@ -406,9 +424,9 @@
   .dash-spotlight .banner-card-head .bc-title { font-size: 19px; }
   .dash-spotlight .banner-card-body { padding: 18px 22px 22px; }
 
-  /* Action queue — scroll the list after ~5 rows */
+  /* Action queue — 4 rows + a half-peeking 5th, so it's obvious more scroll below */
   .dash-spotlight .aq-scroll {
-    max-height: 348px; overflow-y: auto;
+    max-height: 278px; overflow-y: auto;
     margin-right: -8px; padding-right: 8px;
   }
   .dash-spotlight .aq-scroll::-webkit-scrollbar { width: 7px; }
@@ -487,21 +505,7 @@
   .ws-column {
     display: flex; flex-direction: column; gap: 18px;
   }
-  .weekly-snapshot {
-    background:
-      linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.12) 100%),
-      radial-gradient(120% 80% at 0% 0%, rgba(217,53,110,0.06) 0%, transparent 60%);
-    -webkit-backdrop-filter: blur(22px) saturate(1.7);
-    backdrop-filter: blur(22px) saturate(1.7);
-    border: 1px solid rgba(255,255,255,0.9);
-    border-radius: 16px; padding: 0 22px 22px;
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.95),
-      inset 0 0 0 1px rgba(255,255,255,0.25),
-      0 1px 2px rgba(56,28,79,0.04),
-      0 24px 50px rgba(56,28,79,0.16);
-    display: flex; flex-direction: column;
-  }
+  /* .weekly-snapshot card chrome now lives in the base layer (shows on mobile too) */
   .weekly-snapshot .ws-tone-pink   { --ws-c: var(--alloy-pink); --ws-tint: var(--alloy-pink-tint); }
   .weekly-snapshot .ws-tone-yellow { --ws-c: #b8881a; --ws-tint: var(--alloy-yellow-tint); }
   .weekly-snapshot .ws-tone-blue   { --ws-c: #2a6391; --ws-tint: var(--alloy-blue-tint); }

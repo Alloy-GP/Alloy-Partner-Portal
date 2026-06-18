@@ -2,9 +2,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Syncs a Monday "<Client> Q2" board into the portal's read tables:
-//   Active Projects + Strategy & Reporting + Completed* -> projects
-//   Ongoing Services                                    -> recurring_services
-//   Tickets group, Monday Status in ACTION_STATUSES     -> action_items
+//   Active Projects + Strategy & Reporting + Completed* + Historical + Ongoing -> projects
+//   Tickets group, Monday Status in ACTION_STATUSES               -> action_items
+//   Toolkit group                                                 -> toolkit_systems
 // Trigger: Monday webhook (real-time) on board change, or a manual call.
 //
 // Every client board is built from the same TEMPLATE — same group titles and
@@ -16,9 +16,13 @@ const MONDAY_API = "https://api.monday.com/v2";
 
 // Group titles (matched case-insensitively, trimmed).
 const PROJECT_GROUP_TITLES = new Set(["active projects", "strategy & reporting"]);
-const SERVICE_GROUP_TITLE = "ongoing services";
 const TICKETS_GROUP_TITLE = "tickets";
 const isCompletedTitle = (t: string) => /^completed\b/i.test((t || "").trim());
+// Historical = the per-client archive of past/delivered work (so the roadmap's
+// past-quarter cards can show real data). Treated exactly like "Completed":
+// forced status "live", so archived work is counted as delivered and can NEVER
+// leak into the "in motion" (active) count.
+const isHistoricalTitle = (t: string) => /^historical\b/i.test((t || "").trim());
 // Planned work = future/queued items (the Account page "On the horizon"). Synced
 // into projects with a forced status of "planned" so they stay out of the active
 // project views (loadData splits them into DATA.plannedProjects).
@@ -47,15 +51,6 @@ const STATUS_MAP: Record<string, [string, number]> = {
   "Reprioritized / Hold": ["planning", 20],
   "Completed": ["live", 100],
   "Complete": ["live", 100],
-};
-
-// Monday "Category" -> one of the portal's 5 recurring-service tones.
-const TONE_BY_CAT: Record<string, string> = {
-  "Social Media": "blue", "SEO & Technical": "purple", "Local & GBP": "green",
-  "Content & Copy": "yellow", "Paid Media": "pink", "Email & Newsletter": "green",
-  "Video Production": "pink", "Web Development": "blue", "Design & Assets": "yellow",
-  "Sales Enablement": "purple", "Client Retention": "pink", "Education & Training": "purple",
-  "Operations": "purple", "Strategy & Reporting": "purple", "Foundation & Onboarding": "blue",
 };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -226,10 +221,12 @@ Deno.serve(async (req) => {
 
       const norm = (s: string) => (s || "").trim().toLowerCase();
       const projectGroupIds = new Set(allGroups.filter((g) => PROJECT_GROUP_TITLES.has(norm(g.title))).map((g) => g.id));
-      const completedGroupIds = new Set(allGroups.filter((g) => isCompletedTitle(g.title)).map((g) => g.id));
+      // "Completed" and "Historical" are both done-archives → forced live.
+      const completedGroupIds = new Set(allGroups.filter((g) => isCompletedTitle(g.title) || isHistoricalTitle(g.title)).map((g) => g.id));
       const plannedGroupIds = new Set(allGroups.filter((g) => isPlannedTitle(g.title)).map((g) => g.id));
-      // Ongoing-services group: pinned by ID per account when set (robust to
-      // renames), else any group whose title starts with "Ongoing".
+      // Ongoing group: pinned by ID per account when set (robust to renames),
+      // else any group whose title starts with "Ongoing". Items here are real
+      // projects (synced into `projects` with status + progress).
       const serviceGroupId = (acct.monday_service_group_id ? String(acct.monday_service_group_id) : null)
         || allGroups.find((g) => /^ongoing\b/.test(norm(g.title)))?.id || null;
       const ticketsGroupId = allGroups.find((g) => norm(g.title) === TICKETS_GROUP_TITLE)?.id ?? "topics";
@@ -247,7 +244,7 @@ Deno.serve(async (req) => {
           boards(ids: $board) {
             groups(ids: $groups) {
               id
-              items_page(limit: 200) {
+              items_page(limit: 500) {
                 items {
                   id
                   name
@@ -263,7 +260,7 @@ Deno.serve(async (req) => {
       const groups: any[] = data?.boards?.[0]?.groups ?? [];
 
       const projects: any[] = [];
-      const services: any[] = [];
+      const services: any[] = []; // kept empty: "Ongoing" items now sync as projects (clears stale recurring_services)
       const actions: any[] = [];
       const toolkit: any[] = []; // { account_id, name } for the "Your toolkit" dashboard row
       const ticketLinks: any[] = []; // { account_id, zendesk_id, link } for the Projects "Open review" button
@@ -354,7 +351,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      summary.push({ account: acct.id, projects: projects.length, services: services.length, actions: actions.length, toolkit: toolkit.length });
+      summary.push({ account: acct.id, projects: projects.length, actions: actions.length, toolkit: toolkit.length });
     }
 
     return Response.json({ ok: true, summary });

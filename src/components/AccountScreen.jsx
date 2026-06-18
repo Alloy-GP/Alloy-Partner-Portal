@@ -4,6 +4,7 @@ import { DATA } from '../data.js';
 import { can } from '../lib/perms.js';
 import { downloadInvoice } from '../lib/billing.js';
 import { saveNotificationPrefs } from '../lib/prefs.js';
+import { inMotionNow, deliveredThisQuarter } from '../lib/quarterStats.js';
 
 // Account Details — ported from the design handoff. Wires real portal data:
 // company profile, Plan & usage, billing/invoices via QuickBooks, team seats
@@ -177,15 +178,13 @@ export default function AccountScreen({ onNav, onCompose }) {
   const now = new Date();
   const curQuarter = `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()}`;
   // Same expressions the rest of the portal uses, so these numbers always match:
-  //   in motion         = open projects → sidebar + Dashboard "Playbook"
+  //   in motion         = CANONICAL inMotionNow → identical to Dashboard "Playbook"
+  //                        + ROI page (dated, not-live projects minus pending tickets)
   //   delivered this qtr = live projects whose due date lands in the current
   //                        quarter → identical to Dashboard "Playbook"
   //   qualified          = wcQualifiedTotal → Leads "qualified all-time" + Dashboard
-  const inMotion = projects.filter((p) => p.status && p.status !== 'live').length;
-  const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-  const qEnd = new Date(qStart.getFullYear(), qStart.getMonth() + 3, 1);
-  const inQuarter = (d) => { if (!d) return false; const x = new Date(d); return x >= qStart && x < qEnd; };
-  const deliveredQtr = projects.filter((p) => p.status === 'live' && inQuarter(p.dueDate)).length;
+  const inMotion = inMotionNow(projects);
+  const deliveredQtr = deliveredThisQuarter(projects, now);
   const qualified = acct.wcQualifiedTotal || 0;
   // Categories of work = projects grouped by phase, top 6 by count.
   const phaseCounts = {};
