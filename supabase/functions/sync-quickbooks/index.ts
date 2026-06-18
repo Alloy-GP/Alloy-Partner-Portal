@@ -128,13 +128,16 @@ function cleanLineDesc(s: unknown): string {
   return t.replace(/[·\-–—\s]+$/, "").trim();    // trailing punctuation/space
 }
 
-// Summary of ALL line items (description preferred, item name fallback), deduped
-// and joined — the one-line summary the Account page shows in the Description column.
+// Summary of the SERVICES/categories billed — the QBO Item name per line (not the
+// free-text line description), deduped and joined. This is what the Account page
+// shows in the Description column. Falls back to the cleaned line description only
+// when a line has no item. QBO returns sub-items as "Parent:Child" — keep the leaf.
 function summarizeLines(doc: any): string | null {
   const parts: string[] = [];
   for (const ln of (Array.isArray(doc.Line) ? doc.Line : [])) {
     if (ln.DetailType !== "SalesItemLineDetail") continue;
-    const d = cleanLineDesc(ln.Description) || String(ln.SalesItemLineDetail?.ItemRef?.name || "").trim();
+    const name = String(ln.SalesItemLineDetail?.ItemRef?.name || "").split(":").pop()!.trim();
+    const d = name || cleanLineDesc(ln.Description);
     if (d && !parts.includes(d)) parts.push(d);
   }
   if (!parts.length) return null;
