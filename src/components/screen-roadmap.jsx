@@ -270,8 +270,8 @@ function JourneyRail({ locations }) {
           <div style={{ fontFamily: "var(--font-display)", fontSize: 46, fontWeight: 800, color: R_PURPLE, lineHeight: 1, letterSpacing: "-0.03em" }}>{locations.length}</div>
           <div style={{ width: 2, height: 42, background: "#e3dcec", borderRadius: 2 }} />
           <div>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 800, color: R_PURPLE, letterSpacing: "-0.01em" }}>active markets</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 3, fontSize: 13, fontWeight: 600, color: "#8a8395" }}>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 800, color: R_PURPLE, letterSpacing: "-0.01em", lineHeight: 1.1 }}>active markets</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 1, fontSize: 13, fontWeight: 600, color: "#8a8395" }}>
               <span style={{ width: 7, height: 7, borderRadius: 999, background: R_GREEN, flexShrink: 0 }} /> growing in parallel
             </div>
           </div>

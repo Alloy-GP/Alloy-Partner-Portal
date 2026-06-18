@@ -72,12 +72,16 @@ function ProfilePhoto() {
       ) : (
         <span
           style={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 800,
-            fontSize: '20px', color: 'var(--alloy-purple)',
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: '4px', textAlign: 'center',
+            padding: '6px', color: 'var(--alloy-purple)',
           }}
         >
-          {user.initials || ''}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '10px', letterSpacing: '.02em', lineHeight: 1.05 }}>Upload photo</span>
         </span>
       )}
       {busy || failed ? (
