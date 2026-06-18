@@ -63,7 +63,7 @@ export async function loadAccountData(session, accountId, me) {
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
-    toolkitRes, assetsRes,
+    toolkitRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -91,7 +91,6 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('locations').select('*, location_milestones(*)').eq('account_id', accountId).order('sort'),
     supabase.from('program_quarters').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('toolkit_systems').select('name, sort').eq('account_id', accountId).order('sort'),
-    supabase.from('assets').select('*').eq('account_id', accountId).order('sort'),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -163,14 +162,6 @@ export async function loadAccountData(session, accountId, me) {
     })),
     // Opt-in systems the client has switched on (Monday "Toolkit" group).
     toolkit: (toolkitRes.data || []).map((t) => ({ name: t.name })),
-    // Finished deliverables Alloy has made for the client (Monday "Assets" board)
-    // → the Assets page. Grouped by category in the UI.
-    assets: (assetsRes.data || []).map((a) => ({
-      id: a.id, name: a.name, note: a.note || '', category: a.category || 'Other',
-      format: a.format || '', formats: a.formats || [], spec: a.spec || '',
-      fileCount: a.file_count || null, updated: a.updated_label || '',
-      thumb: a.thumb_url || null, download: a.download_url || null,
-    })),
     // Planned/queued work → Account page "On the horizon".
     plannedProjects: (projectsRes.data || []).filter((p) => p.status === 'planned').map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase || null,

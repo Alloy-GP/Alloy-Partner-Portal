@@ -7,7 +7,7 @@
   border: 1px solid rgba(255,255,255,0.9);
   border-radius: 20px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(56,28,79,0.05), 0 22px 50px rgba(56,28,79,0.14);
-  padding: 0 28px 26px; display: flex; flex-direction: column; height: 100%;
+  padding: 0 22px 22px; display: flex; flex-direction: column; height: 100%;
 }
 .tq-head { display: flex; align-items: center; gap: 13px; min-height: 84px; margin: 0 0 18px; padding: 0; border-bottom: 1px solid rgba(56,28,79,0.08); }
 .tq-ic { width: 42px; height: 42px; border-radius: 12px; background: var(--alloy-pink-tint, #fce6ee); color: var(--alloy-pink, #d9356e); display: grid; place-items: center; flex-shrink: 0; }
@@ -29,20 +29,64 @@
 /* Overflow bar — one continuous green/pink bar; a dot-capped marker sits at the
    planned baseline, work past it is the "+added" scope. */
 .of-wrap { position: relative; height: 30px; margin-top: 44px; }
-.of-track { display: flex; gap: 3px; height: 100%; }
-/* Green = delivered. The part past the planned marker (--of-split) gets the same
-   diagonal stripes as the pink, so "beyond plan = added scope" reads at a glance. */
-.of-green {
-  background-image:
-    repeating-linear-gradient(45deg, rgba(255,255,255,0.28), rgba(255,255,255,0.28) 7px, transparent 7px, transparent 14px),
-    linear-gradient(90deg,#38a589,#2c8a6e);
-  background-repeat: no-repeat, no-repeat;
-  background-size: calc(100% - var(--of-split, 100%)) 100%, 100% 100%;
-  background-position: right center, left center;
-  border-radius: 999px 6px 6px 999px; height: 100%;
+/* Solid colour segments (delivered green + in-motion pink), clipped to one pill
+   by the track. The diagonal stripes are a SEPARATE single overlay (.of-stripes)
+   so they flow continuously across the green/pink seam — no offset/break. */
+.of-track { display: flex; gap: 0; height: 100%; position: relative; overflow: hidden; border-radius: 999px; }
+.of-green { background: linear-gradient(90deg,#38a589,#2c8a6e); height: 100%; }
+.of-pink { background: var(--alloy-pink, #d9356e); height: 100%; }
+/* One continuous diagonal-stripe overlay across the added-scope region (past the
+   planned marker → end of bar). Covers both the over-plan green and the in-motion
+   pink as a single pattern, so the stripes never break at the colour seam.
+   (left is set inline = planned%.) */
+.of-stripes {
+  position: absolute; top: 0; bottom: 0; right: 0;
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,0.32), rgba(255,255,255,0.32) 7px, transparent 7px, transparent 14px);
+  animation: of-stripe 3s linear infinite;
+  pointer-events: none;
 }
-.of-pink { background: repeating-linear-gradient(45deg, #d9356e, #d9356e 7px, #e2588a 7px, #e2588a 14px); border-radius: 6px 999px 999px 6px; height: 100%; }
-.of-green:only-child, .of-pink:only-child { border-radius: 999px; }
+/* One 14px stripe band projects to 19.8px on the x-axis at 45° → a seamless loop. */
+@keyframes of-stripe { to { background-position: 19.8px 0; } }
+@media (prefers-reduced-motion: reduce) { .of-stripes { animation: none; } }
+
+/* ===== QBAR_V2: Planned vs Added split panel (old .of-* bar above kept for rollback) ===== */
+.up-cap { display: flex; align-items: baseline; gap: 10px; margin-top: 28px; margin-bottom: 13px; }
+.up-cap .up-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #a89fb5; }
+.up-cap .up-meta { margin-left: auto; font-size: 11.5px; font-weight: 700; color: var(--alloy-pink, #d9356e); }
+.up-panel { display: flex; align-items: stretch; border: 1px solid rgba(255,255,255,0.7); border-radius: 16px; background: rgba(255,255,255,0.5); padding: 15px 0; }
+/* min-width keeps a lopsided (tiny) zone wide enough for its header + padding,
+   so the count (e.g. a small "Added 1") never collides with the edge. */
+.up-panel .up-zone { display: flex; flex-direction: column; gap: 11px; min-width: 96px; padding: 0 18px; justify-content: center; }
+.up-panel .up-sep { width: 1px; background: var(--border-subtle, #ece8f3); align-self: stretch; flex: none; }
+.up-panel .up-head { display: flex; align-items: baseline; gap: 8px; }
+.up-panel .up-head .up-t { font-family: var(--font-display); font-weight: 800; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--alloy-purple, #381c4f); }
+.up-panel .up-zone.added .up-head .up-t { color: var(--alloy-pink, #d9356e); }
+.up-panel .up-head .up-c { margin-left: auto; font-family: var(--font-display); font-weight: 800; font-size: 18px; line-height: 1; color: var(--alloy-purple, #381c4f); }
+.up-panel .up-zone.added .up-head .up-c { color: var(--alloy-pink, #d9356e); }
+/* overflow VISIBLE so the green glow can spill past the bar; segments round
+   themselves (below) to keep the pill shape. */
+.up-panel .up-bar { display: flex; gap: 3px; height: 30px; border-radius: 999px; background: #ece8f3; }
+/* min-width is set inline per segment (scaled to its digit count) so small
+   counts stay visibly small while their number still fits. */
+.up-panel .up-bar .up-seg { position: relative; overflow: hidden; height: 100%; display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 12px; color: #fff; padding: 0 3px; box-sizing: border-box; border-radius: 4px; }
+.up-panel .up-bar .up-seg:first-child { border-radius: 999px 4px 4px 999px; }
+.up-panel .up-bar .up-seg:last-child { border-radius: 4px 999px 999px 4px; }
+.up-panel .up-bar .up-seg:only-child { border-radius: 999px; }
+/* Delivered = a win → flat green with a soft light-green glow around the edges. */
+.up-panel .up-bar .up-seg.done { background: #2c8a6e; box-shadow: 0 0 9px 1px rgba(70,206,156,0.65); }
+.up-panel .up-bar .up-seg.motion { background: var(--alloy-pink, #d9356e); }
+/* In-motion = active work → drifting diagonal stripes. Animated via GPU
+   transform (NOT background-position, which stutters) on an oversized stripe
+   layer; one 14px band = 19.8px on the x-axis at 45°, so the loop is seamless.
+   White-over-white leaves the (white) count crisp. */
+.up-panel .up-bar .up-seg.motion::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -24px; right: -24px;
+  background: repeating-linear-gradient(45deg, transparent 0, transparent 7px, rgba(255,255,255,0.22) 7px, rgba(255,255,255,0.22) 14px);
+  animation: up-slide 1.8s linear infinite;
+  will-change: transform;
+}
+@keyframes up-slide { from { transform: translateX(0); } to { transform: translateX(19.8px); } }
+@media (prefers-reduced-motion: reduce) { .up-panel .up-bar .up-seg.motion::before { animation: none; } }
 .of-marker { position: absolute; top: -12px; bottom: -10px; width: 2px; }
 .of-marker .ob-line { position: absolute; inset: 0; background: var(--alloy-purple, #381c4f); opacity: 0.5; border-radius: 2px; }
 .of-marker .ob-line::before, .of-marker .ob-line::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 999px; background: var(--alloy-purple, #381c4f); }

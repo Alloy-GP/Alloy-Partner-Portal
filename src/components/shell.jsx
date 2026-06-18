@@ -38,10 +38,9 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     // new labels (id "playbook" = Roadmap page, id "projects" = Playbook page).
     { id: "playbook", label: "Roadmap", icon: I.Map, group: "work" },
     { id: "projects", label: "Playbook", icon: I.Book, group: "work", count: openProjects },
+    { id: "leads", label: "Partnership", icon: I.TrendUp, group: "work", count: leadsToReview },
     { id: "performance", label: "Visibility", icon: I.Eye, group: "work" },
-    { id: "leads", label: "Pipeline", icon: I.Chart, group: "work", count: leadsToReview },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
-    { id: "assets", label: "Assets", icon: I.Image, group: "account" },
     { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: "https://dam.alloygp.co" },
     // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
   ].filter(n => !n.staff || isStaff);

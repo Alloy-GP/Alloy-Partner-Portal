@@ -209,6 +209,16 @@
 
 /* Action-queue item cards (route to a ticket) — clear clickable hover. */
 /* Action-queue leads CTA — soft yellow hero at the top of the queue, pink CTA. */
+/* Action Queue "all clear" state — no inner card; content fills the card body
+   and centers vertically. Just a check-mark swap in the header + caught-up copy. */
+.aq-clear { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; height: 100%; min-height: 220px; padding: 12px 22px 64px; }
+.aq-clear-badge { width: 60px; height: 60px; border-radius: 999px; display: grid; place-items: center; color: var(--alloy-purple); margin-bottom: 16px;
+  background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 0 0 6px rgba(255,255,255,0.18), 0 6px 16px -8px rgba(56,28,79,0.3); }
+.aq-clear-title { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; color: var(--alloy-purple); }
+.aq-clear-sub { font-size: 13px; line-height: 1.5; color: var(--fg-muted); max-width: 30ch; margin-top: 6px; }
+.aq-clear-pill { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.45); border: 1px solid rgba(255,255,255,0.6); color: var(--fg-muted); font-size: 12px; font-weight: 700; }
+
 .aq-leads { border-radius: 16px; padding: 18px 20px; margin-bottom: 14px; cursor: pointer; background: linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.28) 100%); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgba(255,255,255,0.85); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 2px rgba(56,28,79,0.04), 0 12px 26px -16px rgba(56,28,79,0.22); transition: transform .15s ease, box-shadow .15s ease; }
 .aq-leads:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 4px rgba(56,28,79,0.05), 0 16px 32px -16px rgba(56,28,79,0.28); }
 .aq-leads-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -358,6 +368,19 @@
 .pv-head .pv-title { font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: -0.015em; line-height: 1.1; color: var(--alloy-purple); }
 .pv-head .pv-cta { width: 38px; height: 38px; border: none; cursor: pointer; border-radius: 10px; background: var(--alloy-purple); color: #fff; display: grid; place-items: center; flex-shrink: 0; transition: background .15s ease; }
 .pv-head .pv-cta:hover { background: var(--alloy-pink); }
+/* Per-tile "how it's calculated" info dot + its own tooltip box */
+.pv-tile { position: relative; }
+.pv-tile-info { position: absolute; top: 9px; right: 9px; width: 20px; height: 20px; display: grid; place-items: center; color: #b5adc2; cursor: help; border-radius: 6px; z-index: 2; }
+.pv-tile-info:hover, .pv-tile-info:focus-visible { color: var(--alloy-purple); background: rgba(56,28,79,0.07); outline: none; }
+.pv-tip {
+  position: absolute; bottom: calc(100% + 9px); left: 50%; width: 168px; z-index: 40;
+  text-align: center; background: var(--alloy-purple); color: #fff; padding: 10px 12px; border-radius: 11px;
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 500; line-height: 1.45; letter-spacing: 0;
+  box-shadow: 0 16px 36px -12px rgba(56,28,79,0.55);
+  opacity: 0; visibility: hidden; transform: translate(-50%, 4px); transition: opacity .15s ease, transform .15s ease, visibility .15s;
+}
+.pv-tip::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -6px; border: 6px solid transparent; border-top-color: var(--alloy-purple); }
+.pv-tile-info:hover ~ .pv-tip, .pv-tile-info:focus ~ .pv-tip, .pv-tile:hover .pv-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 
 /* Partnership value — 4 all-time relationship metrics. */
 .pv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 2px; }
@@ -394,6 +417,7 @@
 .dash-link:focus-visible { outline: 2px solid var(--alloy-pink); outline-offset: 2px; }
 .dash-link:hover .pv-cta { background: var(--alloy-pink); }
 .dash-link:hover .bc-cta { background: var(--alloy-pink) !important; }
+.dash-link:hover .tq-cta { background: var(--alloy-pink); }
 /* Action queue: hovering anywhere on the card activates its pink arrow's hover
    state (CSS-only, so the inner item/nudge buttons keep their own click behavior). */
 .banner-card.banner-yellow[data-tour="queue"]:hover .bc-cta.bc-cta-pink { background: #c12a60 !important; }

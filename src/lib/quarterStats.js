@@ -72,6 +72,12 @@ export function quarterStats(projects = [], now = new Date()) {
   const planned = items.filter((p) => p.origin === "planned").length; // origin cut (Cut A)
   const added = total - planned;                            // anything not "Playbook"
 
+  // Origin × status breakdown (for the Planned/Added split bars).
+  const plannedDone = items.filter((p) => p.origin === "planned" && isDelivered(p)).length;
+  const plannedMotion = planned - plannedDone;
+  const addedDone = items.filter((p) => p.origin !== "planned" && isDelivered(p)).length;
+  const addedMotion = added - addedDone;
+
   const pct = total ? Math.round((delivered / total) * 100) : 0;
   const scopeDelta = planned ? Math.round((added / planned) * 100) : 0;
 
@@ -84,6 +90,7 @@ export function quarterStats(projects = [], now = new Date()) {
   return {
     label, q, year, start, end,
     total, planned, added, delivered, inFlight,
+    plannedDone, plannedMotion, addedDone, addedMotion,
     pct, scopeDelta, elapsedPct, pace,
     hasData: total > 0,
   };

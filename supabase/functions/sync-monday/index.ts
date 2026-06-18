@@ -238,26 +238,62 @@ Deno.serve(async (req) => {
       ].filter(Boolean) as string[];
 
       // 2) Fetch items for just those groups, requesting the resolved columns.
+      // Every group is drained via cursor pagination so a group with >500 items
+      // (e.g. a large "Historical" archive) NEVER silently truncates. The old
+      // hard 500-cap was a real data-loss trap: once a group grew past 500 the
+      // tail just vanished with no error — exactly how past-quarter work went
+      // missing. items_page max page size is 500; we follow `cursor` to the end.
       const colIds = [C.status, C.due, C.person, C.category, C.taskId, C.zendesk, C.link, C.workType].filter(Boolean) as string[];
+      const ITEM_FIELDS = `
+        id
+        name
+        updated_at
+        column_values(ids: ${JSON.stringify(colIds)}) { id text value }
+        subitems { id column_values { text column { type } } }`;
       const ITEMS_QUERY = `
         query ($board: [ID!], $groups: [String!]) {
           boards(ids: $board) {
             groups(ids: $groups) {
               id
               items_page(limit: 500) {
-                items {
-                  id
-                  name
-                  updated_at
-                  column_values(ids: ${JSON.stringify(colIds)}) { id text value }
-                  subitems { id column_values { text column { type } } }
-                }
+                cursor
+                items { ${ITEM_FIELDS} }
               }
             }
           }
         }`;
+      const NEXT_QUERY = `
+        query ($cursor: String!) {
+          next_items_page(limit: 500, cursor: $cursor) {
+            cursor
+            items { ${ITEM_FIELDS} }
+          }
+        }`;
+      // Light id-only queries for the drift count pass (below).
+      const IDS_QUERY = `
+        query ($board: [ID!], $groups: [String!]) {
+          boards(ids: $board) {
+            groups(ids: $groups) { id items_page(limit: 500) { cursor items { id } } }
+          }
+        }`;
+      const NEXT_IDS = `query ($cursor: String!) { next_items_page(limit: 500, cursor: $cursor) { cursor items { id } } }`;
       const data = await monday(token, ITEMS_QUERY, { board: [acct.monday_board_id], groups: wantedGroups });
       const groups: any[] = data?.boards?.[0]?.groups ?? [];
+      // Drain each group's remaining pages. guard caps at 100 pages (50k items)
+      // per group to make a runaway loop impossible.
+      for (const g of groups) {
+        if (!g.items_page) continue;
+        let cursor: string | null = g.items_page.cursor ?? null;
+        let guard = 0;
+        while (cursor && guard < 100) {
+          const more = await monday(token, NEXT_QUERY, { cursor });
+          const page = more?.next_items_page;
+          if (!page) break;
+          g.items_page.items.push(...(page.items ?? []));
+          cursor = page.cursor ?? null;
+          guard++;
+        }
+      }
 
       const projects: any[] = [];
       const services: any[] = []; // kept empty: "Ongoing" items now sync as projects (clears stale recurring_services)
@@ -351,7 +387,43 @@ Deno.serve(async (req) => {
         }
       }
 
-      summary.push({ account: acct.id, projects: projects.length, actions: actions.length, toolkit: toolkit.length });
+      // Drift telemetry for Sync Health. We need the TOP-LEVEL card count, NOT
+      // board.items_count — that field includes SUBITEMS (Tidewater: 403 count
+      // but only ~30 real cards), which would false-flag subitem-heavy boards.
+      // So: items we fetched from synced groups + a light id-only count of every
+      // OTHER group. A big "other" bucket = a group we don't recognize (renamed
+      // / new) silently not syncing — exactly the RISE-Historical failure mode.
+      const wantedSet = new Set(wantedGroups);
+      const otherGroupIds = allGroups.map((g) => g.id).filter((id) => !wantedSet.has(id));
+      let otherItems = 0;
+      if (otherGroupIds.length) {
+        const cd = await monday(token, IDS_QUERY, { board: [acct.monday_board_id], groups: otherGroupIds });
+        for (const g of (cd?.boards?.[0]?.groups ?? [])) {
+          let n = (g.items_page?.items ?? []).length;
+          let cursor: string | null = g.items_page?.cursor ?? null;
+          let guard = 0;
+          while (cursor && guard < 100) {
+            const more = await monday(token, NEXT_IDS, { cursor });
+            const page = more?.next_items_page;
+            if (!page) break;
+            n += (page.items ?? []).length;
+            cursor = page.cursor ?? null; guard++;
+          }
+          otherItems += n;
+        }
+      }
+      const fetchedWanted = groups.reduce((n: number, g: any) => n + (g.items_page?.items?.length || 0), 0);
+      const boardTopItems = fetchedWanted + otherItems;
+
+      const syncedRows = projects.length + actions.length + toolkit.length;
+      await supabase.from("monday_sync_status").upsert({
+        account_id: acct.id,
+        board_items: boardTopItems,
+        synced_rows: syncedRows,
+        synced_at: new Date().toISOString(),
+      });
+
+      summary.push({ account: acct.id, board_items: boardTopItems, synced_rows: syncedRows, projects: projects.length, actions: actions.length, toolkit: toolkit.length });
     }
 
     return Response.json({ ok: true, summary });

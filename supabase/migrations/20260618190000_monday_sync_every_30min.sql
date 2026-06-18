@@ -1,0 +1,13 @@
+-- Tighten the Monday backstop sync from daily -> every 30 minutes.
+--
+-- Why: the real-time path is a Monday webhook, but webhooks do NOT reliably
+-- fire on BULK operations (mass import / moving many items into a group at
+-- once). RISE's "Historical" group was bulk-loaded with ~450 past-quarter
+-- items; no webhook fired, so the portal sat on stale data (207 projects vs
+-- 534 real) until the once-a-day cron would have caught it. A 30-minute
+-- backstop shrinks the worst-case staleness window from 24h to 30m, so a
+-- missed webhook is invisible in minutes instead of a day.
+--
+-- Cost is negligible: a full sync touches ~9 boards / ~20 Monday API calls and
+-- is idempotent (delete+reinsert per account). Job id 7 is the sync-monday cron.
+select cron.alter_job(7, schedule => '*/30 * * * *');

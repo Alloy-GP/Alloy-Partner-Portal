@@ -145,15 +145,6 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   // Tier / plan
   const plan = `BoardSuite ${DATA.account?.tier || "Accelerate"}`;
 
-  // Maturity level — the program's spine. Derived from the current roadmap
-  // quarter's title: Foundation → Momentum → Scale → Expansion → Compound.
-  const LADDER = ["Foundation", "Momentum", "Scale", "Expansion", "Compound"];
-  const _nowQ = (DATA.roadmap || []).find(q => q.state === "now") || (DATA.roadmap || [])[0] || {};
-  const _li = Math.max(0, LADDER.findIndex(t => t.toLowerCase() === String(_nowQ.title || "").toLowerCase()));
-  const levelNum = _li + 1;
-  const levelName = LADDER[_li];
-  const nextLevel = LADDER[_li + 1] || null;
-
   return (
     <section className="alloy-hero" aria-label="Account overview" data-tour="hero">
       <div className="alloy-hero-main">
@@ -161,11 +152,6 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
           <ProfilePhoto />
         </div>
         <div className="alloy-hero-content">
-          <button className="alloy-hero-level" onClick={() => onNav && onNav("playbook")} aria-label={`Level ${levelNum} ${levelName} — view roadmap`}>
-            <span className="ahl-badge">Level {levelNum}</span>
-            <span className="ahl-name">{levelName}</span>
-            <span className="ahl-next">{nextLevel ? `Clear this to reach ${nextLevel}` : "Compounding"}</span>
-          </button>
           <h1 className="alloy-hero-title">Welcome back, {firstName}.</h1>
         </div>
       </div>
@@ -176,7 +162,7 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
           onClick={() => onNav && onNav("playbook")}
           aria-label="View Roadmap"
         >
-          View Roadmap <span className="arr" aria-hidden="true">→</span>
+          <I.Map width={15} height={15} /> View Roadmap <span className="arr" aria-hidden="true">→</span>
         </button>
 
         <div className="alloy-hero-stats">
@@ -400,17 +386,25 @@ const TOOLKIT_CATALOG = [
   { name: "Staff Surveys", kw: "staff survey" },
 ];
 
+// Quarter-card progress bar: V2 = the Planned/Added split panel; set to false to
+// roll back to the old continuous overflow bar (both render paths kept below).
+const QBAR_V2 = true;
+
 function ThisQuarterCard({ onNav }) {
   const s = quarterStats(DATA.projects || []);
   const onNames = (DATA.toolkit || []).map((t) => String(t.name || "").toLowerCase());
   const toolkit = TOOLKIT_CATALOG.map((c) => ({ name: c.name, on: onNames.some((n) => n.includes(c.kw)) }));
   const onCount = toolkit.filter((t) => t.on).length;
+  // Segment sizing: flex by count, with a min-width scaled to the number's digit
+  // count (just enough to stay legible) so small counts stay visibly small and
+  // the size difference between segments reads clearly.
+  const segStyle = (n) => ({ flex: n, minWidth: `${n < 10 ? 16 : n < 100 ? 25 : 32}px` });
 
   if (!s.hasData) {
     return (
       <div className="tq-card tq-empty">
         <div className="tq-head">
-          <span className="tq-ic"><I.TrendUp width={22} height={22} /></span>
+          <span className="tq-ic"><I.Book width={22} height={22} /></span>
           <div className="tq-head-txt"><div className="tq-eyebrow">{s.label}</div><div className="tq-title">Quarterly Playbook</div></div>
         </div>
         <p className="tq-empty-msg">No dated work scheduled for {s.label} yet. Projects appear here once they have a due date in the quarter.</p>
@@ -428,14 +422,14 @@ function ThisQuarterCard({ onNav }) {
   const onTrack = s.pace === "On track";
 
   return (
-    <div className="tq-card">
+    <div className="tq-card dash-link" role="button" tabIndex={0} onClick={() => onNav("projects")} onKeyDown={(e) => { if (e.key === "Enter") onNav("projects"); }}>
       <div className="tq-head">
-        <span className="tq-ic"><I.TrendUp width={22} height={22} /></span>
+        <span className="tq-ic"><I.Book width={22} height={22} /></span>
         <div className="tq-head-txt">
           <div className="tq-eyebrow">{s.label}</div>
           <div className="tq-title">Quarterly Playbook</div>
         </div>
-        <button className="tq-cta" onClick={() => onNav("projects")} aria-label="Open Quarterly Playbook">
+        <button className="tq-cta" onClick={(e) => { e.stopPropagation(); onNav("projects"); }} aria-label="Open Quarterly Playbook">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </button>
       </div>
@@ -446,24 +440,58 @@ function ThisQuarterCard({ onNav }) {
         <span className={`tq-pace${onTrack ? "" : " behind"}`}><span className="tq-pace-dot" />{s.pace}</span>
       </div>
 
-      <div className="of-wrap">
-        <div className="of-track">
-          {s.delivered > 0 ? <div className="of-green" style={{ width: `${greenPct}%`, "--of-split": `${Math.min(100, (plannedPct / greenPct) * 100)}%` }} /> : null}
-          {s.inFlight > 0 ? <div className="of-pink" style={{ width: `${100 - greenPct}%` }} /> : null}
-        </div>
-        {s.planned > 0 && s.added > 0 ? (
-          <>
-            <span className="of-plan-lbl" style={{ right: `${100 - plannedPct}%` }}>{s.planned} planned</span>
-            <span className="of-extra-lbl" style={{ left: `${plannedPct}%` }}>+{s.added} added</span>
-            <span className="of-marker" style={{ left: `${plannedPct}%` }}><span className="ob-line" /></span>
-          </>
-        ) : null}
-      </div>
-      <div className="of-legend">
-        <span className="lg"><span className="sw g" /><b>{s.delivered}</b>&nbsp;delivered</span>
-        <span className="lg"><span className="sw p" /><b>{s.inFlight}</b>&nbsp;in flight</span>
-        {s.planned > 0 ? <span className="grow">scope <b>+{s.scopeDelta}%</b></span> : null}
-      </div>
+      {QBAR_V2 ? (
+        /* NEW: Planned vs Added split panel (set QBAR_V2=false to roll back). */
+        <>
+          <div className="up-cap">
+            <span className="up-lbl">Scope · {s.total} tasks</span>
+            {s.planned > 0 ? <span className="up-meta">+{s.scopeDelta}% vs plan</span> : null}
+          </div>
+          <div className="up-panel">
+            {s.planned > 0 ? (
+              <div className="up-zone planned" style={{ flex: s.planned }}>
+                <div className="up-head"><span className="up-t">Planned</span><span className="up-c">{s.planned}</span></div>
+                <div className="up-bar">
+                  {s.plannedDone > 0 ? <span className="up-seg done" style={segStyle(s.plannedDone)}>{s.plannedDone}</span> : null}
+                  {s.plannedMotion > 0 ? <span className="up-seg motion" style={segStyle(s.plannedMotion)}>{s.plannedMotion}</span> : null}
+                </div>
+              </div>
+            ) : null}
+            {s.planned > 0 && s.added > 0 ? <div className="up-sep" /> : null}
+            {s.added > 0 ? (
+              <div className="up-zone added" style={{ flex: s.added }}>
+                <div className="up-head"><span className="up-t">Added</span><span className="up-c">{s.added}</span></div>
+                <div className="up-bar">
+                  {s.addedDone > 0 ? <span className="up-seg done" style={segStyle(s.addedDone)}>{s.addedDone}</span> : null}
+                  {s.addedMotion > 0 ? <span className="up-seg motion" style={segStyle(s.addedMotion)}>{s.addedMotion}</span> : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        /* OLD: continuous overflow bar — kept for rollback. */
+        <>
+          <div className="of-wrap">
+            <div className="of-track">
+              {s.delivered > 0 ? <div className="of-green" style={{ width: `${greenPct}%` }} /> : null}
+              {s.inFlight > 0 ? <div className="of-pink" style={{ width: `${100 - greenPct}%` }} /> : null}
+              {s.added > 0 ? <span className="of-stripes" style={{ left: `${plannedPct}%` }} /> : null}
+            </div>
+            {s.planned > 0 && s.added > 0 ? (
+              <>
+                <span className="of-plan-lbl" style={{ right: `${100 - plannedPct}%` }}>{s.planned} planned</span>
+                <span className="of-extra-lbl" style={{ left: `${plannedPct}%` }}>+{s.added} added</span>
+              </>
+            ) : null}
+          </div>
+          <div className="of-legend">
+            <span className="lg"><span className="sw g" /><b>{s.delivered}</b>&nbsp;delivered</span>
+            <span className="lg"><span className="sw p" /><b>{s.inFlight}</b>&nbsp;in flight</span>
+            {s.planned > 0 ? <span className="grow">scope <b>+{s.scopeDelta}%</b></span> : null}
+          </div>
+        </>
+      )}
 
       <div className="tq-divider" />
       <div className="tq-toolkit">
@@ -608,10 +636,14 @@ function PartnershipValueCard({ onNav }) {
   // quote/sales values entered in the qualify flow, so they grow as leads get
   // valued.
   const tiles = [
-    { num: lifetimeQualified.toLocaleString("en-US"), lbl: "Qualified leads", sub: DATA.account?.since ? `since ${DATA.account.since}` : "all time", color: "var(--alloy-purple)" },
-    { num: fmtBig(quoteMonthly * 12 * CONTRACT), lbl: "Total quote value", sub: "contract revenue", color: "#2f6fb0" },
-    { num: fmtBig(salesMonthly * CONTRACT * 60), lbl: "Revenue created", sub: "lifetime, closed", color: "#2c8a6e" },
-    { num: "+" + fmtBig(salesMonthly * 12 * CONTRACT * 4), lbl: "Projected firm value", sub: "Firm value increased", color: "var(--alloy-pink)" },
+    { num: lifetimeQualified.toLocaleString("en-US"), lbl: "Qualified leads", sub: DATA.account?.since ? `since ${DATA.account.since}` : "all time", color: "var(--alloy-purple)",
+      tip: `Qualified leads in WhatConverts${DATA.account?.since ? ` since ${DATA.account.since}` : ""}.` },
+    { num: fmtBig(quoteMonthly * 12 * CONTRACT), lbl: "Total quote value", sub: "contract revenue", color: "#2f6fb0",
+      tip: "Monthly quoted value × 12 (annualized) × 2.35 contract multiplier." },
+    { num: fmtBig(salesMonthly * CONTRACT * 60), lbl: "Revenue created", sub: "lifetime, closed", color: "#2c8a6e",
+      tip: "Monthly closed sales × 2.35 × 60 (5-year contract value)." },
+    { num: "+" + fmtBig(salesMonthly * 12 * CONTRACT * 4), lbl: "Projected firm value", sub: "Firm value increased", color: "var(--alloy-pink)",
+      tip: "Annual closed sales × 2.35 × 4 (valuation multiple)." },
   ];
 
   return (
@@ -620,7 +652,7 @@ function PartnershipValueCard({ onNav }) {
           <span className="pv-ic"><I.TrendUp width={22} height={22} /></span>
           <div className="pv-titles">
             <div className="pv-kicker">What we've built together</div>
-            <div className="pv-title">Partnership value</div>
+            <div className="pv-title">Partnership Value</div>
           </div>
           <button className="pv-cta" onClick={(e) => { e.stopPropagation(); onNav && onNav("leads"); }} aria-label="See lead detail">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -630,9 +662,15 @@ function PartnershipValueCard({ onNav }) {
           <div className="pv-grid">
             {tiles.map((t) => (
               <div key={t.lbl} className="pv-tile">
+                {t.tip ? (
+                  <span className="pv-tile-info" tabIndex={0} role="button" aria-label={`How ${t.lbl} is calculated`} onClick={(e) => e.stopPropagation()}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor"/></svg>
+                  </span>
+                ) : null}
                 <span className="pv-num" style={{ color: t.color }}>{t.num}</span>
                 <span className="pv-lbl">{t.lbl}</span>
                 <span className="pv-sub">{t.sub}</span>
+                {t.tip ? <span className="pv-tip" role="tooltip">{t.tip}</span> : null}
               </div>
             ))}
           </div>
@@ -736,12 +774,14 @@ function ActionQueue({ onNav }) {
     setSc(prev => (prev.more === more && prev.atEnd === atEnd ? prev : { more, atEnd }));
   }, []);
   React.useLayoutEffect(() => { onScroll(); }, [items.length, onScroll]);
+  // Fully clear = inbox loaded, no pending tickets AND no leads to qualify.
+  const allClear = pending !== null && items.length === 0 && pendingLeads === 0;
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon" data-tour="queue">
       <div className="banner-card-head">
-        <div className="hdr-ic"><I.Bolt width={22} height={22}/></div>
+        <div className="hdr-ic">{allClear ? <I.Check width={22} height={22}/> : <I.Bolt width={22} height={22}/>}</div>
         <div className="bc-titles">
-          <div className="bc-kicker">Waiting on you</div>
+          <div className="bc-kicker">{allClear ? "All clear" : "Waiting on you"}</div>
           <div className="bc-title">Your Action Queue</div>
         </div>
         <button className="bc-cta bc-cta-pink" onClick={() => onNav("tickets")} aria-label="View all tickets">
@@ -749,6 +789,14 @@ function ActionQueue({ onNav }) {
         </button>
       </div>
       <div className="banner-card-body">
+      {allClear ? (
+        <div className="aq-clear">
+          <div className="aq-clear-badge"><I.Check width={26} height={26} /></div>
+          <div className="aq-clear-title">You're all caught up</div>
+          <div className="aq-clear-sub">Your Alloy team has the ball.</div>
+          <div className="aq-clear-pill"><I.Bell width={14} height={14} /> We'll flag anything that needs you</div>
+        </div>
+      ) : (<>
       {pendingLeads > 0 ? (
         <div className="aq-leads" role="button" tabIndex={0} onClick={() => onNav("leads")}>
           <div className="aq-leads-row">
@@ -764,11 +812,7 @@ function ActionQueue({ onNav }) {
         <div style={{padding:"14px 16px", background:"var(--alloy-off-white)", borderRadius:8, fontSize:12.5, color:"var(--fg-muted)"}}>
           Checking your inbox…
         </div>
-      ) : items.length === 0 ? (
-        <div style={{padding:"14px 16px", background:"var(--alloy-purple-tint)", borderRadius:8, fontSize:12.5, color:"var(--alloy-purple)", display:"flex", alignItems:"center", gap:8}}>
-          <I.Sparkle width={16} height={16}/> Nothing waiting on you — your Alloy team has the ball.
-        </div>
-      ) : (
+      ) : items.length === 0 ? null : (
         <>
         <div className="aq-sec-head">
           <span className="aq-sec-label">Awaiting your reply</span>
@@ -799,6 +843,7 @@ function ActionQueue({ onNav }) {
         </div>
         </>
       )}
+      </>)}
       </div>
     </div>
   );
