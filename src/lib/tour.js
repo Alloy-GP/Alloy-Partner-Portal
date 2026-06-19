@@ -110,4 +110,8 @@ export function startPortalTour({ userId } = {}) {
     onDestroyed: () => { active = null; markComplete(userId); },
   });
   active.drive();
+  // Stamp completion as soon as the tour is SHOWN (not only on finish) so it
+  // never auto-pops again — even if the client closes the tab mid-tour before
+  // onDestroyed can fire. Manual replays from the profile menu just re-stamp.
+  markComplete(userId);
 }

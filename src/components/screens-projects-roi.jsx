@@ -123,11 +123,76 @@ function OpenedBy({ t }) {
 }
 
 // Zone 3 status groups — every non-ticket project, bucketed + collapsible.
-const PJ_GROUPS = [
-  { id: "in-progress", label: "In progress", color: "#f3bf72", statuses: ["in-progress", "assigned", "waiting"] },
-  { id: "planning", label: "Planning", color: "#84aef7", statuses: ["planning"] },
-  { id: "live", label: "Completed this quarter", color: "#2c7d68", statuses: ["live"] },
-];
+// Per-row status pill (status now shown on the row, since groups are by origin).
+const PJ_STATUS = {
+  "in-progress": { label: "In progress", c: "#8a6d1f", bg: "rgba(245,200,90,0.22)" },
+  "assigned":    { label: "Assigned",    c: "#2a6391", bg: "rgba(42,99,145,0.12)" },
+  "waiting":     { label: "Waiting",     c: "#7d5ba6", bg: "rgba(125,91,166,0.14)" },
+  "planning":    { label: "Planning",    c: "#5a6b8c", bg: "rgba(90,107,140,0.14)" },
+  "review":      { label: "In review",   c: "#c1356b", bg: "rgba(217,53,110,0.12)" },
+  "blocked":     { label: "Blocked",     c: "#b03a3a", bg: "rgba(176,58,58,0.12)" },
+  "live":        { label: "Delivered",   c: "#2c8a6e", bg: "rgba(44,138,110,0.12)" },
+};
+function StatusPill({ status }) {
+  const m = PJ_STATUS[status] || PJ_STATUS["in-progress"];
+  return <span className="pj-status-pill" style={{ color: m.c, background: m.bg }}><span className="dot" />{m.label}</span>;
+}
+
+// Split-bar segment sizing (mirrors the dashboard Quarterly Playbook card):
+// flex by count, with a digit-scaled min-width so small counts stay legible.
+const segStyle = (n) => ({ flex: n, minWidth: `${n < 10 ? 16 : n < 100 ? 25 : 32}px` });
+
+// Subtask status disc — done (filled green + check), active (amber ring + dot),
+// todo (empty ring).
+function SubCheck({ state }) {
+  return (
+    <span className={`sub-check ${state}`} role="img" aria-label={state === "done" ? "done" : state === "active" ? "in progress" : "to do"}>
+      {state === "done" ? (
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+      ) : null}
+    </span>
+  );
+}
+
+// A Playbook project row + its expandable subtask checklist (Monday subitems).
+// Pill is hidden when there are no subtasks; pct bar stays Monday's value.
+function ProjRow({ p, isOverdue }) {
+  const subs = p.subtasks || [];
+  const [open, setOpen] = React.useState(false);
+  const doneN = subs.filter((s) => s.state === "done").length;
+  return (
+    <div className="pj-prow">
+      <div className="pj-prow-main">
+        <div className="pj-prow-title">{p.title}<span className="pj-prow-eng"><StatusPill status={p.status} /><EngineChips project={p} /></span></div>
+        {subs.length ? (
+          <button className="sub-chip" aria-expanded={open} aria-label={`${doneN} of ${subs.length} subtasks done`} onClick={() => setOpen((o) => !o)}>
+            <span className="mini">{subs.map((s, i) => <i key={i} className={s.state} />)}</span>
+            {doneN}/{subs.length} subtasks
+            <svg className="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+        ) : null}
+      </div>
+      <div className="pj-prow-cat"><CatChip name={p.phase} /></div>
+      <div className={`pj-prow-due${isOverdue(p) ? " overdue" : ""}`}><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
+      <div className="pj-prow-prog">
+        <PjBar value={p.pct} color="#2c7d68" />
+        <span className="pj-pct">{p.pct}%</span>
+      </div>
+      {subs.length && open ? (
+        <div className="pj-subwrap">
+          <div className="pj-subwrap-inner">
+            {subs.map((s, i) => (
+              <div key={i} className="pj-subrow">
+                <SubCheck state={s.state} />
+                <span className={`sub-label${s.state === "done" ? " done" : ""}`}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function ProjectsScreen({ onNav, onCompose }) {
   // Zones 1 & 2 are Zendesk tickets: pending = waiting on you, open = we're on it.
@@ -202,14 +267,17 @@ function ProjectsScreen({ onNav, onCompose }) {
     const d = p.dueDate ? new Date(`${String(p.dueDate).slice(0, 10)}T00:00:00`) : null;
     return !!d && d >= _qStart && d <= _qEnd;
   };
-  const groups = PJ_GROUPS
-    .map((g) => {
-      let items = projects.filter((p) => g.statuses.includes(p.status));
-      if (g.id === "live") items = items.filter(_inThisQuarter);
-      return { ...g, items };
-    })
-    .filter((g) => g.items.length);
-  const [open, setOpen] = React.useState({ tickets: true, "in-progress": true, planning: true, live: false });
+  // In-motion work is grouped by ORIGIN (Planned vs Added) — status now lives on
+  // a per-row pill. Delivered work stays in its own "Completed this quarter"
+  // group. These line up with the header's Planned/Added split bars: a bar's
+  // motion (pink) segment = the matching group's row count.
+  const _isLive = (p) => p.status === "live";
+  const groups = [
+    { id: "planned", label: "Planned", color: "#84aef7", done: qs.plannedDone, items: projects.filter((p) => !_isLive(p) && p.origin === "planned") },
+    { id: "added", label: "Added", color: "#d9356e", done: qs.addedDone, items: projects.filter((p) => !_isLive(p) && p.origin !== "planned") },
+    { id: "live", label: "Completed this quarter", color: "#2c7d68", done: null, items: projects.filter((p) => _isLive(p) && _inThisQuarter(p)) },
+  ].filter((g) => g.items.length);
+  const [open, setOpen] = React.useState({ tickets: true, planned: true, added: true, live: false });
 
   const reqProject = () => { if (onCompose) onCompose(); else onNav("tickets"); };
 
@@ -221,17 +289,6 @@ function ProjectsScreen({ onNav, onCompose }) {
         <div className="pj-wait-head">
           <span className="pj-sec-ic num" style={{ background: "rgba(133,107,32,0.12)", color: "#856b20" }}>{loading ? "—" : pending.length + (leadsToQualify > 0 ? 1 : 0)}</span>
           <div className="pj-sec-titles"><div className="pj-sec-title">Waiting on you</div></div>
-          <div className="pj-wait-stats">
-            {[
-              { n: inMotion, l: "in motion now", c: "#d9356e" },
-              { n: qs.delivered, l: "delivered this quarter", c: "#2c8a6e" },
-            ].map((s, i) => (
-              <div key={i} className="pj-wait-stat" style={{ borderLeft: i > 0 ? "1px solid #e8e2f0" : "none" }}>
-                <div className="pj-wait-stat-n" style={{ color: s.c }}>{loading ? "—" : s.n}</div>
-                <div className="pj-wait-stat-l">{s.l}</div>
-              </div>
-            ))}
-          </div>
         </div>
         <div className="pj-wait-divider" />
       <div className="pj-cards">
@@ -332,16 +389,39 @@ function ProjectsScreen({ onNav, onCompose }) {
       <SecHead icon={<I.Bolt width={16} height={16} />} tone="#8a8395"
         title="Projects we're driving" countBg="rgba(52,29,76,0.09)" countFg="#341d4c"
         count={loading ? null : inMotion}
-        right={inMotion > 0 ? (
-          <div className="pj-motion-engines">
-            {ENGINE_ORDER.map((e) => {
-              const n = motionEngines[e] || 0;
-              return (
-                <span key={e} className={`tq-chip${n === 0 ? " zero" : ""}`} style={n > 0 ? { color: ENGINES[e].color, background: `${ENGINES[e].color}1a` } : undefined}>
-                  <span className="tq-chip-dot" style={n > 0 ? { background: ENGINES[e].color } : undefined} />{ENGINES[e].label}<span className="tq-chip-n">{n}</span>
-                </span>
-              );
-            })}
+        right={qs.hasData ? (
+          <div className="pj-driving-metrics">
+            <div className="pj-dm-summary">
+              <span className="pj-dm-pct">{qs.pct}<span className="pj-dm-sym">%</span></span>
+              <div className="pj-dm-meta">
+                <span className="pj-dm-cap">of quarter complete</span>
+                <div className="pj-dm-sub">
+                  <span className={`pj-dm-pace${qs.pace === "On track" ? "" : " behind"}`}><span className="pj-dm-dot" />{qs.pace}</span>
+                  {qs.planned > 0 ? <span className="pj-dm-scope">+{qs.scopeDelta}%</span> : null}
+                </div>
+              </div>
+            </div>
+            <div className="up-panel pj-up-panel">
+              {qs.planned > 0 ? (
+                <div className="up-zone planned" style={{ flex: qs.planned }}>
+                  <div className="up-head"><span className="up-t">Planned</span><span className="up-c">{qs.planned}</span></div>
+                  <div className="up-bar">
+                    {qs.plannedDone > 0 ? <span className="up-seg done" style={segStyle(qs.plannedDone)}>{qs.plannedDone}</span> : null}
+                    {qs.plannedMotion > 0 ? <span className="up-seg motion" style={segStyle(qs.plannedMotion)}>{qs.plannedMotion}</span> : null}
+                  </div>
+                </div>
+              ) : null}
+              {qs.planned > 0 && qs.added > 0 ? <div className="up-sep" /> : null}
+              {qs.added > 0 ? (
+                <div className="up-zone added" style={{ flex: qs.added }}>
+                  <div className="up-head"><span className="up-t">Added</span><span className="up-c">{qs.added}</span></div>
+                  <div className="up-bar">
+                    {qs.addedDone > 0 ? <span className="up-seg done" style={segStyle(qs.addedDone)}>{qs.addedDone}</span> : null}
+                    {qs.addedMotion > 0 ? <span className="up-seg motion" style={segStyle(qs.addedMotion)}>{qs.addedMotion}</span> : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : null} />
       <div className="pj-sec-divider" />
@@ -356,21 +436,14 @@ function ProjectsScreen({ onNav, onCompose }) {
                 <span className="pj-group-label">{g.label}</span>
                 <span className="pj-group-count">{g.items.length}</span>
                 <div className="grow" />
-                {g.id === "live" ? <span className="pj-done-note"><I.Check width={13} height={13} /> Delivered &amp; live</span> : null}
+                {g.id === "live"
+                  ? <span className="pj-done-note"><I.Check width={13} height={13} /> Delivered &amp; live</span>
+                  : <span className="pj-group-stat">{g.items.length} in motion · {g.done} delivered</span>}
               </button>
               {isOpen ? (
                 <div className="pj-prows">
                   {g.items.map((p) => (
-                    <div key={p.id} className="pj-prow">
-                      <div className="pj-prow-title">{p.title}<span className="pj-prow-eng"><EngineChips project={p} /></span></div>
-                      <div className="pj-prow-cat"><CatChip name={p.phase} /></div>
-                      <div className="pj-prow-owners"><PjAvatars ids={p.owners} /></div>
-                      <div className={`pj-prow-due${isOverdue(p) ? " overdue" : ""}`}><div className="d">{p.due}</div><div className="dr">{p.dueRel}</div></div>
-                      <div className="pj-prow-prog">
-                        <PjBar value={p.pct} color="#2c7d68" />
-                        <span className="pj-pct">{p.pct}%</span>
-                      </div>
-                    </div>
+                    <ProjRow key={p.id} p={p} isOverdue={isOverdue} />
                   ))}
                 </div>
               ) : null}
