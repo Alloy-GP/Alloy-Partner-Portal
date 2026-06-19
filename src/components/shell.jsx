@@ -41,7 +41,8 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     { id: "leads", label: "Partnership", icon: I.TrendUp, group: "work", count: leadsToReview },
     { id: "performance", label: "Visibility", icon: I.Eye, group: "work" },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
-    { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: "https://dam.alloygp.co" },
+    { id: "assets", label: "Assets", icon: I.Image, group: "account" },
+    { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: (DATA.account && DATA.account.dashUploadUrl) || "https://dam.alloygp.co" },
     // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
   ].filter(n => !n.staff || isStaff);
   const grouped = {

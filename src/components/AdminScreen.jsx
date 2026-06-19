@@ -2,7 +2,7 @@ import React from 'react';
 import { I } from './icons.jsx';
 import {
   listAccounts, createAccount, updateAccount, deleteAccount,
-  listInvites, addInvite, removeInvite, uploadLogo,
+  listInvites, addInvite, removeInvite, uploadLogo, setDashConfig,
 } from '../lib/admin.js';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import SyncHealth from './SyncHealth.jsx';
@@ -14,6 +14,7 @@ const BLANK = {
   company: '', short_name: '', tier: '', market: '', since: '',
   goal_label: 'boards signed', goal_current: 0, goal_target: 0,
   monday_board_id: '', zendesk_org_id: '', whatconverts_profile_id: '', quickbooks_customer_id: '',
+  dash_folder_id: '', dash_upload_url: '',
   locations: [],
 };
 
@@ -80,11 +81,14 @@ function AdminScreen({ startNew, selectId }) {
     if (!form.company.trim()) { setError('Company name is required.'); return; }
     setSaving(true); setError('');
     try {
+      const dash = { dash_folder_id: form.dash_folder_id || null, dash_upload_url: form.dash_upload_url || null };
       if (selectedId === 'new') {
         const r = await createAccount(form);
+        await setDashConfig(r.account.id, dash);
         await loadAccounts(r.account.id);
       } else {
         await updateAccount(selectedId, form);
+        await setDashConfig(selectedId, dash);
         await loadAccounts(selectedId);
       }
     } catch (e) { setError(String(e.message || e)); } finally { setSaving(false); }
@@ -244,6 +248,8 @@ function AdminScreen({ startNew, selectId }) {
                 <Field label="Zendesk org ID" value={form.zendesk_org_id} onChange={set('zendesk_org_id')} hint="Scopes the client's tickets" />
                 <Field label="WhatConverts profile ID" value={form.whatconverts_profile_id} onChange={set('whatconverts_profile_id')} hint="Pulls the client's leads" />
                 <Field label="QuickBooks customer ID" value={form.quickbooks_customer_id} onChange={set('quickbooks_customer_id')} hint="QBO customer — open them in QuickBooks, copy nameId from the URL" />
+                <Field label="Dash brand folder" value={form.dash_folder_id} onChange={set('dash_folder_id')} hint="The brand's top-level Dash folder NAME (e.g. Edison) — drives the Assets page" />
+                <Field label="Dash upload link" value={form.dash_upload_url} onChange={set('dash_upload_url')} hint="Guest-upload link — powers the Upload Assets button" />
               </div>
 
               <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>

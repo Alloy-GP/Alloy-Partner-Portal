@@ -11,6 +11,7 @@ import TicketDetailPage from './components/TicketDetailPage.jsx';
 import SnapshotScreen from './components/SnapshotScreen.jsx';
 import PerformanceScreen from './components/PerformanceScreen.jsx';
 import AccountScreen from './components/AccountScreen.jsx';
+import { AssetsScreen } from './components/screen-assets.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour } from './lib/tour.js';
@@ -26,6 +27,7 @@ const PATHS = {
   dashboard: '/', leads: '/partnership', snapshot: '/snapshot', roi: '/roi', projects: '/playbook', tickets: '/tickets',
   performance: '/visibility',
   playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account',
+  assets: '/assets',
 };
 
 // App entry — composes Sidebar + screen
@@ -114,6 +116,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     library: { t: "Resource library", s: "Plays, guides and courses for your team" },
     rewards: { t: "Recognition", s: "Wins, made tangible" },
     'account-details': { t: "Account Details", s: "Your plan, team, and account settings" },
+    assets: { t: "Assets", s: `Everything Alloy has made for ${DATA.account.company}` },
   };
 
   // Navigate within the current client context. `sub` appends a sub-path
@@ -140,6 +143,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "snapshot": return <SnapshotScreen/>;
       case "performance": return <PerformanceScreen onNav={handleNav}/>;
       case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
+      case "assets": return <AssetsScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }
   })();

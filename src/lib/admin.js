@@ -9,6 +9,14 @@ async function call(action, payload = {}) {
   return data;
 }
 
+// Dash mapping (folder id + guest-upload link) — separate staff-only function.
+export async function setDashConfig(id, fields) {
+  const { data, error } = await supabase.functions.invoke('set-dash-config', { body: { id, ...fields } });
+  if (error) throw error;
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
 export const listAccounts = () => call('list_accounts');
 export const createAccount = (fields) => call('create_account', fields);
 export const updateAccount = (id, fields) => call('update_account', { id, ...fields });
