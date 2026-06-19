@@ -126,6 +126,30 @@ function subtaskPct(item: any): number | null {
   return Math.round((done / subs.length) * 100);
 }
 
+// Subtask checklist (Monday subitems) for the Playbook row pill.
+// Status comes from the subitem's status column (type "status"/"color") — its id
+// is prefixed with the subitems-board id and differs per board, so resolve BY TYPE.
+function subState(text: string): "done" | "active" | "todo" {
+  const t = (text || "").trim().toLowerCase();
+  if (DONE_SUBTASK.has((text || "").trim()) || t === "done") return "done";
+  if (t.includes("progress")) return "active"; // "In-Progress"
+  return "todo"; // Not Started, Reprioritized / Hold, blank, etc.
+}
+// Strip leading Monday ordinal prefixes: "a. Project setup" -> "Project setup",
+// "c1. Build page – /" -> "Build page – /".
+function stripOrdinal(name: string): string {
+  return (name || "").replace(/^[a-z]?\d*\.\s*/i, "").trim();
+}
+function mapSubtasks(item: any): Array<{ label: string; state: string }> {
+  const subs = item.subitems || [];
+  return subs
+    .map((s: any) => {
+      const cv = (s.column_values || []).find((c: any) => c.column && (c.column.type === "status" || c.column.type === "color"));
+      return { label: stripOrdinal(s.name), state: subState(cv ? cv.text : "") };
+    })
+    .filter((x: any) => x.label);
+}
+
 function resolveColumns(columns: any[]): ColMap {
   const norm = (s: string) => (s || "").trim().toLowerCase();
   const byTitle = (title: string, type?: string) =>
@@ -249,7 +273,7 @@ Deno.serve(async (req) => {
         name
         updated_at
         column_values(ids: ${JSON.stringify(colIds)}) { id text value }
-        subitems { id column_values { text column { type } } }`;
+        subitems { id name column_values { text column { type } } }`;
       const ITEMS_QUERY = `
         query ($board: [ID!], $groups: [String!]) {
           boards(ids: $board) {
@@ -337,7 +361,7 @@ Deno.serve(async (req) => {
               phase: categoryText || null, engines: [], origin,
               status, pct,
               due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null, due_rel: null,
-              owners, pulse: updLabel, sort: projects.length,
+              owners, pulse: updLabel, subtasks: mapSubtasks(it), sort: projects.length,
             });
           } else if (g.id === ticketsGroupId) {
             // Capture the Monday "Link" (Pastel/review URL) keyed by Zendesk
@@ -366,7 +390,7 @@ Deno.serve(async (req) => {
                 phase: categoryText || null, engines: [], origin,
                 status: "live", pct: 100,
                 due_date: dueRaw || null, due_label: dueRaw ? fmtDate(dueRaw) : null, due_rel: null,
-                owners, pulse: updLabel, sort: projects.length,
+                owners, pulse: updLabel, subtasks: mapSubtasks(it), sort: projects.length,
               });
             }
           }

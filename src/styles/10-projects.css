@@ -73,7 +73,11 @@
     0 1px 2px rgba(56,28,79,0.05),
     0 14px 36px rgba(56,28,79,0.09);
 }
-.pj-driving-card .pj-sec { margin-bottom: 18px; }
+.pj-driving-card .pj-sec { margin-bottom: 18px; align-items: center; }
+/* Driving-card header right slot: in-motion/delivered stat stacked above the
+   engine chips, right-aligned. */
+.pj-driving-right { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.pj-driving-right .pj-wait-stat:last-child { padding-right: 0; }
 /* Separation line under the section header (matches the Waiting-on-you card) */
 .pj-sec-divider { height: 1px; background: #ece8f1; margin: 0 0 20px; }
 /* "In motion by engine" chips — sit at the top-right of the section header */
@@ -209,7 +213,7 @@
 .pj-group-count { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; color: color-mix(in srgb, var(--g, #8a8780) 82%, #2a1640); background: color-mix(in srgb, var(--g, #8a8780) 20%, #fff); }
 .pj-done-note { font-size: 11px; font-weight: 600; color: #8a8395; display: inline-flex; align-items: center; gap: 5px; }
 
-.pj-prow { display: grid; grid-template-columns: 1fr 150px 90px 96px 130px; gap: 16px; align-items: center; padding: 13px 18px; border-top: 1px solid #f1eef6; background: #fff; }
+.pj-prow { display: grid; grid-template-columns: 1fr 150px 96px 130px; gap: 16px; align-items: start; padding: 13px 18px; border-top: 1px solid #f1eef6; background: #fff; }
 .pj-prow-title { font-size: 13.5px; font-weight: 700; color: var(--alloy-purple); line-height: 1.3; min-width: 0; display: flex; align-items: center; gap: 12px; }
 .pj-prow-eng { margin-left: auto; display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .pj-prow-due { text-align: right; }
@@ -218,6 +222,29 @@
 /* Past-due work — flag the date red. */
 .pj-prow-due.overdue .d, .pj-prow-due.overdue .dr { color: #d9356e; font-weight: 700; }
 .pj-prow-prog { display: flex; align-items: center; gap: 8px; }
+
+/* ===== Subtask pill + inline checklist (Monday subitems) ===== */
+/* First grid cell becomes a column: title row on top, the pill beneath. */
+.pj-prow-main { min-width: 0; }
+.sub-chip { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; margin-top: 11px; padding: 3px 8px; border-radius: 999px; background: #f6f3f9; border: 1px solid #ece8f3; font-size: 11px; font-weight: 700; color: #8a7f97; cursor: pointer; transition: background .14s, border-color .14s, color .14s; }
+.sub-chip:hover { background: #f3f0f7; border-color: #e2d9ee; color: var(--alloy-purple); }
+.sub-chip .mini { display: flex; gap: 2px; }
+.sub-chip .mini i { width: 5px; height: 5px; border-radius: 999px; background: #d7cfe2; }
+.sub-chip .mini i.done { background: #2c8a6e; }
+.sub-chip .mini i.active { background: #c8861c; }
+.sub-chip .chev { transition: transform .2s; margin-left: 1px; }
+.sub-chip[aria-expanded="true"] .chev { transform: rotate(180deg); }
+/* Expanded checklist spans the full row width, below the cells. */
+.pj-subwrap { grid-column: 1 / -1; overflow: hidden; }
+.pj-subwrap-inner { padding: 4px 0 6px 2px; display: flex; flex-direction: column; gap: 1px; }
+.pj-subrow { display: flex; align-items: center; gap: 11px; padding: 7px 10px; border-radius: 8px; }
+.pj-subrow:hover { background: #f3f0f7; }
+.sub-check { width: 17px; height: 17px; border-radius: 999px; flex-shrink: 0; display: grid; place-items: center; border: 1.5px solid #ece8f3; color: #fff; }
+.sub-check.done { background: #2c8a6e; border-color: #2c8a6e; }
+.sub-check.active { border-color: #c8861c; position: relative; }
+.sub-check.active::after { content: ""; width: 7px; height: 7px; border-radius: 999px; background: #c8861c; }
+.sub-label { font-size: 13px; color: #4a3f57; }
+.sub-label.done { color: #a89fb5; text-decoration: line-through; }
 .pj-pct { font-size: 11px; font-weight: 800; color: #4a3a5a; min-width: 30px; text-align: right; }
 .pj-svc-cadence { font-size: 10.5px; font-weight: 800; letter-spacing: .03em; color: #6d4f93; background: rgba(125,91,166,0.12); padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 /* Ticket rows inside the "From your tickets" group */
@@ -230,7 +257,7 @@
 .pj-bg-note { font-size: 11.5px; font-weight: 600; color: #a8a0b5; white-space: nowrap; }
 @media (max-width: 900px) {
   .pj-prow { grid-template-columns: 1fr 96px 110px; }
-  .pj-prow-cat, .pj-prow-owners { display: none; }
+  .pj-prow-cat { display: none; }
 }
 
 .pj-prow-cat { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
@@ -245,3 +272,31 @@
 /* ---- Footer CTA ---- */
 .pj-footer-cta { margin-top: 22px; width: 100%; border: 1.5px dashed #d4cbe0; background: transparent; color: var(--alloy-purple); cursor: pointer; font-family: var(--font-display); font-weight: 800; font-size: 13px; padding: 15px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: border-color .13s; }
 .pj-footer-cta:hover { border-color: var(--alloy-purple); }
+
+/* ===== "Projects we're driving" header — % + pace summary, then the dashboard
+   Quarterly Playbook Planned/Added split bars (dashboard = design truth). ===== */
+.pj-driving-metrics { display: flex; align-items: center; justify-content: flex-end; gap: 0; flex-wrap: wrap; row-gap: 14px; }
+.pj-dm-summary { display: flex; align-items: center; gap: 12px; padding: 0 24px; }
+.pj-dm-pct { font-family: var(--font-display); font-weight: 800; font-size: 50px; line-height: 1; letter-spacing: -0.02em; color: var(--alloy-purple); white-space: nowrap; }
+.pj-dm-pct .pj-dm-sym { font-size: 27px; margin-left: 1px; }
+.pj-dm-meta { display: flex; flex-direction: column; gap: 8px; }
+.pj-dm-cap { font-size: 12px; font-weight: 700; color: #8a8395; white-space: nowrap; }
+.pj-dm-sub { display: flex; align-items: center; gap: 11px; }
+.pj-dm-pace { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #2c8a6e; background: rgba(44,138,110,0.10); padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.pj-dm-pace .pj-dm-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.pj-dm-pace.behind { color: #d9356e; background: rgba(217,53,110,0.10); }
+.pj-dm-scope { font-size: 12.5px; font-weight: 800; color: var(--alloy-pink, #d9356e); }
+/* Compact, panel-less layout for the header — tighter than the dashboard card's
+   frosted panel (keeps the green/pink split pills, sheds the bulk). The compound
+   .up-panel.pj-up-panel selector beats the base .up-panel rules. */
+.up-panel.pj-up-panel { min-width: 0; background: none; border: none; border-radius: 0; padding: 0; border-left: 1px solid #e6dff0; }
+.up-panel.pj-up-panel .up-zone { min-width: 160px; gap: 6px; padding: 0 22px; justify-content: center; }
+.up-panel.pj-up-panel .up-head .up-c { font-family: var(--font-body); font-size: 13px; font-weight: 700; }
+.up-panel.pj-up-panel .up-bar { height: 24px; }
+.up-panel.pj-up-panel .up-bar .up-seg { font-size: 11px; }
+/* group-header right summary: "{n} in motion · {n} delivered" */
+.pj-group-stat { font-size: 11.5px; font-weight: 700; color: #a8a0b5; white-space: nowrap; }
+
+/* Per-row status pill (status moved to the row now that groups are by origin). */
+.pj-status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.pj-status-pill .dot { width: 5px; height: 5px; border-radius: 999px; background: currentColor; }

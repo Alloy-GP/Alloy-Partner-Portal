@@ -158,7 +158,7 @@ export async function loadAccountData(session, accountId, me) {
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase, engines: p.engines || [],
       pct: p.pct, status: p.status, origin: p.origin || 'added',
       due: p.due_label || '', dueRel: p.due_rel || relativeDue(p.due_date), dueDate: p.due_date || null,
-      owners: p.owners || [], pulse: p.pulse,
+      owners: p.owners || [], pulse: p.pulse, subtasks: p.subtasks || [],
     })),
     // Opt-in systems the client has switched on (Monday "Toolkit" group).
     toolkit: (toolkitRes.data || []).map((t) => ({ name: t.name })),
