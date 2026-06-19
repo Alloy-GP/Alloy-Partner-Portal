@@ -137,8 +137,6 @@ function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient, onR
         {error ? <div style={{ color: 'var(--alloy-pink)', fontSize: 13 }}>Couldn’t load the portfolio. {error}</div> : null}
         {clients === null && !error ? <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>Loading clients…</div> : null}
 
-        {onReviewSnapshot ? <SnapshotQueue onReview={onReviewSnapshot} excludeIds={new Set(internal.map((c) => c.id))} /> : null}
-
         {clients && clients.length > 0 ? (
           <>
             {/* Summary */}
@@ -221,6 +219,9 @@ function AlloyHome({ onEnter, onSignOut, onAdmin, onAddClient, onEditClient, onR
                 </button>
               ) : null}
             </div>
+
+            {/* Monthly snapshot review queue — sits under the client tiles. */}
+            {onReviewSnapshot ? <div style={{ marginTop: 24 }}><SnapshotQueue onReview={onReviewSnapshot} excludeIds={new Set(internal.map((c) => c.id))} /></div> : null}
           </>
         ) : (clients && clients.length === 0 && !error ? (
           <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>
