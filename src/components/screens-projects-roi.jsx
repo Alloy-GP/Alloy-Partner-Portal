@@ -386,6 +386,8 @@ function ProjectsScreen({ onNav, onCompose }) {
 
       {/* ===== Projects we're driving — in-motion projects ===== */}
       <div className="pj-driving-card">
+      {/* Desktop header — title + metrics beside (hidden on narrow cards). */}
+      <div className="pj-dhead">
       <SecHead icon={<I.Bolt width={16} height={16} />} tone="#8a8395"
         title="Projects we're driving" countBg="rgba(52,29,76,0.09)" countFg="#341d4c"
         count={loading ? null : inMotion}
@@ -424,6 +426,48 @@ function ProjectsScreen({ onNav, onCompose }) {
             </div>
           </div>
         ) : null} />
+      </div>
+
+      {/* Mobile header — vertical layout per the dev handoff (shown on narrow cards). */}
+      {qs.hasData ? (
+        <div className="pj-mhead">
+          <div className="pj-mh-titlerow">
+            <span className="pj-mh-num">{loading ? "—" : inMotion}</span>
+            <span className="pj-mh-title">Projects we're driving</span>
+          </div>
+          <div className="pj-mh-complete">
+            <div className="pj-mh-pct">{qs.pct}<span className="pj-mh-sym">%</span></div>
+            <div className="pj-mh-completemeta">
+              <div className="pj-mh-cap">of quarter complete</div>
+              <div className="pj-mh-tags">
+                <span className={`pj-mh-pace${qs.pace === "On track" ? "" : " behind"}`}><span className="pj-mh-dot" />{qs.pace}</span>
+                {qs.planned > 0 ? <span className="pj-mh-vs">+{qs.scopeDelta}% vs plan</span> : null}
+              </div>
+            </div>
+          </div>
+          <div className="pj-mh-scope">
+            <span className="pj-mh-lbl">Scope</span>
+            <span className="pj-mh-tot">{qs.total} tasks</span>
+          </div>
+          {[
+            { k: "Planned", total: qs.planned, done: qs.plannedDone, motion: qs.plannedMotion, added: false },
+            { k: "Added", total: qs.added, done: qs.addedDone, motion: qs.addedMotion, added: true },
+          ].filter((z) => z.total > 0).map((z) => (
+            <div key={z.k} className={`pj-mh-zone${z.added ? " added" : ""}`}>
+              <div className="pj-mh-zhead"><span className="pj-mh-t">{z.k}</span><span className="pj-mh-c">{z.total}</span></div>
+              <div className="pj-mh-bar">
+                {z.done > 0 ? <span className="pj-mh-seg done" style={{ flex: z.done }}>{z.done}</span> : null}
+                {z.motion > 0 ? <span className="pj-mh-seg motion" style={{ flex: z.motion }}>{z.motion}</span> : null}
+              </div>
+            </div>
+          ))}
+          <div className="pj-mh-legend">
+            <span className="pj-mh-leg"><span className="pj-mh-sw done" /> Delivered</span>
+            <span className="pj-mh-leg"><span className="pj-mh-sw motion" /> In motion</span>
+          </div>
+        </div>
+      ) : null}
+
       <div className="pj-sec-divider" />
       <div className="pj-groups">
         {groups.map((g) => {
