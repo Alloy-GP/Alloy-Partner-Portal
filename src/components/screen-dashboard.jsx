@@ -59,7 +59,7 @@ function quarterTimePct(pb) {
 }
 
 // Dashboard screen — warm, celebratory home
-function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
+function Dashboard({ role, density, onNav, onCompose, t, mobileNav, setMobileNav }) {
   const tierClass = (DATA.account.tier || "").toLowerCase();
   return (
     <div className="content" data-screen-label="01 Dashboard">
@@ -80,13 +80,14 @@ function Dashboard({ role, density, onNav, t, mobileNav, setMobileNav }) {
         </div>
       </div>
 
-      <DashboardFooter />
+      <DashboardFooter onNav={onNav} onCompose={onCompose} />
     </div>
   );
 }
 
-function DashboardFooter() {
+function DashboardFooter({ onNav, onCompose }) {
   const year = new Date().getFullYear();
+  const go = (fn) => (e) => { e.preventDefault(); fn && fn(); };
   return (
     <footer className="dash-footer">
       <div className="dash-footer-accent" aria-hidden="true">
@@ -101,13 +102,12 @@ function DashboardFooter() {
           </div>
         </div>
         <nav className="dash-footer-links" aria-label="Footer">
-          <a href="#">Account</a>
-          <a href="#">Settings</a>
-          <a href="#">Support</a>
-          <a href="#">Privacy</a>
+          <a href="#" onClick={go(() => onNav && onNav("account-details"))}>Account</a>
+          <a href="#" onClick={go(() => (onCompose ? onCompose() : onNav && onNav("tickets")))}>Support</a>
+          <a href="#" onClick={go(() => onNav && onNav("privacy"))}>Privacy</a>
         </nav>
         <div className="dash-footer-meta">
-          <span>Partner Portal · v1.0</span>
+          <span>Alloy Growth Portal · v1.0</span>
           <span className="dot" aria-hidden="true">·</span>
           <span>© {year} Alloy GP</span>
         </div>

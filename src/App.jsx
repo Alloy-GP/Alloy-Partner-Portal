@@ -13,6 +13,7 @@ import SnapshotScreen from './components/SnapshotScreen.jsx';
 import PerformanceScreen from './components/PerformanceScreen.jsx';
 import AccountScreen from './components/AccountScreen.jsx';
 import { AssetsScreen } from './components/screen-assets.jsx';
+import PrivacyScreen from './components/PrivacyScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
@@ -27,7 +28,7 @@ import NewRequestModal from './components/NewRequestModal.jsx';
 const PATHS = {
   dashboard: '/', leads: '/partnership', snapshot: '/snapshot', roi: '/roi', projects: '/playbook', tickets: '/tickets',
   performance: '/visibility',
-  playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account',
+  playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account', privacy: '/privacy',
   assets: '/assets',
 };
 
@@ -63,7 +64,7 @@ function App({ session, onSignOut, staffNav } = {}) {
   const [barHidden, setBarHidden] = useState(false);
   // Sidebar control: expanded | collapsed | hover (expand on hover).
   const [sidebarMode, setSidebarMode] = useState(() => {
-    try { return localStorage.getItem("alloy_sidebar_mode") || "expanded"; } catch { return "expanded"; }
+    try { return localStorage.getItem("alloy_sidebar_mode") || "hover"; } catch { return "hover"; }
   });
   const [sidebarHover, setSidebarHover] = useState(false);
   const chooseMode = (m) => {
@@ -138,6 +139,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     rewards: { t: "Recognition", s: "Wins, made tangible" },
     'account-details': { t: "Account Details", s: "Your plan, team, and account settings" },
     assets: { t: "Assets", s: `Everything Alloy has made for ${DATA.account.company}` },
+    privacy: { t: "Privacy", s: "How your information is handled" },
   };
 
   // Navigate within the current client context. `sub` appends a sub-path
@@ -153,7 +155,7 @@ function App({ session, onSignOut, staffNav } = {}) {
   const screen = (() => {
     if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav}/>;
     switch (active) {
-      case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
+      case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
       case "roi": return <ROIScreen/>;
       case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       case "tickets": return <TicketsScreen/>;
@@ -165,6 +167,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "performance": return <PerformanceScreen onNav={handleNav}/>;
       case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       case "assets": return <AssetsScreen/>;
+      case "privacy": return <PrivacyScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }
   })();

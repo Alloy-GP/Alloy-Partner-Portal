@@ -59,7 +59,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
         <img className="alloy-mark" src="/alloy-icon.png" alt="Alloy"/>
         <span className="alloy-word">Alloy</span>
         <span className="alloy-divider"/>
-        <span className="alloy-tag">Partner Portal</span>
+        <span className="alloy-tag">Growth Portal</span>
       </div>
       <button className="alloy-strip-spacer" aria-hidden="true" style={{display:"none"}}/>
 
