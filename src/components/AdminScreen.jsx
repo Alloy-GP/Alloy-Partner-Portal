@@ -111,9 +111,11 @@ function AdminScreen({ startNew, selectId }) {
     setBusyInvite(true); setNotice(''); setError('');
     try {
       const res = await addInvite(selectedId, inviteForm);
-      setNotice(res && res.emailed
-        ? `Invite email sent to ${email}.`
-        : `${email} added — they already have an account and can sign in.`);
+      if (res && res.emailed) {
+        setNotice(`Invite email sent to ${email}.`);
+      } else {
+        setError(`${email} was added, but the invite email failed to send${res?.emailError ? ` — ${res.emailError}` : ''}. They can still sign in at partner.alloygp.co.`);
+      }
       setInviteForm({ email: '', name: '', role: 'owner', is_staff: false });
       const r = await listInvites(selectedId); setInvites(r.invites || []);
     } catch (e) { setError(String(e.message || e)); } finally { setBusyInvite(false); }
