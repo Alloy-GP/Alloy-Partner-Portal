@@ -301,11 +301,14 @@ a:hover { text-decoration: underline; }
 }
 
 /* Mobile bar */
-.mobile-bar { display: none; position: sticky; top: 0; z-index: 30; background: var(--alloy-purple); color: #fff; padding: 11px 16px; align-items: center; gap: 14px; border-bottom: 3px solid var(--alloy-pink); }
+.mobile-bar { display: none; position: sticky; top: 0; z-index: 30; background: rgba(255,255,255,0.72); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); color: var(--alloy-purple); padding: 11px 16px; align-items: center; gap: 14px; border-bottom: 1px solid var(--border-subtle); transition: transform .28s ease; }
+.mobile-bar.hidden { transform: translateY(-100%); }
 .mobile-bar .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 14px; flex: 1; letter-spacing: 0.02em; cursor: pointer; }
 .mobile-bar .brand .mark { width: 28px; height: 28px; border-radius: 6px; background: #fff; padding: 4px; object-fit: contain; display: block; flex-shrink: 0; }
-.mobile-bar-menu { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; background: rgba(255,255,255,0.14); color: #fff; border-radius: 10px; cursor: pointer; flex-shrink: 0; }
-.mobile-bar-menu:active { background: rgba(255,255,255,0.26); }
+/* Client brand mark in the mobile top bar (logo or initials chip). */
+.mobile-bar .brand .mb-mark { width: 30px; height: 30px; flex-shrink: 0; }
+.mobile-bar-menu { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; background: var(--alloy-purple-tint); color: var(--alloy-purple); border-radius: 10px; cursor: pointer; flex-shrink: 0; }
+.mobile-bar-menu:active { background: var(--alloy-purple-tint); filter: brightness(0.95); }
 .sidebar-scrim { display: none; }
 
 /* Use overflow-x: clip rather than hidden — `hidden` implicitly sets overflow-y to `auto`,

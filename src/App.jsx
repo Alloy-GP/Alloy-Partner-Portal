@@ -2,7 +2,8 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { I } from './components/icons.jsx';
 import { DATA } from './data.js';
-import { Sidebar, RisePageHero } from './components/shell.jsx';
+import { Sidebar } from './components/shell.jsx';
+import CompanyMark from './components/CompanyMark.jsx';
 import { Dashboard, DesktopTopBar } from './components/screen-dashboard.jsx';
 import { ProjectsScreen, ROIScreen } from './components/screens-projects-roi.jsx';
 import { TicketsScreen, LibraryScreen, RecognitionScreen, LeadsScreen } from './components/screens-rest.jsx';
@@ -58,6 +59,8 @@ function App({ session, onSignOut, staffNav } = {}) {
   const [tweaks, setTweaks] = useState(TWEAKS);
   const [mobileNav, setMobileNav] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  // Mobile top bar hides on scroll-down, returns on scroll-up.
+  const [barHidden, setBarHidden] = useState(false);
   // Sidebar control: expanded | collapsed | hover (expand on hover).
   const [sidebarMode, setSidebarMode] = useState(() => {
     try { return localStorage.getItem("alloy_sidebar_mode") || "expanded"; } catch { return "expanded"; }
@@ -91,6 +94,21 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   // Log a screen view on each navigation (feeds admin analytics).
   useEffect(() => { track("view", { screen: active }); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mobile top bar: hide on scroll-down (past a small threshold), reveal on
+  // scroll-up. Keep it visible while the nav drawer is open or near the top.
+  useEffect(() => {
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (mobileNav || y < 12) setBarHidden(false);
+      else if (y > lastY + 4 && y > 56) setBarHidden(true);
+      else if (y < lastY - 4) setBarHidden(false);
+      lastY = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [mobileNav]);
 
   // First-run guided tour — clients only, once. Waits a beat so the dashboard
   // anchors are mounted; the tour stamps profiles.tour_completed_at on finish.
@@ -152,11 +170,14 @@ function App({ session, onSignOut, staffNav } = {}) {
     <>
     <div className={`app density-${tweaks.density}${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarMode === "hover" ? " sidebar-hover" : ""}${sidebarMode === "hover" && sidebarHover ? " is-hovering" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
       {/* Mobile top bar — brand + hamburger that opens the sidebar drawer. Hidden ≥961px. */}
-      <div className="mobile-bar">
+      <div className={`mobile-bar${barHidden ? " hidden" : ""}`}>
         <div className="brand" role="button" tabIndex={0} aria-label="Go to dashboard"
           onClick={() => handleNav("dashboard")}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleNav("dashboard"); } }}>
-          <img className="mark" src="/alloy-icon.png" alt=""/>Alloy Partner Portal
+          <CompanyMark className="mb-mark" size={30} />
+          {active === "dashboard"
+            ? (DATA.account.shortName || DATA.account.company)
+            : ((titles[active] && titles[active].t) || DATA.account.shortName || DATA.account.company)}
         </div>
         <button className="mobile-bar-menu" aria-label={mobileNav ? "Close menu" : "Open menu"} onClick={() => setMobileNav(!mobileNav)}>
           {mobileNav
@@ -174,7 +195,6 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       <main className="main">
         <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
-        {active !== "dashboard" ? <RisePageHero title={titles[active].t} subtitle={titles[active].s} mobileNav={mobileNav} setMobileNav={setMobileNav}/> : null}
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
 

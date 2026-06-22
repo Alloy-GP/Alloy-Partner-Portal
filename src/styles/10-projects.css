@@ -61,6 +61,10 @@
 .pj-wait-card .pj-cards { margin-bottom: 0; }
 /* "Everything we're driving" — frosted/glass card matching the dashboard */
 .pj-driving-card {
+  /* Query the CARD's own width (not the viewport) — the sidebar narrows the
+     card on desktop, so viewport breakpoints misfire. */
+  container-type: inline-size;
+  container-name: pjcard;
   background: linear-gradient(135deg, rgba(255,255,255,0.66) 0%, rgba(255,255,255,0.40) 100%);
   -webkit-backdrop-filter: blur(22px) saturate(1.5);
   backdrop-filter: blur(22px) saturate(1.5);
@@ -260,6 +264,48 @@
   .pj-prow-cat { display: none; }
 }
 
+/* ===== "Projects we're driving" — header reflow keyed to the CARD width.
+   Once the title + metrics no longer fit beside each other, drop the metrics to
+   a full-width line under the title and keep them compact so they stay on a
+   SINGLE line; they only wrap on the narrowest cards. ===== */
+@container pjcard (max-width: 900px) {
+  /* All selectors are scoped under .pj-driving-card so they out-specify the
+     base metric rules (which sit LATER in this file). */
+  .pj-driving-card .pj-sec { flex-wrap: wrap; align-items: center; }
+  .pj-driving-card .pj-sec .pj-sec-right { flex-basis: 100%; margin-left: 0; margin-top: 14px; }
+  .pj-driving-card .pj-driving-metrics { justify-content: flex-start; gap: 12px 18px; }
+  .pj-driving-card .pj-dm-summary { padding: 0; gap: 10px; }
+  .pj-driving-card .pj-dm-pct { font-size: 30px; }
+  .pj-driving-card .pj-dm-pct .pj-dm-sym { font-size: 16px; }
+  .pj-driving-card .pj-dm-cap { font-size: 11px; }
+  .pj-driving-card .pj-dm-pace { font-size: 9.5px; padding: 2px 7px; }
+  .pj-driving-card .pj-dm-scope { font-size: 11px; }
+  /* Planned / Added stay side-by-side; give the zones (and the divider between
+     them) real breathing room so they don't cram together. */
+  .pj-driving-card .up-panel.pj-up-panel { border-left: none; }
+  .pj-driving-card .up-panel.pj-up-panel .up-zone { min-width: 84px; padding: 0 16px; gap: 6px; }
+  /* Keep "Planned 34" together (left), not spread to the zone edges. */
+  .pj-driving-card .up-panel.pj-up-panel .up-head { gap: 8px; margin-bottom: 7px; justify-content: flex-start; }
+  .pj-driving-card .up-panel.pj-up-panel .up-head .up-c { margin-left: 0; }
+  .pj-driving-card .up-panel.pj-up-panel .up-bar { height: 22px; }
+  .pj-driving-card .up-panel.pj-up-panel .up-head .up-c { font-size: 12px; }
+  .pj-driving-card .up-panel.pj-up-panel .up-bar .up-seg { font-size: 10px; }
+  .pj-driving-card .pj-group-stat { display: none; }
+}
+
+/* Narrow cards: each project row becomes a clean vertical stack instead of a
+   squeezed grid. */
+@container pjcard (max-width: 620px) {
+  .pj-prow { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 15px 16px; }
+  .pj-driving-card .pj-prow-cat { display: none; }
+  .pj-prow-title { flex-direction: column; align-items: flex-start; gap: 9px; }
+  .pj-prow-eng { margin-left: 0; flex-wrap: wrap; }
+  .pj-prow-due { text-align: left; order: 2; }
+  .pj-prow-prog { order: 3; }
+  .pj-prow-prog .pj-bar { flex: 1; width: auto; }
+  .pj-subwrap { order: 4; }
+}
+
 .pj-prow-cat { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .pj-cat-chip { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
 /* Engine chip — strategic layer, rounded pill to distinguish from the square category chip. */
@@ -300,3 +346,46 @@
 /* Per-row status pill (status moved to the row now that groups are by origin). */
 .pj-status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .pj-status-pill .dot { width: 5px; height: 5px; border-radius: 999px; background: currentColor; }
+
+/* ===== Mobile header for "Projects we're driving" — vertical layout per the
+   dev handoff (Mobile Header). Shown only on narrow cards; desktop keeps the
+   horizontal beside-title header. Classes are prefixed pj-mh- to avoid
+   colliding with the app's generic .seg/.done/.motion/.t/.c utilities. ===== */
+.pj-mhead { display: none; }
+@container pjcard (max-width: 900px) {
+  .pj-driving-card .pj-dhead { display: none; }
+  .pj-driving-card .pj-mhead { display: block; }
+}
+.pj-mhead .pj-mh-titlerow { display: flex; align-items: center; gap: 12px; }
+.pj-mhead .pj-mh-num { width: 34px; height: 34px; border-radius: 10px; background: #fbf0d9; color: #b9831c; display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 15px; flex-shrink: 0; }
+.pj-mhead .pj-mh-title { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: var(--alloy-purple); line-height: 1.05; }
+.pj-mhead .pj-mh-complete { display: flex; align-items: center; gap: 13px; margin-top: 18px; padding-bottom: 16px; border-bottom: 1px solid #f1eef6; }
+.pj-mhead .pj-mh-pct { font-family: var(--font-display); font-weight: 800; font-size: 42px; line-height: 0.8; letter-spacing: -0.035em; color: var(--alloy-purple); }
+.pj-mhead .pj-mh-sym { font-size: 22px; color: #2c8a6e; }
+.pj-mhead .pj-mh-completemeta { display: flex; flex-direction: column; gap: 7px; }
+.pj-mhead .pj-mh-cap { font-size: 12px; font-weight: 600; color: #8a7f97; line-height: 1.2; }
+.pj-mhead .pj-mh-tags { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.pj-mhead .pj-mh-pace { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #e6f3f0; color: #2c8a6e; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.pj-mhead .pj-mh-pace .pj-mh-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.pj-mhead .pj-mh-pace.behind { background: var(--alloy-pink-tint, #fce6ee); color: var(--alloy-pink); }
+.pj-mhead .pj-mh-vs { font-size: 12px; font-weight: 800; color: var(--alloy-pink); }
+.pj-mhead .pj-mh-scope { display: flex; align-items: baseline; justify-content: space-between; margin: 16px 0 12px; }
+.pj-mhead .pj-mh-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #a89fb5; }
+.pj-mhead .pj-mh-tot { font-family: var(--font-display); font-size: 12px; font-weight: 800; color: #4a3f57; }
+.pj-mhead .pj-mh-zone { margin-top: 14px; }
+.pj-mhead .pj-mh-zhead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; }
+.pj-mhead .pj-mh-t { font-family: var(--font-display); font-weight: 800; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--alloy-purple); }
+.pj-mhead .pj-mh-c { margin-left: auto; font-family: var(--font-display); font-weight: 800; font-size: 20px; line-height: 1; color: var(--alloy-purple); }
+.pj-mhead .pj-mh-zone.added .pj-mh-t, .pj-mhead .pj-mh-zone.added .pj-mh-c { color: var(--alloy-pink); }
+.pj-mhead .pj-mh-bar { display: flex; gap: 0; height: 32px; }
+.pj-mhead .pj-mh-seg { height: 100%; display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 13px; color: #fff; min-width: 26px; }
+.pj-mhead .pj-mh-seg:first-child { border-radius: 999px 4px 4px 999px; }
+.pj-mhead .pj-mh-seg:last-child { border-radius: 4px 999px 999px 4px; margin-left: 4px; }
+.pj-mhead .pj-mh-seg:only-child { border-radius: 999px; }
+.pj-mhead .pj-mh-seg.done { background: linear-gradient(90deg, #38a589, #2c8a6e); box-shadow: 0 4px 12px -3px rgba(44,138,110,0.5); }
+.pj-mhead .pj-mh-seg.motion { background: repeating-linear-gradient(45deg, #d9356e 0 5px, #e9618f 5px 10px); box-shadow: 0 4px 12px -3px rgba(217,53,110,0.45); }
+.pj-mhead .pj-mh-legend { display: flex; gap: 16px; margin-top: 20px; padding-bottom: 22px; }
+.pj-mhead .pj-mh-leg { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: #8a7f97; }
+.pj-mhead .pj-mh-sw { width: 11px; height: 11px; border-radius: 999px; flex-shrink: 0; }
+.pj-mhead .pj-mh-sw.done { background: #2c8a6e; }
+.pj-mhead .pj-mh-sw.motion { background: repeating-linear-gradient(45deg, #d9356e, #d9356e 3px, #e9618f 3px, #e9618f 6px); }
