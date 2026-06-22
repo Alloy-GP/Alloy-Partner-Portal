@@ -100,7 +100,7 @@ function esc(s: unknown): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Alloy brand tokens (mirror src/styles/01-base.css). Email-safe sans stacks —
+// Alloy brand tokens (mirror src/styles/01-base.css). Email-safe sans stacks &mdash;
 // Poppins/Inter load via the <link> where supported (Apple Mail/iOS), else fall
 // back to the system sans stack so it always reads as sans-serif, never serif.
 const SANS = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -126,7 +126,7 @@ function renderSnapshotEmail(acct: any, snap: any): string {
   };
   const stat = (n: string | number, label: string, color: string) =>
     `<td align="center" width="33%" style="padding:16px 6px;background:${BRAND.off};border-radius:12px;"><div style="font-family:${DISPLAY};font-weight:800;font-size:26px;color:${color};line-height:1;">${esc(n)}</div><div style="font-family:${SANS};font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:${BRAND.muted};margin-top:7px;">${esc(label)}</div></td>`;
-  const leadsStat = (snap.summary_leads || 0) + (snap.leads_value ? ` · ${snap.leads_value}` : "");
+  const leadsStat = (snap.summary_leads || 0) + (snap.leads_value ? ` &middot; ${snap.leads_value}` : "");
 
   const note = snap.note
     ? `<tr><td style="padding:20px 0 0;"><div style="background:${BRAND.tint};border-radius:12px;padding:16px 18px;"><div style="font-family:${DISPLAY};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${BRAND.purple};margin-bottom:6px;">A note from your Alloy team</div><div style="font-family:${SANS};font-size:14px;color:${BRAND.fg};line-height:1.55;">${esc(snap.note).replace(/\n/g, "<br>")}</div></div></td></tr>`
@@ -139,8 +139,8 @@ function renderSnapshotEmail(acct: any, snap: any): string {
   </head><body style="margin:0;background:${BRAND.off};padding:24px 16px;font-family:${SANS};">
   <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
     <tr><td style="background:${BRAND.deep};padding:24px 28px;">
-      <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy · Weekly Snapshot</div>
-      <div style="color:${BRAND.lav};font-family:${SANS};font-size:12.5px;margin-top:3px;">${esc(name)} · ${esc(snap.week_label || "")}</div>
+      <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy &middot; Weekly Snapshot</div>
+      <div style="color:${BRAND.lav};font-family:${SANS};font-size:12.5px;margin-top:3px;">${esc(name)} &middot; ${esc(snap.week_label || "")}</div>
     </td></tr>
     <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>${bar(BRAND.pink)}${bar(BRAND.yellow)}${bar(BRAND.green)}${bar(BRAND.purple)}</tr></table></td></tr>
     <tr><td style="padding:26px 28px 8px;">
@@ -161,10 +161,10 @@ function renderSnapshotEmail(acct: any, snap: any): string {
       ${note}
     </table></td></tr>
     <tr><td align="center" style="padding:24px 28px 28px;">
-      <a href="${PORTAL_URL}" style="display:inline-block;background:${BRAND.purple};color:#ffffff;font-family:${DISPLAY};text-decoration:none;font-weight:700;font-size:14px;padding:13px 28px;border-radius:10px;">Open your portal →</a>
+      <a href="${PORTAL_URL}" style="display:inline-block;background:${BRAND.purple};color:#ffffff;font-family:${DISPLAY};text-decoration:none;font-weight:700;font-size:14px;padding:13px 28px;border-radius:10px;">Open your portal &rarr;</a>
     </td></tr>
     <tr><td style="background:${BRAND.off};padding:16px 28px;text-align:center;border-top:1px solid ${BRAND.border};">
-      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};">Sent by Alloy Growth Partners · <a href="${PORTAL_URL}" style="color:${BRAND.muted};">${PORTAL_HOST}</a></div>
+      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};">Sent by Alloy Growth Partners &middot; <a href="${PORTAL_URL}" style="color:${BRAND.muted};">${PORTAL_HOST}</a></div>
     </td></tr>
   </table></body></html>`;
 }
@@ -184,7 +184,7 @@ async function sendSnapshotEmail(admin: any, snapshotId: string) {
   if (!to.length) return { sent: 0, error: "no client recipients" };
 
   const html = renderSnapshotEmail(acct, snap);
-  const subject = `Your Alloy weekly snapshot · ${snap.week_label || ""}`.trim();
+  const subject = `Your Alloy weekly snapshot &middot; ${snap.week_label || ""}`.trim();
   // Batch = one private message per recipient (no shared To/CC).
   const batch = to.map((addr: string) => ({ from: FROM, to: [addr], subject, html }));
   const res = await fetch("https://api.resend.com/emails/batch", {
@@ -201,40 +201,83 @@ async function sendSnapshotEmail(admin: any, snapshotId: string) {
 // link ourselves and send via Resend (not the built-in auth mailer) so it's
 // reliable + on-brand, and so failures surface instead of vanishing.
 function renderInviteEmail(acct: any, link: string, staff: boolean): string {
+  // Email-safe rebuild of the "Growth Portal invite" design handoff: table
+  // layout, inline styles, literal hex (CSS vars/flex/gradients degrade
+  // gracefully), Helvetica/Arial fallback (Poppins as progressive enhancement).
   const name = acct?.short_name || acct?.company || "your team";
-  const lead = staff
-    ? "You've been added to the Alloy team portal. Click below to sign in — no password needed."
-    : `You've been invited to ${esc(name)}'s Alloy Growth Portal — your live view of the work we're driving together. Click below to sign in; no password needed.`;
-  const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
-  </head><body style="margin:0;background:${BRAND.off};padding:24px 16px;font-family:${SANS};">
-  <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
-    <tr><td style="background:${BRAND.deep};padding:24px 28px;">
-      <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy · Growth Portal</div>
-      <div style="color:${BRAND.lav};font-family:${SANS};font-size:12.5px;margin-top:3px;">${esc(name)}</div>
-    </td></tr>
-    <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>${bar(BRAND.pink)}${bar(BRAND.yellow)}${bar(BRAND.green)}${bar(BRAND.purple)}</tr></table></td></tr>
-    <tr><td style="padding:30px 28px 6px;">
-      <div style="font-family:${DISPLAY};font-weight:800;font-size:24px;color:${BRAND.purple};line-height:1.2;">You're invited to your Alloy portal</div>
-    </td></tr>
-    <tr><td style="padding:10px 28px 0;">
-      <div style="font-family:${SANS};font-size:14px;color:${BRAND.fg};line-height:1.6;">${lead}</div>
-    </td></tr>
-    <tr><td align="center" style="padding:26px 28px 30px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr>
-        <td align="center" bgcolor="${BRAND.purple}" style="border-radius:10px;background:${BRAND.purple};">
-          <a href="${link}" style="display:inline-block;padding:14px 32px;font-family:${DISPLAY};font-size:14px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">Accept invite &amp; sign in →</a>
+  const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
+  const eyebrow = staff ? "Team access" : "Your growth portal is ready";
+  const intro = staff
+    ? "You've been added to the Alloy Growth Portal &mdash; your team's live view of the work we're driving for clients. One click signs you in, no password needed."
+    : "This is your live view of the work we're driving together &mdash; the roadmap, the leads waiting on you, and the value we've built. One click signs you in, no password needed.";
+  const tour = [
+    { tint: "#fbe2eb", stroke: "#d9356e", name: "Leads waiting on you", desc: "Qualify new opportunities the moment they land.",
+      svg: '<polygon points="13 2 4 14 11 14 11 22 20 10 13 10 13 2"></polygon>' },
+    { tint: "#dcecf7", stroke: "#4b86b4", name: "Your growth roadmap", desc: "Every market tracked from Foundation to Dominance.",
+      svg: '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line>' },
+    { tint: "#def0ec", stroke: "#3f8f80", name: "The quarterly playbook", desc: "See exactly what we're building &mdash; updated as it ships.",
+      svg: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>' },
+    { tint: "#fbf2d6", stroke: "#b8902f", name: "Partnership value", desc: "The revenue and momentum we've built together.",
+      svg: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>' },
+  ];
+  const rows = tour.map((it, i) => `
+        <tr><td style="padding:15px 0;${i < tour.length - 1 ? "border-bottom:1px solid #e8e4ef;" : ""}">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            <td width="42" height="42" align="center" valign="middle" style="width:42px;height:42px;background:${it.tint};border-radius:11px;">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="${it.stroke}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;">${it.svg}</svg>
+            </td>
+            <td style="padding-left:16px;">
+              <div style="font-family:${F};font-weight:700;font-size:15.5px;color:#1a0a26;letter-spacing:-0.01em;">${it.name}</div>
+              <div style="font-family:${F};font-weight:400;font-size:13.5px;line-height:1.4;color:#8a8395;margin-top:3px;">${it.desc}</div>
+            </td>
+          </tr></table>
+        </td></tr>`).join("");
+
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+  </head><body style="margin:0;padding:24px 12px;background:#ebe8f1;font-family:${F};">
+  <table role="presentation" align="center" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e4ef;box-shadow:0 6px 18px rgba(56,28,79,0.10);">
+    <tr><td bgcolor="#381c4f" style="background:#290d41;background-image:linear-gradient(135deg,#381c4f 0%,#290d41 100%);padding:30px 40px 26px;">
+      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+        <td width="44" height="44" align="center" valign="middle" style="width:44px;height:44px;background:#ffffff;border-radius:12px;">
+          <img src="${PORTAL_URL}/alloy-icon.png" width="30" height="30" alt="Alloy" style="display:block;width:30px;height:30px;border:0;"/>
+        </td>
+        <td style="padding-left:14px;">
+          <div style="font-family:${F};font-weight:700;font-size:19px;color:#ffffff;letter-spacing:-0.01em;">Alloy &middot; Growth Portal</div>
+          <div style="font-family:${F};font-weight:500;font-size:13px;color:#b3a6c9;letter-spacing:0.04em;margin-top:3px;">${esc(name)}</div>
         </td>
       </tr></table>
     </td></tr>
-    <tr><td style="padding:0 28px 26px;">
-      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};line-height:1.5;">This sign-in link is single-use and expires soon. If it has expired, just enter your email at <a href="${PORTAL_URL}" style="color:${BRAND.muted};">${PORTAL_HOST}</a> for a fresh one.</div>
+    <tr><td style="padding:0;font-size:0;line-height:0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td width="20%" height="5" style="height:5px;background:#d9356e;font-size:0;line-height:0;">&nbsp;</td>
+        <td width="20%" height="5" style="height:5px;background:#f5d880;font-size:0;line-height:0;">&nbsp;</td>
+        <td width="20%" height="5" style="height:5px;background:#a1c8e7;font-size:0;line-height:0;">&nbsp;</td>
+        <td width="20%" height="5" style="height:5px;background:#aed7d0;font-size:0;line-height:0;">&nbsp;</td>
+        <td width="20%" height="5" style="height:5px;background:#381c4f;font-size:0;line-height:0;">&nbsp;</td>
+      </tr></table>
     </td></tr>
-    <tr><td style="background:${BRAND.off};padding:16px 28px;text-align:center;border-top:1px solid ${BRAND.border};">
-      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};">Sent by Alloy Growth Partners · <a href="${PORTAL_URL}" style="color:${BRAND.muted};">${PORTAL_HOST}</a></div>
+    <tr><td style="padding:40px 40px 36px;">
+      <div style="font-family:${F};font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:#d9356e;margin-bottom:14px;">${eyebrow}</div>
+      <div style="font-family:${F};font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 16px;">You're invited to the Alloy Growth Portal</div>
+      <div style="font-family:${F};font-weight:400;font-size:16px;line-height:1.62;color:#555555;margin:0 0 30px;">${intro}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+        <td align="center" bgcolor="#d9356e" style="border-radius:12px;background:#d9356e;box-shadow:0 8px 24px rgba(217,53,110,0.25);">
+          <a href="${link}" style="display:inline-block;padding:18px 32px;font-family:${F};font-size:16px;font-weight:700;letter-spacing:0.01em;line-height:1;color:#ffffff;text-decoration:none;border-radius:12px;">Accept invite &amp; sign in &nbsp;&rarr;</a>
+        </td>
+      </tr></table>
+      <div style="border-top:1px solid #e8e4ef;margin-top:38px;padding-top:26px;">
+        <div style="font-family:${F};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#8a8395;margin-bottom:8px;">Here's what's waiting inside</div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
+        </table>
+      </div>
+      <div style="font-family:${F};font-weight:400;font-size:13px;line-height:1.6;color:#8a8395;margin-top:30px;">This sign-in link is single-use and expires soon. If it has expired, just enter your email at <a href="${PORTAL_URL}" style="color:#555555;text-decoration:underline;">${PORTAL_HOST}</a> for a fresh one.</div>
     </td></tr>
-  </table></body></html>`;
+    <tr><td bgcolor="#f8f7fc" style="background:#f8f7fc;border-top:1px solid #e8e4ef;padding:20px 40px;text-align:center;">
+      <div style="font-family:${F};font-weight:400;font-size:12.5px;color:#8a8395;">Sent by Alloy Growth Partners &middot; <a href="${PORTAL_URL}" style="color:#555555;text-decoration:none;">${PORTAL_HOST}</a></div>
+    </td></tr>
+  </table>
+  </body></html>`;
 }
 
 // Generate a sign-in link (invite for new users, magic link for existing) and
@@ -244,9 +287,9 @@ async function sendInviteEmail(
 ): Promise<{ emailed: boolean; error?: string }> {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return { emailed: false, error: "RESEND_API_KEY not set" };
-  // 'invite' creates the auth user (→ signup trigger provisions the profile
+  // 'invite' creates the auth user (&rarr; signup trigger provisions the profile
   // from the invite row); 'magiclink' issues a sign-in link for an existing
-  // user. generateLink returns the link WITHOUT sending — we send it ourselves.
+  // user. generateLink returns the link WITHOUT sending &mdash; we send it ourselves.
   const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
     type: isNew ? "invite" : "magiclink",
     email,
@@ -257,7 +300,7 @@ async function sendInviteEmail(
   const { data: acct } = await admin.from("accounts").select("company, short_name, logo_url").eq("id", accountId).maybeSingle();
   const subject = staff
     ? "You've been added to the Alloy team portal"
-    : `You're invited to your Alloy portal · ${acct?.short_name || acct?.company || ""}`.trim().replace(/ ·\s*$/, "");
+    : `You're invited to the Alloy Growth Portal &middot; ${acct?.short_name || acct?.company || ""}`.trim().replace(/ &middot;\s*$/, "");
   const html = renderInviteEmail(acct, link, staff);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -362,7 +405,7 @@ Deno.serve(async (req) => {
           is_staff: row.is_staff, name: row.name, initials: row.initials,
         }, { onConflict: "id" });
       }
-      // Always email a working sign-in link — new OR existing user. (New users
+      // Always email a working sign-in link &mdash; new OR existing user. (New users
       // are created by the 'invite' link; the signup trigger then provisions
       // their profile from the invite row above.)
       const { emailed, error: emailError } = await sendInviteEmail(
@@ -460,7 +503,7 @@ Deno.serve(async (req) => {
       let logins = 0, views = 0;
 
       for (const e of evs || []) {
-        const aid = e.account_id || "—";
+        const aid = e.account_id || "&mdash;";
         const pa = perAccount[aid] || (perAccount[aid] = {
           account_id: aid, name: nameOf[aid] || "Unknown",
           logins: 0, views: 0, events: 0, users: new Set<string>(), lastActive: e.created_at,
@@ -539,7 +582,7 @@ Deno.serve(async (req) => {
       const byAcct: Record<string, { latest: any; draft: any }> = {};
       for (const s of snaps || []) {
         const e = byAcct[s.account_id] || (byAcct[s.account_id] = { latest: null, draft: null });
-        if (!e.latest) e.latest = s; // ordered desc → first seen is newest
+        if (!e.latest) e.latest = s; // ordered desc &rarr; first seen is newest
         if (!e.draft && s.status === "draft") e.draft = s;
       }
       const rows = (accts || []).map((a: any) => {
@@ -548,7 +591,7 @@ Deno.serve(async (req) => {
         const flags = ((src && src.flags) || []).slice();
         if (!e.latest) flags.push({ level: "warn", msg: "No snapshot generated yet." });
         else if (e.latest.period_end && (now - new Date(e.latest.period_end).getTime()) > 6 * 864e5) {
-          flags.push({ level: "warn", msg: "No fresh snapshot this week — generation may have skipped." });
+          flags.push({ level: "warn", msg: "No fresh snapshot this week &mdash; generation may have skipped." });
         }
         return {
           id: a.id, name: a.short_name || a.company, logo_url: a.logo_url,
@@ -603,7 +646,7 @@ Deno.serve(async (req) => {
         .update({ status: "published", is_current: true, approved_at: new Date().toISOString() })
         .eq("id", body.id);
       if (e2) throw e2;
-      // Email the client's portal users (best-effort — publish already stuck).
+      // Email the client's portal users (best-effort &mdash; publish already stuck).
       const email = body.skipEmail ? { sent: 0, skipped: true } : await sendSnapshotEmail(admin, body.id);
       if (email.sent > 0) await admin.from("weekly_snapshots").update({ sent_at: new Date().toISOString() }).eq("id", body.id);
       return json({ ok: true, email });
@@ -612,7 +655,7 @@ Deno.serve(async (req) => {
     return json({ error: "unknown action" }, 400);
   } catch (e) {
     const msg = String(e);
-    // Friendly guardrail message for the unique Monday-board-id indexes — a
+    // Friendly guardrail message for the unique Monday-board-id indexes &mdash; a
     // board may belong to only one account (prevents cross-tenant data bleed).
     if (/accounts_monday_(board|roadmap_board|program_board)_id_uniq/.test(msg) || /duplicate key/i.test(msg)) {
       const which = /roadmap_board/.test(msg) ? "Markets (roadmap) board"
