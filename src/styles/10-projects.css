@@ -346,6 +346,28 @@
 /* Per-row status pill (status moved to the row now that groups are by origin). */
 .pj-status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .pj-status-pill .dot { width: 5px; height: 5px; border-radius: 999px; background: currentColor; }
+/* "Added" chip — flags tasks that weren't in the original playbook (origin != planned). */
+.pj-added-chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; color: var(--alloy-pink); background: color-mix(in srgb, var(--alloy-pink) 13%, #fff); }
+
+/* ---- Lightweight filter bar (status / engine / category) ---- */
+.pj-filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+.pj-filterbar .pj-filter-ic { color: #a89fb5; display: inline-flex; margin-right: 1px; }
+.pj-filter-field { position: relative; display: inline-flex; align-items: center; }
+.pj-filter-sel {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  font: inherit; font-size: 12px; font-weight: 700; color: #6a6276;
+  background: rgba(255,255,255,0.55); border: 1px solid #e8e2f0; border-radius: 999px;
+  padding: 5px 26px 5px 12px; cursor: pointer; line-height: 1; white-space: nowrap;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.pj-filter-sel:hover { border-color: #d6cee6; }
+.pj-filter-sel:focus-visible { outline: none; border-color: var(--alloy-purple); }
+/* Active (a value is selected) — purple tint so it reads as "on". */
+.pj-filter-sel.on { color: var(--alloy-purple); border-color: color-mix(in srgb, var(--alloy-purple) 35%, #e8e2f0); background: var(--alloy-purple-tint, color-mix(in srgb, var(--alloy-purple) 8%, #fff)); }
+.pj-filter-chev { position: absolute; right: 9px; pointer-events: none; color: #a89fb5; }
+.pj-filter-sel.on + .pj-filter-chev { color: var(--alloy-purple); }
+.pj-filter-clear { font-size: 12px; font-weight: 700; color: var(--alloy-pink); background: none; border: none; padding: 5px 6px; cursor: pointer; }
+.pj-filter-clear:hover { text-decoration: underline; }
 
 /* ===== Mobile header for "Projects we're driving" — vertical layout per the
    dev handoff (Mobile Header). Shown only on narrow cards; desktop keeps the
