@@ -204,14 +204,14 @@ function renderInviteEmail(acct: any, link: string, staff: boolean): string {
   const name = acct?.short_name || acct?.company || "your team";
   const lead = staff
     ? "You've been added to the Alloy team portal. Click below to sign in — no password needed."
-    : `You've been invited to ${esc(name)}'s Alloy partner portal — your live view of the work we're driving together. Click below to sign in; no password needed.`;
+    : `You've been invited to ${esc(name)}'s Alloy Growth Portal — your live view of the work we're driving together. Click below to sign in; no password needed.`;
   const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
   </head><body style="margin:0;background:${BRAND.off};padding:24px 16px;font-family:${SANS};">
   <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
     <tr><td style="background:${BRAND.deep};padding:24px 28px;">
-      <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy · Partner Portal</div>
+      <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy · Growth Portal</div>
       <div style="color:${BRAND.lav};font-family:${SANS};font-size:12.5px;margin-top:3px;">${esc(name)}</div>
     </td></tr>
     <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>${bar(BRAND.pink)}${bar(BRAND.yellow)}${bar(BRAND.green)}${bar(BRAND.purple)}</tr></table></td></tr>
