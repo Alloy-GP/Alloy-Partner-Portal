@@ -235,8 +235,9 @@ function renderInviteEmail(acct: any, link: string, staff: boolean): string {
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>@media (prefers-color-scheme:dark){.gp-card{border-color:transparent !important;}}</style>
   </head><body style="margin:0;padding:24px 12px;background:#ebe8f1;font-family:${F};">
-  <table role="presentation" align="center" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e4ef;box-shadow:0 6px 18px rgba(56,28,79,0.10);">
+  <table role="presentation" align="center" width="600" cellpadding="0" cellspacing="0" class="gp-card" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e4ef;box-shadow:0 6px 18px rgba(56,28,79,0.10);">
     <tr><td bgcolor="#381c4f" style="background:#290d41;background-image:linear-gradient(135deg,#381c4f 0%,#290d41 100%);padding:30px 40px 26px;">
       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
         <td width="44" height="44" align="center" valign="middle" style="width:44px;height:44px;background:#ffffff;border-radius:12px;">
@@ -259,7 +260,7 @@ function renderInviteEmail(acct: any, link: string, staff: boolean): string {
     </td></tr>
     <tr><td style="padding:40px 40px 36px;">
       <div style="font-family:${F};font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:#d9356e;margin-bottom:14px;">${eyebrow}</div>
-      <div style="font-family:${F};font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 16px;">You're invited to the Alloy Growth Portal</div>
+      <div style="font-family:${F};font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 16px;">You're invited to<br>the Alloy Growth Portal</div>
       <div style="font-family:${F};font-weight:400;font-size:16px;line-height:1.62;color:#555555;margin:0 0 30px;">${intro}</div>
       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
         <td align="center" bgcolor="#d9356e" style="border-radius:12px;background:#d9356e;box-shadow:0 8px 24px rgba(217,53,110,0.25);">
