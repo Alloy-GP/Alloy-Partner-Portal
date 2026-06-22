@@ -8,6 +8,13 @@ import { supabase } from './supabase.js';
 // Steps anchor to [data-tour="..."] hooks on the dashboard so they survive
 // styling changes.
 
+// When the tour content meaningfully changes, bump this to "now". Anyone whose
+// last completion predates it sees the (updated) tour once more on next sign-in;
+// finishing re-stamps a later time, so it won't repeat. This is how "show again
+// when something is new" works without a schema change — App.jsx compares it to
+// the stored profiles.tour_completed_at.
+export const TOUR_REVISED_AT = '2026-06-22T00:00:00Z';
+
 const STEPS = [
   {
     popover: {
