@@ -114,7 +114,7 @@ function AdminScreen({ startNew, selectId }) {
       if (res && res.emailed) {
         setNotice(`Invite email sent to ${email}.`);
       } else {
-        setError(`${email} was added, but the invite email failed to send${res?.emailError ? ` — ${res.emailError}` : ''}. They can still sign in at partner.alloygp.co.`);
+        setError(`${email} was added, but the invite email failed to send${res?.emailError ? ` — ${res.emailError}` : ''}. They can still sign in at ${window.location.host}.`);
       }
       setInviteForm({ email: '', name: '', role: 'owner', is_staff: false });
       const r = await listInvites(selectedId); setInvites(r.invites || []);
