@@ -219,7 +219,11 @@ function renderInviteEmail(acct: any, link: string, staff: boolean): string {
       <div style="font-family:${SANS};font-size:14px;color:${BRAND.fg};line-height:1.6;">${lead}</div>
     </td></tr>
     <tr><td align="center" style="padding:26px 28px 30px;">
-      <a href="${link}" style="display:inline-block;background:${BRAND.purple};color:#ffffff;font-family:${DISPLAY};text-decoration:none;font-weight:700;font-size:14px;padding:13px 30px;border-radius:10px;">Accept invite &amp; sign in →</a>
+      <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr>
+        <td align="center" bgcolor="${BRAND.purple}" style="border-radius:10px;background:${BRAND.purple};">
+          <a href="${link}" style="display:inline-block;padding:14px 32px;font-family:${DISPLAY};font-size:14px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">Accept invite &amp; sign in →</a>
+        </td>
+      </tr></table>
     </td></tr>
     <tr><td style="padding:0 28px 26px;">
       <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};line-height:1.5;">This sign-in link is single-use and expires soon. If it has expired, just enter your email at <a href="${PORTAL_URL}" style="color:${BRAND.muted};">partner.alloygp.co</a> for a fresh one.</div>
