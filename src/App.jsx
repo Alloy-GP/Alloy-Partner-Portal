@@ -118,7 +118,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     const u = DATA.user || {};
     // Show on first sign-in (no completion) OR when the tour was revised after
     // their last completion ("something new"). Otherwise leave them alone.
-    const seenCurrent = u.tourCompletedAt && u.tourCompletedAt >= TOUR_REVISED_AT;
+    const seenCurrent = u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT);
     if (!u.id || u.isStaff || seenCurrent) return;
     tourStartedRef.current = true;
     const t = setTimeout(() => startPortalTour({ userId: u.id }), 800);
