@@ -13,7 +13,7 @@ import { supabase } from './supabase.js';
 // finishing re-stamps a later time, so it won't repeat. This is how "show again
 // when something is new" works without a schema change — App.jsx compares it to
 // the stored profiles.tour_completed_at.
-export const TOUR_REVISED_AT = '2026-06-22T00:00:00Z';
+export const TOUR_REVISED_AT = '2026-06-22T20:00:00Z';
 
 const STEPS = [
   {
@@ -66,7 +66,7 @@ const STEPS = [
     element: '[data-tour="nav"]',
     popover: {
       title: 'Get around',
-      description: 'Jump to your Pipeline, Roadmap, Inbox, and more from the sidebar.',
+      description: "Everything lives in the sidebar — your Roadmap, Playbook, Partnership, and Visibility, plus your Inbox and account. Jump anywhere, anytime.",
       side: 'right', align: 'center',
     },
   },
