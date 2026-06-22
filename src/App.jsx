@@ -15,7 +15,7 @@ import AccountScreen from './components/AccountScreen.jsx';
 import { AssetsScreen } from './components/screen-assets.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
-import { startPortalTour } from './lib/tour.js';
+import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
 import { can } from './lib/perms.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 
@@ -116,7 +116,10 @@ function App({ session, onSignOut, staffNav } = {}) {
   useEffect(() => {
     if (tourStartedRef.current || active !== "dashboard") return;
     const u = DATA.user || {};
-    if (!u.id || u.isStaff || u.tourCompletedAt) return;
+    // Show on first sign-in (no completion) OR when the tour was revised after
+    // their last completion ("something new"). Otherwise leave them alone.
+    const seenCurrent = u.tourCompletedAt && u.tourCompletedAt >= TOUR_REVISED_AT;
+    if (!u.id || u.isStaff || seenCurrent) return;
     tourStartedRef.current = true;
     const t = setTimeout(() => startPortalTour({ userId: u.id }), 800);
     return () => clearTimeout(t);
