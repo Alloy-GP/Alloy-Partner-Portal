@@ -163,7 +163,7 @@ function ProjRow({ p, isOverdue }) {
   return (
     <div className="pj-prow">
       <div className="pj-prow-main">
-        <div className="pj-prow-title">{p.title}<span className="pj-prow-eng"><StatusPill status={p.status} /><EngineChips project={p} /></span></div>
+        <div className="pj-prow-title">{p.title}<span className="pj-prow-eng"><StatusPill status={p.status} />{p.origin !== "planned" ? <span className="pj-added-chip">Added</span> : null}<EngineChips project={p} /></span></div>
         {subs.length ? (
           <button className="sub-chip" aria-expanded={open} aria-label={`${doneN} of ${subs.length} subtasks done`} onClick={() => setOpen((o) => !o)}>
             <span className="mini">{subs.map((s, i) => <i key={i} className={s.state} />)}</span>
@@ -278,6 +278,26 @@ function ProjectsScreen({ onNav, onCompose }) {
     { id: "live", label: "Completed this quarter", color: "#2c7d68", done: null, items: projects.filter((p) => _isLive(p) && _inThisQuarter(p)) },
   ].filter((g) => g.items.length);
   const [open, setOpen] = React.useState({ tickets: true, planned: true, added: true, live: false });
+
+  // ---- Lightweight filter (status / engine / category) over the driving rows.
+  // Options are derived from the data so only relevant values show. The filter
+  // narrows visible rows only — the header quarter stats stay whole-quarter.
+  const [filters, setFilters] = React.useState({ status: "", engine: "", cat: "", origin: "" });
+  const _statusOrder = Object.keys(PJ_STATUS);
+  const statusOpts = [...new Set(projects.map((p) => p.status).filter(Boolean))]
+    .sort((a, b) => _statusOrder.indexOf(a) - _statusOrder.indexOf(b));
+  const engineOpts = [...new Set(projects.flatMap((p) => enginesOf(p)))]
+    .sort((a, b) => [...ENGINE_ORDER, "equip"].indexOf(a) - [...ENGINE_ORDER, "equip"].indexOf(b));
+  const catOpts = [...new Set(projects.map((p) => p.phase).filter(Boolean))].sort();
+  const anyFilter = !!(filters.status || filters.engine || filters.cat || filters.origin);
+  const matchFilter = (p) => {
+    if (filters.status && p.status !== filters.status) return false;
+    if (filters.engine && !enginesOf(p).includes(filters.engine)) return false;
+    if (filters.cat && p.phase !== filters.cat) return false;
+    if (filters.origin === "planned" && p.origin !== "planned") return false;
+    if (filters.origin === "added" && p.origin === "planned") return false;
+    return true;
+  };
 
   const reqProject = () => { if (onCompose) onCompose(); else onNav("tickets"); };
 
@@ -469,24 +489,66 @@ function ProjectsScreen({ onNav, onCompose }) {
       ) : null}
 
       <div className="pj-sec-divider" />
+
+      {/* Unobtrusive filter — status / engine / category. Narrows visible rows. */}
+      <div className="pj-filterbar">
+        <span className="pj-filter-ic"><I.Filter width={14} height={14} /></span>
+        <div className="pj-filter-field">
+          <select className={`pj-filter-sel${filters.origin ? " on" : ""}`} value={filters.origin} aria-label="Filter by planned vs added"
+            onChange={(e) => setFilters((f) => ({ ...f, origin: e.target.value }))}>
+            <option value="">All work</option>
+            <option value="planned">Planned</option>
+            <option value="added">Added</option>
+          </select>
+          <I.Chevron className="pj-filter-chev" width={13} height={13} />
+        </div>
+        <div className="pj-filter-field">
+          <select className={`pj-filter-sel${filters.status ? " on" : ""}`} value={filters.status} aria-label="Filter by status"
+            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+            <option value="">All statuses</option>
+            {statusOpts.map((s) => <option key={s} value={s}>{(PJ_STATUS[s] || {}).label || s}</option>)}
+          </select>
+          <I.Chevron className="pj-filter-chev" width={13} height={13} />
+        </div>
+        <div className="pj-filter-field">
+          <select className={`pj-filter-sel${filters.engine ? " on" : ""}`} value={filters.engine} aria-label="Filter by engine"
+            onChange={(e) => setFilters((f) => ({ ...f, engine: e.target.value }))}>
+            <option value="">All engines</option>
+            {engineOpts.map((eid) => <option key={eid} value={eid}>{(ENGINES[eid] || {}).label || eid}</option>)}
+          </select>
+          <I.Chevron className="pj-filter-chev" width={13} height={13} />
+        </div>
+        <div className="pj-filter-field">
+          <select className={`pj-filter-sel${filters.cat ? " on" : ""}`} value={filters.cat} aria-label="Filter by category"
+            onChange={(e) => setFilters((f) => ({ ...f, cat: e.target.value }))}>
+            <option value="">All categories</option>
+            {catOpts.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <I.Chevron className="pj-filter-chev" width={13} height={13} />
+        </div>
+        {anyFilter ? <button className="pj-filter-clear" onClick={() => setFilters({ status: "", engine: "", cat: "", origin: "" })}>Clear</button> : null}
+      </div>
+
       <div className="pj-groups">
         {groups.map((g) => {
-          const isOpen = open[g.id];
+          const isOpen = open[g.id] || anyFilter; // filtering reveals matches in any group
+          const items = anyFilter ? g.items.filter(matchFilter) : g.items;
+          if (anyFilter && !items.length) return null;
           return (
             <div key={g.id} className="pj-group" style={{ "--g": g.color }}>
               <button className={`pj-group-head${g.id === "live" ? " done" : ""}`} onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))}>
                 <span className={`pj-chev${isOpen ? " open" : ""}`}><I.Chevron width={15} height={15} /></span>
                 <span className="pj-dot" />
                 <span className="pj-group-label">{g.label}</span>
-                <span className="pj-group-count">{g.items.length}</span>
+                <span className="pj-group-count">{items.length}</span>
                 <div className="grow" />
                 {g.id === "live"
                   ? <span className="pj-done-note"><I.Check width={13} height={13} /> Delivered &amp; live</span>
-                  : <span className="pj-group-stat">{g.items.length} in motion · {g.done} delivered</span>}
+                  : <span className="pj-group-stat">{items.length} in motion · {g.done} delivered</span>}
               </button>
               {isOpen ? (
                 <div className="pj-prows">
-                  {g.items.map((p) => (
+                  {items.map((p) => (
                     <ProjRow key={p.id} p={p} isOverdue={isOverdue} />
                   ))}
                 </div>
@@ -494,6 +556,9 @@ function ProjectsScreen({ onNav, onCompose }) {
             </div>
           );
         })}
+        {anyFilter && !groups.some((g) => g.items.some(matchFilter)) ? (
+          <div className="pj-empty">No projects match these filters.</div>
+        ) : null}
       </div>
       </div>
 
