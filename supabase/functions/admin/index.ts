@@ -193,6 +193,74 @@ async function sendSnapshotEmail(admin: any, snapshotId: string) {
   return { sent: to.length };
 }
 
+// --- Invite email (Resend) -------------------------------------------------
+// Branded "you're invited" email with a one-click sign-in link. We generate the
+// link ourselves and send via Resend (not the built-in auth mailer) so it's
+// reliable + on-brand, and so failures surface instead of vanishing.
+function renderInviteEmail(acct: any, link: string, staff: boolean): string {
+  const name = acct?.short_name || acct?.company || "your team";
+  const lead = staff
+    ? "You've been added to the Alloy team portal. Click below to sign in — no password needed."
+    : `You've been invited to ${esc(name)}'s Alloy partner portal — your live view of the work we're driving together. Click below to sign in; no password needed.`;
+  const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  </head><body style="margin:0;background:${BRAND.off};padding:24px 16px;font-family:${SANS};">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
+    <tr><td style="background:${BRAND.deep};padding:24px 28px;">
+      <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy · Partner Portal</div>
+      <div style="color:${BRAND.lav};font-family:${SANS};font-size:12.5px;margin-top:3px;">${esc(name)}</div>
+    </td></tr>
+    <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>${bar(BRAND.pink)}${bar(BRAND.yellow)}${bar(BRAND.green)}${bar(BRAND.purple)}</tr></table></td></tr>
+    <tr><td style="padding:30px 28px 6px;">
+      <div style="font-family:${DISPLAY};font-weight:800;font-size:24px;color:${BRAND.purple};line-height:1.2;">You're invited to your Alloy portal</div>
+    </td></tr>
+    <tr><td style="padding:10px 28px 0;">
+      <div style="font-family:${SANS};font-size:14px;color:${BRAND.fg};line-height:1.6;">${lead}</div>
+    </td></tr>
+    <tr><td align="center" style="padding:26px 28px 30px;">
+      <a href="${link}" style="display:inline-block;background:${BRAND.purple};color:#ffffff;font-family:${DISPLAY};text-decoration:none;font-weight:700;font-size:14px;padding:13px 30px;border-radius:10px;">Accept invite &amp; sign in →</a>
+    </td></tr>
+    <tr><td style="padding:0 28px 26px;">
+      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};line-height:1.5;">This sign-in link is single-use and expires soon. If it has expired, just enter your email at <a href="${PORTAL_URL}" style="color:${BRAND.muted};">partner.alloygp.co</a> for a fresh one.</div>
+    </td></tr>
+    <tr><td style="background:${BRAND.off};padding:16px 28px;text-align:center;border-top:1px solid ${BRAND.border};">
+      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};">Sent by Alloy Growth Partners · <a href="${PORTAL_URL}" style="color:${BRAND.muted};">partner.alloygp.co</a></div>
+    </td></tr>
+  </table></body></html>`;
+}
+
+// Generate a sign-in link (invite for new users, magic link for existing) and
+// email it via Resend. Returns { emailed, error } so callers report honestly.
+async function sendInviteEmail(
+  admin: any, email: string, accountId: string, redirectTo: string, isNew: boolean, staff: boolean,
+): Promise<{ emailed: boolean; error?: string }> {
+  const key = Deno.env.get("RESEND_API_KEY");
+  if (!key) return { emailed: false, error: "RESEND_API_KEY not set" };
+  // 'invite' creates the auth user (→ signup trigger provisions the profile
+  // from the invite row); 'magiclink' issues a sign-in link for an existing
+  // user. generateLink returns the link WITHOUT sending — we send it ourselves.
+  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+    type: isNew ? "invite" : "magiclink",
+    email,
+    options: redirectTo ? { redirectTo } : undefined,
+  });
+  const link = linkData?.properties?.action_link;
+  if (linkErr || !link) return { emailed: false, error: `generateLink: ${linkErr?.message || "no link"}` };
+  const { data: acct } = await admin.from("accounts").select("company, short_name, logo_url").eq("id", accountId).maybeSingle();
+  const subject = staff
+    ? "You've been added to the Alloy team portal"
+    : `You're invited to your Alloy portal · ${acct?.short_name || acct?.company || ""}`.trim().replace(/ ·\s*$/, "");
+  const html = renderInviteEmail(acct, link, staff);
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: FROM, to: [email], subject, html }),
+  });
+  if (!res.ok) return { emailed: false, error: `resend ${res.status}: ${await res.text()}` };
+  return { emailed: true };
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -279,33 +347,38 @@ Deno.serve(async (req) => {
       if (invErr) throw invErr;
 
       const { data: uid } = await admin.rpc("auth_uid_by_email", { p_email: email });
-      let emailed = false;
       if (uid) {
-        // Existing user: provision their profile (the signup trigger only
-        // fires for brand-new users). They can sign in anytime.
+        // Existing user: provision/refresh their profile now (the signup
+        // trigger only fires for brand-new users).
         await admin.from("profiles").upsert({
           id: uid, account_id: row.account_id, role: row.role,
           is_staff: row.is_staff, name: row.name, initials: row.initials,
         }, { onConflict: "id" });
-      } else {
-        // New user: send an invite email (creates the auth user → the trigger
-        // provisions their profile from the invite we just inserted).
-        try {
-          await admin.auth.admin.inviteUserByEmail(email, body.redirectTo ? { redirectTo: body.redirectTo } : undefined);
-          emailed = true;
-        } catch (_e) { /* user may self-sign-in if allowed; invite row still stands */ }
       }
-      return json({ ok: true, emailed });
+      // Always email a working sign-in link — new OR existing user. (New users
+      // are created by the 'invite' link; the signup trigger then provisions
+      // their profile from the invite row above.)
+      const { emailed, error: emailError } = await sendInviteEmail(
+        admin, email, row.account_id, body.redirectTo || PORTAL_URL, !uid, row.is_staff,
+      );
+      return json({ ok: true, emailed, emailError });
     }
 
     if (action === "remove_invite") {
       const email = String(body.email || "").trim().toLowerCase();
       if (!email) return json({ error: "email required" }, 400);
       await admin.from("account_invites").delete().eq("email", email);
-      // Revoke access: delete their profile if they'd signed up.
+      // Fully revoke access. Delete their profile AND their auth user, so they
+      // can't request a fresh magic link and sign back in. No user-owned data
+      // is retained (events are analytics only), so a hard delete is safe.
       const { data: uid } = await admin.rpc("auth_uid_by_email", { p_email: email });
-      if (uid) await admin.from("profiles").delete().eq("id", uid);
-      return json({ ok: true });
+      let authDeleted = false;
+      if (uid) {
+        await admin.from("profiles").delete().eq("id", uid);
+        const { error: delErr } = await admin.auth.admin.deleteUser(uid);
+        authDeleted = !delErr;
+      }
+      return json({ ok: true, authDeleted });
     }
 
     if (action === "portfolio") {
