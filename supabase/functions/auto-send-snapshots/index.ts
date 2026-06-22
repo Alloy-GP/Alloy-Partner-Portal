@@ -8,7 +8,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //
 // Trigger: pg_cron (Friday eve). Optional ?secret=SYNC_SECRET.
 
-const PORTAL_URL = "https://partner.alloygp.co";
+// Portal domain. Override-able via the PORTAL_URL env var so a future rename is
+// a config change, not a code change; display host is derived from it.
+const PORTAL_URL = Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co";
+const PORTAL_HOST = PORTAL_URL.replace(/^https?:\/\//, "");
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
 const SANS = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const DISPLAY = "'Poppins'," + SANS;
@@ -68,7 +71,7 @@ function renderSnapshotEmail(acct: any, snap: any): string {
       <a href="${PORTAL_URL}" style="display:inline-block;background:${BRAND.purple};color:#ffffff;font-family:${DISPLAY};text-decoration:none;font-weight:700;font-size:14px;padding:13px 28px;border-radius:10px;">Open your portal →</a>
     </td></tr>
     <tr><td style="background:${BRAND.off};padding:16px 28px;text-align:center;border-top:1px solid ${BRAND.border};">
-      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};">Sent by Alloy Growth Partners · <a href="${PORTAL_URL}" style="color:${BRAND.muted};">partner.alloygp.co</a></div>
+      <div style="font-family:${SANS};font-size:11.5px;color:${BRAND.muted};">Sent by Alloy Growth Partners · <a href="${PORTAL_URL}" style="color:${BRAND.muted};">${PORTAL_HOST}</a></div>
     </td></tr>
   </table></body></html>`;
 }
