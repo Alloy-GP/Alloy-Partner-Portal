@@ -27,8 +27,12 @@ const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
 
 function renderLoginEmail(link: string, code: string): string {
   const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
-  const digits = code.split("").map((d) =>
-    `<td align="center" style="padding:0 4px;"><div style="font-family:${F};font-weight:700;font-size:30px;letter-spacing:0.02em;color:#1a0a26;background:#f3f0f7;border:1px solid #e8e4ef;border-radius:10px;width:46px;height:58px;line-height:58px;">${d}</div></td>`).join("");
+  // One contiguous, selectable code (not per-digit boxes) so it copies cleanly
+  // — triple-click on desktop, long-press on mobile. Letter-spacing gives the
+  // boxed look without splitting the text; user-select:all selects it whole.
+  const codePill = `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" style="background:#f3f0f7;border:1px solid #e8e4ef;border-radius:12px;padding:16px 8px 16px 26px;">
+        <span style="font-family:${F};font-weight:700;font-size:34px;letter-spacing:0.26em;color:#1a0a26;-webkit-user-select:all;user-select:all;">${code}</span>
+      </td></tr></table>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
   <style>@media (prefers-color-scheme:dark){.gp-card{border-color:transparent !important;}}</style>
@@ -59,7 +63,7 @@ function renderLoginEmail(link: string, code: string): string {
     </td></tr>
     <tr><td style="padding:30px 40px 6px;">
       <div style="font-family:${F};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#8a8395;margin-bottom:12px;">Or enter this code</div>
-      <table role="presentation" cellpadding="0" cellspacing="0"><tr>${digits}</tr></table>
+      ${codePill}
     </td></tr>
     <tr><td style="padding:24px 40px 30px;">
       <div style="font-family:${F};font-weight:400;font-size:13px;line-height:1.6;color:#8a8395;">This link and code are single-use and expire in about an hour. If you didn't request this, you can safely ignore it.</div>
