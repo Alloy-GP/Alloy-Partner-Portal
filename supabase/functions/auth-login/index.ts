@@ -95,6 +95,14 @@ Deno.serve(async (req) => {
     }
     if (!uid && !hasInvite) return json({ ok: true, sent: false });
 
+    // Debounce: the OTP rotates on every generateLink, so a double-tap or quick
+    // re-request would invalidate the code the user is holding. If we sent one
+    // for this email in the last 30s, keep that code alive — don't regenerate.
+    const { data: th } = await admin.from("login_throttle").select("sent_at").eq("email", email).maybeSingle();
+    if (th && (Date.now() - new Date(th.sent_at).getTime()) < 30000) {
+      return json({ ok: true, sent: true, throttled: true, otpType: uid ? "email" : "invite" });
+    }
+
     // Existing user -> magiclink; invited-but-never-signed-in -> invite (creates
     // the auth user). generateLink returns BOTH the action_link and email_otp.
     const linkType = uid ? "magiclink" : "invite";
@@ -125,6 +133,9 @@ Deno.serve(async (req) => {
       }),
     });
     if (!res.ok) return json({ ok: false, error: `resend ${res.status}: ${await res.text()}` }, 502);
+
+    // Record the send so rapid repeats reuse this code instead of rotating it.
+    await admin.from("login_throttle").upsert({ email, sent_at: new Date().toISOString() });
 
     // otpType tells the client which verifyOtp type to use for the typed code.
     return json({ ok: true, sent: true, otpType: uid ? "email" : "invite" });

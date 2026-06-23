@@ -17,6 +17,14 @@ function Login() {
   const [otpType, setOtpType] = useState('email');
   const [status, setStatus] = useState('idle'); // idle | sending | code | verifying | error
   const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0); // seconds until "send a new code" re-enables
+
+  // Tick the resend cooldown down to zero.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [cooldown]);
 
   // Deep link from the sign-in email (?signin=<email>): jump straight to the
   // code step with the email prefilled, and do NOT auto-send — the recipient
@@ -42,6 +50,7 @@ function Login() {
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.ok === false) throw new Error(j.error || 'Could not send your sign-in email. Try again.');
     if (j.otpType) setOtpType(j.otpType);
+    setCooldown(30); // throttle resend so we don't rotate the code they just got
   };
 
   const submitEmail = async (e) => {
@@ -130,7 +139,9 @@ function Login() {
             </form>
 
             <div className="login-link-row">
-              <button type="button" className="login-link-btn" onClick={resend}>Send a new code</button>
+              <button type="button" className="login-link-btn" onClick={resend} disabled={cooldown > 0}>
+                {cooldown > 0 ? `Send a new code (${cooldown}s)` : 'Send a new code'}
+              </button>
               <span className="login-link-sep" aria-hidden="true">·</span>
               <button type="button" className="login-link-btn" onClick={() => { setStatus('idle'); setEmail(''); setCode(''); setError(''); }}>
                 Use a different email
