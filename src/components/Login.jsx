@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import './Login.css';
 
@@ -17,6 +17,21 @@ function Login() {
   const [otpType, setOtpType] = useState('email');
   const [status, setStatus] = useState('idle'); // idle | sending | code | verifying | error
   const [error, setError] = useState('');
+
+  // Deep link from the sign-in email (?signin=<email>): jump straight to the
+  // code step with the email prefilled, and do NOT auto-send — the recipient
+  // already has a code in that same email. Re-sending would rotate the token
+  // and invalidate the code they're holding.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const signin = params.get('signin');
+    if (signin) {
+      setEmail(signin.trim().toLowerCase());
+      setStatus('code');
+      // Strip the param so a refresh doesn't re-trigger.
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const sendCode = async (value) => {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-login`, {

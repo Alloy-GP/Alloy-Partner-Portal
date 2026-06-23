@@ -25,7 +25,7 @@ const PORTAL_HOST = PORTAL_URL.replace(/^https?:\/\//, "");
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
 const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
 
-function renderLoginEmail(link: string, code: string): string {
+function renderLoginEmail(signinUrl: string, code: string): string {
   const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
   // One contiguous, selectable code (not per-digit boxes) so it copies cleanly
   // — triple-click on desktop, long-press on mobile. Letter-spacing gives the
@@ -52,21 +52,21 @@ function renderLoginEmail(link: string, code: string): string {
     <tr><td style="padding:0;font-size:0;line-height:0;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${bar("#d9356e")}${bar("#f5d880")}${bar("#a1c8e7")}${bar("#aed7d0")}${bar("#381c4f")}</tr></table>
     </td></tr>
-    <tr><td style="padding:38px 40px 8px;">
+    <tr><td style="padding:38px 40px 6px;">
       <div style="font-family:${F};font-weight:700;font-size:26px;line-height:1.15;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 10px;">Sign in to your portal</div>
-      <div style="font-family:${F};font-weight:400;font-size:15px;line-height:1.6;color:#555555;margin:0 0 26px;">Tap the button below, or enter the code on the sign-in screen. Either one works &mdash; whichever is easier.</div>
-      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-        <td align="center" bgcolor="#d9356e" style="border-radius:12px;background:#d9356e;box-shadow:0 8px 24px rgba(217,53,110,0.25);">
-          <a href="${link}" style="display:inline-block;padding:17px 32px;font-family:${F};font-size:16px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:12px;">Sign in &nbsp;&rarr;</a>
-        </td>
-      </tr></table>
-    </td></tr>
-    <tr><td style="padding:30px 40px 6px;">
-      <div style="font-family:${F};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#8a8395;margin-bottom:12px;">Or enter this code</div>
+      <div style="font-family:${F};font-weight:400;font-size:15px;line-height:1.6;color:#555555;margin:0 0 22px;">Enter this code on the sign-in screen to finish signing in:</div>
       ${codePill}
     </td></tr>
-    <tr><td style="padding:24px 40px 30px;">
-      <div style="font-family:${F};font-weight:400;font-size:13px;line-height:1.6;color:#8a8395;">This link and code are single-use and expire in about an hour. If you didn't request this, you can safely ignore it.</div>
+    <tr><td style="padding:24px 40px 8px;">
+      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+        <td align="center" bgcolor="#d9356e" style="border-radius:12px;background:#d9356e;box-shadow:0 8px 24px rgba(217,53,110,0.25);">
+          <a href="${signinUrl}" style="display:inline-block;padding:15px 28px;font-family:${F};font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:12px;">Open the sign-in screen &nbsp;&rarr;</a>
+        </td>
+      </tr></table>
+      <div style="font-family:${F};font-weight:400;font-size:13px;line-height:1.5;color:#8a8395;margin-top:12px;">Opens the portal with your email filled in &mdash; just type the code above.</div>
+    </td></tr>
+    <tr><td style="padding:22px 40px 30px;">
+      <div style="font-family:${F};font-weight:400;font-size:13px;line-height:1.6;color:#8a8395;">This code is single-use and expires in about an hour. If you didn't request this, you can safely ignore it.</div>
     </td></tr>
     <tr><td bgcolor="#f8f7fc" style="background:#f8f7fc;border-top:1px solid #e8e4ef;padding:20px 40px;text-align:center;">
       <div style="font-family:${F};font-weight:400;font-size:12.5px;color:#8a8395;">Sent by Alloy Growth Partners &middot; <a href="${PORTAL_URL}" style="color:#555555;text-decoration:none;">${PORTAL_HOST}</a></div>
@@ -103,11 +103,15 @@ Deno.serve(async (req) => {
       email,
       options: { redirectTo },
     });
-    const action_link = linkData?.properties?.action_link;
+    // We use ONLY the code (email_otp), never the magic link: the link and code
+    // share one single-use token, so a corporate email scanner pre-clicking the
+    // link would burn the code too. No link in the email = nothing to consume.
     const code = linkData?.properties?.email_otp;
-    if (linkErr || !action_link || !code) {
-      return json({ ok: false, error: `generateLink: ${linkErr?.message || "no link"}` }, 500);
+    if (linkErr || !code) {
+      return json({ ok: false, error: `generateLink: ${linkErr?.message || "no code"}` }, 500);
     }
+    // Tokenless deep link to the code-entry screen (email prefilled, no auto-send).
+    const signinUrl = `${redirectTo.replace(/\/$/, "")}/?signin=${encodeURIComponent(email)}`;
 
     const key = Deno.env.get("RESEND_API_KEY");
     if (!key) return json({ ok: false, error: "RESEND_API_KEY not set" }, 500);
@@ -117,7 +121,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: FROM, to: [email],
         subject: `Your Alloy Growth Portal sign-in code: ${code}`,
-        html: renderLoginEmail(action_link, code),
+        html: renderLoginEmail(signinUrl, code),
       }),
     });
     if (!res.ok) return json({ ok: false, error: `resend ${res.status}: ${await res.text()}` }, 502);
