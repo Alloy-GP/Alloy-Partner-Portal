@@ -151,6 +151,8 @@
   text-underline-offset: 2px;
 }
 .login-link-btn:hover { color: var(--alloy-pink); }
+.login-link-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; }
+.login-link-sep { color: var(--fg-muted); font-size: 13px; }
 
 .login-foot {
   margin-top: 26px;
