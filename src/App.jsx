@@ -220,6 +220,7 @@ function App({ session, onSignOut, staffNav } = {}) {
         <NewRequestModal
           onClose={() => setComposeOpen(false)}
           onCreated={(id) => { setComposeOpen(false); handleNav('tickets', id); }}
+          onNav={(screen) => { setComposeOpen(false); handleNav(screen); }}
         />
       ) : null}
     </div>

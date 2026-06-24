@@ -137,6 +137,8 @@ export async function loadAccountData(session, accountId, me) {
       // Dash guest-upload link for this brand — powers the "Upload Assets" sidebar
       // button (falls back to the shared DAM URL when unset).
       dashUploadUrl: account.dash_upload_url || null,
+      // Pastel visual-feedback board URL — "Website update" requests route here.
+      pastelUrl: account.pastel_url || null,
       // Integration ids — drive the Account page "Connected sources" card.
       mondayBoardId: account.monday_board_id || null,
       zendeskOrgId: account.zendesk_org_id || null,
