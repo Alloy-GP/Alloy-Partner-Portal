@@ -482,9 +482,28 @@ Deno.serve(async (req) => {
       const nameOf: Record<string, string> = {};
       for (const a of accts || []) nameOf[a.id] = a.short_name || a.company;
       // user display names + how many people are invited per account
-      const { data: profs } = await admin.from("profiles").select("id, name");
+      const { data: profs } = await admin.from("profiles").select("id, name, is_staff");
       const userName: Record<string, string> = {};
       for (const p of profs || []) userName[p.id] = p.name || "";
+
+      // Alloy is not a client. Build the set of user_ids to exclude from
+      // analytics entirely: anyone flagged is_staff, plus anyone whose email is
+      // on an Alloy domain. Combined with dropping events whose account doesn't
+      // resolve, this clears the legacy "Unknown" row (old staff / null-account
+      // activity recorded before tracking started skipping staff).
+      const alloyUser = new Set<string>();
+      for (const p of profs || []) if ((p as any).is_staff) alloyUser.add(p.id);
+      try {
+        for (let page = 1; ; page++) {
+          const { data: list } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+          const us = list?.users || [];
+          for (const u of us) {
+            const domain = String(u.email || "").toLowerCase().split("@")[1] || "";
+            if (domain.includes("alloy")) alloyUser.add(u.id);
+          }
+          if (us.length < 1000) break;
+        }
+      } catch { /* best-effort; is_staff still filters Alloy users */ }
       const { data: invs } = await admin.from("account_invites").select("account_id");
       const invitedCount: Record<string, number> = {};
       for (const iv of invs || []) invitedCount[iv.account_id] = (invitedCount[iv.account_id] || 0) + 1;
@@ -504,7 +523,9 @@ Deno.serve(async (req) => {
       let logins = 0, views = 0;
 
       for (const e of evs || []) {
-        const aid = e.account_id || "&mdash;";
+        if (e.user_id && alloyUser.has(e.user_id)) continue; // Alloy isn't a client
+        if (!e.account_id || !nameOf[e.account_id]) continue; // drop legacy "Unknown"
+        const aid = e.account_id;
         const pa = perAccount[aid] || (perAccount[aid] = {
           account_id: aid, name: nameOf[aid] || "Unknown",
           logins: 0, views: 0, events: 0, users: new Set<string>(), lastActive: e.created_at,
