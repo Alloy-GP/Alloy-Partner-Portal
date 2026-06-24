@@ -780,7 +780,7 @@
 .tier-pill.ascend .star { color: var(--alloy-yellow); }
 
 /* Generic input */
-.input { width: 100%; padding: 13px 16px; font-size: 15px; line-height: 1.25; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; color: var(--fg-2); transition: border-color 0.15s; }
+.input { width: 100%; padding: 13px 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; color: var(--fg-2); transition: border-color 0.15s; }
 /* Native selects: extra right padding so the chunkier control doesn't crowd the arrow. */
 select.input { padding-right: 38px; }
 .input:focus { outline: none; border-color: var(--alloy-purple); box-shadow: 0 0 0 3px var(--alloy-purple-tint); }
