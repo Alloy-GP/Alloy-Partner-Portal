@@ -781,8 +781,15 @@
 
 /* Generic input */
 .input { width: 100%; padding: 13px 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: #fff; color: var(--fg-2); transition: border-color 0.15s; }
-/* Native selects: extra right padding so the chunkier control doesn't crowd the arrow. */
-select.input { padding-right: 38px; }
+/* Selects: strip native chrome so they honor the same padding/height as text
+   fields (native selects otherwise render shorter), with a custom chevron. */
+select.input {
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  padding-right: 40px;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%237a6f88" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
 .input:focus { outline: none; border-color: var(--alloy-purple); box-shadow: 0 0 0 3px var(--alloy-purple-tint); }
 
 /* Section title — centered with dashes on both sides */
