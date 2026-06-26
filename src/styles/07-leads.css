@@ -167,6 +167,11 @@
 .ld-panel-head-top { display: flex; align-items: flex-start; gap: 12px; }
 .ld-panel-head .ttl { font-family: var(--font-display); font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
 .ld-panel-head .sub { font-size: 12.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+/* Location + contact ride here under the name — context, not highlighted. */
+.ld-panel-meta { font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.5); margin-top: 7px; word-break: break-word; }
+.ld-panel-meta a { color: rgba(255,255,255,0.72); text-decoration: none; }
+.ld-panel-meta a:hover { color: #fff; text-decoration: underline; }
+.ld-panel-meta .sep { color: rgba(255,255,255,0.3); }
 .ld-panel-close { margin-left: auto; border: none; background: rgba(255,255,255,0.14); border-radius: 999px; width: 30px; height: 30px; display: grid; place-items: center; cursor: pointer; color: #fff; flex-shrink: 0; }
 .ld-panel-close:hover { background: rgba(255,255,255,0.26); }
 
