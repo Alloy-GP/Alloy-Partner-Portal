@@ -614,10 +614,6 @@ function leadStatCards(fields) {
   if (type) cards.push({ label: "Property type", value: type });
   const situation = pick(/current situation|\bsituation\b|timeline|how soon|when.*(?:start|looking|need)|\bstage\b/i);
   if (situation) cards.push({ label: "Situation", value: situation });
-  const city = pick(/^\s*city\b/i);
-  if (city) cards.push({ label: "City", value: city });
-  const zip = pick(/\bzip\b|postal/i);
-  if (zip) cards.push({ label: "ZIP", value: zip });
   const board = pick(/board member|on the board/i);
   if (board) cards.push({ label: "Board member", value: board, good: /^(y|true|1|check)/i.test(board) });
   return { cards, used };
@@ -814,6 +810,12 @@ function LeadsScreen() {
   const panelFreeText = panelLead
     ? (panelLead.fields || []).find((f) => !panelStat.used.has(f.name) && /anything else|additional|comments?|\bnotes?\b|details|tell us|\bmessage\b/i.test(String(f.name || "")))
     : null;
+  // Location (city, ZIP) rides up in the purple header next to name/community —
+  // context, not a qualifying stat, so it doesn't earn a card.
+  const findFld = (re) => (panelLead && Array.isArray(panelLead.fields) ? panelLead.fields.find((f) => re.test(String(f.name || ""))) : null);
+  const ldCity = (findFld(/^\s*city\b/i) || {}).value || "";
+  const ldZip = (findFld(/\bzip\b|postal/i) || {}).value || "";
+  const ldLocation = [ldCity, ldZip].filter(Boolean).join(", ");
 
   // Lazy-load the heavy panel-only columns (journey, message) for the open lead —
   // they're excluded from the bulk load to keep page-load fast.
@@ -1017,6 +1019,17 @@ function LeadsScreen() {
                 <div className="ld-panel-id">
                   <div className="ttl">{panelLead.person}</div>
                   <div className="sub">{panelLead.community || panelLead.source}</div>
+                  {(ldLocation || panelLead.email || panelLead.phone) ? (
+                    <div className="ld-panel-meta">
+                      {[
+                        ldLocation || null,
+                        panelLead.email ? <a key="em" href={`mailto:${panelLead.email}`}>{panelLead.email}</a> : null,
+                        panelLead.phone ? <a key="ph" href={`tel:${String(panelLead.phone).replace(/[^0-9+]/g, "")}`}>{panelLead.phone}</a> : null,
+                      ].filter(Boolean).map((part, i, arr) => (
+                        <span className="mp" key={i}>{part}{i < arr.length - 1 ? <span className="sep"> · </span> : null}</span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 <button className="ld-panel-close" onClick={() => setPanelId(null)} aria-label="Close"><I.Close width={13} height={13} /></button>
               </div>
@@ -1071,14 +1084,6 @@ function LeadsScreen() {
                     ) : null}
                   </div>
                 )}
-              </div>
-              <div className="ld-panel-sec">
-                <div className="sec-lbl">Contact</div>
-                <div className="ld-panel-kv">
-                  {panelLead.email ? <div className="kv"><span className="k">Email</span><span className="vv">{panelLead.email}</span></div> : null}
-                  {panelLead.phone ? <div className="kv"><span className="k">Phone</span><span className="vv">{panelLead.phone}</span></div> : null}
-                  {panelLead.community ? <div className="kv"><span className="k">Community</span><span className="vv">{panelLead.community}</span></div> : null}
-                </div>
               </div>
             </div>
           </aside>
