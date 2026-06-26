@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:edge": "bash scripts/check-edge.sh",
+    "check": "npm run build && npm run test && npm run check:edge"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",
@@ -18,6 +22,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.7"
+    "jsdom": "^29.1.1",
+    "vite": "^6.0.7",
+    "vitest": "^4.1.9"
   }
 }

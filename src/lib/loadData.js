@@ -8,7 +8,7 @@ const ROLES = [
 ];
 
 // Humanized "due" label computed fresh from the real date so it never goes stale.
-function relativeDue(dateStr) {
+export function relativeDue(dateStr) {
   if (!dateStr) return '';
   const due = new Date(`${dateStr}T00:00:00`);
   const today = new Date();
@@ -21,7 +21,7 @@ function relativeDue(dateStr) {
 }
 
 // "8 months in" / "2 years in" — a market's age from its onboarded date.
-function monthsSinceLabel(dateStr) {
+export function monthsSinceLabel(dateStr) {
   if (!dateStr) return '';
   const d = new Date(`${dateStr}T00:00:00`);
   const now = new Date();

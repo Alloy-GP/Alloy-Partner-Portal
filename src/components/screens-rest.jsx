@@ -605,14 +605,21 @@ function keyFacts(fields) {
 function leadStatCards(fields) {
   const arr = Array.isArray(fields) ? fields : [];
   const used = new Set();
-  const pick = (re) => { const f = arr.find((x) => !used.has(x.name) && re.test(String(x.name || ""))); if (f) used.add(f.name); return f; };
+  // Returns the trimmed value (and marks the field consumed so it isn't repeated).
+  const pick = (re) => { const f = arr.find((x) => !used.has(x.name) && re.test(String(x.name || ""))); if (f) { used.add(f.name); return String(f.value).trim(); } return null; };
   const cards = [];
-  const u = pick(/units|how many units|# *of units/i);
-  if (u) { const m = String(u.value).match(/\d[\d,]*/); cards.push({ label: "Units", value: m ? m[0] : u.value }); }
-  const b = pick(/board member|on the board/i);
-  if (b) cards.push({ label: "Board member", value: b.value, good: /^(y|true|1|check)/i.test(b.value) });
-  const t = pick(/type of association|association type|property type|community type/i);
-  if (t) cards.push({ label: "Association", value: t.value });
+  const units = pick(/units|how many units|# *of units/i);
+  if (units) { const m = units.match(/\d[\d,]*/); cards.push({ label: "Units", value: m ? m[0] : units }); }
+  const type = pick(/property type|type of association|association type|community type/i);
+  if (type) cards.push({ label: "Property type", value: type });
+  const situation = pick(/current situation|\bsituation\b|timeline|how soon|when.*(?:start|looking|need)|\bstage\b/i);
+  if (situation) cards.push({ label: "Situation", value: situation });
+  const city = pick(/^\s*city\b/i);
+  if (city) cards.push({ label: "City", value: city });
+  const zip = pick(/\bzip\b|postal/i);
+  if (zip) cards.push({ label: "ZIP", value: zip });
+  const board = pick(/board member|on the board/i);
+  if (board) cards.push({ label: "Board member", value: board, good: /^(y|true|1|check)/i.test(board) });
   return { cards, used };
 }
 function cleanFields(l) {
@@ -802,7 +809,11 @@ function LeadsScreen() {
 
   const panelLead = leads.find((l) => l.id === panelId);
   const panelStat = panelLead ? leadStatCards(panelLead.fields) : { cards: [], used: new Set() };
-  const panelExtra = panelLead ? (panelLead.fields || []).filter((f) => !panelStat.used.has(f.name)) : [];
+  // Free-text the rep should still see (e.g. "Anything else?") when there's no
+  // dedicated message field — shown in the note area, not as a raw field dump.
+  const panelFreeText = panelLead
+    ? (panelLead.fields || []).find((f) => !panelStat.used.has(f.name) && /anything else|additional|comments?|\bnotes?\b|details|tell us|\bmessage\b/i.test(String(f.name || "")))
+    : null;
 
   // Lazy-load the heavy panel-only columns (journey, message) for the open lead —
   // they're excluded from the bulk load to keep page-load fast.
@@ -1041,23 +1052,10 @@ function LeadsScreen() {
                   <button className="ld-val-save" onClick={() => saveValues(panelLead.id, editQuote, editSales)}>{savedFlash ? "Saved" : "Save value"}</button>
                 </div>
               </div>
-              {panelNote ? (
+              {(panelNote || panelFreeText) ? (
                 <div className="ld-panel-sec">
-                  <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : "Their message"}</div>
-                  <div className="ld-panel-note">{panelNote}</div>
-                </div>
-              ) : null}
-              {panelExtra.length ? (
-                <div className="ld-panel-sec">
-                  <div className="sec-lbl">What they submitted</div>
-                  <div className="ld-panel-kv">
-                    {panelExtra.map((f, i) => (
-                      <div className="kv" key={i}>
-                        <span className="k">{prettyField(f.name)}</span>
-                        <span className="vv">{f.value}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : (panelNote ? "Their message" : prettyField(panelFreeText.name))}</div>
+                  <div className="ld-panel-note">{panelNote || panelFreeText.value}</div>
                 </div>
               ) : null}
               <div className="ld-panel-sec">
@@ -1123,7 +1121,7 @@ function LeadJourney({ steps, context }) {
             ) : null}
           </span></div>
         ))}
-        <div className="step muted"><span className="dot" /><span className="tx">Captured by WhatConverts {"→"} routed here</span></div>
+        <div className="step muted"><span className="dot" /><span className="tx">Captured by your website {"→"} routed here</span></div>
       </div>
     </>
   );
