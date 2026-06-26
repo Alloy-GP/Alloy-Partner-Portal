@@ -81,11 +81,15 @@ export function quarterStats(projects = [], now = new Date()) {
   const pct = total ? Math.round((delivered / total) * 100) : 0;
   const scopeDelta = planned ? Math.round((added / planned) * 100) : 0;
 
-  // Pace = delivered % vs how much of the quarter has elapsed.
+  // Pace = delivered % vs how much of the quarter has elapsed, with a 10-point
+  // grace band — real work doesn't burn down perfectly evenly, so only flag
+  // "Behind" when meaningfully off pace (not for a near-finished quarter where
+  // a few in-flight tasks lag the calendar by a hair).
+  const PACE_GRACE = 10;
   const span = end - start;
   const elapsed = Math.min(Math.max(now - start, 0), span);
   const elapsedPct = span ? Math.round((elapsed / span) * 100) : 0;
-  const pace = pct >= elapsedPct ? "On track" : "Behind";
+  const pace = pct >= elapsedPct - PACE_GRACE ? "On track" : "Behind";
 
   return {
     label, q, year, start, end,
