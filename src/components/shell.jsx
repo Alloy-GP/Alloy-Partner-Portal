@@ -8,7 +8,7 @@ import { inMotionNow } from '../lib/quarterStats.js';
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
-function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, sidebarMode, onSetMode, onHoverChange }) {
+function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, viewAsClient, onToggleViewAsClient, sidebarMode, onSetMode, onHoverChange }) {
   const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [ctrlOpen, setCtrlOpen] = useState(false);
 
@@ -124,8 +124,10 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
         ))}
 
         {/* Client Center — staff-only nav above any single client. Rendered as a
-            normal nav section so it collapses to icons with the sidebar. */}
-        {staffNav ? (
+            normal nav section so it collapses to icons with the sidebar. Hidden
+            while "viewing as client" so the QA view is faithful (exit via the
+            top banner). */}
+        {staffNav && !viewAsClient ? (
           <>
             <div className="nav-section-label has-divider">Client Center</div>
             <div className="nav-item" data-active={false} onClick={staffNav.onHome} title="All clients">
@@ -136,6 +138,12 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
               <span className="icon"><I.Bolt /></span>
               <span>Admin</span>
             </div>
+            {onToggleViewAsClient && (
+              <div className="nav-item" data-active={false} onClick={onToggleViewAsClient} title="See exactly what this client sees — staff tools hidden">
+                <span className="icon"><I.Eye /></span>
+                <span>View as client</span>
+              </div>
+            )}
           </>
         ) : null}
       </nav>
