@@ -95,6 +95,22 @@ function fieldPairs(l: any): Array<{ name: string; value: string }> {
   return pairs;
 }
 
+// Pull a contact detail out of the raw form submission by matching the field
+// LABEL. Client forms use wildly different labels ("Your name", "Contact Name",
+// "First & last") that WhatConverts never maps to its standard contact_* fields,
+// so without this every form lead reads "New lead". `res` are tried in order
+// (most specific first); `exclude` skips false positives (e.g. "Company name"
+// when we're after a person's name).
+function pickField(
+  pairs: Array<{ name: string; value: string }>, res: RegExp[], exclude?: RegExp,
+): string | null {
+  for (const re of res) {
+    const hit = pairs.find((p) => re.test(p.name) && (!exclude || !exclude.test(p.name)) && p.value);
+    if (hit) return hit.value;
+  }
+  return null;
+}
+
 // The lead's own words: ONLY a field literally named message/comments/etc. The
 // full submission is kept in `fields`, so the panel shows dropdown answers (e.g.
 // "What brings you here") under their own labels — no need to guess a "message"
@@ -146,15 +162,26 @@ function mapLead(l: any, i: number, acctId: string) {
   const monthly = salesValue || quoteValue || num(l.lead_value);
   const annual = monthly * 12;
   const created = toIso(l.date_created) || new Date().toISOString();  // created_at is NOT NULL
+  // Derive name/company/phone/email from the raw form submission when the
+  // standard WhatConverts contact_* field is empty (custom form labels never
+  // map through), so leads show a real name instead of "New lead". Person name
+  // preferred; fall back to the company / HOA / community name.
+  const pairs = fieldPairs(l);
+  const companyName = l.contact_company_name || l.contact_company ||
+    pickField(pairs, [/company name/i, /\bcompany\b/i, /associat/i, /communit/i, /\bhoa\b/i, /organi[sz]ation/i, /business name/i]);
+  const personName = l.contact_name ||
+    pickField(pairs,
+      [/your name/i, /contact name/i, /\bfull name\b/i, /first\s*&?\s*(?:and\s*)?last/i, /^\s*name\b/i, /\bname\b/i],
+      /(compan|communit|associat|business|organi|form|file|user|screen|field|board)/i);
   return {
     account_id: acctId,
     wc_lead_id: l.lead_id != null ? String(l.lead_id) : null,
-    name: l.contact_name || l.contact_company_name || l.contact_company || "New lead",
-    email: l.contact_email_address || l.email_address || l.email || null,
-    phone: l.contact_phone_number || l.caller_number || l.phone_number || null,
-    company: l.contact_company_name || l.contact_company || null,
+    name: personName || companyName || "New lead",
+    email: l.contact_email_address || l.email_address || l.email || pickField(pairs, [/^e-?mail/i, /\bemail\b/i]) || null,
+    phone: l.contact_phone_number || l.caller_number || l.phone_number || pickField(pairs, [/phone/i, /\bmobile\b/i, /\bcell\b/i, /\btel(?:ephone)?\b/i]) || null,
+    company: companyName || null,
     message: leadMessage(l),
-    fields: fieldPairs(l),                       // full form submission (incl. dropdowns)
+    fields: pairs,                               // full form submission (incl. dropdowns)
     context: leadContext(l),
     page: l.lead_url || l.landing_url || null,   // the page the form/widget was on
     journey: leadJourney(l),                     // full multi-touch path
