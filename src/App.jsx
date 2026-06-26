@@ -13,6 +13,7 @@ import SnapshotScreen from './components/SnapshotScreen.jsx';
 import PerformanceScreen from './components/PerformanceScreen.jsx';
 import AccountScreen from './components/AccountScreen.jsx';
 import { AssetsScreen } from './components/screen-assets.jsx';
+import ProposalsScreen from './components/screen-proposals.jsx';
 import PrivacyScreen from './components/PrivacyScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
@@ -29,7 +30,7 @@ const PATHS = {
   dashboard: '/', leads: '/partnership', snapshot: '/snapshot', roi: '/roi', projects: '/playbook', tickets: '/tickets',
   performance: '/visibility',
   playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account', privacy: '/privacy',
-  assets: '/assets',
+  assets: '/assets', proposals: '/proposals',
 };
 
 // App entry — composes Sidebar + screen
@@ -139,6 +140,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     rewards: { t: "Recognition", s: "Wins, made tangible" },
     'account-details': { t: "Account Details", s: "Your plan, team, and account settings" },
     assets: { t: "Assets", s: `Everything Alloy has made for ${DATA.account.company}` },
+    proposals: { t: "Proposals", s: "Intake, match, and send tailored proposals" },
     privacy: { t: "Privacy", s: "How your information is handled" },
   };
 
@@ -167,6 +169,12 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "performance": return <PerformanceScreen onNav={handleNav}/>;
       case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       case "assets": return <AssetsScreen/>;
+      // Proposals is OFF for every client by default. Visible only to Alloy
+      // staff, or to a client whose account has proposals_enabled = true. Gating
+      // the ROUTE (not just the nav) so a direct URL can't reach it either.
+      case "proposals": return (DATA.user?.isStaff || DATA.account?.proposalsEnabled)
+        ? <ProposalsScreen/>
+        : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
       case "privacy": return <PrivacyScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }

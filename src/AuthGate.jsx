@@ -9,6 +9,7 @@ import Login from './components/Login.jsx';
 import NoAccess from './components/NoAccess.jsx';
 import AlloyHome from './components/AlloyHome.jsx';
 import AdminScreen from './components/AdminScreen.jsx';
+import { BoardProposalPage } from './components/board-proposal.jsx';
 import App from './App.jsx';
 
 // Staff-level Admin page — global client management, lives above any single
@@ -141,6 +142,11 @@ function AuthGate() {
       </div>
     </div>
   );
+
+  // Public, shell-less board proposal page — the magic-link destination the HOA
+  // board opens. No portal shell, no auth (the future anonymous board surface).
+  const boardMatch = location.pathname.match(/\/proposals\/board\/([^/?#]+)/);
+  if (boardMatch) return <BoardProposalPage id={decodeURIComponent(boardMatch[1])} />;
 
   if (!configured) return <App />;
   if (loading) return splash;
