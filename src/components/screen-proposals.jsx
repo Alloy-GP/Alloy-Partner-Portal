@@ -19,7 +19,10 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 // ============================================================================
 
 const { useState, useRef, useLayoutEffect, useEffect } = React;
-const BOARD_URL = (id) => `/proposals/board/${id}`;
+// The board link uses the unguessable board_token (the real magic-link secret)
+// when present; falls back to the lead id only in mock dev (no token). The board
+// page resolves the token anonymously via the proposal-board edge fn.
+const BOARD_URL = (sub) => `/proposals/board/${(sub && sub.boardToken) || (sub && sub.id) || sub}`;
 
 const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
 const fmtMoney = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -406,14 +409,14 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, setProse, onCo
         <div className="v2-browser-bar">
           <div className="v2-dots"><span /><span /><span /></div>
           <div className="v2-url"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>{CAM_COMPANY.shortName.toLowerCase()}.org/p/{sub.id.toLowerCase()}</div>
-          <button className="v2-browser-open" onClick={() => window.open(BOARD_URL(sub.id), '_blank', 'noopener')}>
+          <button className="v2-browser-open" onClick={() => window.open(BOARD_URL(sub), '_blank', 'noopener')}>
             Open full proposal
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></svg>
           </button>
           <span className="v2-browser-live"><span className="d" />Live preview</span>
         </div>
         <div className="v2-browser-body">
-          <iframe className="v2-board-iframe" src={BOARD_URL(sub.id)} title="Live proposal preview — what the board sees" />
+          <iframe className="v2-board-iframe" src={BOARD_URL(sub)} title="Live proposal preview — what the board sees" />
         </div>
         <div className="v2-browser-foot">
           <span className="v2-browser-foot-note">Exactly what {sub.firstName} sees at {CAM_COMPANY.shortName.toLowerCase()}.org/p/{sub.id.toLowerCase()} — open it full-screen in a new tab, or send when it's ready.</span>
@@ -462,7 +465,7 @@ function MomentOfTruth({ sub, onSend }) {
               <p>Hi {sub.firstName},</p>
               <p>Thank you for telling us about {sub.community}. We didn't send a generic pitch — we built a proposal around the {sub.concerns.length} concerns your board raised, point by point.</p>
               <div className="v2-email-card"><div className="row"><span>Community</span><b>{sub.community} · {sub.homes} homes</b></div><div className="row"><span>Recommended</span><b>{sub.tierName}</b></div></div>
-              <a className="v2-email-cta" onClick={(e) => { e.preventDefault(); window.open(BOARD_URL(sub.id), '_blank', 'noopener'); }} href={BOARD_URL(sub.id)} target="_blank" rel="noopener">Open your proposal →</a>
+              <a className="v2-email-cta" onClick={(e) => { e.preventDefault(); window.open(BOARD_URL(sub), '_blank', 'noopener'); }} href={BOARD_URL(sub)} target="_blank" rel="noopener">Open your proposal →</a>
               <div className="v2-email-secure">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 7h3a5 5 0 0 1 0 10h-3M9 17H6A5 5 0 0 1 6 7h3M8 12h8" /></svg>
                 <span>One-tap secure link — no password to remember. It signs in {sub.firstName} automatically and works only from this email. Expires in 14 days.</span>
@@ -846,7 +849,7 @@ export default function ProposalsScreen() {
       )}
       {mode === 'send' && <MomentOfTruth sub={sub} onSend={launch} />}
       {mode === 'sent' && (
-        <SentScreen sub={sub} onPreview={() => window.open(BOARD_URL(sub.id), '_blank', 'noopener')} onTrack={() => { setWatchId(selectedId); setMode('close'); }} onBack={() => setMode('review')} />
+        <SentScreen sub={sub} onPreview={() => window.open(BOARD_URL(sub), '_blank', 'noopener')} onTrack={() => { setWatchId(selectedId); setMode('close'); }} onBack={() => setMode('review')} />
       )}
       {mode === 'close' && (
         <CloseView subs={subs} watchId={watchId} setWatchId={setWatchId}

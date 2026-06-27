@@ -2,7 +2,6 @@ import React from 'react';
 import { getLeads, enrichLead } from '../lib/proposalMockData.js';
 import { COLORS, UVPS, TIERS, TEAM, ONBOARDING_TIMELINE, buildSubmission, CAM_COMPANY } from '../lib/boardData.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
-import { proposalRowToRaw } from '../lib/loadData.js';
 
 // ============================================================================
 // Board-facing proposal document (Direction 3 · Interactive) — the real
@@ -484,26 +483,27 @@ export function BoardProposal({ lead, showActionBar }) {
 }
 
 export function BoardProposalPage({ id }) {
-  // Cockpit context: the proposal is already in DATA.proposals (with its token).
-  // Standalone (e.g. "Open full proposal" in a new tab): DATA isn't loaded, so
-  // fetch this one proposal directly (authed) — which gives it the board_token
-  // the telemetry emit needs. (The no-session anonymous path will swap this for a
-  // token-based read fn.)
+  // `id` is the board's magic-link credential. Mock dev / cockpit-with-DATA:
+  // the proposal is already in getLeads() (keyed by lead_key) → render it.
+  // Real magic link (logged-out board member): `id` is the unguessable
+  // board_token → resolve it ANONYMOUSLY via the proposal-board edge fn (no
+  // portal session, RLS can't serve them). The fn returns board-safe fields;
+  // we enrich locally (matcher + UVP prose are bundled) and render.
   const [lead, setLead] = useState(() => getLeads().find((l) => l.id === id || l.id.toLowerCase() === String(id).toLowerCase()) || null);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('idle'); // idle | loading | notfound
   useEffect(() => {
-    if (lead && lead.boardToken) return;            // already have full data
-    if (!isSupabaseConfigured || !supabase) return; // mock dev → keep the mock lead
+    if (lead) return;                                       // already resolved (mock / cockpit)
+    if (!isSupabaseConfigured || !supabase) { setStatus('notfound'); return; }
     let cancelled = false;
-    setLoading(true);
+    setStatus('loading');
     (async () => {
-      const { data } = await supabase.from('proposals').select('*').eq('lead_key', id).limit(1).maybeSingle();
+      const { data, error } = await supabase.functions.invoke('proposal-board', { body: { token: id } });
       if (cancelled) return;
-      if (data) setLead(enrichLead(proposalRowToRaw(data)));
-      setLoading(false);
+      if (!error && data && data.proposal) { setLead(enrichLead(data.proposal)); setStatus('idle'); }
+      else setStatus('notfound');
     })();
     return () => { cancelled = true; };
   }, [id]);
-  if (!lead) return <div style={{ maxWidth: 520, margin: '80px auto', textAlign: 'center', color: COLORS.fgMuted, fontFamily: 'Poppins, sans-serif' }}>{loading ? 'Loading proposal…' : 'Proposal not found.'}</div>;
+  if (!lead) return <div style={{ maxWidth: 520, margin: '80px auto', textAlign: 'center', color: COLORS.fgMuted, fontFamily: 'Poppins, sans-serif' }}>{status === 'loading' ? 'Loading proposal…' : status === 'notfound' ? 'This proposal link is invalid or has expired.' : ''}</div>;
   return <BoardProposal lead={lead} showActionBar />;
 }
