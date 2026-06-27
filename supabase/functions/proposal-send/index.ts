@@ -90,15 +90,18 @@ Deno.serve(async (req) => {
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: acct } = await admin.from("accounts").select("company, short_name").eq("id", prop.account_id).maybeSingle();
+    const { data: acct } = await admin.from("accounts").select("company, short_name, proposal_from_email").eq("id", prop.account_id).maybeSingle();
     const cam = acct?.short_name || acct?.company || "Your management company";
+    // Per-CAM white-label send address when configured + verified in Resend;
+    // otherwise the shared Alloy domain with the CAM's display name.
+    const fromEmail = (acct?.proposal_from_email || "").trim() || FROM_DOMAIN;
     const link = `${base}/proposals/board/${prop.board_token}`;
     const html = renderEmail(cam, prop.first_name || "there", prop.community || "your community", prop.homes || 0, link);
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: `${cam} <${FROM_DOMAIN}>`, to: [recipient], subject: `Your management proposal for ${prop.community}`, html }),
+      body: JSON.stringify({ from: `${cam} <${fromEmail}>`, to: [recipient], subject: `Your management proposal for ${prop.community}`, html }),
     });
     if (!res.ok) return json({ error: `resend ${res.status}`, detail: (await res.text()).slice(0, 300) }, 502);
 
