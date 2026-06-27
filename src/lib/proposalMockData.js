@@ -322,17 +322,23 @@ export function aggregateWatch(events, lead) {
   const expiresAt = sentAt ? new Date(new Date(sentAt).getTime() + linkLife * 86400000) : null;
   const daysLeft = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86400000)) : 0;
 
-  const feedVerb = { open: "Opened the proposal", section: null, cta: "Clicked", heartbeat: null };
   const feed = [...sorted].reverse().filter((e) => e.event_type === "open" || e.event_type === "cta" || (e.event_type === "section" && e.pct >= 80))
     .slice(0, 7).map((e) => ({
       when: relTime(e.created_at),
       who: e.viewer_name || "Board member",
-      event: e.event_type === "cta" ? `Clicked "${e.section_name}"` : e.event_type === "section" ? `Read ${e.section_name} to ${e.pct}%` : "Opened the proposal",
+      // cta labels (board responses) are self-descriptive — show them verbatim.
+      event: e.event_type === "cta" ? e.section_name : e.event_type === "section" ? `Read ${e.section_name} to ${e.pct}%` : "Opened the proposal",
       type: e.event_type === "cta" ? "cta" : e.event_type === "section" ? "read" : "open",
     }));
 
+  // The board's latest explicit response (continue / changes / decline), pulled
+  // from the cta events' meta — surfaced prominently in Close so staff act on it.
+  const responses = sorted.filter((e) => e.event_type === "cta" && e.meta && e.meta.action);
+  const r = responses[responses.length - 1];
+  const response = r ? { action: r.meta.action, label: r.section_name, meta: r.meta, when: relTime(r.created_at) } : null;
+
   return {
-    heat, opens: opens.length,
+    heat, opens: opens.length, response,
     lastOpened: relTime(last.created_at),
     firstOpened: opens.length ? fmtDateTime(opens[0].created_at) : null,
     sentOn: sentAt ? fmtDate(sentAt) : "—",

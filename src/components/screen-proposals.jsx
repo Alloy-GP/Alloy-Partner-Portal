@@ -589,6 +589,31 @@ function LeadList({ open, selectedId, onPick }) {
   );
 }
 
+// The board's latest explicit response (from the board page modals), surfaced
+// at the top of Close so staff act on it at a glance.
+function ResponseBanner({ r }) {
+  if (!r) return null;
+  const cfg = {
+    continue: { bg: '#eafaf1', bd: '#bfe6cf', fg: '#1f7a44', Ic: I.Check, title: r.meta && r.meta.method === 'email' ? 'Board asked to connect by email' : 'Board is moving forward' },
+    changes: { bg: '#fdf5e6', bd: '#f0ddb0', fg: '#9a6b12', Ic: I.Edit, title: 'Board requested changes' },
+    decline: { bg: '#f3f3f6', bd: '#e0dee6', fg: '#6b6675', Ic: I.Close, title: 'Board declined' },
+  }[r.action];
+  if (!cfg) return null;
+  const m = r.meta || {};
+  const detail = r.action === 'continue' ? (m.slot ? `Discovery call · ${m.slot}` : 'Wants to connect by email')
+    : r.action === 'changes' ? [(m.areas || []).join(', '), m.specifics].filter(Boolean).join(' — ')
+    : [m.reason, m.notes].filter(Boolean).join(' — ');
+  return (
+    <div className="v2-w-response" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: cfg.bg, border: `1px solid ${cfg.bd}`, borderRadius: 12, padding: '13px 15px', marginBottom: 14 }}>
+      <span style={{ width: 26, height: 26, borderRadius: 999, background: cfg.fg, color: '#fff', display: 'grid', placeItems: 'center', flex: 'none' }}><cfg.Ic width={14} height={14} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5, color: cfg.fg }}>{cfg.title}<span style={{ fontWeight: 600, color: 'var(--fg-muted)', fontSize: 11.5 }}> · {r.when}</span></div>
+        {detail && <div style={{ fontSize: 12.5, color: 'var(--fg)', marginTop: 3, lineHeight: 1.45 }}>{detail}</div>}
+      </div>
+    </div>
+  );
+}
+
 function LeadAnalytics({ s, onResend, onNudge, onMarkWon, onMarkLost, notes, addNote }) {
   const w = getWatch(s), e = expState(w);
   const [winOpen, setWinOpen] = useState(false);
@@ -619,6 +644,7 @@ function LeadAnalytics({ s, onResend, onNudge, onMarkWon, onMarkLost, notes, add
           <button className="v2-w-act win" onClick={() => setWinOpen(true)}><I.Check width={14} height={14} /> Mark won / lost</button>
         </div>
       </div>
+      <ResponseBanner r={w.response} />
       <div className="v2-w-figs">
         {figs.map((f) => (<div className="v2-w-fig" key={f.k} data-exp={f.exp || false}><div className="v2-w-fig-v">{f.v}</div><div className="v2-w-fig-k">{f.k}</div><div className="v2-w-fig-s">{f.s}</div></div>))}
       </div>
