@@ -394,12 +394,136 @@ function ProposalExp({ lead, submission }) {
   );
 }
 
-function BoardActionBar({ submission, responded, onAccept, onDecline, onRequest }) {
+// ---------- Board response modals (request changes / decline / continue) ----------
+const CHANGE_AREAS = ['Pricing / tier structure', 'Transition timeline', 'Specific UVPs / capabilities', 'Manager assignment', 'Reserve study approach', 'Contract terms'];
+const DECLINE_REASONS = ['Went with another provider', 'Decided to stay self-managed', 'Out of budget for now', 'Timing is wrong', 'Other — see notes below'];
+
+// Next 4 weekdays as discovery-call slots (always upcoming, never stale).
+function upcomingSlots() {
+  const times = ['10:00 AM', '2:00 PM', '11:30 AM', '9:00 AM'];
+  const dows = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const out = []; const d = new Date();
+  while (out.length < 4) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue;
+    const time = times[out.length];
+    out.push({ dow: dows[dow], day: d.getDate(), time, label: `${dows[dow]} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getDate()} · ${time}` });
+  }
+  return out;
+}
+
+const mPrimary = { fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 10, border: 'none', cursor: 'pointer', background: c.purple, color: '#fff' };
+const mGhost = { fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '12px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'transparent', color: c.fgMuted };
+const mArea = { width: '100%', minHeight: 76, padding: '12px 14px', borderRadius: 12, border: `1px solid ${c.lightGray}`, fontFamily: 'Poppins,sans-serif', fontSize: 13.5, color: c.purple, resize: 'vertical', outline: 'none', boxSizing: 'border-box' };
+const mFoot = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 22 };
+
+function BoardModal({ children, onClose, maxWidth = 540 }) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(26,12,38,0.55)', backdropFilter: 'blur(4px)', display: 'grid', placeItems: 'center', padding: 20, fontFamily: 'Gotham,Poppins,sans-serif' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth, background: '#fff', borderRadius: 18, boxShadow: '0 30px 90px rgba(26,12,38,0.45)', padding: '32px 34px 26px', position: 'relative', animation: 'bp-fadeUp 220ms cubic-bezier(0.2,0.8,0.2,1) both' }}>
+        <button onClick={onClose} aria-label="Close" style={{ position: 'absolute', top: 20, right: 20, background: 'none', border: 'none', cursor: 'pointer', color: c.fgMuted, padding: 4 }}><Icon name="x" size={18} /></button>
+        {children}
+      </div>
+    </div>
+  );
+}
+function MHead({ eyebrow, color, title, sub }) {
+  return (
+    <div style={{ marginBottom: 18, paddingRight: 24 }}>
+      <Eyebrow color={color}>{eyebrow}</Eyebrow>
+      <h3 style={{ fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 800, fontSize: 23, lineHeight: 1.18, color: c.purple, margin: '10px 0 0', letterSpacing: '-0.01em' }}>{title}</h3>
+      {sub && <p style={{ fontSize: 13.5, lineHeight: 1.55, color: c.bodyGray, margin: '10px 0 0' }}>{sub}</p>}
+    </div>
+  );
+}
+function OptionPill({ checked, onClick, kind = 'check', children }) {
+  return (
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: 11, border: `1.5px solid ${checked ? c.purple : c.lightGray}`, background: checked ? 'rgba(43,44,108,0.05)' : '#fff', cursor: 'pointer', fontFamily: 'Poppins,sans-serif', fontSize: 13, fontWeight: 600, color: c.purple, transition: 'all 140ms' }}>
+      <span style={{ width: 18, height: 18, flexShrink: 0, borderRadius: kind === 'radio' ? 999 : 5, border: `1.5px solid ${checked ? c.purple : '#c9c5d4'}`, background: checked ? c.purple : '#fff', display: 'grid', placeItems: 'center' }}>
+        {checked && (kind === 'radio' ? <span style={{ width: 7, height: 7, borderRadius: 999, background: '#fff' }} /> : <Icon name="check" size={12} color="#fff" strokeWidth={3} />)}
+      </span>
+      {children}
+    </button>
+  );
+}
+
+function RequestChangesModal({ onClose, onResolve }) {
+  const [areas, setAreas] = useState([]);
+  const [specifics, setSpecifics] = useState('');
+  const toggle = (a) => setAreas((p) => (p.includes(a) ? p.filter((x) => x !== a) : [...p, a]));
+  const submit = () => { onResolve('changes', `Requested changes${areas.length ? ': ' + areas.join(', ') : ''}`, { areas, specifics: specifics.trim() }); onClose(); };
+  return (
+    <BoardModal onClose={onClose}>
+      <MHead eyebrow="Request changes" color={c.purple} title="Where would you like edits?" sub="Pick any. We'll send a revised proposal within 2 business days — same link." />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+        {CHANGE_AREAS.map((a) => <OptionPill key={a} checked={areas.includes(a)} onClick={() => toggle(a)}>{a}</OptionPill>)}
+      </div>
+      <textarea style={mArea} placeholder="Specifics — what should change?" value={specifics} onChange={(e) => setSpecifics(e.target.value)} />
+      <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={{ ...mPrimary, opacity: areas.length || specifics.trim() ? 1 : 0.5 }} disabled={!areas.length && !specifics.trim()} onClick={submit}>Send request</button></div>
+    </BoardModal>
+  );
+}
+function DeclineModal({ onClose, onResolve }) {
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+  const submit = () => { onResolve('decline', `Declined${reason ? ': ' + reason : ''}`, { reason, notes: notes.trim() }); onClose(); };
+  return (
+    <BoardModal onClose={onClose}>
+      <MHead eyebrow="Declining the proposal" color={c.purple} title="No problem — what's the main reason?" sub="Optional, but it helps us learn. Nothing about your answer triggers a follow-up call." />
+      <div style={{ display: 'grid', gap: 9, marginBottom: 14 }}>
+        {DECLINE_REASONS.map((r) => <OptionPill key={r} kind="radio" checked={reason === r} onClick={() => setReason(r)}>{r}</OptionPill>)}
+      </div>
+      <textarea style={mArea} placeholder="Anything else you'd like CMGT to know (optional)…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={mPrimary} onClick={submit}>Send response</button></div>
+    </BoardModal>
+  );
+}
+function ContinueModal({ onClose, onResolve }) {
+  const slots = useMemo(() => upcomingSlots(), []);
+  const [sel, setSel] = useState(null);
+  const [done, setDone] = useState(null); // null | 'call' | 'email'
+  const confirmCall = () => { onResolve('continue', `Booked a discovery call · ${slots[sel].label}`, { method: 'call', slot: slots[sel].label }); setDone('call'); };
+  const chooseEmail = () => { onResolve('continue', 'Asked to connect by email', { method: 'email' }); setDone('email'); };
+
+  if (done) return (
+    <BoardModal onClose={onClose}>
+      <div style={{ width: 46, height: 46, borderRadius: 999, background: done === 'call' ? c.purple : c.cmgtGreen, display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name={done === 'call' ? 'check' : 'message-square'} size={22} color="#fff" /></div>
+      <MHead eyebrow="Confirmed" color={c.cmgtGreen} title={done === 'call' ? "You're on the CMGT team's calendar." : "We'll be in touch by email."} sub={done === 'call'
+        ? 'A calendar invite is on its way to the email on file. Jeff and Amanda will call you at the number we have. Reply to the invite if you need to reschedule.'
+        : "Amanda will email you shortly to find a time that works — no call required until you're ready."} />
+      {done === 'call' && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: c.offWhite, borderRadius: 12, padding: '14px 16px' }}>
+        <div style={{ fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 800, color: c.purple }}>{slots[sel].label}</div>
+        <div style={{ fontSize: 12, color: c.fgMuted, fontWeight: 600 }}>30 minutes</div>
+      </div>}
+      <div style={{ ...mFoot, justifyContent: 'flex-end' }}><button style={mPrimary} onClick={onClose}>Done</button></div>
+    </BoardModal>
+  );
+  return (
+    <BoardModal onClose={onClose}>
+      <div style={{ width: 46, height: 46, borderRadius: 999, background: c.cmgtGreen, display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name="check" size={22} color="#fff" /></div>
+      <MHead eyebrow="You're moving forward" color={c.cmgtGreen} title="One last step — pick a time for the discovery call." sub="30 minutes with Jeff Harman (CEO & founder) and Amanda Betancourt (COO). We finalize the engagement and walk through the transition checklist — your dedicated CAM is assigned during onboarding." />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 9, marginBottom: 10 }}>
+        {slots.map((s, i) => (
+          <button key={i} onClick={() => setSel(i)} style={{ padding: '12px 6px', borderRadius: 11, border: `1.5px solid ${sel === i ? c.purple : c.lightGray}`, background: sel === i ? 'rgba(43,44,108,0.05)' : '#fff', cursor: 'pointer', textAlign: 'center' }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', color: c.fgMuted }}>{s.dow}</div>
+            <div style={{ fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 800, fontSize: 19, color: c.purple, margin: '2px 0' }}>{s.day}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: c.bodyGray }}>{s.time}</div>
+          </button>
+        ))}
+      </div>
+      <button onClick={chooseEmail} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.purple, fontSize: 12.5, fontWeight: 700, padding: '4px 0', textDecoration: 'underline' }}>Prefer to connect by email instead?</button>
+      <div style={mFoot}><button style={mGhost} onClick={onClose}>Not now</button><button style={{ ...mPrimary, opacity: sel == null ? 0.5 : 1 }} disabled={sel == null} onClick={confirmCall}>Confirm time</button></div>
+    </BoardModal>
+  );
+}
+
+function BoardActionBar({ submission, responded, onOpen }) {
   const firstName = (submission.contactName || '').split(' ')[0] || 'there';
   const confirm = {
-    accept: { ic: 'check', color: c.green, text: <span><strong>Accepted — thank you, {firstName}.</strong> Amanda will be in touch to schedule your onboarding call.</span> },
+    changes: { ic: 'message-square', color: c.purple, text: <span><strong>Change request sent.</strong> We'll send a revised proposal shortly, {firstName}.</span> },
     decline: { ic: 'x', color: c.fgMuted, text: <span><strong>Response recorded.</strong> Thanks for considering CMGT, {firstName}.</span> },
-    request: { ic: 'message-square', color: c.purple, text: <span><strong>Change request sent.</strong> Amanda will follow up with you shortly.</span> },
+    continue: { ic: 'check', color: c.cmgtGreen, text: <span><strong>You're moving forward — thank you, {firstName}.</strong> The CMGT team will be in touch to set up your discovery call.</span> },
   }[responded];
   return (
     <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${c.lightGray}`, boxShadow: '0 -8px 24px rgba(56,28,79,0.10)' }}>
@@ -412,9 +536,9 @@ function BoardActionBar({ submission, responded, onAccept, onDecline, onRequest 
           <React.Fragment>
             <div style={{ fontSize: 13, color: c.purple, fontWeight: 500 }}><strong>{firstName},</strong> you have until <strong>{submission.validThrough}</strong> to respond.</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button variant="ghost" size="md" onClick={onRequest}><Icon name="message-square" size={14} /> Request Changes</Button>
-              <Button variant="danger" size="md" onClick={onDecline}><Icon name="x" size={14} /> Decline</Button>
-              <Button variant="primary" size="md" onClick={onAccept}><Icon name="check" size={14} /> Accept &amp; Continue</Button>
+              <Button variant="ghost" size="md" onClick={() => onOpen('changes')}><Icon name="message-square" size={14} /> Request changes</Button>
+              <Button variant="danger" size="md" onClick={() => onOpen('decline')}><Icon name="x" size={14} /> Decline</Button>
+              <Button variant="primary" size="md" onClick={() => onOpen('continue')}><Icon name="arrow-right" size={14} /> Continue</Button>
             </div>
           </React.Fragment>
         )}
@@ -465,19 +589,29 @@ function useBoardTelemetry(lead, enabled) {
 
 export function BoardProposal({ lead, showActionBar }) {
   const submission = useMemo(() => buildSubmission(lead), [lead]);
-  const [responded, setResponded] = useState(null);
-  // The board view (with the action bar) is the real surface → track it.
+  const [modal, setModal] = useState(null);        // 'changes' | 'decline' | 'continue' | null
+  const [responded, setResponded] = useState(null); // bar confirmation after a response
+  // The board view (with the action bar) is the real surface → track engagement.
   useBoardTelemetry(lead, !!showActionBar);
-  const trackCta = (label) => {
-    if (!showActionBar || !isSupabaseConfigured || !supabase || !lead?.boardToken) return;
-    if (typeof window !== 'undefined' && window.top !== window.self) return;
-    supabase.functions.invoke('proposal-track', { body: { token: lead.boardToken, eventType: 'cta', viewerKey: viewerKey(), section: label } }).catch(() => {});
+
+  // Record a board response to the token-gated proposal-respond fn (anonymous;
+  // skip the cockpit preview iframe). Decline flips status server-side; the
+  // others record events that surface in the cockpit's Close feed.
+  const onResolve = (action, label, meta) => {
+    if (isSupabaseConfigured && supabase && lead?.boardToken && (typeof window === 'undefined' || window.top === window.self)) {
+      supabase.functions.invoke('proposal-respond', { body: { token: lead.boardToken, action, label, meta, viewerKey: viewerKey() } }).catch(() => {});
+    }
+    setResponded(action);
   };
+  const close = () => setModal(null);
   return (
     <div className="bp-root" style={{ background: c.offWhite, paddingBottom: showActionBar ? 76 : 0 }}>
       <GlobalStyles />
       <ProposalExp lead={lead} submission={submission} />
-      {showActionBar && <BoardActionBar submission={submission} responded={responded} onAccept={() => { setResponded('accept'); trackCta('Accept'); }} onDecline={() => { setResponded('decline'); trackCta('Decline'); }} onRequest={() => { setResponded('request'); trackCta('Request changes'); }} />}
+      {showActionBar && <BoardActionBar submission={submission} responded={responded} onOpen={setModal} />}
+      {modal === 'changes' && <RequestChangesModal onClose={close} onResolve={onResolve} />}
+      {modal === 'decline' && <DeclineModal onClose={close} onResolve={onResolve} />}
+      {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} />}
     </div>
   );
 }
