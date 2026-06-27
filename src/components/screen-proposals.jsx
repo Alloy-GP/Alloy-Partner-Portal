@@ -429,16 +429,24 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, setProse, onCo
 
 // ============================ SEND ============================
 function MomentOfTruth({ sub, onSend }) {
+  // Recipient is editable so you can send a test to yourself (the demo boards
+  // have placeholder emails). For real leads it defaults to the board contact.
+  const [to, setTo] = useState(sub.email || '');
   return (
     <div className="v2-send-step">
       <div className="v2-preview-bar">
         <span className="v2-preview-av v2-mail-av"><I.Send width={17} height={17} /></span>
         <div className="v2-preview-id">
           <div className="t">The email {sub.firstName} receives</div>
-          <div className="s">From {CAM_COMPANY.shortName} · to {sub.contact} {'<' + sub.email + '>'} · with a one-tap magic link to the live proposal</div>
+          <div className="s">From {CAM_COMPANY.shortName} · a one-tap magic link to the live proposal</div>
         </div>
         <div className="grow" />
-        <button className="v2-mail-send" onClick={onSend}><span className="v2-mail-send-ic"><I.Send width={18} height={18} /></span>Send to {sub.firstName}</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>Send to</span>
+          <input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="board@email.com"
+            style={{ padding: '9px 11px', borderRadius: 9, border: '1px solid var(--border, #d9d6e0)', fontSize: 13, minWidth: 230, fontFamily: 'inherit' }} />
+        </label>
+        <button className="v2-mail-send" disabled={!to.trim()} onClick={() => onSend(to.trim())}><span className="v2-mail-send-ic"><I.Send width={18} height={18} /></span>Send proposal</button>
       </div>
       <div className="v2-mail">
         <div className="v2-mail-toolbar">
@@ -825,12 +833,23 @@ export default function ProposalsScreen() {
     setPerHomeMap({ ...perHomeMap, [selectedId]: v });
     if (Number.isFinite(Number(v))) persist(selectedId, { per_home: Number(v) });
   };
-  const send = () => {
-    setSubs(subs.map((s) => (s.id === selectedId && s.status !== 'accepted' ? { ...s, status: 'sent' } : s)));
-    if (sub && sub.status !== 'accepted') persist(selectedId, { status: 'sent', sent_at: new Date().toISOString() });
+  // Real send: the proposal-send edge fn emails the board the magic link + marks
+  // the proposal sent in the DB. Only advance to the Sent screen if it succeeds.
+  // Mock dev (no Supabase) keeps the local-only behavior so the demo still flows.
+  const send = async (recipient) => {
+    if (live) {
+      const { data, error } = await supabase.functions.invoke('proposal-send', {
+        body: { leadKey: selectedId, accountId: DATA.account.id, to: recipient || undefined, baseUrl: window.location.origin },
+      });
+      let detail = data?.error || '';
+      if (error && !detail) { try { detail = (await error.context.json())?.error || error.message; } catch { detail = error.message; } }
+      if (detail) { setToast({ msg: 'Send failed: ' + detail }); return; }
+      setToast({ msg: `Proposal emailed to ${data.to}` });
+    }
+    setSubs((p) => p.map((s) => (s.id === selectedId && s.status !== 'accepted' ? { ...s, status: 'sent' } : s)));
     setMode('sent');
   };
-  const launch = () => { setLaunching(true); setTimeout(() => { setLaunching(false); send(); }, 1850); };
+  const launch = (recipient) => { setLaunching(true); setTimeout(() => { setLaunching(false); send(recipient); }, 1850); };
 
   return (
     <div className="proposal-system">
