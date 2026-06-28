@@ -766,9 +766,13 @@ function RetainView({ subs }) {
 }
 
 // ============================ Stepper + shell ============================
+// State-based pipeline stages (each label = WHERE the deal is, not what to do).
+// "Send" isn't a stage — it's a button on Build that opens a modal; the deal then
+// lands in "Sent" (the engagement/waiting column). Won/Lost is the close fork;
+// Client is the retained book of business.
 function Stepper({ mode, go }) {
-  const order = { review: 0, build: 1, send: 2, sent: 2, close: 3, retain: 4 };
-  const steps = [['review', 'Review', 1], ['build', 'Build', 2], ['send', 'Send', 3], ['close', 'Close', 4]];
+  const order = { new: 0, build: 1, sent: 2, won: 3, client: 4 };
+  const steps = [['new', 'New', 1], ['build', 'Build', 2], ['sent', 'Sent', 3], ['won', 'Won / Lost', 4], ['client', 'Client', 5]];
   const wrapRef = useRef(null);
   const [pill, setPill] = useState({ left: 0, top: 0, w: 0, h: 0 });
   const [glide, setGlide] = useState(false);
@@ -785,7 +789,7 @@ function Stepper({ mode, go }) {
       <div className="v2-stepper" ref={wrapRef}>
         <span className={'v2-step-pill' + (glide ? ' glide' : '')} style={{ transform: `translateX(${pill.left}px)`, top: pill.top, width: pill.w, height: pill.h }} />
         {steps.map(([id, label, n], i) => {
-          const active = mode === id || (id === 'send' && mode === 'sent');
+          const active = mode === id;
           const done = order[mode] > order[id];
           return (
             <React.Fragment key={id}>
@@ -795,7 +799,51 @@ function Stepper({ mode, go }) {
           );
         })}
       </div>
-      <button className="v2-retain-link" data-active={mode === 'retain'} onClick={() => go('retain')}><span className="ico"><I.TrendUp width={13} height={13} /></span>Retain</button>
+    </div>
+  );
+}
+
+// Send is an action, not a stage: a modal off Build. Reuses the email-preview +
+// recipient screen (MomentOfTruth); its "Send proposal" button fires onSend.
+function SendModal({ sub, onClose, onSend }) {
+  return (
+    <div className="ps-scrim" onClick={onClose}>
+      <div className="ps-modal" style={{ maxWidth: 920, width: '100%', maxHeight: '92vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head"><span className="t">Send proposal to {sub.firstName}</span><button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button></div>
+        <MomentOfTruth sub={sub} onSend={(r) => { onClose(); onSend(r); }} />
+      </div>
+    </div>
+  );
+}
+
+// Won / Lost — the closed-outcome stage (accepted vs declined/not-a-fit).
+function WonLostView({ subs }) {
+  const won = subs.filter((s) => s.status === 'accepted');
+  const lost = subs.filter((s) => s.status === 'declined' || s.disq);
+  const Row = ({ s, kind }) => {
+    const pr = pricing(s);
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 15px', border: '1px solid var(--border, #e6e2ee)', borderRadius: 12, background: '#fff', marginBottom: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14.5, color: 'var(--fg)' }}>{s.community}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 3 }}>{s.contact} · {s.homes} homes · {pr.annual}/yr</div>
+        </div>
+        <span style={{ fontSize: 11.5, fontWeight: 800, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap', background: kind === 'won' ? 'var(--alloy-green-tint, #e8f4ec)' : '#f3f1f6', color: kind === 'won' ? '#2f8a5f' : 'var(--fg-muted)' }}>
+          {kind === 'won' ? 'Won' : (s.disq ? (s.disqReason || 'Not quotable') : 'Lost')}
+        </span>
+      </div>
+    );
+  };
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 14 }}>
+      <div className="v2-card">
+        <div className="v2-block-label">Won · {won.length}</div>
+        {won.length ? won.map((s) => <Row key={s.id} s={s} kind="won" />) : <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '8px 2px' }}>No closed-won deals yet.</div>}
+      </div>
+      <div className="v2-card">
+        <div className="v2-block-label">Lost / not a fit · {lost.length}</div>
+        {lost.length ? lost.map((s) => <Row key={s.id} s={s} kind="lost" />) : <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '8px 2px' }}>None.</div>}
+      </div>
     </div>
   );
 }
@@ -805,8 +853,9 @@ export default function ProposalsScreen() {
   const initialLeads = getLeads();
   const [subs, setSubs] = useState(initialLeads);
   const [selectedId, setSelectedId] = useState(initialLeads[0].id);
-  const [mode, setMode] = useState('review');
+  const [mode, setMode] = useState('new');
   const [watchId, setWatchId] = useState(null);
+  const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
   const [notesMap, setNotesMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { if (s.notes && s.notes.length) m[s.id] = s.notes; }); return m; });
   const [toast, setToast] = useState(null);
@@ -830,8 +879,8 @@ export default function ProposalsScreen() {
       .then(({ error }) => { if (error) setToast({ msg: 'Save failed: ' + error.message }); });
   };
 
-  const go = (id) => { if (id === 'close') setWatchId(null); setMode(id); };
-  const selectSub = (id) => { setSelectedId(id); setMode('review'); };
+  const go = (id) => { if (id === 'sent') setWatchId(null); setMode(id); };
+  const selectSub = (id) => { setSelectedId(id); setMode('new'); };
   const qualify = (id, owner, quoteValue) => {
     setSubs(subs.map((s) => s.id === id ? { ...s, status: 'review', owner, quoteValue, disq: false, disqReason: null } : s));
     persist(id, { status: 'review', owner: owner || '', quote_value: quoteValue ?? null, disq: false, disq_reason: '' });
@@ -873,6 +922,7 @@ export default function ProposalsScreen() {
       setToast({ msg: `Proposal emailed to ${data.to}` });
     }
     setSubs((p) => p.map((s) => (s.id === selectedId && s.status !== 'accepted' ? { ...s, status: 'sent' } : s)));
+    setWatchId(selectedId); // land in Sent focused on this proposal's engagement
     setMode('sent');
   };
   const launch = (recipient) => { setLaunching(true); setTimeout(() => { setLaunching(false); send(recipient); }, 1850); };
@@ -886,25 +936,28 @@ export default function ProposalsScreen() {
         </button>
       </div>
 
-      {mode === 'review' && (
+      {/* New — qualify + match analysis (your court). "Build" advances a qualified lead. */}
+      {mode === 'new' && (
         <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} onSelect={selectSub} onBuild={() => setMode('build')} onQualify={qualify} onDisqualify={disqualify} onMarkWon={markWon} onMarkLost={markLost} />
       )}
+      {/* Build — write it (your court). "Send proposal" opens the send modal, not a stage. */}
       {mode === 'build' && (
-        <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} setProse={setProse} onContinue={() => setMode('send')} />
+        <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} setProse={setProse} onContinue={() => setSendOpen(true)} />
       )}
-      {mode === 'send' && <MomentOfTruth sub={sub} onSend={launch} />}
+      {/* Sent — their court: engagement tracking + board responses + follow-up. */}
       {mode === 'sent' && (
-        <SentScreen sub={sub} onPreview={() => window.open(BOARD_URL(sub), '_blank', 'noopener')} onTrack={() => { setWatchId(selectedId); setMode('close'); }} onBack={() => setMode('review')} />
-      )}
-      {mode === 'close' && (
         <CloseView subs={subs} watchId={watchId} setWatchId={setWatchId}
           onResend={(s) => setToast({ msg: `Magic link resent to ${s.firstName} · expires in 14 days` })}
           onNudge={(s) => setToast({ msg: `Nudge sent to ${s.firstName} on the original thread` })}
           onMarkWon={markWon} onMarkLost={markLost} notesMap={notesMap} addNote={addNote} />
       )}
-      {mode === 'retain' && <RetainView subs={subs} />}
+      {/* Won / Lost — closed outcomes. */}
+      {mode === 'won' && <WonLostView subs={subs} />}
+      {/* Client — retained book of business. */}
+      {mode === 'client' && <RetainView subs={subs} />}
       {mode === 'library' && <UVPLibrary />}
 
+      {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
       {launching && <LaunchOverlay sub={sub} />}
       {toast && <div className="ps-toast"><span className="ic"><I.Check width={14} height={14} /></span>{toast.msg}</div>}
     </div>
