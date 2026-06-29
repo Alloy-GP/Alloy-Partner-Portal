@@ -395,6 +395,50 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 }
 
 // ============================ BUILD ============================
+const OWNER_NAMES = { AB: 'Amanda', JR: 'Jordan' };
+
+// The pinned lead card — a compact header that pins below the stepper and travels
+// across stages, swapping its status pill + 3 figures by where the lead is. In
+// Build it replaces the old purple topper and owns price editing (Proposed fig).
+function PinnedCard({ sub, stage, perHome, setPerHome }) {
+  const [edit, setEdit] = useState(false);
+  const monthly = ((perHome != null ? perHome : sub.perHome) || 0) * sub.homes;
+  const STATUS = { build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
+  const ownerFig = sub.owner
+    ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{OWNER_NAMES[sub.owner] || sub.owner}</> }
+    : { k: 'Owner', v: 'Unassigned' };
+  let figs;
+  if (stage === 'sent') {
+    const w = getWatch(sub), pr = pricing(sub);
+    figs = [{ k: 'Opens', v: w.opens, hot: w.heat === 'hot' }, { k: 'Viewers', v: w.viewers.length }, { k: 'Value', v: pr.monthly + '/mo' }];
+  } else if (stage === 'won' || stage === 'lost') {
+    figs = [{ k: stage === 'won' ? 'Sales value' : 'Quoted', v: fmtMoney(stage === 'won' ? (sub.salesValue || sub.quoteValue || monthly) : monthly) + '/mo' }, ownerFig, { k: 'Closed', v: 'Recently' }];
+  } else {
+    figs = [{ k: 'Match', v: sub.match + '%' }, ownerFig, { k: 'Proposed', edit: true }];
+  }
+  return (
+    <div className="fx-pin">
+      <div className="fx-pin-l">
+        <div className="fx-pin-name">{sub.community}<span className="fx-pin-status" data-s={stage}>{STATUS[stage]}</span></div>
+        <div className="fx-pin-meta">{sub.contact}{sub.contactRole ? ' · ' + sub.contactRole : ''} · {sub.homes} homes · {sub.city}</div>
+      </div>
+      <div className="fx-pin-figs">
+        {figs.flatMap((f, i) => [
+          i > 0 ? <div className="fx-pin-divider" key={'d' + i} /> : null,
+          <div className="fx-pin-fig" key={f.k}>
+            <span className="k">{f.k}</span>
+            {f.edit
+              ? (edit
+                ? <span className="v edit"><span>$</span><input type="number" step="0.01" min="0" value={perHome} autoFocus onChange={(e) => setPerHome(parseFloat(e.target.value) || 0)} onBlur={() => setEdit(false)} onKeyDown={(e) => e.key === 'Enter' && setEdit(false)} /></span>
+                : <button className="v edit" onClick={() => setEdit(true)} title="Edit price">{fmtMoney(monthly)}/mo <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>)
+              : <span className={'v' + (f.hot ? ' hot' : '')}>{f.v}</span>}
+          </div>,
+        ])}
+      </div>
+    </div>
+  );
+}
+
 function LeadCard({ sub, perHome, setPerHome }) {
   const [edit, setEdit] = useState(false);
   const monthly = (perHome || 0) * sub.homes;
@@ -443,7 +487,6 @@ function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onProse })
   const onCount = sections.filter((s) => s.on).length;
   return (
     <div className="v2-checklist">
-      <LeadCard sub={sub} perHome={perHome} setPerHome={setPerHome} />
       <div className="v2-checklist-head"><div className="t">Sections</div><div className="s">{onCount} of {sections.length} included · hover a row to edit its text</div></div>
       <div className="v2-cl-list">{sections.map((s) => <ClSection key={s.id} s={s} toggle={toggle} onEdit={setEditId} />)}</div>
       {editing && (
@@ -951,6 +994,7 @@ export default function ProposalsScreen() {
   const [selectedId, setSelectedId] = useState(initialLeads[0].id);
   const [mode, setMode] = useState('new');
   const [inbox, setInbox] = useState(true); // New stage: true = inbox grid, false = match-analysis drill-in
+  const [focusBuild, setFocusBuild] = useState(true); // Build stage: true = editor for the focused lead, false = bucket list
   const [watchId, setWatchId] = useState(null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
@@ -978,11 +1022,11 @@ export default function ProposalsScreen() {
       .then(({ error }) => { if (error) setToast({ msg: 'Save failed: ' + error.message }); });
   };
 
-  const go = (id) => { if (id === 'sent') setWatchId(null); if (id === 'new') setInbox(true); setMode(id); };
+  const go = (id) => { if (id === 'sent') setWatchId(null); if (id === 'new') setInbox(true); if (id === 'build') setFocusBuild(false); setMode(id); }; // Build step with nothing focused → bucket list
   const openLead = (id) => { setSelectedId(id); setInbox(false); setMode('new'); }; // grid card → drill into the analysis
   const selectRail = (id) => setSelectedId(id); // flip between leads inside the drill-in
   const backToInbox = () => setInbox(true);
-  const resumeBuild = (id) => setSelectedId(id); // pick a lead from the Build bucket list
+  const resumeBuild = (id) => { setSelectedId(id); setFocusBuild(true); }; // pick a lead from the Build bucket list → its editor
   const qualify = (id, owner, quoteValue) => {
     setSubs(subs.map((s) => s.id === id ? { ...s, status: 'review', owner, quoteValue, disq: false, disqReason: null } : s));
     persist(id, { status: 'review', owner: owner || '', quote_value: quoteValue ?? null, disq: false, disq_reason: '' });
@@ -1075,13 +1119,21 @@ export default function ProposalsScreen() {
         </button>
       </div>
 
+      {/* Pinned lead card — the spine below the stepper while a lead is focused in Build. */}
+      {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
+        <>
+          <button className="fx-back" onClick={() => setFocusBuild(false)}><I.Arrow width={15} height={15} style={{ transform: 'rotate(180deg)' }} /> All in Build</button>
+          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} />
+        </>
+      )}
+
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => setMode('build')} />
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
-        (stageOf(sub) === 'qualified' && sub.status !== 'sent')
+        (focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent')
           ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} setProse={setProse} onContinue={() => setSendOpen(true)} />
           : <BuildBucket subs={subs} editorMap={editorMap} onResume={resumeBuild} />
       )}
