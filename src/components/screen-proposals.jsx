@@ -1004,11 +1004,9 @@ export default function ProposalsScreen() {
   const [toast, setToast] = useState(null);
   const [launching, setLaunching] = useState(false);
   const [editorMap, setEditorMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { m[s.id] = (s.sections || []).map((x) => ({ ...x })); }); return m; });
-  const [perHomeMap, setPerHomeMap] = useState({});
-
   const sub = subs.find((s) => s.id === selectedId) || subs[0];
   const sections = editorMap[selectedId] || [];
-  const perHome = perHomeMap[selectedId] != null ? perHomeMap[selectedId] : sub.perHome;
+  const perHome = sub.perHome; // single source — price edits write back into subs so every view (tier card, bucket, board) reflects them
 
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3200); return () => clearTimeout(t); }, [toast]);
 
@@ -1051,7 +1049,7 @@ export default function ProposalsScreen() {
   const toggle = (id) => setEditorMap({ ...editorMap, [selectedId]: sections.map((s) => (s.id === id && !s.required ? { ...s, on: !s.on } : s)) });
   const setProse = (id, text) => setEditorMap({ ...editorMap, [selectedId]: sections.map((s) => (s.id === id ? { ...s, prose: text } : s)) });
   const setPerHome = (v) => {
-    setPerHomeMap({ ...perHomeMap, [selectedId]: v });
+    setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, perHome: v } : s));
     if (Number.isFinite(Number(v))) persist(selectedId, { per_home: Number(v) });
   };
   // Real send: the proposal-send edge fn emails the board the magic link + marks
