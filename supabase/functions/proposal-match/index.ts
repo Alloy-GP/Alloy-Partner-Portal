@@ -31,6 +31,7 @@ For each distinct concern the board raised (from the selected pains AND anything
 - headline: one punchy sentence (≤ 12 words) the board will read as the answer to this concern.
 - body: 2–3 sentences, warm and concrete, grounded in the board's actual words and the matched UVP(s). No fluff, no clichés.
 - proof + metricValue: a short proof label and its value pulled from the matched UVP blurb (e.g. "97%" / "Call timeliness"). Leave metricValue "" if none is implied.
+- source: "narrative" if you surfaced this concern primarily from the board's free-text narrative (something they wrote that is NOT one of their selected pain-point checkboxes); otherwise "pain". Be honest — only mark "narrative" when the free-text genuinely added a concern the checkboxes didn't already cover.
 
 Also return an overall match (0–100): your holistic read of how well this CAM fits this board, weighing the concern fits and their importance.
 
@@ -57,8 +58,9 @@ const MATCH_SCHEMA = {
           body: { type: "string" },
           proof: { type: "string" },
           metricValue: { type: "string" },
+          source: { type: "string", enum: ["pain", "narrative"] },
         },
-        required: ["label", "caps", "fit", "headline", "body", "proof", "metricValue"],
+        required: ["label", "caps", "fit", "headline", "body", "proof", "metricValue", "source"],
       },
     },
   },
@@ -126,6 +128,7 @@ function normalize(raw: any, uvps: any[]) {
       body: String(c.body || "").trim(),
       proof: String(c.proof || "").trim(),
       metric: c.metricValue ? { value: String(c.metricValue), label: String(c.proof || "") } : null,
+      source: c.source === "narrative" ? "narrative" : "pain",
     };
   }).filter((c: any) => c.label);
   const scores = (uvps || []).map((_: any, i: number) => concerns.filter((c: any) => c.caps.includes(i)).length);

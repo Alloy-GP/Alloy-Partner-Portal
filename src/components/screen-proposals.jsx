@@ -65,6 +65,11 @@ function MatchConcern({ concern, uvps, blurbs, index }) {
       <div className="v2-match-row" onClick={() => setOpen(!open)}>
         <span className="v2-match-ic">{index}</span>
         <span className="v2-match-name">{concern.label}</span>
+        {concern.source === 'narrative' && (
+          <span title="The AI surfaced this concern from what the board wrote in their own words — not a pain-point checkbox they selected." style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: '.02em', textTransform: 'uppercase', color: '#a82451', background: 'var(--alloy-pink-tint, rgba(168,36,81,.08))', border: '1px solid rgba(168,36,81,.22)', borderRadius: 999, padding: '2px 8px', marginRight: 8, whiteSpace: 'nowrap' }}>
+            <I.Sparkle width={10} height={10} /> From their note
+          </span>
+        )}
         <span className={'v2-seg-chev' + (open ? ' open' : '')}><I.Chevron width={16} height={16} /></span>
       </div>
       <div className="v2-seg-wrap" onClick={() => setOpen(!open)}>
@@ -239,6 +244,7 @@ function ReviewScreen({ subs, selectedId, onSelect, onBuild, sub, onQualify, onD
   const pr = pricing(sub);
   const matched = sub.scores.filter((x) => x > 0).length;
   const links = sub.links.reduce((a, l) => a + l.length, 0);
+  const fromNote = sub.concerns.filter((c) => c.source === 'narrative').length; // concerns the AI surfaced from the free-text, not a checkbox
   return (
     <div className="v2-review">
       <Queue subs={subs} selectedId={selectedId} onSelect={onSelect} onBuild={onBuild} onQualify={(s) => setQualifyTarget(s)} onWin={(s) => setWinTarget(s)} />
@@ -283,6 +289,11 @@ function ReviewScreen({ subs, selectedId, onSelect, onBuild, sub, onQualify, onD
             <div className="v2-match-head-text">
               <h3 className="v2-match-h">Every pain point {sub.community} raised — and how {CAM_COMPANY.shortName} answers it</h3>
               <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;<b>{links}</b> connections</div>
+              {fromNote > 0 && (
+                <div style={{ marginTop: 5, fontSize: 12, fontWeight: 600, color: '#a82451', display: 'inline-flex', alignItems: 'center', gap: 5 }} title="These concerns came from the board's free-text, not the pain-point checkboxes — a read on how much the “in their own words” field is earning its keep.">
+                  <I.Sparkle width={12} height={12} /> {fromNote} of {sub.concerns.length} surfaced from what they wrote
+                </div>
+              )}
             </div>
             <button className="v2-engine-btn" onClick={() => setShowEngine(true)}>
               <span className="v2-eng-pulse" aria-hidden="true"><span className="ring" /><span className="ring r2" /><span className="dot" /></span>
