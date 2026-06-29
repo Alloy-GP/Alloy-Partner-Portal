@@ -177,80 +177,125 @@ function WinModal({ s, onClose, onWin, onLose }) {
   );
 }
 
-function QueueCard({ s, selected, onSelect, onBuild, onQualify, onWin }) {
-  const stage = stageOf(s);
-  const won = s.status === 'accepted', lost = s.status === 'declined';
-  const showValue = stage === 'qualified' || won;
+// ── New stage · VIEW 1: inbox grid of un-worked (status:"new") leads ──
+function InboxLead({ s, onOpen, onQualifyBuild }) {
+  const hot = (s.match || 0) >= 90;
   return (
-    <div className="v2-q" data-active={selected} data-stage={stage} onClick={() => onSelect(s.id)} role="button" tabIndex={0}>
-      <div className="v2-q-top"><span className="v2-q-name">{s.community}</span><QPill s={s} /></div>
-      <div className="v2-q-meta">{s.city} · {s.homes} homes</div>
-      {stage !== 'pending' && (
-        <div className="v2-q-pipe">
-          {!s.disq && <span className="v2-q-owner"><OwnerAvatar initials={s.owner} size={20} /></span>}
-          {showValue && <span className="v2-q-val">{money(won ? (s.salesValue || s.quoteValue) : s.quoteValue)}<span className="u">/yr{won ? '' : ' est.'}</span></span>}
-          {won && s.salesValue != null && s.salesValue !== s.quoteValue && <span className="v2-q-quoted">quoted {money(s.quoteValue)}</span>}
-          {won && <span className="v2-q-tag won">Closed-won</span>}
-          {lost && <span className="v2-q-tag lost">Closed-lost</span>}
-          {s.disq && <span className="v2-q-tag lost">{s.disqReason || 'Not quotable'}</span>}
-        </div>
-      )}
-      <div className="v2-q-id">{s.id}</div>
-      {selected && stage === 'pending' && (
-        <div className="v2-q-acts"><button className="v2-q-build" onClick={(e) => { e.stopPropagation(); onQualify(s); }}>Qualify lead <I.Arrow width={13} height={13} /></button></div>
-      )}
-      {selected && stage === 'qualified' && s.status !== 'sent' && (
-        <button className="v2-q-build" onClick={(e) => { e.stopPropagation(); onBuild(); }}>Build proposal <I.Arrow width={13} height={13} /></button>
-      )}
-      {selected && stage === 'qualified' && s.status === 'sent' && (
-        <div className="v2-q-close">
-          <div className="v2-q-note"><I.Send width={12} height={12} /> Sent · awaiting the board</div>
-          <button className="v2-q-build v2-q-build--green" onClick={(e) => { e.stopPropagation(); onWin(s); }}>Mark as won</button>
-        </div>
-      )}
-      {selected && won && s.salesValue == null && (
-        <button className="v2-q-build v2-q-build--green" onClick={(e) => { e.stopPropagation(); onWin(s); }}>Add sales value</button>
-      )}
-    </div>
-  );
-}
-
-function Queue({ subs, selectedId, onSelect, onBuild, onQualify, onWin }) {
-  const [tab, setTab] = useState('pending');
-  const buckets = { pending: [], qualified: [], closed: [] };
-  subs.forEach((s) => buckets[stageOf(s)].push(s));
-  const SECTIONS = [{ id: 'pending', label: 'Pending' }, { id: 'qualified', label: 'Qualified' }, { id: 'closed', label: 'Closed' }];
-  return (
-    <div className="v2-queue">
-      <div className="v2-queue-head"><div className="v2-queue-label">Leads</div></div>
-      <div className="v2-q-tabbar">
-        {SECTIONS.map((sec) => (
-          <button key={sec.id} className="v2-q-tab" data-on={tab === sec.id} onClick={() => setTab(sec.id)}>{sec.label}<span className="c">{buckets[sec.id].length}</span></button>
-        ))}
+    <div className="fx-lead" data-hot={hot} onClick={() => onOpen(s.id)} role="button" tabIndex={0}>
+      <div className="fx-lead-top">
+        <span className="fx-lead-name">{s.community}</span>
+        <span className="fx-lead-new">New</span>
+        <span className="fx-lead-pct"><b>{s.match}%</b><span>match</span></span>
       </div>
-      <div className="v2-q-list">
-        {buckets[tab].length
-          ? buckets[tab].map((s) => <QueueCard key={s.id} s={s} selected={s.id === selectedId} onSelect={onSelect} onBuild={onBuild} onQualify={onQualify} onWin={onWin} />)
-          : <div className="v2-q-empty">Nothing here yet.</div>}
+      <div className="fx-lead-meta">{s.contact} · {s.homes} homes · {s.city}</div>
+      {s.quote && <div className="fx-lead-quote">"{s.quote}"</div>}
+      <div className="fx-lead-foot">
+        <span className="fx-lead-owner"><span className="dot" /> Unassigned</span>
+        <button className="fx-build-btn" onClick={(e) => { e.stopPropagation(); onQualifyBuild(s); }}>Qualify &amp; Build <span>→</span></button>
       </div>
     </div>
   );
 }
 
-function ReviewScreen({ subs, selectedId, onSelect, onBuild, sub, onQualify, onDisqualify, onMarkWon, onMarkLost }) {
+function InboxGrid({ pending, onOpen, onQualifyBuild }) {
+  const leads = [...pending].sort((a, b) => (b.match || 0) - (a.match || 0));
+  return (
+    <div>
+      <div className="fx-inbox-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="fx-eyebrow">New leads · from intake</div>
+          <h2 className="fx-h">{leads.length} {leads.length === 1 ? 'lead' : 'leads'} waiting to be worked.</h2>
+          <p className="fx-sub">Everything from the intake form lands here. <b>Qualify &amp; Build</b> to start a proposal — the lead then moves out of this list into your active pipeline. Nothing else lives in this view, so there's never a question of where to start.</p>
+        </div>
+        <span className="fx-sort">Best fit first</span>
+      </div>
+      {leads.length
+        ? <div className="fx-grid">{leads.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} onQualifyBuild={onQualifyBuild} />)}</div>
+        : <div className="fx-empty">No new leads right now. Pull one in with <b>“+ From intake”</b> above — or they'll land here as boards submit the intake form.</div>}
+    </div>
+  );
+}
+
+// ── New stage · VIEW 2: slim rail of the other new leads (replaces the old tabs) ──
+function NewRail({ pending, selectedId, onSelect }) {
+  return (
+    <div className="fx-rail">
+      <div className="fx-rail-lbl">New leads · {pending.length}</div>
+      {pending.map((s) => (
+        <button key={s.id} className="fx-rail-item" data-on={s.id === selectedId} onClick={() => onSelect(s.id)}>
+          <div className="fx-rail-nm">{s.community}</div>
+          <div className="fx-rail-meta">{s.homes} homes · <span className="fx-rail-pct">{s.match}%</span></div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Build · bucket list: every qualified lead still being written (so none get stranded) ──
+function BuildRow({ s, secs, onResume }) {
+  const total = secs.length || 1;
+  const done = secs.filter((x) => x.on).length;
+  const pr = pricing(s);
+  return (
+    <div className="fx-brow" onClick={() => onResume(s.id)} role="button" tabIndex={0}>
+      <div className="fx-brow-l">
+        <div className="fx-brow-nm">{s.community}</div>
+        <div className="fx-brow-meta">{s.homes} homes · {s.city}</div>
+      </div>
+      <div className="fx-brow-prog">
+        <div className="fx-brow-progbar"><i style={{ width: Math.round(done / total * 100) + '%' }} /></div>
+        <div className="fx-brow-proglbl">{done} of {total} sections included</div>
+      </div>
+      <div className="fx-brow-fig"><div className="v">{pr.monthly}/mo</div><div className="k">Proposed</div></div>
+      {s.owner && <div className="fx-brow-av">{s.owner}</div>}
+      <button className="fx-brow-go" onClick={(e) => { e.stopPropagation(); onResume(s.id); }}>Resume →</button>
+    </div>
+  );
+}
+
+function BuildBucket({ subs, editorMap, onResume }) {
+  const inBuild = subs.filter((s) => stageOf(s) === 'qualified' && s.status !== 'sent');
+  return (
+    <div>
+      <div className="fx-inbox-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="fx-eyebrow">In progress · being built</div>
+          <h2 className="fx-h">{inBuild.length} {inBuild.length === 1 ? 'proposal' : 'proposals'} mid-build.</h2>
+          <p className="fx-sub">Each qualified lead waits here while you write its proposal. Pick one to resume — the others hold their place.</p>
+        </div>
+      </div>
+      {inBuild.length
+        ? <div className="fx-blist">{inBuild.map((s) => <BuildRow key={s.id} s={s} secs={editorMap[s.id] || s.sections || []} onResume={onResume} />)}</div>
+        : <div className="fx-empty">Nothing in build yet. Qualify a lead from <b>New</b> and it lands here.</div>}
+    </div>
+  );
+}
+
+// ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
-  const [winTarget, setWinTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
+  const pending = subs.filter((s) => stageOf(s) === 'pending');
+  // Qualify & Build is one motion: assign owner + lock tier in the modal, then
+  // advance straight into Build — entering Build *is* qualifying.
+  const qualifyAndBuild = (id, owner, quoteValue) => { onQualify(id, owner, quoteValue); onBuild(); };
+  const modal = qualifyTarget && (
+    <QualifyModal s={qualifyTarget} onClose={() => setQualifyTarget(null)} onQualify={qualifyAndBuild} onDisqualify={onDisqualify} />
+  );
+
+  // VIEW 1 — inbox grid (nothing drilled in, or the selected lead isn't a new one)
+  if (inbox || !sub || stageOf(sub) !== 'pending') {
+    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} onQualifyBuild={(s) => setQualifyTarget(s)} /></>);
+  }
+
+  // VIEW 2 — match-analysis drill-in
   const pr = pricing(sub);
   const matched = sub.scores.filter((x) => x > 0).length;
   const links = sub.links.reduce((a, l) => a + l.length, 0);
-  const fromNote = sub.concerns.filter((c) => c.source === 'narrative').length; // concerns the AI surfaced from the free-text, not a checkbox
+  const fromNote = sub.concerns.filter((c) => c.source === 'narrative').length;
   return (
-    <div className="v2-review">
-      <Queue subs={subs} selectedId={selectedId} onSelect={onSelect} onBuild={onBuild} onQualify={(s) => setQualifyTarget(s)} onWin={(s) => setWinTarget(s)} />
-      {qualifyTarget && <QualifyModal s={qualifyTarget} onClose={() => setQualifyTarget(null)} onQualify={onQualify} onDisqualify={onDisqualify} />}
-      {winTarget && <WinModal s={winTarget} onClose={() => setWinTarget(null)} onWin={onMarkWon} onLose={onMarkLost} />}
-
+    <div>
+      {modal}
       {showEngine && (
         <div className="ps-scrim" onClick={() => setShowEngine(false)}>
           <div className="v2-engine-modal" onClick={(e) => e.stopPropagation()}>
@@ -270,69 +315,79 @@ function ReviewScreen({ subs, selectedId, onSelect, onBuild, sub, onQualify, onD
         </div>
       )}
 
-      <div className="v2-analysis">
-        <div className="v2-an-head">
-          <div style={{ minWidth: 0 }}>
-            <div className="v2-an-eyebrow">Pain points → {CAM_COMPANY.shortName} strengths</div>
-            <h2 className="v2-an-title">{sub.community}</h2>
-            <div className="v2-an-sub">{sub.tagline}</div>
-            <span className="v2-intake-tag"><I.Mail width={11} height={11} /> From board intake form</span>
-            <span className="v2-intake-tag" style={{ marginLeft: 6, background: sub._source === 'llm' ? 'var(--alloy-pink-tint)' : '#f0ecf6', color: sub._source === 'llm' ? '#a82451' : '#7a6f88' }}>
-              {sub._source === 'llm' ? <><I.Sparkle width={11} height={11} /> AI-matched</> : 'Tag-matched'}
-            </span>
-          </div>
-          <div className="v2-an-ring"><MatchRing value={sub.match} size={150} label="Strong fit" caps={sub.capsMatched} capsTotal={sub.capsTotal} dark /></div>
-        </div>
+      <button className="fx-back" onClick={onBack}><I.Arrow width={15} height={15} style={{ transform: 'rotate(180deg)' }} /> Back to inbox</button>
 
-        <div>
-          <div className="v2-match-head">
-            <div className="v2-match-head-text">
-              <h3 className="v2-match-h">Every pain point {sub.community} raised — and how {CAM_COMPANY.shortName} answers it</h3>
-              <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;<b>{links}</b> connections</div>
-              {fromNote > 0 && (
-                <div style={{ marginTop: 5, fontSize: 12, fontWeight: 600, color: '#a82451', display: 'inline-flex', alignItems: 'center', gap: 5 }} title="These concerns came from the board's free-text, not the pain-point checkboxes — a read on how much the “in their own words” field is earning its keep.">
-                  <I.Sparkle width={12} height={12} /> {fromNote} of {sub.concerns.length} surfaced from what they wrote
-                </div>
-              )}
+      <div className="fx-analysis">
+        <NewRail pending={pending} selectedId={selectedId} onSelect={onSelectRail} />
+
+        <div className="v2-analysis">
+          <div className="fx-cta-row">
+            <div className="fx-cta-note">This lead is unworked. <b>Qualify &amp; Build</b> assigns an owner, locks the recommended tier, and moves it into <b>Build</b> — out of the inbox.</div>
+            <button className="fx-qb" onClick={() => setQualifyTarget(sub)}>Qualify &amp; Build <span>→</span></button>
+          </div>
+          <div className="v2-an-head">
+            <div style={{ minWidth: 0 }}>
+              <div className="v2-an-eyebrow">Pain points → {CAM_COMPANY.shortName} strengths</div>
+              <h2 className="v2-an-title">{sub.community}</h2>
+              <div className="v2-an-sub">{sub.tagline}</div>
+              <span className="v2-intake-tag"><I.Mail width={11} height={11} /> From board intake form</span>
+              <span className="v2-intake-tag" style={{ marginLeft: 6, background: sub._source === 'llm' ? 'var(--alloy-pink-tint)' : '#f0ecf6', color: sub._source === 'llm' ? '#a82451' : '#7a6f88' }}>
+                {sub._source === 'llm' ? <><I.Sparkle width={11} height={11} /> AI-matched</> : 'Tag-matched'}
+              </span>
             </div>
-            <button className="v2-engine-btn" onClick={() => setShowEngine(true)}>
-              <span className="v2-eng-pulse" aria-hidden="true"><span className="ring" /><span className="ring r2" /><span className="dot" /></span>
-              Open Engine Map
-            </button>
+            <div className="v2-an-ring"><MatchRing value={sub.match} size={150} label="Strong fit" caps={sub.capsMatched} capsTotal={sub.capsTotal} dark /></div>
           </div>
-          <div className="v2-match-list">
-            {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={UVP_TITLES} blurbs={UVP_BLURBS} index={i + 1} />)}
-          </div>
-        </div>
-      </div>
 
-      <div className="v2-ctx">
-        <div className="v2-card">
-          <div className="v2-ctx-name">{sub.community}</div>
-          <div className="v2-ctx-id">{sub.id}</div>
-          <div className="v2-ctx-rows">
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Contact</span><span className="v2-ctx-v">{sub.contact} · {sub.contactRole}</span></div>
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Email</span><span className="v2-ctx-v">{sub.email}</span></div>
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Phone</span><span className="v2-ctx-v">{sub.phone}</span></div>
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Type</span><span className="v2-ctx-v">{sub.metaType}</span></div>
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Homes</span><span className="v2-ctx-v">{sub.homes}</span></div>
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Status</span><span className="v2-ctx-v">{sub.metaStatus}</span></div>
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Dues</span><span className="v2-ctx-v">{sub.dues}</span></div>
-            <div className="v2-ctx-row"><span className="v2-ctx-k">Timeline</span><span className="v2-ctx-v">{sub.engageTimeline}</span></div>
-            <div className="v2-ctx-row full"><span className="v2-ctx-k">Budget</span><span className="v2-ctx-v">{sub.budget}</span></div>
+          <div>
+            <div className="v2-match-head">
+              <div className="v2-match-head-text">
+                <h3 className="v2-match-h">Every pain point {sub.community} raised — and how {CAM_COMPANY.shortName} answers it</h3>
+                <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;<b>{links}</b> connections</div>
+                {fromNote > 0 && (
+                  <div style={{ marginTop: 5, fontSize: 12, fontWeight: 600, color: '#a82451', display: 'inline-flex', alignItems: 'center', gap: 5 }} title="These concerns came from the board's free-text, not the pain-point checkboxes — a read on how much the “in their own words” field is earning its keep.">
+                    <I.Sparkle width={12} height={12} /> {fromNote} of {sub.concerns.length} surfaced from what they wrote
+                  </div>
+                )}
+              </div>
+              <button className="v2-engine-btn" onClick={() => setShowEngine(true)}>
+                <span className="v2-eng-pulse" aria-hidden="true"><span className="ring" /><span className="ring r2" /><span className="dot" /></span>
+                Open Engine Map
+              </button>
+            </div>
+            <div className="v2-match-list">
+              {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={UVP_TITLES} blurbs={UVP_BLURBS} index={i + 1} />)}
+            </div>
           </div>
-          <div className="v2-ctx-quote"><div className="v2-ctx-quote-k">In their words</div><div className="v2-quote">"{sub.quote}"</div></div>
         </div>
-        <div className="v2-card">
-          <div className="v2-tier-eyebrow">Recommended tier</div>
-          <div className="v2-tier-name">{sub.tierName}</div>
-          <div className="v2-tier-price">{pr.monthly}<small> /mo</small></div>
-          <div className="v2-tier-breakdown">
-            <div className="v2-tier-brow"><span className="v2-tier-bk">Per home</span><span className="v2-tier-bv">{pr.perHome}</span></div>
-            <div className="v2-tier-brow"><span className="v2-tier-bk">Homes</span><span className="v2-tier-bv">{sub.homes}</span></div>
-            <div className="v2-tier-brow"><span className="v2-tier-bk">Billed annually</span><span className="v2-tier-bv">{pr.annual}</span></div>
+
+        <div className="v2-ctx">
+          <div className="v2-card">
+            <div className="v2-ctx-name">{sub.community}</div>
+            <div className="v2-ctx-id">{sub.id}</div>
+            <div className="v2-ctx-rows">
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Contact</span><span className="v2-ctx-v">{sub.contact} · {sub.contactRole}</span></div>
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Email</span><span className="v2-ctx-v">{sub.email}</span></div>
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Phone</span><span className="v2-ctx-v">{sub.phone}</span></div>
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Type</span><span className="v2-ctx-v">{sub.metaType}</span></div>
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Homes</span><span className="v2-ctx-v">{sub.homes}</span></div>
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Status</span><span className="v2-ctx-v">{sub.metaStatus}</span></div>
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Dues</span><span className="v2-ctx-v">{sub.dues}</span></div>
+              <div className="v2-ctx-row"><span className="v2-ctx-k">Timeline</span><span className="v2-ctx-v">{sub.engageTimeline}</span></div>
+              <div className="v2-ctx-row full"><span className="v2-ctx-k">Budget</span><span className="v2-ctx-v">{sub.budget}</span></div>
+            </div>
+            <div className="v2-ctx-quote"><div className="v2-ctx-quote-k">In their words</div><div className="v2-quote">"{sub.quote}"</div></div>
           </div>
-          <div className="v2-tier-foot">No setup fee</div>
+          <div className="v2-card">
+            <div className="v2-tier-eyebrow">Recommended tier</div>
+            <div className="v2-tier-name">{sub.tierName}</div>
+            <div className="v2-tier-price">{pr.monthly}<small> /mo</small></div>
+            <div className="v2-tier-breakdown">
+              <div className="v2-tier-brow"><span className="v2-tier-bk">Per home</span><span className="v2-tier-bv">{pr.perHome}</span></div>
+              <div className="v2-tier-brow"><span className="v2-tier-bk">Homes</span><span className="v2-tier-bv">{sub.homes}</span></div>
+              <div className="v2-tier-brow"><span className="v2-tier-bk">Billed annually</span><span className="v2-tier-bv">{pr.annual}</span></div>
+            </div>
+            <div className="v2-tier-foot">No setup fee</div>
+          </div>
         </div>
       </div>
     </div>
@@ -895,6 +950,7 @@ export default function ProposalsScreen() {
   const [subs, setSubs] = useState(initialLeads);
   const [selectedId, setSelectedId] = useState(initialLeads[0].id);
   const [mode, setMode] = useState('new');
+  const [inbox, setInbox] = useState(true); // New stage: true = inbox grid, false = match-analysis drill-in
   const [watchId, setWatchId] = useState(null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
@@ -922,8 +978,11 @@ export default function ProposalsScreen() {
       .then(({ error }) => { if (error) setToast({ msg: 'Save failed: ' + error.message }); });
   };
 
-  const go = (id) => { if (id === 'sent') setWatchId(null); setMode(id); };
-  const selectSub = (id) => { setSelectedId(id); setMode('new'); };
+  const go = (id) => { if (id === 'sent') setWatchId(null); if (id === 'new') setInbox(true); setMode(id); };
+  const openLead = (id) => { setSelectedId(id); setInbox(false); setMode('new'); }; // grid card → drill into the analysis
+  const selectRail = (id) => setSelectedId(id); // flip between leads inside the drill-in
+  const backToInbox = () => setInbox(true);
+  const resumeBuild = (id) => setSelectedId(id); // pick a lead from the Build bucket list
   const qualify = (id, owner, quoteValue) => {
     setSubs(subs.map((s) => s.id === id ? { ...s, status: 'review', owner, quoteValue, disq: false, disqReason: null } : s));
     persist(id, { status: 'review', owner: owner || '', quote_value: quoteValue ?? null, disq: false, disq_reason: '' });
@@ -1000,7 +1059,7 @@ export default function ProposalsScreen() {
     setSubs((p) => [enriched, ...p.filter((s) => s.id !== enriched.id)]);
     setEditorMap((m) => ({ ...m, [enriched.id]: (enriched.sections || []).map((x) => ({ ...x })) }));
     setSelectedId(enriched.id);
-    setMode('new');
+    setMode('new'); setInbox(false); // land on the new lead's match-analysis drill-in
     setToast({ msg: `Proposal started for ${raw.community} — ${enriched.match}% match${snapshot ? ' · AI-matched' : ''}` });
   };
 
@@ -1016,13 +1075,15 @@ export default function ProposalsScreen() {
         </button>
       </div>
 
-      {/* New — qualify + match analysis (your court). "Build" advances a qualified lead. */}
+      {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} onSelect={selectSub} onBuild={() => setMode('build')} onQualify={qualify} onDisqualify={disqualify} onMarkWon={markWon} onMarkLost={markLost} />
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => setMode('build')} />
       )}
-      {/* Build — write it (your court). "Send proposal" opens the send modal, not a stage. */}
+      {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
-        <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} setProse={setProse} onContinue={() => setSendOpen(true)} />
+        (stageOf(sub) === 'qualified' && sub.status !== 'sent')
+          ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} setProse={setProse} onContinue={() => setSendOpen(true)} />
+          : <BuildBucket subs={subs} editorMap={editorMap} onResume={resumeBuild} />
       )}
       {/* Sent — their court: engagement tracking + board responses + follow-up. */}
       {mode === 'sent' && (
