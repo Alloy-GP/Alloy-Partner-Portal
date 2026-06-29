@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { getLeads, UVP_TITLES, UVP_BLURBS, pricing, freshWatch, CAM_COMPANY } from '../lib/proposalMockData.js';
+import { getLeads, enrichLead, UVP_TITLES, UVP_BLURBS, pricing, freshWatch, CAM_COMPANY } from '../lib/proposalMockData.js';
+import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
 import UVPLibrary from './screen-uvp-library.jsx';
 import { DATA } from '../data.js';
@@ -803,6 +804,34 @@ function Stepper({ mode, go }) {
   );
 }
 
+// Start a proposal from a real WhatConverts intake lead. Lists form submissions
+// (those with intake fields) that don't yet have a proposal; preview shows what
+// the mapper extracted (units, concerns) before you commit.
+function IntakeModal({ leads, existingKeys, onClose, onStart }) {
+  const intake = (leads || []).filter((l) => (l.fields || []).some((f) => /frustration|community|association|units/i.test(f.name)) && !existingKeys.has(l.id));
+  return (
+    <div className="ps-scrim" onClick={onClose}>
+      <div className="ps-modal" style={{ maxWidth: 580, width: '100%', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head"><span className="t">Start a proposal from intake</span><button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button></div>
+        <div style={{ padding: '6px 2px 4px' }}>
+          {intake.length ? intake.map((l) => {
+            const raw = leadToProposalRaw(l);
+            return (
+              <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', border: '1px solid var(--border, #e6e2ee)', borderRadius: 12, marginBottom: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg)' }}>{raw.community}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3 }}>{raw.contact || '—'} · {raw.homes || '?'} units · {raw.city || '—'} · {raw.selectedPains.length} concern{raw.selectedPains.length === 1 ? '' : 's'}</div>
+                </div>
+                <button className="btn btn-primary" style={{ flex: 'none' }} onClick={() => onStart(l)}>Start proposal</button>
+              </div>
+            );
+          }) : <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '14px 6px', lineHeight: 1.5 }}>No new intake leads waiting. Form submissions appear here once they sync from WhatConverts.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Send is an action, not a stage: a modal off Build. Reuses the email-preview +
 // recipient screen (MomentOfTruth); its "Send proposal" button fires onSend.
 function SendModal({ sub, onClose, onSend }) {
@@ -856,6 +885,7 @@ export default function ProposalsScreen() {
   const [mode, setMode] = useState('new');
   const [watchId, setWatchId] = useState(null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
+  const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
   const [notesMap, setNotesMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { if (s.notes && s.notes.length) m[s.id] = s.notes; }); return m; });
   const [toast, setToast] = useState(null);
@@ -926,11 +956,37 @@ export default function ProposalsScreen() {
     setMode('sent');
   };
   const launch = (recipient) => { setLaunching(true); setTimeout(() => { setLaunching(false); send(recipient); }, 1850); };
+  // Start a proposal from a real WhatConverts intake lead: map → insert → it
+  // joins the pipeline (the matcher runs on load via enrichLead).
+  const createFromLead = async (lead) => {
+    const raw = leadToProposalRaw(lead);
+    if (live) {
+      const { error } = await supabase.from('proposals').upsert({
+        account_id: DATA.account.id, lead_key: raw.id, sort: 100,
+        community: raw.community, contact: raw.contact, contact_role: raw.contactRole, first_name: raw.firstName,
+        city: raw.city, homes: raw.homes, email: raw.email, phone: raw.phone,
+        meta_type: raw.metaType, meta_status: raw.metaStatus, dues: raw.dues,
+        engage_timeline: raw.engageTimeline, budget: raw.budget, quote: raw.quote, received: raw.received,
+        status: 'new', selected_pains: raw.selectedPains, tier_id: 'full', per_home: raw.perHome,
+      }, { onConflict: 'account_id,lead_key' });
+      if (error) { setToast({ msg: 'Could not start: ' + error.message }); return; }
+    }
+    const enriched = enrichLead(raw);
+    setSubs((p) => [enriched, ...p.filter((s) => s.id !== enriched.id)]);
+    setEditorMap((m) => ({ ...m, [enriched.id]: (enriched.sections || []).map((x) => ({ ...x })) }));
+    setSelectedId(enriched.id);
+    setMode('new');
+    setIntakeOpen(false);
+    setToast({ msg: `Proposal started for ${raw.community} — ${enriched.match}% match` });
+  };
 
   return (
     <div className="proposal-system">
       <div className="v2-topline">
         <Stepper mode={mode} go={go} />
+        <button className="v2-lib-btn" onClick={() => setIntakeOpen(true)} title="Start a proposal from a WhatConverts intake lead">
+          <I.Plus width={14} height={14} /> From intake
+        </button>
         <button className="v2-lib-btn" data-on={mode === 'library'} onClick={() => setMode('library')} title="The capabilities every proposal matches against">
           <I.Bolt width={14} height={14} /> UVP Library
         </button>
@@ -957,6 +1013,7 @@ export default function ProposalsScreen() {
       {mode === 'client' && <RetainView subs={subs} />}
       {mode === 'library' && <UVPLibrary />}
 
+      {intakeOpen && <IntakeModal leads={DATA.recentLeads || []} existingKeys={new Set(subs.map((s) => s.id))} onClose={() => setIntakeOpen(false)} onStart={createFromLead} />}
       {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
       {launching && <LaunchOverlay sub={sub} />}
       {toast && <div className="ps-toast"><span className="ic"><I.Check width={14} height={14} /></span>{toast.msg}</div>}
