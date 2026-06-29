@@ -18,6 +18,7 @@ export function proposalRowToRaw(p) {
     salesValue: p.sales_value != null ? p.sales_value : undefined,
     tierId: p.tier_id, notes: p.notes || [], _dbId: p.id,
     boardToken: p.board_token, sentAt: p.sent_at || null,
+    matchSnapshot: p.match_snapshot || null, // persisted LLM match (preferred by enrichLead)
   };
 }
 

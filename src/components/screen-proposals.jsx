@@ -1,7 +1,8 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { getLeads, enrichLead, UVP_TITLES, UVP_BLURBS, pricing, freshWatch, CAM_COMPANY } from '../lib/proposalMockData.js';
+import { getLeads, enrichLead, UVPS, UVP_TITLES, UVP_BLURBS, PAIN_POINTS, pricing, freshWatch, CAM_COMPANY } from '../lib/proposalMockData.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
+import { matchLeadWithLLM, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
 import UVPLibrary from './screen-uvp-library.jsx';
 import { DATA } from '../data.js';
@@ -886,6 +887,7 @@ export default function ProposalsScreen() {
   const [watchId, setWatchId] = useState(null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
+  const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
   const [notesMap, setNotesMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { if (s.notes && s.notes.length) m[s.id] = s.notes; }); return m; });
   const [toast, setToast] = useState(null);
@@ -971,13 +973,24 @@ export default function ProposalsScreen() {
       }, { onConflict: 'account_id,lead_key' });
       if (error) { setToast({ msg: 'Could not start: ' + error.message }); return; }
     }
-    const enriched = enrichLead(raw);
+    setIntakeOpen(false);
+    // LLM match (the smart one) when enabled — run ONCE, persist as match_snapshot
+    // so it's stable + survives reload. Falls back to the tag engine on any error.
+    let snapshot = null;
+    if (LLM_ENABLED) {
+      setMatching({ community: raw.community });
+      try {
+        snapshot = await matchLeadWithLLM(raw, { uvps: UVPS.map((u) => ({ title: u.title, blurb: u.short })), painPoints: PAIN_POINTS });
+        if (live && snapshot) await supabase.from('proposals').update({ match_snapshot: snapshot }).eq('account_id', DATA.account.id).eq('lead_key', raw.id);
+      } catch (e) { /* LLM unavailable → deterministic engine */ }
+      setMatching(null);
+    }
+    const enriched = enrichLead({ ...raw, matchSnapshot: snapshot || undefined });
     setSubs((p) => [enriched, ...p.filter((s) => s.id !== enriched.id)]);
     setEditorMap((m) => ({ ...m, [enriched.id]: (enriched.sections || []).map((x) => ({ ...x })) }));
     setSelectedId(enriched.id);
     setMode('new');
-    setIntakeOpen(false);
-    setToast({ msg: `Proposal started for ${raw.community} — ${enriched.match}% match` });
+    setToast({ msg: `Proposal started for ${raw.community} — ${enriched.match}% match${snapshot ? ' · AI-matched' : ''}` });
   };
 
   return (
@@ -1015,6 +1028,15 @@ export default function ProposalsScreen() {
 
       {intakeOpen && <IntakeModal leads={DATA.recentLeads || []} existingKeys={new Set(subs.map((s) => s.id))} onClose={() => setIntakeOpen(false)} onStart={createFromLead} />}
       {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
+      {matching && (
+        <div className="v2-launch">
+          <div className="v2-launch-card">
+            <div className="v2-launch-sky"><span className="v2-launch-plane"><I.Bolt width={28} height={28} /></span></div>
+            <div className="v2-launch-txt">Matching {matching.community} with AI…</div>
+            <div className="v2-launch-sub">Reading the board's intake and mapping concerns to your UVPs</div>
+          </div>
+        </div>
+      )}
       {launching && <LaunchOverlay sub={sub} />}
       {toast && <div className="ps-toast"><span className="ic"><I.Check width={14} height={14} /></span>{toast.msg}</div>}
     </div>

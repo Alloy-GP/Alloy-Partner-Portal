@@ -357,7 +357,9 @@ export function enrichLead(s) {
   // Prefer a baked LLM match (run scripts/llm-precompute-matches.mjs) when present;
   // otherwise the deterministic tag engine. Either way the shape is identical, so
   // the screen is matcher-agnostic. `_source` lets the UI show which ran.
-  const m = LLM_MATCHES[s.id] || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, UVPS, { prose: PAIN_PROSE, topCaps: 4 }), _source: "engine" };
+  // Match precedence: a persisted LLM snapshot (real lead, matched once at
+  // intake) > a baked demo LLM match > the deterministic tag engine fallback.
+  const m = s.matchSnapshot || LLM_MATCHES[s.id] || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, UVPS, { prose: PAIN_PROSE, topCaps: 4 }), _source: "engine" };
   const tierName = "Full-Service Management";
   const quoteValue = s.quoteValue != null ? s.quoteValue : Math.round((s.perHome || 0) * (s.homes || 0) * 12);
   const first = s.received ? s.received.split(" · ")[0] : "intake";
