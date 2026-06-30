@@ -369,8 +369,9 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
       <div className="fx-analysis2">
         <div>
           <div className="v2-match-head">
+            <MatchRing value={sub.match} size={58} label="match" />
             <div className="v2-match-head-text">
-              <h3 className="v2-match-h">Every pain point {sub.community} raised — and how {CAM_COMPANY.shortName} answers it</h3>
+              <h3 className="v2-match-h">Currently Matching “{sub.community}” with {CAM_COMPANY.shortName}’s Expertise</h3>
               <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;from their intake form
                 {overallEdit !== null
                   ? <span className="fx-overall-edit"><input type="number" min="0" max="100" value={overallEdit} autoFocus onChange={(e) => setOverallEdit(e.target.value)} onBlur={() => { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); }} onKeyDown={(e) => { if (e.key === 'Enter') { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); } }} /> % overall</span>
