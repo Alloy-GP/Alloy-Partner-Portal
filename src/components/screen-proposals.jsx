@@ -291,7 +291,7 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null (Layer B)
@@ -336,64 +336,45 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
         </div>
       )}
 
-      <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> Back to inbox{pending.length >= 2 && <span className="ct"> · {pending.length} new</span>}</button>
+      <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> Back to inbox</button>
 
-      {/* Rail only when 2+ new leads — never show a list of one (handoff #17). */}
-      <div className={'fx-analysis' + (pending.length >= 2 ? '' : ' norail')}>
-        {pending.length >= 2 && <NewRail pending={pending} selectedId={selectedId} onSelect={onSelectRail} />}
+      {/* The shared pinned card — New uses the same spine as every stage; its action is Qualify & Build (handoff #18). */}
+      <PinnedCard sub={sub} stage="new" perHome={perHome} setPerHome={setPerHome} cta={{ label: 'Qualify & Build', onClick: () => setQualifyTarget(sub) }} />
 
-        <div className="v2-analysis">
-          <div className="fx-cta-row">
-            <div className="fx-cta-note">This lead is unworked. <b>Qualify &amp; Build</b> assigns an owner, locks the recommended tier, and moves it into <b>Build</b> — out of the inbox.</div>
-            <button className="fx-qb" onClick={() => setQualifyTarget(sub)}>Qualify &amp; Build <span>→</span></button>
-          </div>
-          <div className="v2-an-head">
-            <div style={{ minWidth: 0 }}>
-              <div className="v2-an-eyebrow">Pain points → {CAM_COMPANY.shortName} strengths</div>
-              <h2 className="v2-an-title">{sub.community}</h2>
-              <div className="v2-an-sub">{sub.tagline}</div>
-              <span className="v2-intake-tag"><I.Mail width={11} height={11} /> From board intake form</span>
-              <span className="v2-intake-tag" style={{ marginLeft: 6, background: sub._source === 'llm' ? 'var(--alloy-pink-tint)' : '#f0ecf6', color: sub._source === 'llm' ? '#a82451' : '#7a6f88' }}>
-                {sub._source === 'llm' ? <><I.Sparkle width={11} height={11} /> AI-matched</> : 'Tag-matched'}
-              </span>
-            </div>
-            <div className="v2-an-ring"><MatchRing value={sub.match} size={150} label="Strong fit" caps={sub.capsMatched} capsTotal={sub.capsTotal} dark /></div>
-          </div>
-
-          <div>
-            <div className="v2-match-head">
-              <div className="v2-match-head-text">
-                <h3 className="v2-match-h">Every pain point {sub.community} raised — and how {CAM_COMPANY.shortName} answers it</h3>
-                <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;<b>{links}</b> connections
-                  {overallEdit !== null
-                    ? <span className="fx-overall-edit"><input type="number" min="0" max="100" value={overallEdit} autoFocus onChange={(e) => setOverallEdit(e.target.value)} onBlur={() => { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); }} onKeyDown={(e) => { if (e.key === 'Enter') { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); } }} /> % overall</span>
-                    : <button className="fx-overall-edit" onClick={() => setOverallEdit(String(sub.match))} title="Adjust overall match %"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>Adjust %</button>}
-                </div>
-                {fromNote > 0 && (
-                  <div style={{ marginTop: 5, fontSize: 12, fontWeight: 600, color: '#a82451', display: 'inline-flex', alignItems: 'center', gap: 5 }} title="These concerns came from the board's free-text, not the pain-point checkboxes — a read on how much the “in their own words” field is earning its keep.">
-                    <I.Sparkle width={12} height={12} /> {fromNote} of {sub.concerns.length} surfaced from what they wrote
-                  </div>
-                )}
+      <div className="fx-analysis2">
+        <div>
+          <div className="v2-match-head">
+            <div className="v2-match-head-text">
+              <h3 className="v2-match-h">Every pain point {sub.community} raised — and how {CAM_COMPANY.shortName} answers it</h3>
+              <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;from their intake form
+                {overallEdit !== null
+                  ? <span className="fx-overall-edit"><input type="number" min="0" max="100" value={overallEdit} autoFocus onChange={(e) => setOverallEdit(e.target.value)} onBlur={() => { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); }} onKeyDown={(e) => { if (e.key === 'Enter') { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); } }} /> % overall</span>
+                  : <button className="fx-overall-edit" onClick={() => setOverallEdit(String(sub.match))} title="Adjust overall match %"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>Adjust %</button>}
               </div>
-              <button className="v2-engine-btn" onClick={() => setShowEngine(true)}>
-                <span className="v2-eng-pulse" aria-hidden="true"><span className="ring" /><span className="ring r2" /><span className="dot" /></span>
-                Open Engine Map
-              </button>
+              {fromNote > 0 && (
+                <div style={{ marginTop: 5, fontSize: 12, fontWeight: 600, color: '#a82451', display: 'inline-flex', alignItems: 'center', gap: 5 }} title="These concerns came from the board's free-text, not the pain-point checkboxes — a read on how much the “in their own words” field is earning its keep.">
+                  <I.Sparkle width={12} height={12} /> {fromNote} of {sub.concerns.length} surfaced from what they wrote
+                </div>
+              )}
             </div>
-            <div className="v2-match-list">
-              {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={UVP_TITLES} blurbs={UVP_BLURBS} index={i + 1}
-                onEdit={() => setConcernEdit(i)}
-                onRemove={() => onApplyMatch(sub.concerns.filter((_, k) => k !== i), sub.match)} />)}
-            </div>
-            <button className="fx-add-concern" onClick={() => setConcernEdit('new')}><I.Plus width={14} height={14} /> Add a concern</button>
-            {concernEdit != null && (
-              <ConcernEditModal
-                concern={concernEdit === 'new' ? null : sub.concerns[concernEdit]}
-                onClose={() => setConcernEdit(null)}
-                onSave={(updated) => onApplyMatch(concernEdit === 'new' ? [...sub.concerns, updated] : sub.concerns.map((c, k) => (k === concernEdit ? updated : c)), sub.match)}
-              />
-            )}
+            <button className="v2-engine-btn" onClick={() => setShowEngine(true)}>
+              <span className="v2-eng-pulse" aria-hidden="true"><span className="ring" /><span className="ring r2" /><span className="dot" /></span>
+              Open Engine Map
+            </button>
           </div>
+          <div className="v2-match-list">
+            {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={UVP_TITLES} blurbs={UVP_BLURBS} index={i + 1}
+              onEdit={() => setConcernEdit(i)}
+              onRemove={() => onApplyMatch(sub.concerns.filter((_, k) => k !== i), sub.match)} />)}
+          </div>
+          <button className="fx-add-concern" onClick={() => setConcernEdit('new')}><I.Plus width={14} height={14} /> Add a concern</button>
+          {concernEdit != null && (
+            <ConcernEditModal
+              concern={concernEdit === 'new' ? null : sub.concerns[concernEdit]}
+              onClose={() => setConcernEdit(null)}
+              onSave={(updated) => onApplyMatch(concernEdit === 'new' ? [...sub.concerns, updated] : sub.concerns.map((c, k) => (k === concernEdit ? updated : c)), sub.match)}
+            />
+          )}
         </div>
 
         <div className="v2-ctx">
@@ -440,10 +421,10 @@ const OWNER_NAMES = { AB: 'Amanda', JR: 'Jordan' };
 // The pinned lead card — a compact header that pins below the stepper and travels
 // across stages, swapping its status pill + 3 figures by where the lead is. In
 // Build it replaces the old purple topper and owns price editing (Proposed fig).
-function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, onSend }) {
+function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }) {
   const [edit, setEdit] = useState(false);
   const monthly = ((perHome != null ? perHome : sub.perHome) || 0) * sub.homes;
-  const STATUS = { build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
+  const STATUS = { new: 'New · unworked', build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
   const ownerFig = sub.owner
     ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{OWNER_NAMES[sub.owner] || sub.owner}</> }
     : { k: 'Owner', v: 'Unassigned' };
@@ -475,7 +456,7 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, onSen
           </div>,
         ])}
       </div>
-      {(onEdit || onOpenFull || onSend) && (
+      {(onEdit || onOpenFull) && (
         <div className="fx-pin-acts">
           {onOpenFull && (
             <button className="fx-pin-edit" onClick={onOpenFull} title="Open the full proposal in a new tab">
@@ -489,11 +470,9 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, onSen
               Edit
             </button>
           )}
-          {onSend && (
-            <button className="fx-pin-send" onClick={onSend}>Send proposal <span>→</span></button>
-          )}
         </div>
       )}
+      {cta && <button className="fx-pin-cta" onClick={cta.onClick}>{cta.label} <span>→</span></button>}
     </div>
   );
 }
@@ -1311,13 +1290,13 @@ export default function ProposalsScreen() {
       {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
         <>
           <button className="fx-back" onClick={() => setFocusBuild(false)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> All in Build</button>
-          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} onOpenFull={() => window.open(BOARD_URL(sub), '_blank', 'noopener')} onSend={() => setSendOpen(true)} />
+          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} onOpenFull={() => window.open(BOARD_URL(sub), '_blank', 'noopener')} cta={{ label: 'Send proposal', onClick: () => setSendOpen(true) }} />
         </>
       )}
 
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} />
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
