@@ -314,8 +314,11 @@ function ProposalFooter({ submission }) {
 }
 
 function ProposalExp({ lead, submission }) {
-  const concerns = lead.concerns;
+  // Only concerns the CAM kept included (Build can toggle one off → it drops
+  // from the board doc). Undefined `on` = included (legacy / never-toggled).
+  const concerns = (lead.concerns || []).filter((cc) => cc.on !== false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const active = Math.min(activeIndex, Math.max(0, concerns.length - 1));
   const firstName = (submission.contactName || '').split(' ')[0];
   return (
     <article style={{ background: c.offWhite }}>
@@ -335,10 +338,12 @@ function ProposalExp({ lead, submission }) {
         </div>
       </div>
 
-      <section data-section="Concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '44px 36px 64px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
-        <PainRail concerns={concerns} activeIndex={activeIndex} onSelect={setActiveIndex} />
-        <AnswerPanel concern={concerns[activeIndex]} index={activeIndex} total={concerns.length} onNext={() => setActiveIndex((activeIndex + 1) % concerns.length)} />
-      </section>
+      {concerns.length > 0 && (
+        <section data-section="Concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '44px 36px 64px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
+          <PainRail concerns={concerns} activeIndex={active} onSelect={setActiveIndex} />
+          <AnswerPanel concern={concerns[active]} index={active} total={concerns.length} onNext={() => setActiveIndex((active + 1) % concerns.length)} />
+        </section>
+      )}
 
       <section data-section="How this was built" style={{ background: c.purple, color: '#fff', padding: '64px 36px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>

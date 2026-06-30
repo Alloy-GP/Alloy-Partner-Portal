@@ -549,6 +549,9 @@
 .proposal-system .v2-cl-pencil { margin-left: auto; flex: none; width: 27px; height: 27px; border-radius: 7px; display: grid; place-items: center; color: var(--fg-muted); opacity: 0; transform: scale(0.85); transition: opacity 0.16s, transform 0.16s, background 0.16s, color 0.16s; }
 .proposal-system .v2-cl:hover .v2-cl-pencil { opacity: 1; transform: scale(1); }
 .proposal-system .v2-cl-pencil:hover { background: var(--alloy-pink-tint); color: var(--alloy-pink); }
+.proposal-system .v2-cl-pencil.danger:hover { background: #fdecec; color: #c0392b; }
+.proposal-system .v2-cl[data-off="true"] { opacity: 0.5; }
+.proposal-system .v2-cl[data-off="true"] .v2-cl-pencil { opacity: 1; transform: scale(1); }
 .proposal-system .v2-edit-modal { max-width: 560px; }
 .proposal-system .v2-edit-body { padding: 20px 22px 22px; }
 .proposal-system .v2-edit-label { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 10px; }

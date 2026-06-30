@@ -595,41 +595,61 @@ function ClSection({ s, toggle, onEdit }) {
   );
 }
 
-function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onProse }) {
-  const [editId, setEditId] = useState(null);
-  const editing = sections.find((s) => s.id === editId);
-  const onCount = sections.filter((s) => s.on).length;
+// A concern row in the Build checklist — toggle whether it's in the proposal,
+// edit its text, or remove it. All three persist through onApplyMatch (the same
+// match_snapshot path as the New stage), so the live preview reflects them.
+function ClConcern({ concern, onToggle, onEdit, onRemove }) {
+  const on = concern.on !== false;
+  return (
+    <div className="v2-cl" data-off={!on}>
+      <div className="v2-cl-main" onClick={onToggle}>
+        <span className="v2-cl-check" data-on={on}>{on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>}</span>
+        <div className="v2-cl-info"><div className="v2-cl-t">{concern.label}</div><div className="v2-cl-n">{on ? `${concern.fit || 0}% fit · in the proposal` : 'Excluded — won’t show on the proposal'}</div></div>
+        <button className="v2-cl-pencil" title="Edit concern" onClick={(e) => { e.stopPropagation(); onEdit(); }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>
+        <button className="v2-cl-pencil danger" title="Remove concern" onClick={(e) => { e.stopPropagation(); onRemove(); }}><I.Close width={13} height={13} /></button>
+      </div>
+    </div>
+  );
+}
+
+function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onApplyMatch }) {
+  const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null
+  const concerns = sub.concerns || [];
+  const onCount = concerns.filter((c) => c.on !== false).length;
+  const cover = sections.filter((s) => s.id === 'cover');
+  const rest = sections.filter((s) => !s.id.startsWith('pain') && s.id !== 'cover');
   return (
     <div className="v2-checklist">
-      <div className="v2-checklist-head"><div className="t">Sections</div><div className="s">{onCount} of {sections.length} included · hover a row to edit its text</div></div>
-      <div className="v2-cl-list">{sections.map((s) => <ClSection key={s.id} s={s} toggle={toggle} onEdit={setEditId} />)}</div>
-      {editing && (
-        <div className="ps-scrim" onClick={() => setEditId(null)}>
-          <div className="ps-modal v2-edit-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="ps-modal-head">
-              <span className="t">{editing.title}</span>
-              <span style={{ fontSize: 11, color: 'var(--fg-muted)', fontWeight: 600 }}>{editing.note}</span>
-              <button className="x" onClick={() => setEditId(null)}><I.Close width={15} height={15} /></button>
-            </div>
-            <div className="v2-edit-body">
-              <label className="v2-edit-label">Section text · what the board reads</label>
-              <textarea className="v2-edit-area" value={editing.prose || ''} autoFocus onChange={(e) => onProse(editing.id, e.target.value)} placeholder="Write the prose for this section…" />
-              <div className="v2-edit-actions"><button className="btn btn-primary" onClick={() => setEditId(null)}>Done</button></div>
-            </div>
-          </div>
-        </div>
+      <div className="v2-checklist-head"><div className="t">Sections</div><div className="s">{onCount} of {concerns.length} concerns included · edit, add, or drop what the board sees</div></div>
+      <div className="v2-cl-list">
+        {cover.map((s) => <ClSection key={s.id} s={s} toggle={toggle} onEdit={() => {}} />)}
+        {concerns.map((cc, i) => (
+          <ClConcern key={sub.id + '-c' + i} concern={cc}
+            onToggle={() => onApplyMatch(concerns.map((x, k) => (k === i ? { ...x, on: x.on === false } : x)), sub.match)}
+            onEdit={() => setConcernEdit(i)}
+            onRemove={() => onApplyMatch(concerns.filter((_, k) => k !== i), sub.match)} />
+        ))}
+        <button className="fx-add-concern" onClick={() => setConcernEdit('new')}><I.Plus width={14} height={14} /> Add a concern</button>
+        {rest.map((s) => <ClSection key={s.id} s={s} toggle={toggle} onEdit={() => {}} />)}
+      </div>
+      {concernEdit != null && (
+        <ConcernEditModal
+          concern={concernEdit === 'new' ? null : concerns[concernEdit]}
+          onClose={() => setConcernEdit(null)}
+          onSave={(updated) => onApplyMatch(concernEdit === 'new' ? [...concerns, { ...updated, on: true }] : concerns.map((c, k) => (k === concernEdit ? { ...c, ...updated } : c)), sub.match)} />
       )}
     </div>
   );
 }
 
-function BuildStage({ sub, sections, toggle, perHome, setPerHome, setProse, onContinue }) {
+function BuildStage({ sub, sections, toggle, perHome, setPerHome, onApplyMatch, previewNonce, onContinue }) {
   // Live preview = the real board-facing proposal page in an iframe (so its
   // fixed accept/decline bar and full styling render in isolation). It's the
-  // selected lead's CMGT-branded document at /proposals/board/:id.
+  // selected lead's CMGT-branded document at /proposals/board/:id. previewNonce
+  // bumps after a concern edit so the iframe re-fetches the persisted change.
   return (
     <div className="v2-build">
-      <BuildChecklist sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onProse={setProse} />
+      <BuildChecklist sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onApplyMatch={onApplyMatch} />
       <div className="v2-browser">
         <div className="v2-browser-bar">
           <div className="v2-dots"><span /><span /><span /></div>
@@ -637,7 +657,7 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, setProse, onCo
           <span className="v2-browser-live"><span className="d" />Live preview</span>
         </div>
         <div className="v2-browser-body">
-          <iframe className="v2-board-iframe" src={BOARD_URL(sub)} title="Live proposal preview — what the board sees" />
+          <iframe key={previewNonce} className="v2-board-iframe" src={`${BOARD_URL(sub)}?r=${previewNonce}`} title="Live proposal preview — what the board sees" />
         </div>
         <div className="v2-browser-foot">
           <span className="v2-browser-foot-note">This is the live, interactive proposal — exactly what {sub.firstName} sees. <b>Send proposal</b> and <b>Open full proposal</b> are up top on the lead card.</span>
@@ -1100,7 +1120,8 @@ function WonLostView({ subs }) {
 // scores / links / capsMatched stay consistent. Overall % stays user-controlled.
 function recomputeMatch(concerns, overall, source) {
   const n = UVPS.length;
-  const scores = UVPS.map((_, i) => concerns.filter((c) => (c.caps || []).includes(i)).length);
+  const active = concerns.filter((c) => c.on !== false); // excluded concerns don't count
+  const scores = UVPS.map((_, i) => active.filter((c) => (c.caps || []).includes(i)).length);
   return {
     match: Math.max(0, Math.min(100, Math.round(overall || 0))),
     concerns, scores, links: concerns.map((c) => c.caps || []),
@@ -1276,6 +1297,7 @@ export default function ProposalsScreen() {
   const [watchId, setWatchId] = useState(urlStage === 'sent' && urlLeadOk ? urlLead : null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [syncing, setSyncing] = useState(false); // inbox "Sync now" pull in flight
+  const [previewNonce, setPreviewNonce] = useState(0); // bump → Build preview iframe re-fetches
   const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
   const [notesMap, setNotesMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { if (s.notes && s.notes.length) m[s.id] = s.notes; }); return m; });
@@ -1367,6 +1389,7 @@ export default function ProposalsScreen() {
     const m = recomputeMatch(concerns, overall, sub._source);
     setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, ...m } : s));
     persist(selectedId, { match_snapshot: m });
+    setPreviewNonce((n) => n + 1); setTimeout(() => setPreviewNonce((n) => n + 1), 700); // refresh Build preview once the write lands
     setToast({ msg: 'Match updated' });
   };
   // Layer C — apply accepted realign changes: patch the facts + append new concerns,
@@ -1497,7 +1520,7 @@ export default function ProposalsScreen() {
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
         (focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent')
-          ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} setProse={setProse} onContinue={() => setSendOpen(true)} />
+          ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onApplyMatch={applyMatch} previewNonce={previewNonce} onContinue={() => setSendOpen(true)} />
           : <BuildBucket subs={subs} editorMap={editorMap} onResume={resumeBuild} />
       )}
       {/* Sent — their court: engagement tracking + board responses + follow-up. */}

@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     // Board-safe columns only — never select email/phone/owner/notes/etc.
     const { data: row, error } = await admin
       .from("proposals")
-      .select("lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at")
+      .select("lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at, match_snapshot")
       .eq("board_token", token)
       .maybeSingle();
     if (error) return json({ error: "lookup_failed" }, 500);
@@ -59,6 +59,10 @@ Deno.serve(async (req) => {
       perHome: Number(row.per_home) || 0,
       quoteValue: row.quote_value != null ? row.quote_value : undefined,
       linkExpires: row.link_expires, sentAt: row.sent_at || null,
+      // The CAM's edited match (concern adds/removes/toggles/text) is the source
+      // of truth for what the board sees — enrichLead prefers it over the baked
+      // demo match. Without this the doc shows the un-edited concerns.
+      matchSnapshot: row.match_snapshot || null,
     };
     return json({ proposal });
   } catch (e) {
