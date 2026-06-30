@@ -282,13 +282,24 @@ function AccordionBody({ concern }) {
 // inline. Replaces the desktop PainRail + AnswerPanel.
 function ConcernAccordion({ concerns }) {
   const [open, setOpen] = useState(0);
+  const itemRefs = useRef({});
+  const mounted = useRef(false);
+  // When a concern opens, bring its top into view — opening one collapses the
+  // one above it, which shifts the layout; without this the newly-opened card
+  // "bounces" off-screen. Skip on initial mount (don't yank the page on load).
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    if (open < 0) return;
+    const el = itemRefs.current[open];
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 14, behavior: 'smooth' });
+  }, [open]);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {concerns.map((concern, i) => {
         const isOpen = open === i;
         const matchCount = concern.caps.length;
         return (
-          <div key={i} style={{ border: `1px solid ${isOpen ? c.pink : c.lightGray}`, borderRadius: 14, background: '#fff', overflow: 'hidden', boxShadow: isOpen ? '0 8px 22px -12px rgba(217,53,110,.45)' : '0 2px 8px rgba(56,28,79,.05)', transition: 'border-color .18s, box-shadow .18s' }}>
+          <div key={i} ref={(el) => { itemRefs.current[i] = el; }} style={{ border: `1px solid ${isOpen ? c.pink : c.lightGray}`, borderRadius: 14, background: '#fff', overflow: 'hidden', boxShadow: isOpen ? '0 8px 22px -12px rgba(217,53,110,.45)' : '0 2px 8px rgba(56,28,79,.05)', transition: 'border-color .18s, box-shadow .18s' }}>
             <button onClick={() => setOpen(isOpen ? -1 : i)} style={{ appearance: 'none', cursor: 'pointer', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ width: 26, height: 26, borderRadius: 999, background: isOpen ? c.pink : c.lightGray, color: isOpen ? '#fff' : c.purple, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{i + 1}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
