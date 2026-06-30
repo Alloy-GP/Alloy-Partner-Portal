@@ -841,33 +841,55 @@ function LeadAnalytics({ s, onResend, onNudge, onMarkWon, onMarkLost, notes, add
   );
 }
 
+// Sent · bucket list — every proposal out for signature, with at-a-glance heat +
+// engagement. Mirrors the New inbox + Build bucket: a stage holds many.
+function SentBucket({ open, onPick }) {
+  const hot = open.filter((s) => getWatch(s).heat === 'hot').length;
+  return (
+    <div>
+      <div className="fx-inbox-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="fx-eyebrow">Live proposals · their court</div>
+          <h2 className="fx-h">{open.length} {open.length === 1 ? 'proposal' : 'proposals'} out for signature.</h2>
+          <p className="fx-sub">Every proposal you've sent is tracked here. {hot > 0 ? <b>{hot} {hot === 1 ? 'is' : 'are'} hot right now.</b> : 'Nudge the quiet ones before their link expires.'} Open one to see who's reading and how closely.</p>
+        </div>
+      </div>
+      <div className="fx-blist">
+        {open.map((s) => {
+          const w = getWatch(s), pr = pricing(s);
+          return (
+            <div className="fx-brow" key={s.id} onClick={() => onPick(s.id)} role="button" tabIndex={0}>
+              <div className="fx-brow-l"><div className="fx-brow-nm">{s.community}</div><div className="fx-brow-meta">{s.contact} · {s.homes} homes · {s.city}</div></div>
+              <div className="fx-brow-prog">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <HeatPill heat={w.heat} />
+                  <span className="fx-brow-proglbl" style={{ marginTop: 0 }}>{w.opens} {w.opens === 1 ? 'open' : 'opens'} · {w.viewers.length} {w.viewers.length === 1 ? 'viewer' : 'viewers'} · last opened {w.lastOpened}</span>
+                </div>
+              </div>
+              <div className="fx-brow-fig"><div className="v">{pr.monthly}/mo</div><div className="k">Value</div></div>
+              <button className="fx-brow-go" onClick={(e) => { e.stopPropagation(); onPick(s.id); }}>Open →</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CloseView({ subs, watchId, setWatchId, onResend, onNudge, onMarkWon, onMarkLost, notesMap, addNote }) {
   const open = subs.filter((s) => s.status === 'sent').sort((a, b) => HEAT_RANK[getWatch(a).heat] - HEAT_RANK[getWatch(b).heat]);
   if (open.length === 0) {
     return <div className="v2-watch"><div className="v2-w-empty"><span className="ic"><I.Send width={22} height={22} /></span><div className="t">No live proposals yet</div><div className="s">Send a proposal and it'll show up here so you can track every open.</div></div></div>;
   }
-  const selected = (watchId && open.find((s) => s.id === watchId)) || open[0];
-  const hot = open.filter((s) => getWatch(s).heat === 'hot').length;
+  // Nothing focused → the bucket list (a stage holds many). Pick one → its engagement.
+  if (!watchId) return <SentBucket open={open} onPick={setWatchId} />;
+  const selected = open.find((s) => s.id === watchId) || open[0];
   return (
     <div className="v2-watch">
-      <div className="v2-w-head">
-        <div>
-          <div className="v2-w-eyebrow">Live proposals</div>
-          <h2 className="v2-w-title">Who's reading, and how closely.</h2>
-          <p className="v2-w-sub">Pick a proposal on the left to see its engagement. {hot > 0 ? <b>{hot} {hot === 1 ? 'lead is' : 'leads are'} hot right now.</b> : 'Nudge the quiet ones before their link expires.'}</p>
-        </div>
-        <div className="v2-w-legend">
-          <span className="v2-w-leg"><span className="v2-w-heat v2-w-heat--hot"><span className="d" />Hot</span></span>
-          <span className="v2-w-leg"><span className="v2-w-heat v2-w-heat--warm"><span className="d" />Warm</span></span>
-          <span className="v2-w-leg"><span className="v2-w-heat v2-w-heat--cold"><span className="d" />Cold</span></span>
-        </div>
-      </div>
-      <div className="v2-w-split">
-        <LeadList open={open} selectedId={selected.id} onPick={setWatchId} />
-        <LeadAnalytics key={selected.id} s={selected} onResend={onResend} onNudge={onNudge}
-          onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
-          notes={notesMap[selected.id]} addNote={addNote} />
-      </div>
+      <button className="fx-back" onClick={() => setWatchId(null)}><I.Arrow width={15} height={15} style={{ transform: 'rotate(180deg)' }} /> All sent</button>
+      <LeadAnalytics key={selected.id} s={selected} onResend={onResend} onNudge={onNudge}
+        onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
+        notes={notesMap[selected.id]} addNote={addNote} />
     </div>
   );
 }
