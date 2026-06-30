@@ -231,12 +231,21 @@ function NewRail({ pending, selectedId, onSelect }) {
   return (
     <div className="fx-rail">
       <div className="fx-rail-lbl">New leads · {pending.length}</div>
-      {pending.map((s) => (
-        <button key={s.id} className="fx-rail-item" data-on={s.id === selectedId} onClick={() => onSelect(s.id)}>
-          <div className="fx-rail-nm">{s.community}</div>
-          <div className="fx-rail-meta">{s.homes} homes · <span className="fx-rail-pct">{s.match}%</span></div>
-        </button>
-      ))}
+      {pending.map((s) => {
+        const on = s.id === selectedId;
+        return (
+          <button key={s.id} className="fx-rail-item" data-on={on} onClick={() => onSelect(s.id)}>
+            <div className="fx-rail-nm">{s.community}</div>
+            {on
+              // selected → richer so the column doesn't feel hollow
+              ? <>
+                  <div className="fx-rail-meta">{s.homes} homes · {s.city}</div>
+                  <div className="fx-rail-contact"><span className="av">{(s.contact || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'}</span>{s.contact} · <span className="fx-rail-pct">{s.match}% match</span></div>
+                </>
+              : <div className="fx-rail-meta">{s.homes} homes · <span className="fx-rail-pct">{s.match}%</span></div>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -327,10 +336,11 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
         </div>
       )}
 
-      <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> Back to inbox</button>
+      <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> Back to inbox{pending.length >= 2 && <span className="ct"> · {pending.length} new</span>}</button>
 
-      <div className="fx-analysis">
-        <NewRail pending={pending} selectedId={selectedId} onSelect={onSelectRail} />
+      {/* Rail only when 2+ new leads — never show a list of one (handoff #17). */}
+      <div className={'fx-analysis' + (pending.length >= 2 ? '' : ' norail')}>
+        {pending.length >= 2 && <NewRail pending={pending} selectedId={selectedId} onSelect={onSelectRail} />}
 
         <div className="v2-analysis">
           <div className="fx-cta-row">
