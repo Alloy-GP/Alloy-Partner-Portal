@@ -54,6 +54,27 @@ function QPill({ s }) {
   return <span className={'ps-pill ps-pill--' + cls}><span className="d" />{label}</span>;
 }
 
+// Reusable toolbar icons (fresh element per call so they're never shared across trees).
+const icoOpen = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></svg>;
+const icoEdit = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>;
+const icoPhone = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>;
+const icoResend = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15" /></svg>;
+
+// The shared back-row toolbar used on every focused stage: back pill (left) +
+// action pills (right, same .fx-back style; one optional pink primary).
+function StageToolbar({ backLabel, onBack, actions }) {
+  return (
+    <div className="fx-back-row">
+      <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> {backLabel}</button>
+      <div className="fx-back-acts">
+        {(actions || []).filter(Boolean).map((a, i) => (
+          <button key={i} className={'fx-back' + (a.primary ? ' fx-back--send' : '')} onClick={a.onClick}>{a.icon}{a.label}{a.arrow ? <span style={{ fontSize: 15, lineHeight: 1, marginLeft: 1 }}>→</span> : null}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const MATCH_SEGS = 7;
 function MatchConcern({ concern, uvps, blurbs, index, onEdit, onRemove }) {
   const [open, setOpen] = useState(false);
@@ -188,7 +209,7 @@ function WinModal({ s, onClose, onWin, onLose }) {
 }
 
 // ── New stage · VIEW 1: inbox grid of un-worked (status:"new") leads ──
-function InboxLead({ s, onOpen, onQualifyBuild }) {
+function InboxLead({ s, onOpen }) {
   const hot = (s.match || 0) >= 90;
   return (
     <div className="fx-lead" data-hot={hot} onClick={() => onOpen(s.id)} role="button" tabIndex={0}>
@@ -201,13 +222,13 @@ function InboxLead({ s, onOpen, onQualifyBuild }) {
       {s.quote && <div className="fx-lead-quote">"{s.quote}"</div>}
       <div className="fx-lead-foot">
         <span className="fx-lead-owner"><span className="dot" /> Unassigned</span>
-        <button className="fx-build-btn" onClick={(e) => { e.stopPropagation(); onQualifyBuild(s); }}>Qualify &amp; Build <span>→</span></button>
+        <button className="fx-build-btn" onClick={(e) => { e.stopPropagation(); onOpen(s.id); }}>Open <span>→</span></button>
       </div>
     </div>
   );
 }
 
-function InboxGrid({ pending, onOpen, onQualifyBuild }) {
+function InboxGrid({ pending, onOpen }) {
   const leads = [...pending].sort((a, b) => (b.match || 0) - (a.match || 0));
   return (
     <div>
@@ -220,7 +241,7 @@ function InboxGrid({ pending, onOpen, onQualifyBuild }) {
         <span className="fx-sort">Best fit first</span>
       </div>
       {leads.length
-        ? <div className="fx-grid">{leads.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} onQualifyBuild={onQualifyBuild} />)}</div>
+        ? <div className="fx-grid">{leads.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} />)}</div>
         : <div className="fx-empty">No new leads right now. Pull one in with <b>“+ From intake”</b> above — or they'll land here as boards submit the intake form.</div>}
     </div>
   );
@@ -306,7 +327,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 
   // VIEW 1 — inbox grid (nothing drilled in, or the selected lead isn't a new one)
   if (inbox || !sub || stageOf(sub) !== 'pending') {
-    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} onQualifyBuild={(s) => setQualifyTarget(s)} /></>);
+    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} /></>);
   }
 
   // VIEW 2 — match-analysis drill-in
@@ -336,10 +357,14 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
         </div>
       )}
 
-      <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> Back to inbox</button>
+      <StageToolbar backLabel="Back to inbox" onBack={onBack} actions={[
+        { icon: icoPhone(), label: 'Update from call', onClick: onRealign },
+        { icon: icoEdit(), label: 'Edit details', onClick: onEditDetails },
+        { label: 'Qualify & Build', onClick: () => setQualifyTarget(sub), primary: true, arrow: true },
+      ]} />
 
-      {/* The shared pinned card — New uses the same spine as every stage; its action is Qualify & Build (handoff #18). */}
-      <PinnedCard sub={sub} stage="new" perHome={perHome} setPerHome={setPerHome} cta={{ label: 'Qualify & Build', onClick: () => setQualifyTarget(sub) }} />
+      {/* Pin = info only; actions live in the toolbar (consistent across stages). */}
+      <PinnedCard sub={sub} stage="new" perHome={perHome} setPerHome={setPerHome} />
 
       <div className="fx-analysis2">
         <div>
@@ -393,14 +418,6 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
               <div className="v2-ctx-row full"><span className="v2-ctx-k">Budget</span><span className="v2-ctx-v">{sub.budget}</span></div>
             </div>
             <div className="v2-ctx-quote"><div className="v2-ctx-quote-k">In their words</div><div className="v2-quote">"{sub.quote}"</div></div>
-            <button className="fx-edit-btn" onClick={onEditDetails}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-              Edit details
-            </button>
-            <button className="fx-edit-btn fx-realign-btn" onClick={onRealign}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-              Update from call
-            </button>
           </div>
           <div className="v2-card">
             <div className="v2-tier-eyebrow">Recommended tier</div>
@@ -857,36 +874,37 @@ function SentBucket({ open, onPick }) {
   );
 }
 
-function CloseView({ subs, watchId, setWatchId, onResend, onNudge, onMarkWon, onMarkLost, notesMap, addNote }) {
+function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMarkWon, onMarkLost, notesMap, addNote, onEditDetails, onRealign, onOpenFull }) {
   const open = subs.filter((s) => s.status === 'sent').sort((a, b) => HEAT_RANK[getWatch(a).heat] - HEAT_RANK[getWatch(b).heat]);
   if (open.length === 0) {
     return <div className="v2-watch"><div className="v2-w-empty"><span className="ic"><I.Send width={22} height={22} /></span><div className="t">No live proposals yet</div><div className="s">Send a proposal and it'll show up here so you can track every open.</div></div></div>;
   }
   // Nothing focused → the bucket list (a stage holds many). Pick one → its engagement.
-  if (!watchId) return <SentBucket open={open} onPick={setWatchId} />;
+  if (!watchId) return <SentBucket open={open} onPick={onPick} />;
   const selected = open.find((s) => s.id === watchId) || open[0];
   return (
     <SentFocus key={selected.id} selected={selected} onBack={() => setWatchId(null)} onResend={onResend} onNudge={onNudge}
       onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
-      notes={notesMap[selected.id]} addNote={addNote} />
+      notes={notesMap[selected.id]} addNote={addNote}
+      onEdit={onEditDetails} onRealign={onRealign} onOpenFull={() => onOpenFull(selected)} />
   );
 }
 
 // Sent · focused — shared pin header + back-row toolbar (nudge / resend / mark
 // won-lost as pills, matching Build), with the engagement detail below.
-function SentFocus({ selected, onBack, onResend, onNudge, onMarkWon, onMarkLost, notes, addNote }) {
+function SentFocus({ selected, onBack, onResend, onNudge, onMarkWon, onMarkLost, notes, addNote, onEdit, onRealign, onOpenFull }) {
   const [winOpen, setWinOpen] = useState(false);
   const [nudgeOpen, setNudgeOpen] = useState(false);
   return (
     <div>
-      <div className="fx-back-row">
-        <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> All sent</button>
-        <div className="fx-back-acts">
-          <button className="fx-back" onClick={() => setNudgeOpen(true)}><I.Send width={14} height={14} /> Send a nudge</button>
-          <button className="fx-back" onClick={() => onResend(selected)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15" /></svg> Resend / extend link</button>
-          <button className="fx-back fx-back--send" onClick={() => setWinOpen(true)}><I.Check width={14} height={14} /> Mark won / lost</button>
-        </div>
-      </div>
+      <StageToolbar backLabel="All sent" onBack={onBack} actions={[
+        { icon: icoOpen(), label: 'Open full proposal', onClick: onOpenFull },
+        { icon: icoEdit(), label: 'Edit details', onClick: onEdit },
+        { icon: icoPhone(), label: 'Update from call', onClick: onRealign },
+        { icon: <I.Send width={14} height={14} />, label: 'Send a nudge', onClick: () => setNudgeOpen(true) },
+        { icon: icoResend(), label: 'Resend', onClick: () => onResend(selected) },
+        { icon: <I.Check width={14} height={14} />, label: 'Mark won / lost', onClick: () => setWinOpen(true), primary: true },
+      ]} />
       <PinnedCard sub={selected} stage="sent" />
       <div className="v2-watch">
         <LeadAnalytics s={selected} notes={notes} addNote={addNote} />
@@ -1246,6 +1264,7 @@ export default function ProposalsScreen() {
   const go = (id) => { if (id === 'sent') setWatchId(null); if (id === 'new') setInbox(true); if (id === 'build') setFocusBuild(false); setMode(id); }; // Build step with nothing focused → bucket list
   const openLead = (id) => { setSelectedId(id); setInbox(false); setMode('new'); }; // grid card → drill into the analysis
   const selectRail = (id) => setSelectedId(id); // flip between leads inside the drill-in
+  const pickSent = (id) => { setWatchId(id); setSelectedId(id); }; // focus a sent lead → also make it the selected proposal (so Edit/Realign target it)
   const backToInbox = () => setInbox(true);
   const resumeBuild = (id) => { setSelectedId(id); setFocusBuild(true); }; // pick a lead from the Build bucket list → its editor
   const qualify = (id, owner, quoteValue) => {
@@ -1376,14 +1395,13 @@ export default function ProposalsScreen() {
       {/* Pinned lead card — the spine below the stepper while a lead is focused in Build. */}
       {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
         <>
-          <div className="fx-back-row">
-            <button className="fx-back" onClick={() => setFocusBuild(false)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> All in Build</button>
-            <div className="fx-back-acts">
-              <button className="fx-back" onClick={() => window.open(BOARD_URL(sub), '_blank', 'noopener')}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></svg> Open full proposal</button>
-              <button className="fx-back fx-back--send" onClick={() => setSendOpen(true)}>Send proposal <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
-            </div>
-          </div>
-          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} />
+          <StageToolbar backLabel="All in Build" onBack={() => setFocusBuild(false)} actions={[
+            { icon: icoOpen(), label: 'Open full proposal', onClick: () => window.open(BOARD_URL(sub), '_blank', 'noopener') },
+            { icon: icoEdit(), label: 'Edit details', onClick: () => setEditOpen(true) },
+            { icon: icoPhone(), label: 'Update from call', onClick: () => setRealignOpen(true) },
+            { label: 'Send proposal', onClick: () => setSendOpen(true), primary: true, arrow: true },
+          ]} />
+          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} />
         </>
       )}
 
@@ -1399,10 +1417,11 @@ export default function ProposalsScreen() {
       )}
       {/* Sent — their court: engagement tracking + board responses + follow-up. */}
       {mode === 'sent' && (
-        <CloseView subs={subs} watchId={watchId} setWatchId={setWatchId}
+        <CloseView subs={subs} watchId={watchId} setWatchId={setWatchId} onPick={pickSent}
           onResend={(s) => setToast({ msg: `Magic link resent to ${s.firstName} · expires in 14 days` })}
           onNudge={(s) => setToast({ msg: `Nudge sent to ${s.firstName} on the original thread` })}
-          onMarkWon={markWon} onMarkLost={markLost} notesMap={notesMap} addNote={addNote} />
+          onMarkWon={markWon} onMarkLost={markLost} notesMap={notesMap} addNote={addNote}
+          onEditDetails={() => setEditOpen(true)} onRealign={() => setRealignOpen(true)} onOpenFull={(s) => window.open(BOARD_URL(s), '_blank', 'noopener')} />
       )}
       {/* Won / Lost — closed outcomes. */}
       {mode === 'won' && <WonLostView subs={subs} />}
