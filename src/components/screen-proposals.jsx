@@ -749,7 +749,7 @@ function MomentOfTruth({ sub, onSend }) {
   // have placeholder emails). For real leads it defaults to the board contact.
   const [to, setTo] = useState(sub.email || '');
   return (
-    <div className="v2-send-step" style={{ padding: '2px 24px 24px' }}>
+    <div className="v2-send-step" style={{ padding: '20px 24px 24px' }}>
       <div className="v2-preview-bar">
         <span className="v2-preview-av v2-mail-av"><I.Send width={17} height={17} /></span>
         <div className="v2-preview-id">
