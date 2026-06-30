@@ -2,7 +2,7 @@ import React from 'react';
 import { I } from './icons.jsx';
 import { getLeads, enrichLead, UVPS, UVP_TITLES, UVP_BLURBS, PAIN_POINTS, pricing, freshWatch, CAM_COMPANY } from '../lib/proposalMockData.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
-import { matchLeadWithLLM, LLM_ENABLED } from '../lib/proposalLLM.js';
+import { matchLeadWithLLM, realignFromTranscript, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
 import UVPLibrary from './screen-uvp-library.jsx';
 import { DATA } from '../data.js';
@@ -291,7 +291,7 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null (Layer B)
@@ -396,6 +396,10 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
             <button className="fx-edit-btn" onClick={onEditDetails}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               Edit details
+            </button>
+            <button className="fx-edit-btn fx-realign-btn" onClick={onRealign}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+              Update from call
             </button>
           </div>
           <div className="v2-card">
@@ -1136,6 +1140,74 @@ function EditDetailsModal({ sub, onClose, onSave }) {
   );
 }
 
+// Layer C — realign a proposal from a call transcript. Paste → LLM proposes a
+// reviewable diff (changed facts + new concerns) → accept/reject → apply through
+// the same write paths as hand-edits. Never auto-applies.
+function RealignModal({ sub, onClose, onApply }) {
+  const [transcript, setTranscript] = useState('');
+  const [phase, setPhase] = useState('input'); // input | loading | review | error
+  const [diff, setDiff] = useState(null);
+  const [err, setErr] = useState('');
+  const [accF, setAccF] = useState({});
+  const [accC, setAccC] = useState({});
+  const run = async () => {
+    setPhase('loading'); setErr('');
+    try {
+      const proposal = { community: sub.community, contact: sub.contact, contactRole: sub.contactRole, email: sub.email, phone: sub.phone, city: sub.city, homes: sub.homes, metaType: sub.metaType, metaStatus: sub.metaStatus, dues: sub.dues, engageTimeline: sub.engageTimeline, budget: sub.budget, concerns: sub.concerns };
+      const res = await realignFromTranscript(proposal, { uvps: UVPS.map((u) => ({ title: u.title, blurb: u.short })), transcript });
+      const af = {}; (res.fieldChanges || []).forEach((_, i) => { af[i] = true; });
+      const ac = {}; (res.addedConcerns || []).forEach((_, i) => { ac[i] = true; });
+      setDiff(res); setAccF(af); setAccC(ac); setPhase('review');
+    } catch (e) { setErr(String(e?.message || e)); setPhase('error'); }
+  };
+  const nAcc = diff ? (diff.fieldChanges || []).filter((_, i) => accF[i]).length + (diff.addedConcerns || []).filter((_, i) => accC[i]).length : 0;
+  const apply = () => {
+    const patch = {}; (diff.fieldChanges || []).forEach((f, i) => { if (accF[i]) patch[f.field] = f.to; });
+    const concerns = (diff.addedConcerns || []).filter((_, i) => accC[i]);
+    onApply(patch, concerns); onClose();
+  };
+  return (
+    <div className="ps-scrim" onClick={onClose}>
+      <div className="ps-modal fx-edit-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head"><span className="t">Update from call · {sub.community}</span><button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button></div>
+        {phase === 'input' && (<>
+          <div className="fx-edit-body">
+            <label className="fx-ef full"><span className="fx-ef-k">Paste the call transcript</span><textarea value={transcript} rows={10} autoFocus placeholder="Paste the notes or transcript from your call with the board…" onChange={(e) => setTranscript(e.target.value)} /></label>
+            <div className="fx-realign-hint">The AI reads the call against this proposal and proposes updates — changed facts and any new concerns the board raised. You review each before anything is applied.</div>
+          </div>
+          <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!transcript.trim()} onClick={run}>Realign from call</button></div>
+        </>)}
+        {phase === 'loading' && (<div className="fx-realign-load"><div className="v2-launch-sky"><span className="v2-launch-plane"><I.Bolt width={26} height={26} /></span></div><div className="fx-realign-load-t">Reading the call…</div><div className="fx-realign-load-s">Comparing the transcript against {sub.community}'s proposal</div></div>)}
+        {phase === 'error' && (<>
+          <div className="fx-edit-body"><div className="fx-realign-hint" style={{ color: '#a82451' }}>Couldn't realign: {err}</div></div>
+          <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Close</button><button className="btn btn-primary" onClick={() => setPhase('input')}>Try again</button></div>
+        </>)}
+        {phase === 'review' && diff && (<>
+          <div className="fx-edit-body">
+            {diff.summary && <div className="fx-realign-summary"><I.Sparkle width={13} height={13} /> {diff.summary}</div>}
+            {(diff.fieldChanges || []).length > 0 && <div className="fx-realign-sec">Detail changes</div>}
+            {(diff.fieldChanges || []).map((f, i) => (
+              <label key={'f' + i} className="fx-realign-row" data-on={!!accF[i]}>
+                <input type="checkbox" checked={!!accF[i]} onChange={(e) => setAccF((p) => ({ ...p, [i]: e.target.checked }))} />
+                <div><div className="fx-realign-row-k">{f.label}</div><div className="fx-realign-row-v"><span className="old">{f.from || '—'}</span> → <b>{f.to}</b></div></div>
+              </label>
+            ))}
+            {(diff.addedConcerns || []).length > 0 && <div className="fx-realign-sec">New concerns from the call</div>}
+            {(diff.addedConcerns || []).map((c, i) => (
+              <label key={'c' + i} className="fx-realign-row" data-on={!!accC[i]}>
+                <input type="checkbox" checked={!!accC[i]} onChange={(e) => setAccC((p) => ({ ...p, [i]: e.target.checked }))} />
+                <div><div className="fx-realign-row-k">{c.label} <span className="fx-realign-fit">{c.fit}% fit</span></div><div className="fx-realign-row-v">{c.body}</div></div>
+              </label>
+            ))}
+            {(diff.fieldChanges || []).length === 0 && (diff.addedConcerns || []).length === 0 && <div className="fx-realign-hint">No changes proposed — the call didn't surface anything new for this proposal.</div>}
+          </div>
+          <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={nAcc === 0} onClick={apply}>Apply {nAcc} change{nAcc === 1 ? '' : 's'}</button></div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
 export default function ProposalsScreen() {
   // Live proposals (Supabase) when configured + seeded, else the mock pipeline.
   const initialLeads = getLeads();
@@ -1145,6 +1217,7 @@ export default function ProposalsScreen() {
   const [inbox, setInbox] = useState(true); // New stage: true = inbox grid, false = match-analysis drill-in
   const [focusBuild, setFocusBuild] = useState(true); // Build stage: true = editor for the focused lead, false = bucket list
   const [editOpen, setEditOpen] = useState(false); // Edit-details modal (Layer A)
+  const [realignOpen, setRealignOpen] = useState(false); // "Update from call" transcript realign (Layer C)
   const [watchId, setWatchId] = useState(null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
@@ -1220,6 +1293,20 @@ export default function ProposalsScreen() {
     setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, ...m } : s));
     persist(selectedId, { match_snapshot: m });
     setToast({ msg: 'Match updated' });
+  };
+  // Layer C — apply accepted realign changes: patch the facts + append new concerns,
+  // through the same write paths as hand-edits (Layer A + B).
+  const applyRealign = (fieldPatch, addedConcerns) => {
+    const COL = { community: 'community', contact: 'contact', contactRole: 'contact_role', email: 'email', phone: 'phone', city: 'city', homes: 'homes', metaType: 'meta_type', metaStatus: 'meta_status', dues: 'dues', engageTimeline: 'engage_timeline', budget: 'budget' };
+    const patch = { ...fieldPatch };
+    if (patch.homes != null) patch.homes = parseInt(patch.homes) || sub.homes;
+    if (Object.keys(patch).length) {
+      setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, ...patch } : s));
+      const cols = {}; Object.entries(patch).forEach(([k, v]) => { if (COL[k]) cols[COL[k]] = v; });
+      persist(selectedId, cols);
+    }
+    if (addedConcerns && addedConcerns.length) applyMatch([...sub.concerns, ...addedConcerns], sub.match);
+    setToast({ msg: 'Proposal realigned from the call' });
   };
   // Real send: the proposal-send edge fn emails the board the magic link + marks
   // the proposal sent in the DB. Only advance to the Sent screen if it succeeds.
@@ -1302,7 +1389,7 @@ export default function ProposalsScreen() {
 
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} />
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} onRealign={() => setRealignOpen(true)} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
@@ -1326,6 +1413,7 @@ export default function ProposalsScreen() {
       {intakeOpen && <IntakeModal leads={DATA.recentLeads || []} existingKeys={new Set(subs.map((s) => s.id))} onClose={() => setIntakeOpen(false)} onStart={createFromLead} />}
       {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
       {editOpen && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
+      {realignOpen && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
       {matching && (
         <div className="v2-launch">
           <div className="v2-launch-card">

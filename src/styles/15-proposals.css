@@ -1321,3 +1321,19 @@
 .proposal-system .fx-add-concern:hover { border-color: var(--alloy-purple); background: var(--alloy-purple-tint); }
 .proposal-system .fx-overall-edit { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; font-size: 12px; font-weight: 700; color: var(--alloy-purple); background: none; border: none; cursor: pointer; }
 .proposal-system .fx-overall-edit input { width: 56px; font-family: var(--font-display); font-weight: 800; border: 1px solid var(--alloy-light-gray); border-radius: 7px; padding: 2px 6px; }
+
+/* Layer C — realign-from-call modal (transcript → reviewable diff) */
+.proposal-system .fx-realign-hint { font-size: 12px; line-height: 1.55; color: var(--fg-muted); }
+.proposal-system .fx-realign-load { padding: 44px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.proposal-system .fx-realign-load-t { font-family: var(--font-display); font-size: 15px; font-weight: 800; color: var(--alloy-purple); margin-top: 10px; }
+.proposal-system .fx-realign-load-s { font-size: 12.5px; color: var(--fg-muted); }
+.proposal-system .fx-realign-summary { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.5; font-weight: 600; color: #a82451; background: var(--alloy-pink-tint); border-radius: 11px; padding: 12px 14px; }
+.proposal-system .fx-realign-summary svg { flex: none; margin-top: 2px; }
+.proposal-system .fx-realign-sec { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: -8px; }
+.proposal-system .fx-realign-row { display: flex; align-items: flex-start; gap: 11px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 12px; cursor: pointer; }
+.proposal-system .fx-realign-row[data-on="true"] { border-color: var(--alloy-purple); background: var(--alloy-purple-tint); }
+.proposal-system .fx-realign-row input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--alloy-purple); flex: none; }
+.proposal-system .fx-realign-row-k { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--alloy-purple); }
+.proposal-system .fx-realign-row-v { font-size: 12px; color: var(--fg-3); margin-top: 3px; line-height: 1.5; }
+.proposal-system .fx-realign-row-v .old { color: var(--fg-muted); text-decoration: line-through; }
+.proposal-system .fx-realign-fit { font-size: 10.5px; font-weight: 700; color: #2c8a6e; margin-left: 4px; }

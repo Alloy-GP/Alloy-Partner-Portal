@@ -35,3 +35,19 @@ export async function matchLeadWithLLM(lead, { uvps, painPoints }) {
   if (data?.error) throw new Error(data.error);
   return data; // { match, concerns, scores, links, capsMatched, capsTotal, _source:'llm', model }
 }
+
+// Layer C — realign a proposal from a sales-call transcript. Returns a reviewable
+// diff: { summary, fieldChanges:[{field,label,from,to}], addedConcerns:[concern], model }.
+export async function realignFromTranscript(proposal, { uvps, transcript }) {
+  if (!LLM_ENABLED) throw new Error("LLM matching disabled (set VITE_PROPOSAL_LLM=1)");
+  if (!SUPABASE_URL || !ANON_KEY) throw new Error("Supabase env not configured");
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/proposal-realign`, {
+    method: "POST",
+    headers: { "content-type": "application/json", apikey: ANON_KEY, authorization: `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ proposal, uvps, transcript }),
+  });
+  if (!resp.ok) throw new Error(`proposal-realign ${resp.status}`);
+  const data = await resp.json();
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
