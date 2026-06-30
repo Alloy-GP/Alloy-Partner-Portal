@@ -30,6 +30,21 @@ const BOARD_URL = (sub) => `/proposals/board/${(sub && sub.boardToken) || (sub &
 
 const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
 const fmtMoney = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Inbox provenance time: "18m ago" / "3h ago" / "2d ago" within a week, the
+// short date older, "" when unknown. (App-side Date.now is fine here.)
+const relAgo = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts); const ms = Date.now() - d.getTime();
+  if (isNaN(ms)) return '';
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.round(h / 24);
+  if (days <= 6) return days === 1 ? 'yesterday' : `${days}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
 const DISQ_REASONS = ['Budget below our floor', 'Outside service area', 'Renewed with current manager', 'Self-managing for now', 'Other'];
 
 const stageOf = (s) => {
@@ -227,40 +242,60 @@ function WinModal({ s, onClose, onWin, onLose }) {
 }
 
 // ── New stage · VIEW 1: inbox grid of un-worked (status:"new") leads ──
+// A lead lives here in one of two states until it's qualified & built:
+//   new  — arrived from intake, never opened → stands out (pink accent)
+//   seen — opened by a CAM, not yet qualified → recedes (gray "Reviewed")
 function InboxLead({ s, onOpen }) {
-  const hot = (s.match || 0) >= 90;
+  const seen = !!s.openedAt;
+  const when = seen
+    ? `Opened by ${s.openedBy || 'a teammate'}${relAgo(s.openedAt) ? ' · ' + relAgo(s.openedAt) : ''}`
+    : `Arrived ${relAgo(s.arrivedAt) || 'recently'} · unopened`;
   return (
-    <div className="fx-lead" data-hot={hot} onClick={() => onOpen(s.id)} role="button" tabIndex={0}>
+    <div className="fx-lead" data-state={seen ? 'seen' : 'new'} onClick={() => onOpen(s.id)} role="button" tabIndex={0}>
       <div className="fx-lead-top">
         <span className="fx-lead-name">{s.community}</span>
-        <span className="fx-lead-new">New</span>
+        {seen
+          ? <span className="fx-badge seen">Reviewed</span>
+          : <span className="fx-badge new"><span className="d" />New</span>}
         <span className="fx-lead-pct"><b>{s.match}%</b><span>match</span></span>
       </div>
       <div className="fx-lead-meta">{s.contact} · {s.homes} homes · {s.city}</div>
       {s.quote && <div className="fx-lead-quote">"{s.quote}"</div>}
       <div className="fx-lead-foot">
-        <span className="fx-lead-owner"><span className="dot" /> Unassigned</span>
-        <button className="fx-build-btn" onClick={(e) => { e.stopPropagation(); onOpen(s.id); }}>Open <span>→</span></button>
+        <span className={'fx-lead-when' + (seen ? ' seen' : '')}><span className="arr" /> {when}</span>
+        <button className={'fx-open' + (seen ? ' ghost' : '')} onClick={(e) => { e.stopPropagation(); onOpen(s.id); }}>Open <span>→</span></button>
       </div>
     </div>
   );
 }
 
 function InboxGrid({ pending, onOpen }) {
-  const leads = [...pending].sort((a, b) => (b.match || 0) - (a.match || 0));
+  const sorted = [...pending].sort((a, b) => (b.match || 0) - (a.match || 0));
+  const fresh = sorted.filter((s) => !s.openedAt);     // never opened
+  const reviewed = sorted.filter((s) => s.openedAt);   // opened, not yet qualified
+  const total = sorted.length, nNew = fresh.length;
   return (
     <div>
       <div className="fx-inbox-head">
         <div style={{ minWidth: 0 }}>
-          <div className="fx-eyebrow">New leads · from intake</div>
-          <h2 className="fx-h">{leads.length} {leads.length === 1 ? 'lead' : 'leads'} waiting to be worked.</h2>
-          <p className="fx-sub">Everything from the intake form lands here. <b>Qualify &amp; Build</b> to start a proposal — the lead then moves out of this list into your active pipeline. Nothing else lives in this view, so there's never a question of where to start.</p>
+          <div className="fx-eyebrow">New leads · straight from intake</div>
+          <h2 className="fx-h">
+            {nNew > 0 && <><span className="nu">{nNew} new</span> {nNew === 1 ? 'submission' : 'submissions'}, </>}
+            {total} {total === 1 ? 'lead' : 'leads'} to work.
+          </h2>
+          <p className="fx-sub">Every intake submission lands here automatically — no importing. New ones are flagged until someone opens them, and every lead stays in this list until it's <b>qualified &amp; built</b> into a proposal.</p>
         </div>
-        <span className="fx-sort">Best fit first</span>
+        <span className="fx-sort">Best fit first <I.Chevron width={14} height={14} /></span>
       </div>
-      {leads.length
-        ? <div className="fx-grid">{leads.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} />)}</div>
-        : <div className="fx-empty">No new leads right now. Pull one in with <b>“+ From intake”</b> above — or they'll land here as boards submit the intake form.</div>}
+      {total === 0 && <div className="fx-empty">You're all caught up — new intake submissions will appear here automatically.</div>}
+      {nNew > 0 && (<>
+        <div className="fx-grouplbl"><span>Just arrived</span> · <span className="ct">{nNew} new</span><span className="ln" /></div>
+        <div className="fx-grid">{fresh.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} />)}</div>
+      </>)}
+      {reviewed.length > 0 && (<>
+        <div className="fx-grouplbl seen"><span>Reviewed · waiting to qualify</span> · <span className="ct">{reviewed.length}</span><span className="ln" /></div>
+        <div className="fx-grid">{reviewed.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} />)}</div>
+      </>)}
     </div>
   );
 }
@@ -1280,8 +1315,17 @@ export default function ProposalsScreen() {
       .then(({ error }) => { if (error) setToast({ msg: 'Save failed: ' + error.message }); });
   };
 
+  const meName = (DATA.user?.name || '').split(/\s+/)[0] || 'a teammate';
+  // Opening a New lead's drill-in flips it New → Reviewed (records who/when).
+  const markSeen = (id) => {
+    const t = subs.find((s) => s.id === id);
+    if (!t || t.status !== 'new' || t.openedAt) return;
+    const now = new Date().toISOString();
+    setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, openedAt: now, openedBy: meName } : s)));
+    persist(id, { opened_at: now, opened_by: meName });
+  };
   const go = (id) => { if (id === 'sent') setWatchId(null); if (id === 'new') setInbox(true); if (id === 'build') setFocusBuild(false); setMode(id); }; // Build step with nothing focused → bucket list
-  const openLead = (id) => { setSelectedId(id); setInbox(false); setMode('new'); }; // grid card → drill into the analysis
+  const openLead = (id) => { markSeen(id); setSelectedId(id); setInbox(false); setMode('new'); }; // grid card → drill into the analysis
   const selectRail = (id) => setSelectedId(id); // flip between leads inside the drill-in
   const pickSent = (id) => { setWatchId(id); setSelectedId(id); }; // focus a sent lead → also make it the selected proposal (so Edit/Realign target it)
   const backToInbox = () => setInbox(true);
@@ -1403,12 +1447,14 @@ export default function ProposalsScreen() {
     <div className="proposal-system">
       <div className="v2-topline">
         <Stepper mode={mode} go={go} />
-        <button className="v2-lib-btn" onClick={() => setIntakeOpen(true)} title="Start a proposal from a WhatConverts intake lead">
-          <I.Plus width={14} height={14} /> From intake
-        </button>
-        <button className="v2-lib-btn" data-on={mode === 'library'} onClick={() => setMode('library')} title="The capabilities every proposal matches against">
-          <I.Bolt width={14} height={14} /> UVP Library
-        </button>
+        <div className="fx-side">
+          <button className="fx-sync" onClick={() => setIntakeOpen(true)} title="Intake auto-syncs from WhatConverts — click to pull one in or re-sync now">
+            <span className="live" aria-hidden="true" /> Intake <b>auto-syncs</b> · last 2m ago
+          </button>
+          <button className="v2-lib-btn" data-on={mode === 'library'} onClick={() => setMode('library')} title="The capabilities every proposal matches against">
+            <I.Bolt width={14} height={14} /> UVP Library
+          </button>
+        </div>
       </div>
 
       {/* Pinned lead card — the spine below the stepper while a lead is focused in Build. */}

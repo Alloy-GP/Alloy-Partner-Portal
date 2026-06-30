@@ -18,6 +18,8 @@ export function proposalRowToRaw(p) {
     salesValue: p.sales_value != null ? p.sales_value : undefined,
     tierId: p.tier_id, notes: p.notes || [], _dbId: p.id,
     boardToken: p.board_token, sentAt: p.sent_at || null,
+    arrivedAt: p.created_at || null, // when the lead landed in the New inbox
+    openedAt: p.opened_at || null, openedBy: p.opened_by || null, // null → "new"; set → "reviewed"
     matchSnapshot: p.match_snapshot || null, // persisted LLM match (preferred by enrichLead)
   };
 }
