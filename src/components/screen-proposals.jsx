@@ -1289,8 +1289,14 @@ export default function ProposalsScreen() {
       {/* Pinned lead card — the spine below the stepper while a lead is focused in Build. */}
       {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
         <>
-          <button className="fx-back" onClick={() => setFocusBuild(false)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> All in Build</button>
-          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} onOpenFull={() => window.open(BOARD_URL(sub), '_blank', 'noopener')} cta={{ label: 'Send proposal', onClick: () => setSendOpen(true) }} />
+          <div className="fx-back-row">
+            <button className="fx-back" onClick={() => setFocusBuild(false)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> All in Build</button>
+            <div className="fx-back-acts">
+              <button className="fx-back" onClick={() => window.open(BOARD_URL(sub), '_blank', 'noopener')}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></svg> Open full proposal</button>
+              <button className="fx-back fx-back--send" onClick={() => setSendOpen(true)}>Send proposal <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
+            </div>
+          </div>
+          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} />
         </>
       )}
 
