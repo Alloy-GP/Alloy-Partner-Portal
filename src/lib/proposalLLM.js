@@ -15,7 +15,13 @@
 
 const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY;
-export const LLM_ENABLED = String(import.meta.env?.VITE_PROPOSAL_LLM || "") === "1";
+// LLM matching + transcript realign are core to the live proposal system, and
+// they only run against our edge functions — which require Supabase anyway. So
+// enable whenever the app is wired to Supabase (local, staging, prod), instead
+// of depending on a build-time flag that has to be mirrored into every deploy.
+// Opt OUT with VITE_PROPOSAL_LLM=0 (forces the deterministic engine). Mock dev
+// (no Supabase) stays on the baked demo matches.
+export const LLM_ENABLED = !!SUPABASE_URL && !!ANON_KEY && String(import.meta.env?.VITE_PROPOSAL_LLM || "") !== "0";
 
 export async function matchLeadWithLLM(lead, { uvps, painPoints }) {
   if (!LLM_ENABLED) throw new Error("LLM matching disabled (set VITE_PROPOSAL_LLM=1)");
