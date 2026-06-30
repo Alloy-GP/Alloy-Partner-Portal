@@ -545,6 +545,11 @@
 .proposal-system .v2-cl-list { padding: 10px; display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - 220px); overflow-y: auto; }
 .proposal-system .v2-cl { display: flex; flex-direction: column; padding: 9px 10px; border-radius: 9px; transition: background 0.12s; }
 .proposal-system .v2-cl:hover { background: var(--alloy-off-white); }
+.proposal-system .v2-cl-fixed:hover { background: transparent; }
+.proposal-system .v2-cl-fixed .v2-cl-t { color: var(--fg-2); }
+.proposal-system .v2-cl-bullet { flex: none; width: 18px; height: 18px; display: grid; place-items: center; }
+.proposal-system .v2-cl-bullet::after { content: ''; width: 6px; height: 6px; border-radius: 999px; background: var(--fg-muted); opacity: 0.5; }
+.proposal-system .v2-cl-std { margin-left: auto; flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); opacity: 0.8; }
 .proposal-system .v2-cl-main { display: flex; align-items: center; gap: 9px; cursor: pointer; }
 .proposal-system .v2-cl-pencil { margin-left: auto; flex: none; width: 27px; height: 27px; border-radius: 7px; display: grid; place-items: center; color: var(--fg-muted); opacity: 0; transform: scale(0.85); transition: opacity 0.16s, transform 0.16s, background 0.16s, color 0.16s; }
 .proposal-system .v2-cl:hover .v2-cl-pencil { opacity: 1; transform: scale(1); }

@@ -612,6 +612,20 @@ function ClConcern({ concern, onToggle, onEdit, onRemove }) {
   );
 }
 
+// Non-editable structural section — always part of every proposal, so it reads
+// as a fixed part of the document, not a toggle.
+function ClFixed({ s }) {
+  return (
+    <div className="v2-cl v2-cl-fixed">
+      <div className="v2-cl-main" style={{ cursor: 'default' }}>
+        <span className="v2-cl-bullet" aria-hidden="true" />
+        <div className="v2-cl-info"><div className="v2-cl-t">{s.title}</div><div className="v2-cl-n">{s.note}</div></div>
+        <span className="v2-cl-std">Always included</span>
+      </div>
+    </div>
+  );
+}
+
 function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onApplyMatch }) {
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null
   const concerns = sub.concerns || [];
@@ -620,9 +634,9 @@ function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onApplyMat
   const rest = sections.filter((s) => !s.id.startsWith('pain') && s.id !== 'cover');
   return (
     <div className="v2-checklist">
-      <div className="v2-checklist-head"><div className="t">Sections</div><div className="s">{onCount} of {concerns.length} concerns included · edit, add, or drop what the board sees</div></div>
+      <div className="v2-checklist-head"><div className="t">Sections</div><div className="s">{onCount} of {concerns.length} concerns included · the rest are standard parts of every proposal</div></div>
       <div className="v2-cl-list">
-        {cover.map((s) => <ClSection key={s.id} s={s} toggle={toggle} onEdit={() => {}} />)}
+        {cover.map((s) => <ClFixed key={s.id} s={s} />)}
         {concerns.map((cc, i) => (
           <ClConcern key={sub.id + '-c' + i} concern={cc}
             onToggle={() => onApplyMatch(concerns.map((x, k) => (k === i ? { ...x, on: x.on === false } : x)), sub.match)}
@@ -630,7 +644,7 @@ function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onApplyMat
             onRemove={() => onApplyMatch(concerns.filter((_, k) => k !== i), sub.match)} />
         ))}
         <button className="fx-add-concern" onClick={() => setConcernEdit('new')}><I.Plus width={14} height={14} /> Add a concern</button>
-        {rest.map((s) => <ClSection key={s.id} s={s} toggle={toggle} onEdit={() => {}} />)}
+        {rest.map((s) => <ClFixed key={s.id} s={s} />)}
       </div>
       {concernEdit != null && (
         <ConcernEditModal
@@ -668,12 +682,73 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, onApplyMatch, 
 }
 
 // ============================ SEND ============================
+// In-cockpit mirror of the real board email (proposal-send / handoff #20), so
+// the Send preview matches what the board actually receives.
+const EML = { brand: '#2b2c6c', brand2: '#36418f', brandDeep: '#161a44', accent: '#2f9e6f', ink: '#1b1430', body: '#57506a', muted: '#8a8395', hairline: '#e9e5f0', tint: '#f7f5fb', checkBg: '#e6f4ee' };
+function NewEmailPreview({ sub }) {
+  const FD = 'var(--font-display)', FB = 'var(--font-body)';
+  const priorities = (sub.concerns || []).filter((c) => c.on !== false).map((c) => c.label).slice(0, 6);
+  const nWord = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][priorities.length] || String(priorities.length);
+  const cell = (k, v, s2, i) => (
+    <div key={k} style={{ padding: '12px 14px', borderLeft: i ? `1px solid ${EML.hairline}` : 'none' }}>
+      <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: EML.muted }}>{k}</div>
+      <div style={{ fontFamily: FD, fontSize: 14, fontWeight: 700, color: EML.ink, marginTop: 4, lineHeight: 1.2 }}>{v}</div>
+      <div style={{ fontSize: 11, color: EML.muted, marginTop: 3 }}>{s2}</div>
+    </div>
+  );
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', border: `1px solid ${EML.hairline}`, fontFamily: FB }}>
+      <div style={{ background: `linear-gradient(120deg,${EML.brand2},${EML.brand} 56%,${EML.brandDeep})`, padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontFamily: FD, fontWeight: 800, fontSize: 16, color: '#fff', letterSpacing: '.02em' }}>{CAM_COMPANY.shortName}</span>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,.66)' }}>{CAM_COMPANY.tagline}</span>
+      </div>
+      <div style={{ background: `linear-gradient(150deg,${EML.brand2},#23275c 42%,${EML.brandDeep})`, padding: '40px 24px 22px', color: '#fff' }}>
+        <div style={{ fontFamily: FD, fontSize: 9.5, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 18, height: 2, background: EML.accent, display: 'inline-block' }} />Your management proposal</div>
+        <div style={{ fontFamily: FD, fontWeight: 800, fontSize: 26, lineHeight: 1.08, letterSpacing: '-.02em' }}>Built around {sub.community}.</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,.86)', marginTop: 10 }}>Prepared for {sub.contact || sub.firstName} &amp; the board.</div>
+      </div>
+      <div style={{ padding: '20px 24px 4px' }}>
+        <div style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: EML.accent, marginBottom: 9 }}>Here's what you told us</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', border: `1px solid ${EML.hairline}`, borderRadius: 10 }}>
+          {cell('Community', sub.community, sub.city || '—', 0)}
+          {cell('Homes', String(sub.homes || '—'), 'units under management', 1)}
+          {cell('Type', sub.metaType || '—', sub.metaStatus || '', 2)}
+        </div>
+      </div>
+      <div style={{ padding: '20px 24px 4px' }}>
+        <div style={{ fontFamily: FD, fontWeight: 700, fontSize: 15, color: EML.ink, marginBottom: 9 }}>Hi {sub.firstName},</div>
+        <div style={{ fontSize: 14, lineHeight: 1.6, color: EML.body }}>Thank you for telling us about <b style={{ color: EML.ink }}>{sub.community}</b>. We didn't send a generic pitch — we built this proposal around {priorities.length ? <>the <b style={{ color: EML.ink }}>{nWord} priorities your board raised</b>, point by point</> : 'the specific priorities your board raised'}.</div>
+      </div>
+      {priorities.length > 0 && (
+        <div style={{ padding: '18px 24px 4px' }}>
+          <div style={{ borderTop: `1px solid ${EML.hairline}`, paddingTop: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: EML.muted, marginBottom: 9 }}>The priorities we answered</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+              {priorities.map((p, i) => (<div key={i} style={{ display: 'flex', gap: 9, fontSize: 13, color: EML.ink, lineHeight: 1.4 }}><span style={{ width: 18, height: 18, flex: 'none', borderRadius: 999, background: EML.checkBg, color: EML.accent, display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 800 }}>✓</span>{p}</div>))}
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{ padding: '22px 24px 6px' }}>
+        <a href={BOARD_URL(sub)} target="_blank" rel="noopener" onClick={(e) => { e.preventDefault(); window.open(BOARD_URL(sub), '_blank', 'noopener'); }} style={{ display: 'block', background: EML.accent, color: '#fff', fontFamily: FD, fontSize: 15, fontWeight: 700, textAlign: 'center', textDecoration: 'none', padding: '15px 26px', borderRadius: 11 }}>View your proposal →</a>
+      </div>
+      <div style={{ padding: '12px 24px 4px' }}>
+        <div style={{ background: EML.tint, borderRadius: 10, padding: '12px 14px', display: 'flex', gap: 10, fontSize: 12, lineHeight: 1.5, color: EML.muted }}><span aria-hidden="true">🔒</span><span><b style={{ color: EML.body }}>One-tap secure link — no password.</b> It signs you in automatically and works only from this email.</span></div>
+      </div>
+      <div style={{ padding: '16px 24px 22px' }}>
+        <div style={{ fontFamily: FD, fontWeight: 700, fontSize: 14, color: EML.ink }}>— The {CAM_COMPANY.shortName} team</div>
+        <div style={{ fontSize: 12, color: EML.muted, marginTop: 2 }}>Client Partnerships · {CAM_COMPANY.shortName}</div>
+      </div>
+    </div>
+  );
+}
+
 function MomentOfTruth({ sub, onSend }) {
   // Recipient is editable so you can send a test to yourself (the demo boards
   // have placeholder emails). For real leads it defaults to the board contact.
   const [to, setTo] = useState(sub.email || '');
   return (
-    <div className="v2-send-step">
+    <div className="v2-send-step" style={{ padding: '2px 24px 24px' }}>
       <div className="v2-preview-bar">
         <span className="v2-preview-av v2-mail-av"><I.Send width={17} height={17} /></span>
         <div className="v2-preview-id">
@@ -699,7 +774,7 @@ function MomentOfTruth({ sub, onSend }) {
           </div>
         </div>
         <div className="v2-mail-headrow">
-          <h3 className="v2-mail-subject">Your management proposal for {sub.community}</h3>
+          <h3 className="v2-mail-subject">Built around {sub.community} — your management proposal</h3>
           <div className="v2-mail-meta">
             <span className="v2-mail-sender-av">A</span>
             <div className="v2-mail-who"><div className="from">{CAM_COMPANY.shortName} Community Management <span className="addr">{'<proposals@cmgt.org>'}</span></div><div className="to">to {sub.firstName} ▾</div></div>
@@ -707,20 +782,7 @@ function MomentOfTruth({ sub, onSend }) {
           </div>
         </div>
         <div className="v2-mail-body">
-          <div className="v2-email">
-            <div className="v2-email-hd"><div className="v2-email-mark">{CAM_COMPANY.shortName}</div><div className="v2-email-mark-sub">{CAM_COMPANY.tagline}</div></div>
-            <div className="v2-email-bd">
-              <p>Hi {sub.firstName},</p>
-              <p>Thank you for telling us about {sub.community}. We didn't send a generic pitch — we built a proposal around the {sub.concerns.length} concerns your board raised, point by point.</p>
-              <div className="v2-email-card"><div className="row"><span>Community</span><b>{sub.community} · {sub.homes} homes</b></div><div className="row"><span>Recommended</span><b>{sub.tierName}</b></div></div>
-              <a className="v2-email-cta" onClick={(e) => { e.preventDefault(); window.open(BOARD_URL(sub), '_blank', 'noopener'); }} href={BOARD_URL(sub)} target="_blank" rel="noopener">Open your proposal →</a>
-              <div className="v2-email-secure">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 7h3a5 5 0 0 1 0 10h-3M9 17H6A5 5 0 0 1 6 7h3M8 12h8" /></svg>
-                <span>One-tap secure link — no password to remember. It signs in {sub.firstName} automatically and works only from this email. Expires in 14 days.</span>
-              </div>
-              <p className="v2-email-sig">— Amanda Betancourt<br /><span>Client Partnerships · {CAM_COMPANY.shortName}</span></p>
-            </div>
-          </div>
+          <NewEmailPreview sub={sub} />
         </div>
       </div>
     </div>

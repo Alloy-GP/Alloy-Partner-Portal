@@ -76,6 +76,28 @@ function GlobalStyles() {
     .bp-root { font-family: "Gotham","Poppins",system-ui,sans-serif; color: ${c.purple}; -webkit-font-smoothing: antialiased; }
     .bp-root *, .bp-root *::before, .bp-root *::after { box-sizing: border-box; }
     .bp-root ::selection { background: ${c.pink}; color: #fff; }
+    /* ── Mobile: the board doc is a desktop grid layout; reflow to one column ── */
+    @media (max-width: 768px) {
+      .bp-root [data-section="How this was built"],
+      .bp-root [data-section="Pricing tiers"],
+      .bp-root [data-section="Your team"],
+      .bp-root [data-section="First 90 days"],
+      .bp-root [data-section="Discovery call CTA"] { padding-left:22px !important; padding-right:22px !important; padding-top:44px !important; padding-bottom:44px !important; }
+      .bp-root [data-section="Concerns"] { padding:30px 22px 44px !important; }
+      .bp-root h1 { font-size:28px !important; line-height:1.12 !important; }
+      .bp-root h2 { font-size:23px !important; line-height:1.16 !important; }
+      .bp-cover { grid-template-columns:1fr !important; gap:22px !important; padding:30px 22px 36px !important; }
+      .bp-score { min-width:0 !important; max-width:100% !important; width:100% !important; }
+      .bp-concerns { grid-template-columns:1fr !important; gap:22px !important; }
+      .bp-built-head { flex-direction:column !important; align-items:flex-start !important; gap:14px !important; }
+      .bp-enginegraph { display:none !important; }
+      .bp-team { grid-template-columns:1fr 1fr !important; }
+      .bp-tiers { grid-template-columns:1fr !important; }
+      .bp-pricedetail { grid-template-columns:1fr !important; gap:22px !important; padding:24px !important; }
+      .bp-foot { grid-template-columns:1fr !important; gap:24px !important; }
+      .bp-bar { flex-wrap:wrap !important; padding:12px 16px !important; gap:10px 12px !important; }
+    }
+    @media (max-width: 420px) { .bp-root .bp-team { grid-template-columns:1fr !important; } }
   `}</style>;
 }
 
@@ -84,7 +106,7 @@ function ScoreCard({ lead }) {
   const pct = lead.match;
   const remainder = 100 - pct;
   return (
-    <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '20px 22px', backdropFilter: 'blur(10px)', minWidth: 280, maxWidth: 360 }}>
+    <div className="bp-score" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '20px 22px', backdropFilter: 'blur(10px)', minWidth: 280, maxWidth: 360 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
           <svg viewBox="0 0 36 36" style={{ width: 72, height: 72, transform: 'rotate(-90deg)' }}>
@@ -227,7 +249,7 @@ function ExpPricing({ submission }) {
   return (
     <div style={{ background: '#fff', borderRadius: 14, border: `1px solid ${c.lightGray}`, overflow: 'hidden' }}>
       {!singleTier && (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${visible.length}, 1fr)`, borderBottom: `1px solid ${c.lightGray}` }}>
+        <div className="bp-tiers" style={{ display: 'grid', gridTemplateColumns: `repeat(${visible.length}, 1fr)`, borderBottom: `1px solid ${c.lightGray}` }}>
           {visible.map((t, i) => { const on = t.id === selected; return (
             <button key={t.id} onClick={() => setSelected(t.id)} style={{ padding: '20px 22px', background: on ? c.purple : '#fff', color: on ? '#fff' : c.purple, border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'all 200ms ease', borderRight: i < visible.length - 1 ? `1px solid ${c.lightGray}` : 'none' }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? c.yellow : c.pink }}>{t.tagline}</div>
@@ -243,7 +265,7 @@ function ExpPricing({ submission }) {
           <div style={{ fontSize: 12, opacity: 0.75, maxWidth: 340, lineHeight: 1.55 }}>{tier.pricingModel || 'Custom · based on homes, amenities, and scope.'} Range: <strong style={{ color: '#fff' }}>{tier.rateRange || tier.priceRange}</strong>.</div>
         </div>
       )}
-      <div style={{ padding: 32, display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 36, alignItems: 'start' }} key={selected}>
+      <div className="bp-pricedetail" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 36, alignItems: 'start' }} key={selected}>
         <div style={{ animation: 'bp-fadeUp 280ms ease' }}>
           <Eyebrow color={c.pink}>What's included</Eyebrow>
           <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -299,7 +321,7 @@ function ProposalFooter({ submission }) {
     <div style={{ background: c.purpleDeep, color: '#fff' }}>
       <AccentBar />
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '44px 32px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 40, marginBottom: 32 }}>
+        <div className="bp-foot" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 40, marginBottom: 32 }}>
           <div><CAMLogo scheme="dark" size="md" /><div style={{ fontSize: 13, opacity: 0.7, marginTop: 16, lineHeight: 1.65, maxWidth: 360 }}>Community association management for the Gulf South. Family-run since 2007. CAI member · CMCA-credentialed team.</div></div>
           <div><div style={{ fontSize: 11, fontWeight: 700, color: c.yellow, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Contact</div><div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.85 }}>cmgt.org<br />proposals@cmgt.org<br />(225) 791-1505</div></div>
           <div><div style={{ fontSize: 11, fontWeight: 700, color: c.yellow, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Office</div><div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.85 }}>140 Aspen Square, Suite H<br />Denham Springs, LA 70726</div></div>
@@ -324,7 +346,7 @@ function ProposalExp({ lead, submission }) {
     <article style={{ background: c.offWhite }}>
       <div data-section="Cover & intro" style={{ background: `linear-gradient(135deg, ${c.purple} 0%, ${c.purpleDeep} 60%, #0c1828 100%)`, color: '#fff', position: 'relative', overflow: 'hidden' }}>
         <AccentBar />
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '40px 36px 44px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 32, alignItems: 'center', position: 'relative' }}>
+        <div className="bp-cover" style={{ maxWidth: 1180, margin: '0 auto', padding: '40px 36px 44px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 32, alignItems: 'center', position: 'relative' }}>
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <CAMLogo scheme="dark" size="sm" />
@@ -339,7 +361,7 @@ function ProposalExp({ lead, submission }) {
       </div>
 
       {concerns.length > 0 && (
-        <section data-section="Concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '44px 36px 64px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
+        <section data-section="Concerns" className="bp-concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '44px 36px 64px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
           <PainRail concerns={concerns} activeIndex={active} onSelect={setActiveIndex} />
           <AnswerPanel concern={concerns[active]} index={active} total={concerns.length} onNext={() => setActiveIndex((active + 1) % concerns.length)} />
         </section>
@@ -347,11 +369,11 @@ function ProposalExp({ lead, submission }) {
 
       <section data-section="How this was built" style={{ background: c.purple, color: '#fff', padding: '64px 36px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 36, gap: 32 }}>
+          <div className="bp-built-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 36, gap: 32 }}>
             <div><Eyebrow color={c.yellow}>How this proposal was built</Eyebrow><h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 36, margin: '12px 0 0', letterSpacing: '-0.015em', lineHeight: 1.1 }}>Your answers wired to our capabilities.</h2></div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', maxWidth: 320, lineHeight: 1.6 }}>We don't send template proposals. Each one is rebuilt around what the board specifically said matters. Here's the matching engine's reasoning.</div>
           </div>
-          <EngineGraph concerns={concerns} />
+          <div className="bp-enginegraph"><EngineGraph concerns={concerns} /></div>
         </div>
       </section>
 
@@ -367,7 +389,7 @@ function ProposalExp({ lead, submission }) {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <Eyebrow color={c.pink}>Your team</Eyebrow>
           <h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 36, color: c.purple, margin: '12px 0 24px', letterSpacing: '-0.015em' }}>{TEAM.length} humans who'll know your buildings.</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(TEAM.length, 4)}, 1fr)`, gap: 12 }}>
+          <div className="bp-team" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(TEAM.length, 4)}, 1fr)`, gap: 12 }}>
             {TEAM.map((t) => (
               <div key={t.name} style={{ background: '#fff', borderRadius: 12, padding: 20, border: `1px solid ${c.lightGray}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 999, background: t.color, color: c.purple, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 17 }}>{t.initials}</div>
@@ -532,7 +554,7 @@ function BoardActionBar({ submission, responded, onOpen }) {
   }[responded];
   return (
     <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${c.lightGray}`, boxShadow: '0 -8px 24px rgba(56,28,79,0.10)' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+      <div className="bp-bar" style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         {confirm ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, fontSize: 14, color: c.purple, fontWeight: 500, margin: '0 auto' }}>
             <span style={{ width: 30, height: 30, borderRadius: 999, background: confirm.color, color: '#fff', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={confirm.ic} size={15} /></span>{confirm.text}
