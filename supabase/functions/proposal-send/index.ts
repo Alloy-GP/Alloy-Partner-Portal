@@ -115,7 +115,7 @@ function renderEmail(d: EmailData): string {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${C.page};">
     <tr>
       <td align="center" style="padding:32px 16px 56px 16px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:14px; overflow:hidden;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; background-color:#ffffff; border-radius:14px; overflow:hidden;">
 
           <!-- 1 header -->
           <tr>
