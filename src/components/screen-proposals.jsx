@@ -1098,8 +1098,8 @@ function RetainView({ subs }) {
 // lands in "Sent" (the engagement/waiting column). Won/Lost is the close fork;
 // Client is the retained book of business.
 function Stepper({ mode, go }) {
-  const order = { new: 0, build: 1, sent: 2, won: 3, client: 4 };
-  const steps = [['new', 'New', 1], ['build', 'Build', 2], ['sent', 'Sent', 3], ['won', 'Won / Lost', 4], ['client', 'Client', 5]];
+  const order = { new: 0, build: 1, sent: 2, won: 3 };
+  const steps = [['new', 'New', 1], ['build', 'Build', 2], ['sent', 'Sent', 3], ['won', 'Won / Lost', 4]];
   const wrapRef = useRef(null);
   const [pill, setPill] = useState({ left: 0, top: 0, w: 0, h: 0 });
   const [glide, setGlide] = useState(false);
@@ -1346,7 +1346,7 @@ export default function ProposalsScreen() {
   // View state mirrors the URL (?stage=&lead=) so a refresh stays put — reload
   // on Sent and you land back on Sent, not bounced to New.
   const [searchParams, setSearchParams] = useSearchParams();
-  const STAGES = ['new', 'build', 'sent', 'won', 'client', 'library'];
+  const STAGES = ['new', 'build', 'sent', 'won', 'library'];
   const urlStage = STAGES.includes(searchParams.get('stage')) ? searchParams.get('stage') : 'new';
   const urlLead = searchParams.get('lead');
   const urlLeadOk = !!urlLead && initialLeads.some((l) => l.id === urlLead);
@@ -1597,7 +1597,6 @@ export default function ProposalsScreen() {
       {/* Won / Lost — closed outcomes. */}
       {mode === 'won' && <WonLostView subs={subs} />}
       {/* Client — retained book of business. */}
-      {mode === 'client' && <RetainView subs={subs} />}
       {mode === 'library' && <UVPLibrary />}
 
       {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
