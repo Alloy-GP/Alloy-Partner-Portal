@@ -430,7 +430,7 @@ const OWNER_NAMES = { AB: 'Amanda', JR: 'Jordan' };
 // The pinned lead card — a compact header that pins below the stepper and travels
 // across stages, swapping its status pill + 3 figures by where the lead is. In
 // Build it replaces the old purple topper and owns price editing (Proposed fig).
-function PinnedCard({ sub, stage, perHome, setPerHome, onEdit }) {
+function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, onSend }) {
   const [edit, setEdit] = useState(false);
   const monthly = ((perHome != null ? perHome : sub.perHome) || 0) * sub.homes;
   const STATUS = { build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
@@ -465,11 +465,24 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit }) {
           </div>,
         ])}
       </div>
-      {onEdit && (
-        <button className="fx-pin-edit" onClick={onEdit} title="Edit lead details">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-          Edit
-        </button>
+      {(onEdit || onOpenFull || onSend) && (
+        <div className="fx-pin-acts">
+          {onOpenFull && (
+            <button className="fx-pin-edit" onClick={onOpenFull} title="Open the full proposal in a new tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></svg>
+              Open full proposal
+            </button>
+          )}
+          {onEdit && (
+            <button className="fx-pin-edit" onClick={onEdit} title="Edit lead details">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              Edit
+            </button>
+          )}
+          {onSend && (
+            <button className="fx-pin-send" onClick={onSend}>Send proposal <span>→</span></button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -556,18 +569,13 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, setProse, onCo
         <div className="v2-browser-bar">
           <div className="v2-dots"><span /><span /><span /></div>
           <div className="v2-url"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>{CAM_COMPANY.shortName.toLowerCase()}.org/p/{sub.id.toLowerCase()}</div>
-          <button className="v2-browser-open" onClick={() => window.open(BOARD_URL(sub), '_blank', 'noopener')}>
-            Open full proposal
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></svg>
-          </button>
           <span className="v2-browser-live"><span className="d" />Live preview</span>
         </div>
         <div className="v2-browser-body">
           <iframe className="v2-board-iframe" src={BOARD_URL(sub)} title="Live proposal preview — what the board sees" />
         </div>
         <div className="v2-browser-foot">
-          <span className="v2-browser-foot-note">Exactly what {sub.firstName} sees at {CAM_COMPANY.shortName.toLowerCase()}.org/p/{sub.id.toLowerCase()} — open it full-screen in a new tab, or send when it's ready.</span>
-          <button className="v2-mail-send v2-mail-send--purple" onClick={onContinue}>Continue to send<span className="v2-mail-send-ic"><I.Arrow width={18} height={18} /></span></button>
+          <span className="v2-browser-foot-note">This is the live, interactive proposal — exactly what {sub.firstName} sees. <b>Send proposal</b> and <b>Open full proposal</b> are up top on the lead card.</span>
         </div>
       </div>
     </div>
@@ -1080,8 +1088,8 @@ function ConcernEditModal({ concern, onClose, onSave }) {
           </div>
           <label className="fx-ef full"><span className="fx-ef-k">Headline · one line the board reads</span><input value={f.headline} onChange={(e) => setF((p) => ({ ...p, headline: e.target.value }))} /></label>
           <label className="fx-ef full"><span className="fx-ef-k">Body · the answer prose</span><textarea value={f.body} rows={3} onChange={(e) => setF((p) => ({ ...p, body: e.target.value }))} /></label>
-          <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={save}>Save concern</button></div>
         </div>
+        <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={save}>Save concern</button></div>
       </div>
     </div>
   );
@@ -1129,10 +1137,10 @@ function EditDetailsModal({ sub, onClose, onSave }) {
             {field('perHome', 'Price / home ($/mo)', { num: true })}
             {field('quote', 'In their words (narrative)', { full: true, area: true })}
           </div>
-          <div className="fx-edit-actions">
-            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => { onSave(f); onClose(); }}>Save details</button>
-          </div>
+        </div>
+        <div className="fx-edit-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => { onSave(f); onClose(); }}>Save details</button>
         </div>
       </div>
     </div>
@@ -1293,7 +1301,7 @@ export default function ProposalsScreen() {
       {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
         <>
           <button className="fx-back" onClick={() => setFocusBuild(false)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> All in Build</button>
-          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} />
+          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} onOpenFull={() => window.open(BOARD_URL(sub), '_blank', 'noopener')} onSend={() => setSendOpen(true)} />
         </>
       )}
 
