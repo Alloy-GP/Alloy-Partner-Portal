@@ -285,7 +285,6 @@ function InboxGrid({ pending, onOpen }) {
           </h2>
           <p className="fx-sub">Every intake submission lands here automatically — no importing. New ones are flagged until someone opens them, and every lead stays in this list until it's <b>qualified &amp; built</b> into a proposal.</p>
         </div>
-        <span className="fx-sort">Best fit first <I.Chevron width={14} height={14} /></span>
       </div>
       {total === 0 && <div className="fx-empty">You're all caught up — new intake submissions will appear here automatically.</div>}
       {nNew > 0 && (<>

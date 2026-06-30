@@ -1214,8 +1214,6 @@
 .proposal-system .fx-h .nu { color: var(--alloy-pink); }
 .proposal-system .fx-sub { font-size: 13.5px; line-height: 1.6; color: var(--fg-3); max-width: 660px; margin: 0; }
 .proposal-system .fx-sub b { color: var(--alloy-purple); font-weight: 700; }
-.proposal-system .fx-sort { flex: none; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; color: var(--fg-2); box-shadow: var(--shadow-sm); cursor: pointer; }
-.proposal-system .fx-sort svg { color: var(--fg-muted); }
 
 .proposal-system .fx-grouplbl { display: flex; align-items: center; gap: 10px; margin: 6px 2px 12px; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-muted); }
 .proposal-system .fx-grouplbl .ct { color: var(--alloy-pink); }
