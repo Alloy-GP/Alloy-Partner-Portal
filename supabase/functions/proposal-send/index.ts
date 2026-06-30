@@ -31,27 +31,55 @@ const isEmail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 
 function renderEmail(cam: string, firstName: string, community: string, homes: number, link: string): string {
   const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  </head><body style="margin:0;padding:24px 12px;background:#eef0f4;font-family:${F};">
-  <table role="presentation" align="center" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e6ec;">
-    <tr><td style="background:#2b2c6c;background-image:linear-gradient(135deg,#2b2c6c 0%,#3D1A52 100%);padding:28px 40px;">
-      <div style="font-family:${F};font-weight:800;font-size:20px;color:#fff;letter-spacing:-0.01em;">${esc(cam)}</div>
-      <div style="font-family:${F};font-weight:500;font-size:12.5px;color:#b9b6e0;letter-spacing:0.04em;margin-top:3px;">Custom management proposal</div>
-    </td></tr>
-    <tr><td style="padding:38px 40px 34px;">
-      <div style="font-family:${F};font-weight:700;font-size:26px;line-height:1.18;color:#16121f;margin:0 0 16px;">Your proposal for ${esc(community)} is ready.</div>
-      <div style="font-family:${F};font-weight:400;font-size:15.5px;line-height:1.62;color:#555;margin:0 0 24px;">Hi ${esc(firstName)}, we didn't send a generic pitch — we built this around the specific concerns your board raised. It's an interactive page, not a PDF: click any concern to see how we'd handle it.</div>
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 26px;"><tr>
-        <td align="center" bgcolor="#2b2c6c" style="border-radius:12px;background:#2b2c6c;">
-          <a href="${esc(link)}" style="display:inline-block;padding:16px 30px;font-family:${F};font-size:16px;font-weight:700;color:#fff;text-decoration:none;border-radius:12px;">View your proposal &rarr;</a>
-        </td>
-      </tr></table>
-      <div style="font-family:${F};font-weight:400;font-size:13px;line-height:1.6;color:#8a8a96;border-top:1px solid #ececf1;padding-top:20px;">${esc(community)} &middot; ${homes} homes. This is a private link for your board — feel free to forward it to fellow members.</div>
-    </td></tr>
-    <tr><td style="background:#f7f7fb;border-top:1px solid #ececf1;padding:18px 40px;text-align:center;">
-      <div style="font-family:${F};font-weight:400;font-size:12px;color:#9a9aa4;">Sent by ${esc(cam)}</div>
-    </td></tr>
-  </table></body></html>`;
+  // Mobile-first: fluid 600px container, media-query padding/type, a full-width
+  // tappable CTA on phones, and an MSO ghost wrapper so Outlook desktop holds 600.
+  return `<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<title>${esc(community)} proposal</title>
+<style>
+  body,table,td,a{ -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+  table,td{ mso-table-lspace:0pt; mso-table-rspace:0pt; }
+  body{ margin:0!important; padding:0!important; width:100%!important; }
+  @media only screen and (max-width:600px){
+    .sp-container{ width:100%!important; border-radius:0!important; }
+    .sp-pad{ padding-left:24px!important; padding-right:24px!important; }
+    .sp-top{ padding-top:30px!important; }
+    .sp-h{ font-size:22px!important; line-height:1.22!important; }
+    .sp-p{ font-size:15px!important; }
+    .sp-btn{ width:100%!important; }
+    .sp-btn a{ display:block!important; text-align:center!important; padding-left:0!important; padding-right:0!important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#eef0f4;font-family:${F};">
+<div style="display:none;max-height:0;max-width:0;opacity:0;overflow:hidden;font-size:1px;line-height:1px;color:#eef0f4;">Your management proposal for ${esc(community)} — built around the concerns your board raised.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eef0f4;"><tr>
+  <td align="center" style="padding:24px 12px;">
+    <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+    <table role="presentation" class="sp-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e6ec;">
+      <tr><td class="sp-pad" style="background:#2b2c6c;background-image:linear-gradient(135deg,#2b2c6c 0%,#3D1A52 100%);padding:28px 40px;">
+        <div style="font-family:${F};font-weight:800;font-size:20px;color:#fff;letter-spacing:-0.01em;">${esc(cam)}</div>
+        <div style="font-family:${F};font-weight:500;font-size:12.5px;color:#b9b6e0;letter-spacing:0.04em;margin-top:3px;">Custom management proposal</div>
+      </td></tr>
+      <tr><td class="sp-pad sp-top" style="padding:38px 40px 34px;">
+        <div class="sp-h" style="font-family:${F};font-weight:700;font-size:26px;line-height:1.18;color:#16121f;margin:0 0 16px;">Your proposal for ${esc(community)} is ready.</div>
+        <div class="sp-p" style="font-family:${F};font-weight:400;font-size:15.5px;line-height:1.62;color:#555;margin:0 0 26px;">Hi ${esc(firstName)}, we didn't send a generic pitch — we built this around the specific concerns your board raised. It's an interactive page, not a PDF: tap any concern to see how we'd handle it.</div>
+        <table role="presentation" class="sp-btn" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 26px;"><tr>
+          <td align="center" bgcolor="#2b2c6c" style="border-radius:12px;background:#2b2c6c;">
+            <a href="${esc(link)}" style="display:inline-block;padding:16px 32px;font-family:${F};font-size:16px;font-weight:700;color:#fff;text-decoration:none;border-radius:12px;">View your proposal &rarr;</a>
+          </td>
+        </tr></table>
+        <div style="font-family:${F};font-weight:400;font-size:13px;line-height:1.6;color:#8a8a96;border-top:1px solid #ececf1;padding-top:20px;">${esc(community)} &middot; ${homes} homes. This is a private link for your board — feel free to forward it to fellow members.</div>
+      </td></tr>
+      <tr><td class="sp-pad" style="background:#f7f7fb;border-top:1px solid #ececf1;padding:18px 40px;text-align:center;">
+        <div style="font-family:${F};font-weight:400;font-size:12px;color:#9a9aa4;">Sent by ${esc(cam)}</div>
+      </td></tr>
+    </table>
+    <!--[if mso]></td></tr></table><![endif]-->
+  </td></tr></table>
+</body></html>`;
 }
 
 Deno.serve(async (req) => {

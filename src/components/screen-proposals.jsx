@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { getLeads, enrichLead, UVPS, UVP_TITLES, UVP_BLURBS, PAIN_POINTS, pricing, freshWatch, CAM_COMPANY } from '../lib/proposalMockData.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
@@ -1282,14 +1283,21 @@ function RealignModal({ sub, onClose, onApply }) {
 export default function ProposalsScreen() {
   // Live proposals (Supabase) when configured + seeded, else the mock pipeline.
   const initialLeads = getLeads();
+  // View state mirrors the URL (?stage=&lead=) so a refresh stays put — reload
+  // on Sent and you land back on Sent, not bounced to New.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const STAGES = ['new', 'build', 'sent', 'won', 'client', 'library'];
+  const urlStage = STAGES.includes(searchParams.get('stage')) ? searchParams.get('stage') : 'new';
+  const urlLead = searchParams.get('lead');
+  const urlLeadOk = !!urlLead && initialLeads.some((l) => l.id === urlLead);
   const [subs, setSubs] = useState(initialLeads);
-  const [selectedId, setSelectedId] = useState(initialLeads[0].id);
-  const [mode, setMode] = useState('new');
-  const [inbox, setInbox] = useState(true); // New stage: true = inbox grid, false = match-analysis drill-in
-  const [focusBuild, setFocusBuild] = useState(true); // Build stage: true = editor for the focused lead, false = bucket list
+  const [selectedId, setSelectedId] = useState(urlLeadOk ? urlLead : initialLeads[0].id);
+  const [mode, setMode] = useState(urlStage);
+  const [inbox, setInbox] = useState(!(urlStage === 'new' && urlLeadOk)); // New: lead in URL → drill-in
+  const [focusBuild, setFocusBuild] = useState(urlStage !== 'build' || urlLeadOk); // Build: lead in URL → editor
   const [editOpen, setEditOpen] = useState(false); // Edit-details modal (Layer A)
   const [realignOpen, setRealignOpen] = useState(false); // "Update from call" transcript realign (Layer C)
-  const [watchId, setWatchId] = useState(null);
+  const [watchId, setWatchId] = useState(urlStage === 'sent' && urlLeadOk ? urlLead : null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
   const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
@@ -1323,6 +1331,16 @@ export default function ProposalsScreen() {
     setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, openedAt: now, openedBy: meName } : s)));
     persist(id, { opened_at: now, opened_by: meName });
   };
+  // Keep the URL in sync with the view so refresh/deep-link restores it.
+  useEffect(() => {
+    const lead = (mode === 'new' && !inbox) ? selectedId
+      : (mode === 'build' && focusBuild) ? selectedId
+      : (mode === 'sent' && watchId) ? watchId
+      : null;
+    const next = { stage: mode };
+    if (lead) next.lead = lead;
+    setSearchParams(next, { replace: true });
+  }, [mode, inbox, focusBuild, selectedId, watchId]); // eslint-disable-line react-hooks/exhaustive-deps
   const go = (id) => { if (id === 'sent') setWatchId(null); if (id === 'new') setInbox(true); if (id === 'build') setFocusBuild(false); setMode(id); }; // Build step with nothing focused → bucket list
   const openLead = (id) => { markSeen(id); setSelectedId(id); setInbox(false); setMode('new'); }; // grid card → drill into the analysis
   const selectRail = (id) => setSelectedId(id); // flip between leads inside the drill-in
