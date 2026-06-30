@@ -1329,6 +1329,8 @@
 /* Layer C — realign-from-call modal (transcript → reviewable diff) */
 .proposal-system .fx-realign-hint { font-size: 12px; line-height: 1.55; color: var(--fg-muted); }
 .proposal-system .fx-realign-load { padding: 44px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.proposal-system .fx-realign-scan { margin-bottom: 10px; }
+.proposal-system .fx-realign-scan svg { display: block; }
 .proposal-system .fx-realign-load-t { font-family: var(--font-display); font-size: 15px; font-weight: 800; color: var(--alloy-purple); margin-top: 10px; }
 .proposal-system .fx-realign-load-s { font-size: 12.5px; color: var(--fg-muted); }
 .proposal-system .fx-realign-summary { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.5; font-weight: 600; color: #a82451; background: var(--alloy-pink-tint); border-radius: 11px; padding: 12px 14px; }

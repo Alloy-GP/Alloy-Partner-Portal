@@ -1214,7 +1214,7 @@ function RealignModal({ sub, onClose, onApply }) {
           </div>
           <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!transcript.trim()} onClick={run}>Realign from call</button></div>
         </>)}
-        {phase === 'loading' && (<div className="fx-realign-load"><div className="v2-launch-sky"><span className="v2-launch-plane"><I.Bolt width={26} height={26} /></span></div><div className="fx-realign-load-t">Reading the call…</div><div className="fx-realign-load-s">Comparing the transcript against {sub.community}'s proposal</div></div>)}
+        {phase === 'loading' && (<div className="fx-realign-load"><LottieScan size={88} className="fx-realign-scan" /><div className="fx-realign-load-t">Reading the call…</div><div className="fx-realign-load-s">Comparing the transcript against {sub.community}'s proposal</div></div>)}
         {phase === 'error' && (<>
           <div className="fx-edit-body"><div className="fx-realign-hint" style={{ color: '#a82451' }}>Couldn't realign: {err}</div></div>
           <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Close</button><button className="btn btn-primary" onClick={() => setPhase('input')}>Try again</button></div>
