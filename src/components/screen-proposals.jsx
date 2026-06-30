@@ -387,7 +387,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
       <div className="fx-analysis2">
         <div>
           <div className="v2-match-head">
-            <MatchRing value={sub.match} size={58} label="match" />
+            <MatchRing value={sub.match} size={58} />
             <div className="v2-match-head-text">
               <h3 className="v2-match-h">Currently Matching “{sub.community}” with {CAM_COMPANY.shortName}’s Expertise</h3>
               <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;from their intake form
@@ -1454,10 +1454,12 @@ export default function ProposalsScreen() {
       {realignOpen && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
       {matching && (
         <div className="v2-launch">
-          <div className="v2-launch-card">
-            <LottieScan size={108} className="v2-launch-scan" />
-            <div className="v2-launch-txt">Currently Matching “{matching.community}” with {CAM_COMPANY.shortName}’s Expertise</div>
-            <div className="v2-launch-sub">Reading the board's intake and mapping concerns to your UVPs</div>
+          <div className="v2-launch-card fx-scan-card">
+            <div className="fx-scan-glow"><LottieScan size={92} className="v2-launch-scan" /></div>
+            <div className="fx-scan-eyebrow"><span className="fx-scan-dot" aria-hidden="true" />Matching engine · Working</div>
+            <div className="v2-launch-txt">Matching {matching.community} with {CAM_COMPANY.shortName}’s expertise</div>
+            <div className="v2-launch-sub">Reading the board's intake and mapping each concern to your UVPs.</div>
+            <div className="fx-scan-bar"><span /></div>
           </div>
         </div>
       )}
