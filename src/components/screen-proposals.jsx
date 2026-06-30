@@ -55,7 +55,7 @@ function QPill({ s }) {
 }
 
 const MATCH_SEGS = 7;
-function MatchConcern({ concern, uvps, blurbs, index }) {
+function MatchConcern({ concern, uvps, blurbs, index, onEdit, onRemove }) {
   const [open, setOpen] = useState(false);
   const strong = concern.fit >= 85;
   const lit = Math.round(concern.fit / 100 * MATCH_SEGS);
@@ -69,6 +69,16 @@ function MatchConcern({ concern, uvps, blurbs, index }) {
           <span title="The AI surfaced this concern from what the board wrote in their own words — not a pain-point checkbox they selected." style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: '.02em', textTransform: 'uppercase', color: '#a82451', background: 'var(--alloy-pink-tint, rgba(168,36,81,.08))', border: '1px solid rgba(168,36,81,.22)', borderRadius: 999, padding: '2px 8px', marginRight: 8, whiteSpace: 'nowrap' }}>
             <I.Sparkle width={10} height={10} /> From their note
           </span>
+        )}
+        {onEdit && (
+          <button className="fx-con-act" title="Edit concern" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+          </button>
+        )}
+        {onRemove && (
+          <button className="fx-con-act danger" title="Remove concern" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
         )}
         <span className={'v2-seg-chev' + (open ? ' open' : '')}><I.Chevron width={16} height={16} /></span>
       </div>
@@ -272,9 +282,11 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
+  const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null (Layer B)
+  const [overallEdit, setOverallEdit] = useState(null); // editing the overall % (string) or null
   const pending = subs.filter((s) => stageOf(s) === 'pending');
   // Qualify & Build is one motion: assign owner + lock tier in the modal, then
   // advance straight into Build — entering Build *is* qualifying.
@@ -342,7 +354,11 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
             <div className="v2-match-head">
               <div className="v2-match-head-text">
                 <h3 className="v2-match-h">Every pain point {sub.community} raised — and how {CAM_COMPANY.shortName} answers it</h3>
-                <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;<b>{links}</b> connections</div>
+                <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;<b>{links}</b> connections
+                  {overallEdit !== null
+                    ? <span className="fx-overall-edit"><input type="number" min="0" max="100" value={overallEdit} autoFocus onChange={(e) => setOverallEdit(e.target.value)} onBlur={() => { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); }} onKeyDown={(e) => { if (e.key === 'Enter') { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); } }} /> % overall</span>
+                    : <button className="fx-overall-edit" onClick={() => setOverallEdit(String(sub.match))} title="Adjust overall match %"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>Adjust %</button>}
+                </div>
                 {fromNote > 0 && (
                   <div style={{ marginTop: 5, fontSize: 12, fontWeight: 600, color: '#a82451', display: 'inline-flex', alignItems: 'center', gap: 5 }} title="These concerns came from the board's free-text, not the pain-point checkboxes — a read on how much the “in their own words” field is earning its keep.">
                     <I.Sparkle width={12} height={12} /> {fromNote} of {sub.concerns.length} surfaced from what they wrote
@@ -355,8 +371,18 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
               </button>
             </div>
             <div className="v2-match-list">
-              {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={UVP_TITLES} blurbs={UVP_BLURBS} index={i + 1} />)}
+              {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={UVP_TITLES} blurbs={UVP_BLURBS} index={i + 1}
+                onEdit={() => setConcernEdit(i)}
+                onRemove={() => onApplyMatch(sub.concerns.filter((_, k) => k !== i), sub.match)} />)}
             </div>
+            <button className="fx-add-concern" onClick={() => setConcernEdit('new')}><I.Plus width={14} height={14} /> Add a concern</button>
+            {concernEdit != null && (
+              <ConcernEditModal
+                concern={concernEdit === 'new' ? null : sub.concerns[concernEdit]}
+                onClose={() => setConcernEdit(null)}
+                onSave={(updated) => onApplyMatch(concernEdit === 'new' ? [...sub.concerns, updated] : sub.concerns.map((c, k) => (k === concernEdit ? updated : c)), sub.match)}
+              />
+            )}
           </div>
         </div>
 
@@ -997,6 +1023,46 @@ function WonLostView({ subs }) {
   );
 }
 
+// Layer B — after hand-editing concerns, recompute the caps-derived fields so
+// scores / links / capsMatched stay consistent. Overall % stays user-controlled.
+function recomputeMatch(concerns, overall, source) {
+  const n = UVPS.length;
+  const scores = UVPS.map((_, i) => concerns.filter((c) => (c.caps || []).includes(i)).length);
+  return {
+    match: Math.max(0, Math.min(100, Math.round(overall || 0))),
+    concerns, scores, links: concerns.map((c) => c.caps || []),
+    capsMatched: scores.filter((s) => s > 0).length, capsTotal: n, _source: source || 'edited',
+  };
+}
+
+// Layer B — edit one matched concern: its wording, fit %, which UVPs answer it,
+// and the proposal prose. The AI's match is a draft; this reshapes it by hand.
+function ConcernEditModal({ concern, onClose, onSave }) {
+  const c = concern || {};
+  const [f, setF] = useState({ label: c.label || '', fit: c.fit != null ? c.fit : 80, headline: c.headline || '', body: c.body || '', caps: [...(c.caps || [])] });
+  const toggleCap = (i) => setF((p) => ({ ...p, caps: p.caps.includes(i) ? p.caps.filter((x) => x !== i) : [...p.caps, i] }));
+  const save = () => { onSave({ ...c, label: f.label.trim() || 'Untitled concern', fit: Math.max(0, Math.min(100, parseInt(f.fit) || 0)), headline: f.headline, body: f.body, caps: f.caps }); onClose(); };
+  return (
+    <div className="ps-scrim" onClick={onClose}>
+      <div className="ps-modal fx-edit-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head"><span className="t">{concern ? 'Edit concern' : 'Add concern'}</span><button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button></div>
+        <div className="fx-edit-body">
+          <label className="fx-ef full"><span className="fx-ef-k">Concern · the board's framing</span><input value={f.label} autoFocus onChange={(e) => setF((p) => ({ ...p, label: e.target.value }))} /></label>
+          <label className="fx-ef full"><span className="fx-ef-k">Fit % · how completely your UVPs answer it</span><input type="number" min="0" max="100" value={f.fit} onChange={(e) => setF((p) => ({ ...p, fit: e.target.value }))} /></label>
+          <div className="fx-ef full"><span className="fx-ef-k">Which UVPs answer this concern</span>
+            <div className="fx-cap-pick">
+              {UVP_TITLES.map((t, i) => <button key={i} type="button" className="fx-cap-opt" data-on={f.caps.includes(i)} onClick={() => toggleCap(i)}>{f.caps.includes(i) ? '✓ ' : ''}{t}</button>)}
+            </div>
+          </div>
+          <label className="fx-ef full"><span className="fx-ef-k">Headline · one line the board reads</span><input value={f.headline} onChange={(e) => setF((p) => ({ ...p, headline: e.target.value }))} /></label>
+          <label className="fx-ef full"><span className="fx-ef-k">Body · the answer prose</span><textarea value={f.body} rows={3} onChange={(e) => setF((p) => ({ ...p, body: e.target.value }))} /></label>
+          <div className="fx-edit-actions"><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={save}>Save concern</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Layer A — edit every fact on a proposal. The AI match is a draft; after a call
 // the CAM corrects contact, homes, dues, timeline, budget, price, narrative, etc.
 // Saves write straight back into the lead (subs) + persist, so every view updates.
@@ -1126,6 +1192,14 @@ export default function ProposalsScreen() {
     });
     setToast({ msg: 'Details updated' });
   };
+  // Layer B — apply hand-edited concerns to the focused lead's match + persist the
+  // override to match_snapshot, so the cockpit, board doc, and reloads all use it.
+  const applyMatch = (concerns, overall) => {
+    const m = recomputeMatch(concerns, overall, sub._source);
+    setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, ...m } : s));
+    persist(selectedId, { match_snapshot: m });
+    setToast({ msg: 'Match updated' });
+  };
   // Real send: the proposal-send edge fn emails the board the magic link + marks
   // the proposal sent in the DB. Only advance to the Sent screen if it succeeds.
   // Mock dev (no Supabase) keeps the local-only behavior so the demo still flows.
@@ -1201,7 +1275,7 @@ export default function ProposalsScreen() {
 
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} />
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
