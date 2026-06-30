@@ -90,7 +90,6 @@ function GlobalStyles() {
       .bp-score { min-width:0 !important; max-width:100% !important; width:100% !important; }
       .bp-concerns { grid-template-columns:1fr !important; gap:22px !important; }
       .bp-built-head { flex-direction:column !important; align-items:flex-start !important; gap:14px !important; }
-      .bp-enginegraph { display:none !important; }
       .bp-team { grid-template-columns:1fr 1fr !important; }
       .bp-tiers { grid-template-columns:1fr !important; }
       .bp-pricedetail { grid-template-columns:1fr !important; gap:22px !important; padding:24px !important; }
@@ -240,6 +239,112 @@ function EngineGraph({ concerns }) {
   );
 }
 
+// ── Mobile variants (handoff #25) ──────────────────────────────────────────
+function useIsMobile(bp = 768) {
+  const [m, setM] = useState(typeof window !== 'undefined' ? window.innerWidth <= bp : false);
+  useEffect(() => {
+    const f = () => setM(window.innerWidth <= bp);
+    f(); window.addEventListener('resize', f);
+    return () => window.removeEventListener('resize', f);
+  }, [bp]);
+  return m;
+}
+
+// The answer content of a concern, sans the desktop card chrome — used inside
+// the mobile accordion (the summary already carries the concern label).
+function AccordionBody({ concern }) {
+  const caps = concern.caps.map((i) => UVPS[i]).filter(Boolean);
+  return (
+    <div>
+      {concern.headline && <h3 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 21, color: c.purple, lineHeight: 1.2, margin: '2px 0 12px', letterSpacing: '-0.01em' }}>{concern.headline}</h3>}
+      <p style={{ fontSize: 14.5, color: c.bodyGray, lineHeight: 1.65, margin: '0 0 18px' }}>{concern.body}</p>
+      {concern.metric && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: c.purple, color: '#fff', borderRadius: 12, marginBottom: 18 }}>
+          <div style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 900, fontSize: 34, color: c.yellow, lineHeight: 1, flexShrink: 0 }}>{concern.metric.value}</div>
+          <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Proof point</div><div style={{ fontSize: 13, color: '#fff', fontWeight: 500, marginTop: 3 }}>{concern.metric.label || concern.proof}</div></div>
+        </div>
+      )}
+      <div style={{ fontSize: 10.5, color: c.pink, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>How we answer it</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {caps.map((u) => (
+          <div key={u.id} style={{ display: 'flex', gap: 12, padding: '12px 14px', background: c.offWhite, borderRadius: 8, alignItems: 'flex-start' }}>
+            <Icon name={u.icon} size={16} color={c.pink} style={{ marginTop: 2, flexShrink: 0 }} />
+            <div><div style={{ fontSize: 13.5, fontWeight: 700, color: c.purple, marginBottom: 3 }}>{u.title}</div><div style={{ fontSize: 12.5, color: c.bodyGray, lineHeight: 1.5 }}>{u.body}</div></div>
+          </div>
+        ))}
+        {caps.length === 0 && <div style={{ fontSize: 12.5, color: c.fgMuted, fontStyle: 'italic', padding: 10 }}>Addressed through general operational rigor.</div>}
+      </div>
+    </div>
+  );
+}
+
+// Mobile concerns = vertical accordion: tap a concern, its full answer expands
+// inline. Replaces the desktop PainRail + AnswerPanel.
+function ConcernAccordion({ concerns }) {
+  const [open, setOpen] = useState(0);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {concerns.map((concern, i) => {
+        const isOpen = open === i;
+        const matchCount = concern.caps.length;
+        return (
+          <div key={i} style={{ border: `1px solid ${isOpen ? c.pink : c.lightGray}`, borderRadius: 14, background: '#fff', overflow: 'hidden', boxShadow: isOpen ? '0 8px 22px -12px rgba(217,53,110,.45)' : '0 2px 8px rgba(56,28,79,.05)', transition: 'border-color .18s, box-shadow .18s' }}>
+            <button onClick={() => setOpen(isOpen ? -1 : i)} style={{ appearance: 'none', cursor: 'pointer', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ width: 26, height: 26, borderRadius: 999, background: isOpen ? c.pink : c.lightGray, color: isOpen ? '#fff' : c.purple, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{i + 1}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: c.purple, lineHeight: 1.3 }}>{concern.label}</div>
+                <div style={{ fontSize: 10, color: c.fgMuted, marginTop: 3, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{matchCount} matched cap{matchCount !== 1 && 's'}</div>
+              </div>
+              <span style={{ flexShrink: 0, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .2s', color: isOpen ? c.pink : c.fgMuted, display: 'inline-flex' }}><Icon name="arrow-right" size={16} /></span>
+            </button>
+            {isOpen && <div style={{ padding: '0 16px 18px' }}><AccordionBody concern={concern} /></div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Mobile matching engine = stacked list (the bipartite SVG is unreadable on a
+// phone): one card per concern + its matched capabilities below a divider.
+function EngineList({ concerns }) {
+  const capSet = []; concerns.forEach((c2) => c2.caps.forEach((i) => { if (!capSet.includes(i)) capSet.push(i); }));
+  const connections = concerns.reduce((a, c2) => a + c2.caps.length, 0);
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {concerns.map((c2, i) => {
+          const caps = c2.caps.map((ci) => UVPS[ci]).filter(Boolean);
+          return (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ width: 9, height: 9, borderRadius: 999, background: c.yellow, marginTop: 5, flexShrink: 0, boxShadow: '0 0 0 3px rgba(245,216,128,0.18)' }} />
+                <div style={{ fontFamily: 'Gotham, sans-serif', fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.3 }}>{c2.label}</div>
+              </div>
+              {caps.length > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {caps.map((u) => (
+                    <div key={u.id} style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
+                      <span style={{ width: 14, height: 1, background: c.green, flexShrink: 0 }} />
+                      <span style={{ width: 7, height: 7, borderRadius: 999, background: c.green, flexShrink: 0 }} />
+                      <span style={{ fontFamily: 'Gotham, sans-serif', fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.92)', lineHeight: 1.3 }}>{(u.title || '').split('—')[0].trim()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.12)', fontSize: 12, color: 'rgba(255,255,255,0.7)', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <span><strong style={{ color: c.yellow }}>{concerns.length}</strong> concerns</span>
+        <span><strong style={{ color: c.green }}>{capSet.length}</strong> capabilities</span>
+        <span><strong style={{ color: '#fff' }}>{connections}</strong> connections</span>
+      </div>
+    </div>
+  );
+}
+
 function ExpPricing({ submission }) {
   const tiersAll = submission.tiers || TIERS;
   const visible = (submission.tiersToShow && submission.tiersToShow.length) ? tiersAll.filter((t) => submission.tiersToShow.includes(t.id)) : tiersAll;
@@ -341,6 +446,7 @@ function ProposalExp({ lead, submission }) {
   const concerns = (lead.concerns || []).filter((cc) => cc.on !== false);
   const [activeIndex, setActiveIndex] = useState(0);
   const active = Math.min(activeIndex, Math.max(0, concerns.length - 1));
+  const mobile = useIsMobile();
   const firstName = (submission.contactName || '').split(' ')[0];
   return (
     <article style={{ background: c.offWhite }}>
@@ -354,17 +460,23 @@ function ProposalExp({ lead, submission }) {
               <div style={{ fontSize: 11, color: c.yellow, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Custom proposal · live document</div>
             </div>
             <h1 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 40, margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.08 }}>{submission.association}</h1>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', maxWidth: 600 }}>Built around the <strong style={{ color: '#fff' }}>{concerns.length} concern{concerns.length === 1 ? '' : 's'}</strong> {firstName} raised on {(submission.submittedAt || '').split(' · ')[0]}. Click any one on the left to see how we'll address it.</div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', maxWidth: 600 }}>Built around the <strong style={{ color: '#fff' }}>{concerns.length} concern{concerns.length === 1 ? '' : 's'}</strong> {firstName} raised on {(submission.submittedAt || '').split(' · ')[0]}. {mobile ? 'Tap any concern to see how we’ll address it.' : 'Click any one on the left to see how we’ll address it.'}</div>
           </div>
           <div style={{ position: 'relative', zIndex: 1 }}><ScoreCard lead={lead} /></div>
         </div>
       </div>
 
       {concerns.length > 0 && (
-        <section data-section="Concerns" className="bp-concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '44px 36px 64px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
-          <PainRail concerns={concerns} activeIndex={active} onSelect={setActiveIndex} />
-          <AnswerPanel concern={concerns[active]} index={active} total={concerns.length} onNext={() => setActiveIndex((active + 1) % concerns.length)} />
-        </section>
+        mobile
+          ? <section data-section="Concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 22px 44px' }}>
+              <Eyebrow color={c.pink}>Your concerns</Eyebrow>
+              <div style={{ fontSize: 12.5, color: c.fgMuted, margin: '6px 0 16px', lineHeight: 1.55 }}>Tap any concern to see how CMGT addresses it.</div>
+              <ConcernAccordion concerns={concerns} />
+            </section>
+          : <section data-section="Concerns" className="bp-concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '44px 36px 64px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
+              <PainRail concerns={concerns} activeIndex={active} onSelect={setActiveIndex} />
+              <AnswerPanel concern={concerns[active]} index={active} total={concerns.length} onNext={() => setActiveIndex((active + 1) % concerns.length)} />
+            </section>
       )}
 
       <section data-section="How this was built" style={{ background: c.purple, color: '#fff', padding: '64px 36px' }}>
@@ -373,7 +485,7 @@ function ProposalExp({ lead, submission }) {
             <div><Eyebrow color={c.yellow}>How this proposal was built</Eyebrow><h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 36, margin: '12px 0 0', letterSpacing: '-0.015em', lineHeight: 1.1 }}>Your answers wired to our capabilities.</h2></div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', maxWidth: 320, lineHeight: 1.6 }}>We don't send template proposals. Each one is rebuilt around what the board specifically said matters. Here's the matching engine's reasoning.</div>
           </div>
-          <div className="bp-enginegraph"><EngineGraph concerns={concerns} /></div>
+          {mobile ? <EngineList concerns={concerns} /> : <EngineGraph concerns={concerns} />}
         </div>
       </section>
 
@@ -547,18 +659,28 @@ function ContinueModal({ onClose, onResolve }) {
 
 function BoardActionBar({ submission, responded, onOpen }) {
   const firstName = (submission.contactName || '').split(' ')[0] || 'there';
+  const mobile = useIsMobile();
   const confirm = {
     changes: { ic: 'message-square', color: c.purple, text: <span><strong>Change request sent.</strong> We'll send a revised proposal shortly, {firstName}.</span> },
     decline: { ic: 'x', color: c.fgMuted, text: <span><strong>Response recorded.</strong> Thanks for considering CMGT, {firstName}.</span> },
     continue: { ic: 'check', color: c.cmgtGreen, text: <span><strong>You're moving forward — thank you, {firstName}.</strong> The CMGT team will be in touch to set up your discovery call.</span> },
   }[responded];
   return (
-    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${c.lightGray}`, boxShadow: '0 -8px 24px rgba(56,28,79,0.10)' }}>
-      <div className="bp-bar" style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${c.lightGray}`, boxShadow: '0 -8px 24px rgba(56,28,79,0.10)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="bp-bar" style={{ maxWidth: 1100, margin: '0 auto', padding: mobile ? '12px 16px' : '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexDirection: mobile ? 'column' : 'row' }}>
         {confirm ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, fontSize: 14, color: c.purple, fontWeight: 500, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, fontSize: 13.5, color: c.purple, fontWeight: 500, margin: '0 auto', textAlign: 'left' }}>
             <span style={{ width: 30, height: 30, borderRadius: 999, background: confirm.color, color: '#fff', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={confirm.ic} size={15} /></span>{confirm.text}
           </div>
+        ) : mobile ? (
+          <React.Fragment>
+            <div style={{ fontSize: 12.5, color: c.purple, fontWeight: 500, textAlign: 'center' }}><strong>{firstName},</strong> you have until <strong>{submission.validThrough}</strong> to respond.</div>
+            <button onClick={() => onOpen('continue')} style={{ width: '100%', appearance: 'none', border: 'none', cursor: 'pointer', background: c.cmgtGreen, color: '#fff', fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 14, letterSpacing: '0.04em', padding: '15px', borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Icon name="arrow-right" size={15} /> Accept &amp; Continue</button>
+            <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+              <button onClick={() => onOpen('changes')} style={{ flex: 1, appearance: 'none', cursor: 'pointer', background: '#fff', border: `1px solid ${c.lightGray}`, color: c.purple, fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 11 }}>Request changes</button>
+              <button onClick={() => onOpen('decline')} style={{ flex: 1, appearance: 'none', cursor: 'pointer', background: '#fff', border: `1px solid ${c.lightGray}`, color: c.pink, fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 11 }}>Decline</button>
+            </div>
+          </React.Fragment>
         ) : (
           <React.Fragment>
             <div style={{ fontSize: 13, color: c.purple, fontWeight: 500 }}><strong>{firstName},</strong> you have until <strong>{submission.validThrough}</strong> to respond.</div>
@@ -631,8 +753,9 @@ export function BoardProposal({ lead, showActionBar }) {
     setResponded(action);
   };
   const close = () => setModal(null);
+  const barMobile = useIsMobile();
   return (
-    <div className="bp-root" style={{ background: c.offWhite, paddingBottom: showActionBar ? 76 : 0 }}>
+    <div className="bp-root" style={{ background: c.offWhite, paddingBottom: showActionBar ? (barMobile ? 168 : 76) : 0 }}>
       <GlobalStyles />
       <ProposalExp lead={lead} submission={submission} />
       {showActionBar && <BoardActionBar submission={submission} responded={responded} onOpen={setModal} />}
