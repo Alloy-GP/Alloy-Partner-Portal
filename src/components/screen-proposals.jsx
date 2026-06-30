@@ -327,7 +327,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
         </div>
       )}
 
-      <button className="fx-back" onClick={onBack}><I.Arrow width={15} height={15} style={{ transform: 'rotate(180deg)' }} /> Back to inbox</button>
+      <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> Back to inbox</button>
 
       <div className="fx-analysis">
         <NewRail pending={pending} selectedId={selectedId} onSelect={onSelectRail} />
@@ -885,11 +885,13 @@ function CloseView({ subs, watchId, setWatchId, onResend, onNudge, onMarkWon, on
   if (!watchId) return <SentBucket open={open} onPick={setWatchId} />;
   const selected = open.find((s) => s.id === watchId) || open[0];
   return (
-    <div className="v2-watch">
-      <button className="fx-back" onClick={() => setWatchId(null)}><I.Arrow width={15} height={15} style={{ transform: 'rotate(180deg)' }} /> All sent</button>
-      <LeadAnalytics key={selected.id} s={selected} onResend={onResend} onNudge={onNudge}
-        onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
-        notes={notesMap[selected.id]} addNote={addNote} />
+    <div>
+      <button className="fx-back" onClick={() => setWatchId(null)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> All sent</button>
+      <div className="v2-watch">
+        <LeadAnalytics key={selected.id} s={selected} onResend={onResend} onNudge={onNudge}
+          onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
+          notes={notesMap[selected.id]} addNote={addNote} />
+      </div>
     </div>
   );
 }
@@ -1290,7 +1292,7 @@ export default function ProposalsScreen() {
       {/* Pinned lead card — the spine below the stepper while a lead is focused in Build. */}
       {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
         <>
-          <button className="fx-back" onClick={() => setFocusBuild(false)}><I.Arrow width={15} height={15} style={{ transform: 'rotate(180deg)' }} /> All in Build</button>
+          <button className="fx-back" onClick={() => setFocusBuild(false)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> All in Build</button>
           <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} />
         </>
       )}
