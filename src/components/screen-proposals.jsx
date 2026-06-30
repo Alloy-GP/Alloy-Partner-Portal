@@ -684,9 +684,9 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, onApplyMatch, 
 // ============================ SEND ============================
 // In-cockpit mirror of the real board email (proposal-send / handoff #20), so
 // the Send preview matches what the board actually receives.
-const EML = { brand: '#2b2c6c', brand2: '#36418f', brandDeep: '#161a44', accent: '#2f9e6f', ink: '#1b1430', body: '#57506a', muted: '#8a8395', hairline: '#e9e5f0', tint: '#f7f5fb', checkBg: '#e6f4ee' };
+const EML = { brand: '#2b2c6c', navy: '#1a1b4a', accent: '#2f9e6f', ink: '#1b1430', body: '#57506a', muted: '#8a8395', hairline: '#e9e5f0', tint: '#f7f5fb', checkBg: '#e4f3ec' };
 function NewEmailPreview({ sub }) {
-  const FD = 'var(--font-display)', FB = 'var(--font-body)';
+  const FD = 'Arial,Helvetica,sans-serif', FB = FD; // match the real (Arial) email
   const priorities = (sub.concerns || []).filter((c) => c.on !== false).map((c) => c.label).slice(0, 6);
   const nWord = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][priorities.length] || String(priorities.length);
   const cell = (k, v, s2, i) => (
@@ -698,15 +698,14 @@ function NewEmailPreview({ sub }) {
   );
   return (
     <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', border: `1px solid ${EML.hairline}`, fontFamily: FB }}>
-      <div style={{ background: '#1a1d44', backgroundImage: `linear-gradient(157deg,${EML.brand2} 0%,${EML.brand} 30%,#1b1e47 64%,#101230 100%)`, padding: '20px 26px 30px', color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontFamily: FD, fontWeight: 800, fontSize: 16, letterSpacing: '.01em' }}>{CAM_COMPANY.shortName}</span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,.6)' }}>{CAM_COMPANY.tagline}</span>
-        </div>
-        <div style={{ height: 50 }} />
-        <div style={{ fontFamily: FD, fontSize: 9.5, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 18, height: 2, background: EML.accent, display: 'inline-block' }} />Your management proposal</div>
-        <div style={{ fontFamily: FD, fontWeight: 800, fontSize: 31, lineHeight: 1.05, letterSpacing: '-.02em' }}>Built around {sub.community}.</div>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,.82)', marginTop: 12 }}>Prepared for {sub.contact || sub.firstName} &amp; the board.</div>
+      <div style={{ background: EML.brand, padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontFamily: FD, fontWeight: 700, fontSize: 17, letterSpacing: '.04em', color: '#fff' }}>{CAM_COMPANY.shortName}</span>
+        <span style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: '#aab0e0' }}>{CAM_COMPANY.tagline}</span>
+      </div>
+      <div style={{ background: EML.navy, padding: '34px 26px 32px', color: '#fff' }}>
+        <div style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#c8ccf0' }}><span style={{ width: 20, height: 3, background: EML.accent, display: 'inline-block' }} />Your management proposal</div>
+        <div style={{ fontFamily: FD, fontWeight: 700, fontSize: 28, lineHeight: 1.08, letterSpacing: '-.01em' }}>Built around {sub.community}.</div>
+        <div style={{ fontFamily: FD, fontSize: 13, color: '#b9bce0', marginTop: 11 }}>Prepared for {sub.contact || sub.firstName} &amp; the board.</div>
       </div>
       <div style={{ padding: '20px 24px 4px' }}>
         <div style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: EML.accent, marginBottom: 9 }}>Here's what you told us</div>

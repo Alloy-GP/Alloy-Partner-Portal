@@ -5,16 +5,17 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //
 // Flow: cockpit Send → here. We (1) AUTHORIZE by reading the proposal with the
 // CALLER's session (RLS — you can only send proposals you can see), (2) build
-// the magic link <baseUrl>/proposals/board/<board_token>, (3) render a
-// board-facing email (design handoff #20), (4) deliver via Resend, (5) only on
-// success, mark the proposal sent (status + sent_at). Returns {sent,to}.
+// the magic link <baseUrl>/proposals/board/<board_token>, (3) render the
+// board-facing email, (4) deliver via Resend, (5) only on success, mark the
+// proposal sent (status + sent_at). Returns {sent,to}.
 //
-// verify_jwt: true — a signed-in staffer/client triggers it (the session JWT
-// is the auth; RLS does the per-account authorization on the read).
+// EMAIL = the email-safe handoff (Alloy Client Portal #21): table layout, all
+// inline styles, SOLID colors (no gradients), Arial stack (no web fonts),
+// Unicode icons (no SVG/images), bulletproof VML button. Renders in Gmail /
+// Apple Mail / Outlook. NO price anywhere (per the client).
 //
-// from address = the per-CAM proposal_from_email when set + verified in Resend
-// (e.g. proposals@cmgt.org); otherwise the shared alloygp.co domain with the
-// CAM's display name. NO price anywhere in the email (per the client).
+// verify_jwt: true — a signed-in staffer/client triggers it; RLS does the
+// per-account authorization on the read.
 
 const FROM_DOMAIN = "noreply@alloygp.co";
 const PORTAL_URL = (Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co").replace(/\/$/, "");
@@ -31,15 +32,13 @@ const isEmail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 const NUMWORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 const numWord = (n: number) => (n >= 0 && n <= 10 ? NUMWORDS[n] : String(n));
 
-// CMGT theme (handoff #20). Themeable per CAM later — swap these + the wordmark.
-const T = {
-  brand: "#2b2c6c", brand2: "#36418f", brandDeep: "#161a44",
-  accent: "#2f9e6f", accentDeep: "#25805a",
+// Solid brand palette (handoff #21). Theme per CAM = swap these hex strings.
+const C = {
+  brand: "#2b2c6c", navy: "#1a1b4a", green: "#2f9e6f", greenTint: "#e4f3ec",
   ink: "#1b1430", body: "#57506a", muted: "#8a8395",
-  hairline: "#e9e5f0", tint: "#f7f5fb", page: "#e7e3ee", checkBg: "#e6f4ee",
+  hairline: "#e9e5f0", tint: "#f7f5fb", page: "#e7e3ee", heroSub: "#b9bce0", heroEy: "#c8ccf0", tag: "#aab0e0",
 };
-const FD = `'Poppins',"Helvetica Neue",Arial,sans-serif`; // display
-const FB = `'Inter',"Helvetica Neue",Arial,sans-serif`;   // body
+const FA = "Arial,Helvetica,sans-serif";
 
 interface EmailData {
   cam: string; camFull: string; tagline: string;
@@ -49,127 +48,188 @@ interface EmailData {
   camDomain: string; camEmail: string;
 }
 
-function priorityRows(items: string[]): string {
-  const chip = `<span style="display:inline-block;width:19px;height:19px;line-height:19px;text-align:center;border-radius:999px;background:${T.checkBg};color:${T.accent};font-weight:800;font-size:11px;vertical-align:middle;margin-right:9px;">&#10003;</span>`;
-  const cell = (label: string) =>
-    `<td class="pricell" width="50%" valign="top" style="padding:7px 0;font-family:${FB};font-size:13.5px;font-weight:500;color:${T.ink};line-height:1.4;">${chip}${esc(label)}</td>`;
+function priorityCell(label: string, rightCol: boolean): string {
+  return `<td class="col-stack" width="50%" valign="top" style="padding:0 ${rightCol ? "0" : "14px"} 14px 0;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                      <td valign="top" style="padding-right:10px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" width="20" height="20" style="width:20px; height:20px; background-color:${C.greenTint}; border-radius:10px; font-family:${FA}; font-size:12px; font-weight:bold; color:${C.green}; line-height:20px;">&#10003;</td></tr></table>
+                      </td>
+                      <td valign="middle" style="font-family:${FA}; font-size:13.5px; line-height:1.4; color:${C.ink}; font-weight:bold;">${esc(label)}</td>
+                    </tr></table>
+                  </td>`;
+}
+function priorityGrid(items: string[]): string {
   let rows = "";
   for (let i = 0; i < items.length; i += 2) {
-    rows += `<tr>${cell(items[i])}${items[i + 1] ? cell(items[i + 1]) : '<td class="pricell" width="50%"></td>'}</tr>`;
+    rows += `<tr>${priorityCell(items[i], false)}${items[i + 1] ? priorityCell(items[i + 1], true) : '<td class="col-stack" width="50%">&nbsp;</td>'}</tr>`;
   }
   return rows;
 }
 
 function renderEmail(d: EmailData): string {
-  const askCell = (k: string, v: string, sub: string, first: boolean) =>
-    `<td class="askcell" width="33.33%" valign="top" style="padding:14px 16px;${first ? "" : `border-left:1px solid ${T.hairline};`}">
-      <div style="font-family:${FB};font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${T.muted};">${esc(k)}</div>
-      <div style="font-family:${FD};font-size:17px;font-weight:700;color:${T.ink};margin-top:5px;line-height:1.2;">${esc(v)}</div>
-      <div style="font-family:${FB};font-size:12px;font-weight:500;color:${T.muted};margin-top:3px;">${esc(sub)}</div>
-    </td>`;
-  const priBlock = d.priorities.length
-    ? `<tr><td style="padding:22px 30px 4px;">
-        <div style="border-top:1px solid ${T.hairline};padding-top:18px;">
-          <div style="font-family:${FB};font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${T.muted};margin-bottom:8px;">The priorities we answered</div>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${priorityRows(d.priorities)}</table>
-        </div>
-      </td></tr>`
-    : "";
   const priLine = d.priorities.length
-    ? `the <b style="color:${T.ink};">${numWord(d.priorities.length)} priorities your board raised</b>, point by point`
+    ? `the <strong style="color:${C.ink};">${numWord(d.priorities.length)} priorities your board raised</strong>, point by point`
     : `the specific priorities your board raised`;
+  const priSection = d.priorities.length
+    ? `<tr>
+            <td class="pad-sm" style="padding:18px 34px 4px 34px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid ${C.hairline}; padding-top:18px;">
+                  <div style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.1em; text-transform:uppercase; color:${C.muted}; padding-bottom:14px;">The priorities we answered</div>
+                </td></tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                ${priorityGrid(d.priorities)}
+              </table>
+            </td>
+          </tr>`
+    : "";
 
-  return `<!doctype html><html lang="en"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="x-apple-disable-message-reformatting">
-<title>Built around ${esc(d.community)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-  body,table,td,a{ -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
-  table,td{ mso-table-lspace:0pt; mso-table-rspace:0pt; }
-  body{ margin:0!important; padding:0!important; width:100%!important; }
-  @media only screen and (max-width:560px){
-    .container{ width:100%!important; border-radius:0!important; }
-    .px{ padding-left:22px!important; padding-right:22px!important; }
-    .hero{ padding:22px 22px 32px!important; }
-    .hero-gap{ height:40px!important; line-height:40px!important; }
-    .hero-h1{ font-size:29px!important; }
-    .askcell{ display:block!important; width:100%!important; border-left:0!important; border-top:1px solid ${T.hairline}; }
-    .askcell:first-child{ border-top:0; }
-    .pricell{ display:block!important; width:100%!important; }
+  return `<!doctype html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<title>Your management proposal · ${esc(d.cam)}</title>
+<!--[if mso]>
+<style type="text/css">table, td, div, p, a { font-family: Arial, Helvetica, sans-serif !important; }</style>
+<![endif]-->
+<style type="text/css">
+  body { margin: 0; padding: 0; }
+  table { border-collapse: collapse; }
+  img { border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { text-decoration: none; }
+  .cta-link:hover { background: #25805a !important; }
+  @media only screen and (max-width: 560px) {
+    .col-stack { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+    .col-stack-b { border-right: 0 !important; border-bottom: 1px solid ${C.hairline} !important; }
+    .col-stack-b-last { border-bottom: 0 !important; }
+    .pad-sm { padding-left: 24px !important; padding-right: 24px !important; }
+    .h1-sm { font-size: 28px !important; line-height: 1.1 !important; }
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:${T.page};font-family:${FB};">
-<div style="display:none;max-height:0;max-width:0;opacity:0;overflow:hidden;font-size:1px;line-height:1px;color:${T.page};">Your tailored management proposal for ${esc(d.community)}, built around what your board told us.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${T.page};"><tr><td align="center" style="padding:24px 12px;">
-  <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-  <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid ${T.hairline};">
+<body style="margin:0; padding:0; background-color:${C.page};">
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:${C.page}; opacity:0;">Built around ${esc(d.community)} — we answered the priorities your board raised. One-tap secure link inside.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${C.page};">
+    <tr>
+      <td align="center" style="padding:32px 16px 56px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:14px; overflow:hidden;">
 
-    <!-- 1 brand header + hero — ONE continuous dark gradient block -->
-    <tr><td class="hero" bgcolor="#1a1d44" style="background:#1a1d44;background-image:linear-gradient(157deg,${T.brand2} 0%,${T.brand} 30%,#1b1e47 64%,#101230 100%);padding:24px 34px 38px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td align="left" style="font-family:${FD};font-size:19px;font-weight:800;letter-spacing:.01em;color:#ffffff;">${esc(d.cam)}</td>
-        <td align="right" style="font-family:${FD};font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.6);">${esc(d.tagline)}</td>
-      </tr></table>
-      <div class="hero-gap" style="height:60px;line-height:60px;font-size:0;">&nbsp;</div>
-      <div style="font-family:${FD};font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#ffffff;margin-bottom:13px;"><span style="display:inline-block;width:18px;height:2px;background:${T.accent};vertical-align:middle;margin-right:8px;"></span>Your management proposal</div>
-      <div class="hero-h1" style="font-family:${FD};font-size:37px;font-weight:800;line-height:1.04;letter-spacing:-.02em;color:#ffffff;margin:0;">Built around<br>${esc(d.community)}.</div>
-      <div style="font-family:${FB};font-size:14px;color:rgba(255,255,255,.82);margin-top:14px;">Prepared for ${esc(d.contactFull)} &amp; the board.</div>
-    </td></tr>
+          <!-- 1 header -->
+          <tr>
+            <td style="background-color:${C.brand}; padding:22px 30px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td align="left" style="font-family:${FA}; font-size:20px; font-weight:bold; letter-spacing:0.04em; color:#ffffff;">${esc(d.cam)}</td>
+                <td align="right" style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.12em; text-transform:uppercase; color:${C.tag};">${esc(d.tagline)}</td>
+              </tr></table>
+            </td>
+          </tr>
 
-    <!-- 3 what you told us -->
-    <tr><td class="px" style="padding:26px 30px 6px;">
-      <div style="font-family:${FD};font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${T.accent};margin-bottom:11px;">Here's what you told us</div>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${T.hairline};border-radius:12px;">
-        <tr>
-          ${askCell("Community", d.community, d.city || "—", true)}
-          ${askCell("Homes", String(d.homes || "—"), "units under management", false)}
-          ${askCell("Type", d.type || "—", d.status || "", false)}
-        </tr>
-      </table>
-    </td></tr>
+          <!-- 2 hero (solid navy) -->
+          <tr>
+            <td class="pad-sm" style="background-color:${C.navy}; padding:40px 34px 38px 34px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="padding-bottom:16px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                    <td style="padding-right:10px;" valign="middle"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="width:22px; height:3px; background-color:${C.green}; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
+                    <td valign="middle" style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.14em; text-transform:uppercase; color:${C.heroEy};">Your management proposal</td>
+                  </tr></table>
+                </td></tr>
+                <tr><td class="h1-sm" style="font-family:${FA}; font-size:34px; font-weight:bold; line-height:1.08; letter-spacing:-0.01em; color:#ffffff;">Built around<br/>${esc(d.community)}.</td></tr>
+                <tr><td style="padding-top:12px; font-family:${FA}; font-size:14px; line-height:1.5; color:${C.heroSub};">Prepared for ${esc(d.contactFull)} &amp; the board.</td></tr>
+              </table>
+            </td>
+          </tr>
 
-    <!-- 4 body -->
-    <tr><td class="px" style="padding:26px 30px 4px;">
-      <div style="font-family:${FD};font-size:16px;font-weight:700;color:${T.ink};margin-bottom:10px;">Hi ${esc(d.firstName)},</div>
-      <div style="font-family:${FB};font-size:15px;line-height:1.62;color:${T.body};">Thank you for telling us about <b style="color:${T.ink};">${esc(d.community)}</b>. We didn't send a generic pitch — we built this proposal around ${priLine}.</div>
-    </td></tr>
-    ${priBlock}
+          <!-- 3 stat strip -->
+          <tr>
+            <td class="pad-sm" style="padding:28px 34px 6px 34px;">
+              <div style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.12em; text-transform:uppercase; color:${C.green}; padding-bottom:13px;">Here's what you told us</div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${C.hairline}; border-radius:12px;">
+                <tr>
+                  <td class="col-stack col-stack-b" width="33.33%" valign="top" style="padding:16px 18px; border-right:1px solid ${C.hairline};">
+                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Community</div>
+                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(d.community)}</div>
+                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">${esc(d.city || "—")}</div>
+                  </td>
+                  <td class="col-stack col-stack-b" width="33.33%" valign="top" style="padding:16px 18px; border-right:1px solid ${C.hairline};">
+                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Homes</div>
+                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(String(d.homes || "—"))}</div>
+                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">units under management</div>
+                  </td>
+                  <td class="col-stack col-stack-b-last" width="33.33%" valign="top" style="padding:16px 18px;">
+                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Type</div>
+                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(d.type || "—")}</div>
+                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">${esc(d.status || "")}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    <!-- 5 CTA -->
-    <tr><td class="px" style="padding:24px 30px 6px;">
-      <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${esc(d.link)}" style="height:54px;v-text-anchor:middle;width:540px;" arcsize="22%" strokecolor="${T.accent}" fillcolor="${T.accent}"><w:anchorlock/><center style="color:#ffffff;font-family:${FD};font-size:16px;font-weight:700;">View your proposal &rarr;</center></v:roundrect><![endif]-->
-      <!--[if !mso]><!-- -->
-      <a href="${esc(d.link)}" style="display:block;background:${T.accent};color:#ffffff;font-family:${FD};font-size:16px;font-weight:700;text-align:center;text-decoration:none;padding:17px 28px;border-radius:12px;">View your proposal &rarr;</a>
-      <!--<![endif]-->
-    </td></tr>
+          <!-- 4 body -->
+          <tr>
+            <td class="pad-sm" style="padding:24px 34px 0 34px;">
+              <div style="font-family:${FA}; font-size:16px; font-weight:bold; color:${C.ink}; padding-bottom:10px;">Hi ${esc(d.firstName)},</div>
+              <p style="margin:0; font-family:${FA}; font-size:15px; line-height:1.62; color:${C.body};">Thank you for telling us about ${esc(d.community)}. We didn't send a generic pitch — we built this proposal around ${priLine}.</p>
+            </td>
+          </tr>
 
-    <!-- 6 secure note -->
-    <tr><td class="px" style="padding:14px 30px 4px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${T.tint};border-radius:10px;"><tr>
-        <td valign="top" width="26" style="padding:13px 0 13px 14px;color:${T.brand2};font-family:${FB};font-weight:800;">&#128274;</td>
-        <td style="padding:13px 14px 13px 8px;font-family:${FB};font-size:12.5px;line-height:1.55;color:${T.muted};"><b style="color:${T.body};">One-tap secure link — no password.</b> It signs you in automatically and works only from this email.${d.expires ? ` Expires ${esc(d.expires)}.` : ""}</td>
-      </tr></table>
-    </td></tr>
+          <!-- 5 priorities -->
+          ${priSection}
 
-    <!-- 7 signature -->
-    <tr><td class="px" style="padding:18px 30px 24px;">
-      <div style="font-family:${FD};font-size:14.5px;font-weight:700;color:${T.ink};">&mdash; The ${esc(d.cam)} team</div>
-      <div style="font-family:${FB};font-size:12.5px;color:${T.muted};margin-top:2px;">Client Partnerships &middot; ${esc(d.camFull)}</div>
-    </td></tr>
+          <!-- 6 CTA -->
+          <tr>
+            <td class="pad-sm" style="padding:26px 34px 6px 34px;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${esc(d.link)}" style="height:54px;v-text-anchor:middle;width:532px;" arcsize="22%" stroke="f" fillcolor="${C.green}">
+                <w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">View your proposal &#8594;</center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-- -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td align="center" bgcolor="${C.green}" style="background-color:${C.green}; border-radius:12px;">
+                  <a class="cta-link" href="${esc(d.link)}" target="_blank" style="display:block; padding:17px 28px; font-family:${FA}; font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:12px;">View your proposal &#8594;</a>
+                </td>
+              </tr></table>
+              <!--<![endif]-->
+            </td>
+          </tr>
 
-    <!-- 8 footer -->
-    <tr><td bgcolor="${T.tint}" style="background:${T.tint};border-top:1px solid ${T.hairline};padding:18px 30px;text-align:center;">
-      <div style="font-family:${FD};font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${T.body};">${esc(d.camFull)}</div>
-      <div style="font-family:${FB};font-size:12px;color:${T.muted};margin-top:6px;line-height:1.6;">${d.camDomain ? `<a href="https://${esc(d.camDomain)}" style="color:${T.muted};text-decoration:none;">${esc(d.camDomain)}</a> &middot; ` : ""}${esc(d.camEmail)}<br>Sent to ${esc(d.contactFull)}${d.contactRole ? `, ${esc(d.contactRole)}` : ""} &middot; ${esc(d.community)}</div>
-    </td></tr>
+          <!-- 7 secure note -->
+          <tr>
+            <td class="pad-sm" style="padding:18px 34px 0 34px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${C.tint}; border:1px solid ${C.hairline}; border-radius:12px;"><tr>
+                <td valign="top" width="30" style="padding:14px 0 14px 16px; font-size:15px; line-height:1.4;">&#128274;</td>
+                <td valign="top" style="padding:14px 16px 14px 9px; font-family:${FA}; font-size:12.5px; line-height:1.55; color:${C.muted};"><strong style="color:${C.body};">One-tap secure link — no password.</strong> It signs you in automatically and works only from this email.${d.expires ? ` Expires ${esc(d.expires)}.` : ""}</td>
+              </tr></table>
+            </td>
+          </tr>
 
+          <!-- 8 signature -->
+          <tr>
+            <td class="pad-sm" style="padding:22px 34px 30px 34px;">
+              <div style="font-family:${FA}; font-size:14.5px; font-weight:bold; color:${C.ink};">— The ${esc(d.cam)} team</div>
+              <div style="font-family:${FA}; font-size:12.5px; color:${C.muted}; padding-top:2px;">Client Partnerships · ${esc(d.camFull)}</div>
+            </td>
+          </tr>
+
+          <!-- 9 footer -->
+          <tr>
+            <td class="pad-sm" align="center" style="background-color:${C.tint}; border-top:1px solid ${C.hairline}; padding:24px 34px;">
+              <div style="font-family:${FA}; font-size:13px; font-weight:bold; letter-spacing:0.02em; color:${C.body};">${esc(d.camFull)}</div>
+              <div style="font-family:${FA}; font-size:12px; line-height:1.7; color:${C.muted}; padding-top:6px;">${d.camDomain ? `<a href="https://${esc(d.camDomain)}" target="_blank" style="color:${C.body}; text-decoration:none;">${esc(d.camDomain)}</a> &middot; ` : ""}${esc(d.camEmail)}<br/>Sent to ${esc(d.contactFull)}${d.contactRole ? `, ${esc(d.contactRole)}` : ""} · ${esc(d.community)}</div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
   </table>
-  <!--[if mso]></td></tr></table><![endif]-->
-</td></tr></table>
-</body></html>`;
+</body>
+</html>`;
 }
 
 Deno.serve(async (req) => {
@@ -215,10 +275,10 @@ Deno.serve(async (req) => {
     const camDomain = (fromEmail.split("@")[1] || "").trim();
     const link = `${base}/proposals/board/${prop.board_token}`;
 
-    // Priorities = the lead's matched concerns (from the persisted LLM/engine
-    // snapshot). Labels only; capped so the email stays scannable. No price.
+    // Priorities = the lead's matched concerns (persisted LLM/engine snapshot).
+    // Labels only; capped to 4 so the email stays scannable. No price.
     const priorities = Array.isArray(prop.match_snapshot?.concerns)
-      ? prop.match_snapshot.concerns.map((c: any) => String(c?.label || "").trim()).filter(Boolean).slice(0, 6)
+      ? prop.match_snapshot.concerns.map((c: any) => String(c?.label || "").trim()).filter(Boolean).slice(0, 4)
       : [];
 
     const html = renderEmail({
