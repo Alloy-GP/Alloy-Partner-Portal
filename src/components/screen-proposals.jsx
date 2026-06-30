@@ -698,14 +698,15 @@ function NewEmailPreview({ sub }) {
   );
   return (
     <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', border: `1px solid ${EML.hairline}`, fontFamily: FB }}>
-      <div style={{ background: `linear-gradient(120deg,${EML.brand2},${EML.brand} 56%,${EML.brandDeep})`, padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: FD, fontWeight: 800, fontSize: 16, color: '#fff', letterSpacing: '.02em' }}>{CAM_COMPANY.shortName}</span>
-        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,.66)' }}>{CAM_COMPANY.tagline}</span>
-      </div>
-      <div style={{ background: `linear-gradient(150deg,${EML.brand2},#23275c 42%,${EML.brandDeep})`, padding: '40px 24px 22px', color: '#fff' }}>
-        <div style={{ fontFamily: FD, fontSize: 9.5, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 18, height: 2, background: EML.accent, display: 'inline-block' }} />Your management proposal</div>
-        <div style={{ fontFamily: FD, fontWeight: 800, fontSize: 26, lineHeight: 1.08, letterSpacing: '-.02em' }}>Built around {sub.community}.</div>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,.86)', marginTop: 10 }}>Prepared for {sub.contact || sub.firstName} &amp; the board.</div>
+      <div style={{ background: '#1a1d44', backgroundImage: `linear-gradient(157deg,${EML.brand2} 0%,${EML.brand} 30%,#1b1e47 64%,#101230 100%)`, padding: '20px 26px 30px', color: '#fff' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontFamily: FD, fontWeight: 800, fontSize: 16, letterSpacing: '.01em' }}>{CAM_COMPANY.shortName}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,.6)' }}>{CAM_COMPANY.tagline}</span>
+        </div>
+        <div style={{ height: 50 }} />
+        <div style={{ fontFamily: FD, fontSize: 9.5, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 18, height: 2, background: EML.accent, display: 'inline-block' }} />Your management proposal</div>
+        <div style={{ fontFamily: FD, fontWeight: 800, fontSize: 31, lineHeight: 1.05, letterSpacing: '-.02em' }}>Built around {sub.community}.</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,.82)', marginTop: 12 }}>Prepared for {sub.contact || sub.firstName} &amp; the board.</div>
       </div>
       <div style={{ padding: '20px 24px 4px' }}>
         <div style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: EML.accent, marginBottom: 9 }}>Here's what you told us</div>
@@ -763,7 +764,7 @@ function MomentOfTruth({ sub, onSend }) {
         </label>
         <button className="v2-mail-send" disabled={!to.trim()} onClick={() => onSend(to.trim())}><span className="v2-mail-send-ic"><I.Send width={18} height={18} /></span>Send proposal</button>
       </div>
-      <div className="v2-mail">
+      <div className="v2-mail" style={{ maxWidth: 600, margin: '0 auto', width: '100%' }}>
         <div className="v2-mail-toolbar">
           <span className="v2-mail-app"><span className="dot" /> Mail · Inbox</span>
           <div className="grow" />

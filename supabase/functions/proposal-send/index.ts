@@ -92,8 +92,9 @@ function renderEmail(d: EmailData): string {
   @media only screen and (max-width:560px){
     .container{ width:100%!important; border-radius:0!important; }
     .px{ padding-left:22px!important; padding-right:22px!important; }
-    .hero{ padding:48px 22px 26px!important; }
-    .hero-h1{ font-size:30px!important; }
+    .hero{ padding:22px 22px 32px!important; }
+    .hero-gap{ height:40px!important; line-height:40px!important; }
+    .hero-h1{ font-size:29px!important; }
     .askcell{ display:block!important; width:100%!important; border-left:0!important; border-top:1px solid ${T.hairline}; }
     .askcell:first-child{ border-top:0; }
     .pricell{ display:block!important; width:100%!important; }
@@ -106,19 +107,16 @@ function renderEmail(d: EmailData): string {
   <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
   <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid ${T.hairline};">
 
-    <!-- 1 brand header -->
-    <tr><td class="px" bgcolor="${T.brand}" style="background:${T.brand};background-image:linear-gradient(120deg,${T.brand2} 0%,${T.brand} 56%,${T.brandDeep} 100%);padding:20px 30px;">
+    <!-- 1 brand header + hero — ONE continuous dark gradient block -->
+    <tr><td class="hero" bgcolor="#1a1d44" style="background:#1a1d44;background-image:linear-gradient(157deg,${T.brand2} 0%,${T.brand} 30%,#1b1e47 64%,#101230 100%);padding:24px 34px 38px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td align="left" style="font-family:${FD};font-size:18px;font-weight:800;letter-spacing:.02em;color:#ffffff;">${esc(d.cam)}</td>
-        <td align="right" style="font-family:${FD};font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.66);">${esc(d.tagline)}</td>
+        <td align="left" style="font-family:${FD};font-size:19px;font-weight:800;letter-spacing:.01em;color:#ffffff;">${esc(d.cam)}</td>
+        <td align="right" style="font-family:${FD};font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.6);">${esc(d.tagline)}</td>
       </tr></table>
-    </td></tr>
-
-    <!-- 2 hero -->
-    <tr><td class="hero" bgcolor="${T.brandDeep}" style="background:${T.brandDeep};background-image:linear-gradient(150deg,${T.brand2} 0%,#23275c 42%,${T.brandDeep} 100%);padding:64px 34px 30px;">
-      <div style="font-family:${FD};font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#ffffff;margin-bottom:14px;"><span style="display:inline-block;width:18px;height:2px;background:${T.accent};vertical-align:middle;margin-right:8px;"></span>Your management proposal</div>
-      <div class="hero-h1" style="font-family:${FD};font-size:38px;font-weight:800;line-height:1.05;letter-spacing:-.02em;color:#ffffff;margin:0;">Built around<br>${esc(d.community)}.</div>
-      <div style="font-family:${FB};font-size:14px;color:rgba(255,255,255,.86);margin-top:14px;">Prepared for ${esc(d.contactFull)} &amp; the board.</div>
+      <div class="hero-gap" style="height:60px;line-height:60px;font-size:0;">&nbsp;</div>
+      <div style="font-family:${FD};font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#ffffff;margin-bottom:13px;"><span style="display:inline-block;width:18px;height:2px;background:${T.accent};vertical-align:middle;margin-right:8px;"></span>Your management proposal</div>
+      <div class="hero-h1" style="font-family:${FD};font-size:37px;font-weight:800;line-height:1.04;letter-spacing:-.02em;color:#ffffff;margin:0;">Built around<br>${esc(d.community)}.</div>
+      <div style="font-family:${FB};font-size:14px;color:rgba(255,255,255,.82);margin-top:14px;">Prepared for ${esc(d.contactFull)} &amp; the board.</div>
     </td></tr>
 
     <!-- 3 what you told us -->
