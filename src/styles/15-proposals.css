@@ -737,6 +737,8 @@
   box-shadow: 0 30px 80px rgba(32,16,47,0.34);
   animation: v2-pop 360ms cubic-bezier(.34,1.56,.64,1) both;
 }
+.proposal-system .v2-launch-scan { margin: 0 auto 12px; }
+.proposal-system .v2-launch-scan svg { display: block; }
 .proposal-system .v2-launch-sky { position: relative; width: 220px; height: 120px; margin: 0 auto 14px; }
 .proposal-system .v2-launch-trail { position: absolute; inset: 0; width: 220px; height: 120px; }
 .proposal-system .v2-launch-trail path { stroke-dashoffset: 220; animation: v2-trail 1.2s ease-out 120ms forwards; }

@@ -7,6 +7,8 @@ import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
 import UVPLibrary from './screen-uvp-library.jsx';
 import { DATA } from '../data.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import lottie from 'lottie-web/build/player/lottie_light';
+import scanningData from '../assets/scanning.json';
 
 // ============================================================================
 // Proposals — CAM staff cockpit, v15 (Review → Build → Send → Close · Retain).
@@ -36,6 +38,22 @@ const stageOf = (s) => {
   if (s.status === 'accepted' || s.status === 'declined') return 'closed';
   return 'qualified';
 };
+
+// Looping scan animation (replaces the old lightning-bolt) for the "matching"
+// overlay. Cockpit-only — kept out of proposal-shared so the anonymous board
+// bundle stays lottie-free.
+function LottieScan({ size = 104, className }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return undefined;
+    const anim = lottie.loadAnimation({
+      container: ref.current, renderer: 'svg', loop: true, autoplay: true,
+      animationData: scanningData, rendererSettings: { progressiveLoad: false },
+    });
+    return () => anim.destroy();
+  }, []);
+  return <span className={className} ref={ref} aria-hidden="true" style={{ width: size, height: size, display: 'block', margin: '0 auto' }} />;
+}
 
 const OWNER_COLORS = { AB: 'linear-gradient(135deg,#d9356e,#a82451)', JR: 'linear-gradient(135deg,#4b86b4,#2a6391)' };
 function OwnerAvatar({ initials, size }) {
@@ -1437,7 +1455,7 @@ export default function ProposalsScreen() {
       {matching && (
         <div className="v2-launch">
           <div className="v2-launch-card">
-            <div className="v2-launch-sky"><span className="v2-launch-plane"><I.Bolt width={28} height={28} /></span></div>
+            <LottieScan size={108} className="v2-launch-scan" />
             <div className="v2-launch-txt">Matching {matching.community} with AI…</div>
             <div className="v2-launch-sub">Reading the board's intake and mapping concerns to your UVPs</div>
           </div>
