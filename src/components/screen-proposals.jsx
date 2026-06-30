@@ -428,9 +428,10 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
   const ownerFig = sub.owner
     ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{OWNER_NAMES[sub.owner] || sub.owner}</> }
     : { k: 'Owner', v: 'Unassigned' };
-  let figs;
+  let figs, statusText = STATUS[stage];
   if (stage === 'sent') {
     const w = getWatch(sub), pr = pricing(sub);
+    statusText = 'Sent · ' + ((w.heat || 'cold').charAt(0).toUpperCase() + (w.heat || 'cold').slice(1));
     figs = [{ k: 'Opens', v: w.opens, hot: w.heat === 'hot' }, { k: 'Viewers', v: w.viewers.length }, { k: 'Value', v: pr.monthly + '/mo' }];
   } else if (stage === 'won' || stage === 'lost') {
     figs = [{ k: stage === 'won' ? 'Sales value' : 'Quoted', v: fmtMoney(stage === 'won' ? (sub.salesValue || sub.quoteValue || monthly) : monthly) + '/mo' }, ownerFig, { k: 'Closed', v: 'Recently' }];
@@ -440,7 +441,7 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
   return (
     <div className="fx-pin">
       <div className="fx-pin-l">
-        <div className="fx-pin-name">{sub.community}<span className="fx-pin-status" data-s={stage}>{STATUS[stage]}</span></div>
+        <div className="fx-pin-name">{sub.community}<span className="fx-pin-status" data-s={stage}>{statusText}</span></div>
         <div className="fx-pin-meta">{sub.contact}{sub.contactRole ? ' · ' + sub.contactRole : ''} · {sub.homes} homes · {sub.city}</div>
       </div>
       <div className="fx-pin-figs">
@@ -758,12 +759,9 @@ function ResponseBanner({ r }) {
   );
 }
 
-function LeadAnalytics({ s, onResend, onNudge, onMarkWon, onMarkLost, notes, addNote }) {
+function LeadAnalytics({ s, notes, addNote }) {
   const w = getWatch(s), e = expState(w);
-  const [winOpen, setWinOpen] = useState(false);
-  const [nudgeOpen, setNudgeOpen] = useState(false);
   const [note, setNote] = useState('');
-  const pr = pricing(s);
   const figs = [
     { k: 'Total opens', v: w.opens, s: w.opens ? 'since sent ' + w.sentOn : 'not opened yet' },
     { k: 'Unique viewers', v: w.viewers.length, s: w.viewers.length ? 'board members' : '—' },
@@ -772,22 +770,6 @@ function LeadAnalytics({ s, onResend, onNudge, onMarkWon, onMarkLost, notes, add
   ];
   return (
     <div className="v2-w-detail">
-      <div className="v2-w-hero" data-heat={w.heat}>
-        <div className="v2-w-hero-main">
-          <div className="v2-w-hero-row"><HeatPill heat={w.heat} big /><span className="v2-w-hero-hint">{(HEAT[w.heat] || HEAT.cold).hint}</span></div>
-          <h2 className="v2-w-hero-name">{s.community}</h2>
-          <div className="v2-w-hero-meta">{s.contact} · {s.contactRole} · {s.homes} homes · {s.city}</div>
-          <div className="v2-w-hero-sub">Sent {w.sentOn} · {pr.monthly}/mo · last opened {w.lastOpened}</div>
-        </div>
-        <div className="v2-w-hero-acts">
-          <button className="v2-w-act primary" onClick={() => setNudgeOpen(true)}><I.Send width={14} height={14} /> Send a nudge</button>
-          <button className="v2-w-act" onClick={() => onResend(s)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15" /></svg>
-            Resend / extend link
-          </button>
-          <button className="v2-w-act win" onClick={() => setWinOpen(true)}><I.Check width={14} height={14} /> Mark won / lost</button>
-        </div>
-      </div>
       <ResponseBanner r={w.response} />
       <div className="v2-w-figs">
         {figs.map((f) => (<div className="v2-w-fig" key={f.k} data-exp={f.exp || false}><div className="v2-w-fig-v">{f.v}</div><div className="v2-w-fig-k">{f.k}</div><div className="v2-w-fig-s">{f.s}</div></div>))}
@@ -832,8 +814,6 @@ function LeadAnalytics({ s, onResend, onNudge, onMarkWon, onMarkLost, notes, add
           </div>
         </div>
       </div>
-      {nudgeOpen && <NudgeModal s={s} onClose={() => setNudgeOpen(false)} onSend={onNudge} />}
-      {winOpen && <WinModal s={s} onClose={() => setWinOpen(false)} onWin={onMarkWon} onLose={onMarkLost} />}
     </div>
   );
 }
@@ -882,13 +862,33 @@ function CloseView({ subs, watchId, setWatchId, onResend, onNudge, onMarkWon, on
   if (!watchId) return <SentBucket open={open} onPick={setWatchId} />;
   const selected = open.find((s) => s.id === watchId) || open[0];
   return (
+    <SentFocus key={selected.id} selected={selected} onBack={() => setWatchId(null)} onResend={onResend} onNudge={onNudge}
+      onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
+      notes={notesMap[selected.id]} addNote={addNote} />
+  );
+}
+
+// Sent · focused — shared pin header + back-row toolbar (nudge / resend / mark
+// won-lost as pills, matching Build), with the engagement detail below.
+function SentFocus({ selected, onBack, onResend, onNudge, onMarkWon, onMarkLost, notes, addNote }) {
+  const [winOpen, setWinOpen] = useState(false);
+  const [nudgeOpen, setNudgeOpen] = useState(false);
+  return (
     <div>
-      <button className="fx-back" onClick={() => setWatchId(null)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> All sent</button>
-      <div className="v2-watch">
-        <LeadAnalytics key={selected.id} s={selected} onResend={onResend} onNudge={onNudge}
-          onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
-          notes={notesMap[selected.id]} addNote={addNote} />
+      <div className="fx-back-row">
+        <button className="fx-back" onClick={onBack}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg> All sent</button>
+        <div className="fx-back-acts">
+          <button className="fx-back" onClick={() => setNudgeOpen(true)}><I.Send width={14} height={14} /> Send a nudge</button>
+          <button className="fx-back" onClick={() => onResend(selected)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15" /></svg> Resend / extend link</button>
+          <button className="fx-back fx-back--send" onClick={() => setWinOpen(true)}><I.Check width={14} height={14} /> Mark won / lost</button>
+        </div>
       </div>
+      <PinnedCard sub={selected} stage="sent" />
+      <div className="v2-watch">
+        <LeadAnalytics s={selected} notes={notes} addNote={addNote} />
+      </div>
+      {nudgeOpen && <NudgeModal s={selected} onClose={() => setNudgeOpen(false)} onSend={onNudge} />}
+      {winOpen && <WinModal s={selected} onClose={() => setWinOpen(false)} onWin={onMarkWon} onLose={onMarkLost} />}
     </div>
   );
 }
