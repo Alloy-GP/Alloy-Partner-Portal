@@ -1050,30 +1050,6 @@ function Stepper({ mode, go }) {
 // Start a proposal from a real WhatConverts intake lead. Lists form submissions
 // (those with intake fields) that don't yet have a proposal; preview shows what
 // the mapper extracted (units, concerns) before you commit.
-function IntakeModal({ leads, existingKeys, onClose, onStart }) {
-  const intake = (leads || []).filter((l) => (l.fields || []).some((f) => /frustration|community|association|units/i.test(f.name)) && !existingKeys.has(l.id));
-  return (
-    <div className="ps-scrim" onClick={onClose}>
-      <div className="ps-modal" style={{ maxWidth: 580, width: '100%', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-        <div className="ps-modal-head"><span className="t">Start a proposal from intake</span><button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button></div>
-        <div style={{ padding: '6px 2px 4px' }}>
-          {intake.length ? intake.map((l) => {
-            const raw = leadToProposalRaw(l);
-            return (
-              <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', border: '1px solid var(--border, #e6e2ee)', borderRadius: 12, marginBottom: 10 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg)' }}>{raw.community}</div>
-                  <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3 }}>{raw.contact || '—'} · {raw.homes || '?'} units · {raw.city || '—'} · {raw.selectedPains.length} concern{raw.selectedPains.length === 1 ? '' : 's'}</div>
-                </div>
-                <button className="btn btn-primary" style={{ flex: 'none' }} onClick={() => onStart(l)}>Start proposal</button>
-              </div>
-            );
-          }) : <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '14px 6px', lineHeight: 1.5 }}>No new intake leads waiting. Form submissions appear here once they sync from WhatConverts.</div>}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Send is an action, not a stage: a modal off Build. Reuses the email-preview +
 // recipient screen (MomentOfTruth); its "Send proposal" button fires onSend.
@@ -1299,7 +1275,7 @@ export default function ProposalsScreen() {
   const [realignOpen, setRealignOpen] = useState(false); // "Update from call" transcript realign (Layer C)
   const [watchId, setWatchId] = useState(urlStage === 'sent' && urlLeadOk ? urlLead : null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
-  const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
+  const [syncing, setSyncing] = useState(false); // inbox "Sync now" pull in flight
   const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
   const [notesMap, setNotesMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { if (s.notes && s.notes.length) m[s.id] = s.notes; }); return m; });
@@ -1425,9 +1401,11 @@ export default function ProposalsScreen() {
     setMode('sent');
   };
   const launch = (recipient) => { setLaunching(true); setTimeout(() => { setLaunching(false); send(recipient); }, 1850); };
-  // Start a proposal from a real WhatConverts intake lead: map → insert → it
-  // joins the pipeline (the matcher runs on load via enrichLead).
-  const createFromLead = async (lead) => {
+  // Mint a proposal from a WhatConverts intake lead (idempotent on lead_key) and
+  // run the LLM match once. No popup, no per-lead navigation — used by the
+  // auto-sync below. Returns the enriched proposal, or null if it already exists.
+  const mintLead = async (lead) => {
+    if (subs.some((s) => s.id === lead.id)) return null; // already in the pipeline
     const raw = leadToProposalRaw(lead);
     if (live) {
       const { error } = await supabase.from('proposals').upsert({
@@ -1438,9 +1416,8 @@ export default function ProposalsScreen() {
         engage_timeline: raw.engageTimeline, budget: raw.budget, quote: raw.quote, received: raw.received,
         status: 'new', selected_pains: raw.selectedPains, tier_id: 'full', per_home: raw.perHome,
       }, { onConflict: 'account_id,lead_key' });
-      if (error) { setToast({ msg: 'Could not start: ' + error.message }); return; }
+      if (error) { setToast({ msg: 'Sync insert failed: ' + error.message }); return null; }
     }
-    setIntakeOpen(false);
     // LLM match (the smart one) when enabled — run ONCE, persist as match_snapshot
     // so it's stable + survives reload. Falls back to the tag engine on any error.
     let snapshot = null;
@@ -1450,14 +1427,40 @@ export default function ProposalsScreen() {
         snapshot = await matchLeadWithLLM(raw, { uvps: UVPS.map((u) => ({ title: u.title, blurb: u.short })), painPoints: PAIN_POINTS });
         if (live && snapshot) await supabase.from('proposals').update({ match_snapshot: snapshot }).eq('account_id', DATA.account.id).eq('lead_key', raw.id);
       } catch (e) { /* LLM unavailable → deterministic engine */ }
-      setMatching(null);
     }
     const enriched = enrichLead({ ...raw, matchSnapshot: snapshot || undefined });
     setSubs((p) => [enriched, ...p.filter((s) => s.id !== enriched.id)]);
     setEditorMap((m) => ({ ...m, [enriched.id]: (enriched.sections || []).map((x) => ({ ...x })) }));
-    setSelectedId(enriched.id);
-    setMode('new'); setInbox(false); // land on the new lead's match-analysis drill-in
-    setToast({ msg: `Proposal started for ${raw.community} — ${enriched.match}% match${snapshot ? ' · AI-matched' : ''}` });
+    return enriched;
+  };
+
+  // "Sync now" (inbox): pull the latest WhatConverts intake, then mint a proposal
+  // for any new HOA submission not already in the pipeline — so leads show up on
+  // their own, no popup. HOA filter mirrors the old intake picker.
+  const isHoaIntake = (l) => (l.fields || []).some((f) => /frustration|community|association|units/i.test(f.name));
+  const syncNow = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      let leads = DATA.recentLeads || [];
+      if (live) {
+        await supabase.functions.invoke('sync-whatconverts', { body: { accountId: DATA.account.id } });
+        const { data } = await supabase.from('leads')
+          .select('wc_lead_id, name, email, phone, company, type, fields, created_at')
+          .eq('account_id', DATA.account.id).order('created_at', { ascending: false });
+        leads = (data || []).map((l) => ({ id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, type: l.type, fields: l.fields, date: l.created_at }));
+      }
+      const fresh = leads.filter((l) => isHoaIntake(l) && !subs.some((s) => s.id === l.id));
+      let n = 0;
+      for (const l of fresh) { if (await mintLead(l)) n++; }
+      setMode('new'); setInbox(true); // surface the inbox so new leads are visible
+      setToast({ msg: n ? `${n} new lead${n === 1 ? '' : 's'} pulled in from intake` : 'Up to date — no new intake leads' });
+    } catch (e) {
+      setToast({ msg: 'Sync failed: ' + (e?.message || e) });
+    } finally {
+      setMatching(null);
+      setSyncing(false);
+    }
   };
 
   return (
@@ -1465,8 +1468,8 @@ export default function ProposalsScreen() {
       <div className="v2-topline">
         <Stepper mode={mode} go={go} />
         <div className="fx-side">
-          <button className="fx-sync" onClick={() => setIntakeOpen(true)} title="Intake auto-syncs from WhatConverts — click to pull one in or re-sync now">
-            <span className="live" aria-hidden="true" /> Intake <b>auto-syncs</b> · last 2m ago
+          <button className="fx-sync" onClick={syncNow} disabled={syncing} title="Pull the latest intake submissions from WhatConverts into the inbox">
+            <span className={'live' + (syncing ? ' busy' : '')} aria-hidden="true" /> {syncing ? 'Syncing intake…' : <>Sync intake <b>now</b></>}
           </button>
           <button className="v2-lib-btn" data-on={mode === 'library'} onClick={() => setMode('library')} title="The capabilities every proposal matches against">
             <I.Bolt width={14} height={14} /> UVP Library
@@ -1511,7 +1514,6 @@ export default function ProposalsScreen() {
       {mode === 'client' && <RetainView subs={subs} />}
       {mode === 'library' && <UVPLibrary />}
 
-      {intakeOpen && <IntakeModal leads={DATA.recentLeads || []} existingKeys={new Set(subs.map((s) => s.id))} onClose={() => setIntakeOpen(false)} onStart={createFromLead} />}
       {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
       {editOpen && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
       {realignOpen && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
