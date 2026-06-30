@@ -1456,7 +1456,7 @@ export default function ProposalsScreen() {
         <div className="v2-launch">
           <div className="v2-launch-card">
             <LottieScan size={108} className="v2-launch-scan" />
-            <div className="v2-launch-txt">Matching {matching.community} with AI…</div>
+            <div className="v2-launch-txt">Currently Matching “{matching.community}” with {CAM_COMPANY.shortName}’s Expertise</div>
             <div className="v2-launch-sub">Reading the board's intake and mapping concerns to your UVPs</div>
           </div>
         </div>
