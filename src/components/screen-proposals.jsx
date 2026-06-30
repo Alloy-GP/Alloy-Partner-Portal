@@ -272,7 +272,7 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
   const pending = subs.filter((s) => stageOf(s) === 'pending');
@@ -376,6 +376,10 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
               <div className="v2-ctx-row full"><span className="v2-ctx-k">Budget</span><span className="v2-ctx-v">{sub.budget}</span></div>
             </div>
             <div className="v2-ctx-quote"><div className="v2-ctx-quote-k">In their words</div><div className="v2-quote">"{sub.quote}"</div></div>
+            <button className="fx-edit-btn" onClick={onEditDetails}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              Edit details
+            </button>
           </div>
           <div className="v2-card">
             <div className="v2-tier-eyebrow">Recommended tier</div>
@@ -400,7 +404,7 @@ const OWNER_NAMES = { AB: 'Amanda', JR: 'Jordan' };
 // The pinned lead card — a compact header that pins below the stepper and travels
 // across stages, swapping its status pill + 3 figures by where the lead is. In
 // Build it replaces the old purple topper and owns price editing (Proposed fig).
-function PinnedCard({ sub, stage, perHome, setPerHome }) {
+function PinnedCard({ sub, stage, perHome, setPerHome, onEdit }) {
   const [edit, setEdit] = useState(false);
   const monthly = ((perHome != null ? perHome : sub.perHome) || 0) * sub.homes;
   const STATUS = { build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
@@ -435,6 +439,12 @@ function PinnedCard({ sub, stage, perHome, setPerHome }) {
           </div>,
         ])}
       </div>
+      {onEdit && (
+        <button className="fx-pin-edit" onClick={onEdit} title="Edit lead details">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+          Edit
+        </button>
+      )}
     </div>
   );
 }
@@ -987,6 +997,58 @@ function WonLostView({ subs }) {
   );
 }
 
+// Layer A — edit every fact on a proposal. The AI match is a draft; after a call
+// the CAM corrects contact, homes, dues, timeline, budget, price, narrative, etc.
+// Saves write straight back into the lead (subs) + persist, so every view updates.
+function EditDetailsModal({ sub, onClose, onSave }) {
+  const [f, setF] = useState({
+    community: sub.community || '', contact: sub.contact || '', contactRole: sub.contactRole || '',
+    email: sub.email || '', phone: sub.phone || '', city: sub.city || '',
+    homes: sub.homes || 0, metaType: sub.metaType || '', metaStatus: sub.metaStatus || '',
+    dues: sub.dues || '', engageTimeline: sub.engageTimeline || '', budget: sub.budget || '',
+    perHome: sub.perHome || 0, quote: sub.quote || '',
+  });
+  const upd = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  // helper returns elements (not a component) so inputs keep focus across keystrokes
+  const field = (k, label, opts = {}) => (
+    <label className={'fx-ef' + (opts.full ? ' full' : '')} key={k}>
+      <span className="fx-ef-k">{label}</span>
+      {opts.area
+        ? <textarea value={f[k]} rows={3} onChange={(e) => upd(k, e.target.value)} />
+        : <input type={opts.num ? 'number' : 'text'} step={opts.num ? '0.01' : undefined} value={f[k]} onChange={(e) => upd(k, opts.num ? (parseFloat(e.target.value) || 0) : e.target.value)} />}
+    </label>
+  );
+  return (
+    <div className="ps-scrim" onClick={onClose}>
+      <div className="ps-modal fx-edit-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head"><span className="t">Edit details · {sub.community}</span><button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button></div>
+        <div className="fx-edit-body">
+          <div className="fx-edit-grid">
+            {field('community', 'Community', { full: true })}
+            {field('contact', 'Contact')}
+            {field('contactRole', 'Role')}
+            {field('email', 'Email')}
+            {field('phone', 'Phone')}
+            {field('city', 'City / market')}
+            {field('homes', 'Homes', { num: true })}
+            {field('metaType', 'Type')}
+            {field('metaStatus', 'Current management status')}
+            {field('dues', 'Monthly dues')}
+            {field('engageTimeline', 'Timeline')}
+            {field('budget', 'Budget')}
+            {field('perHome', 'Price / home ($/mo)', { num: true })}
+            {field('quote', 'In their words (narrative)', { full: true, area: true })}
+          </div>
+          <div className="fx-edit-actions">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={() => { onSave(f); onClose(); }}>Save details</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProposalsScreen() {
   // Live proposals (Supabase) when configured + seeded, else the mock pipeline.
   const initialLeads = getLeads();
@@ -995,6 +1057,7 @@ export default function ProposalsScreen() {
   const [mode, setMode] = useState('new');
   const [inbox, setInbox] = useState(true); // New stage: true = inbox grid, false = match-analysis drill-in
   const [focusBuild, setFocusBuild] = useState(true); // Build stage: true = editor for the focused lead, false = bucket list
+  const [editOpen, setEditOpen] = useState(false); // Edit-details modal (Layer A)
   const [watchId, setWatchId] = useState(null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [intakeOpen, setIntakeOpen] = useState(false); // "Start proposal from intake" picker
@@ -1051,6 +1114,17 @@ export default function ProposalsScreen() {
   const setPerHome = (v) => {
     setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, perHome: v } : s));
     if (Number.isFinite(Number(v))) persist(selectedId, { per_home: Number(v) });
+  };
+  // Layer A — apply edited facts to the focused lead + persist to its columns.
+  const saveDetails = (f) => {
+    const homes = parseInt(f.homes) || 0, perHome = Number(f.perHome) || 0;
+    setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, ...f, homes, perHome } : s));
+    persist(selectedId, {
+      community: f.community, contact: f.contact, contact_role: f.contactRole, email: f.email, phone: f.phone,
+      city: f.city, homes, meta_type: f.metaType, meta_status: f.metaStatus, dues: f.dues,
+      engage_timeline: f.engageTimeline, budget: f.budget, per_home: perHome, quote: f.quote,
+    });
+    setToast({ msg: 'Details updated' });
   };
   // Real send: the proposal-send edge fn emails the board the magic link + marks
   // the proposal sent in the DB. Only advance to the Sent screen if it succeeds.
@@ -1121,13 +1195,13 @@ export default function ProposalsScreen() {
       {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
         <>
           <button className="fx-back" onClick={() => setFocusBuild(false)}><I.Arrow width={15} height={15} style={{ transform: 'rotate(180deg)' }} /> All in Build</button>
-          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} />
+          <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} onEdit={() => setEditOpen(true)} />
         </>
       )}
 
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} />
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
@@ -1150,6 +1224,7 @@ export default function ProposalsScreen() {
 
       {intakeOpen && <IntakeModal leads={DATA.recentLeads || []} existingKeys={new Set(subs.map((s) => s.id))} onClose={() => setIntakeOpen(false)} onStart={createFromLead} />}
       {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
+      {editOpen && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
       {matching && (
         <div className="v2-launch">
           <div className="v2-launch-card">
