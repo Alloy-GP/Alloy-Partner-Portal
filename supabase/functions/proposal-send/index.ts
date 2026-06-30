@@ -137,7 +137,7 @@ function renderEmail(d: EmailData): string {
                     <td valign="middle" style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.14em; text-transform:uppercase; color:${C.heroEy};">Your management proposal</td>
                   </tr></table>
                 </td></tr>
-                <tr><td class="h1-sm" style="font-family:${FA}; font-size:34px; font-weight:bold; line-height:1.08; letter-spacing:-0.01em; color:#ffffff;">Built around<br/>${esc(d.community)}.</td></tr>
+                <tr><td class="h1-sm" style="font-family:${FA}; font-size:34px; font-weight:bold; line-height:1.08; letter-spacing:-0.01em; color:#ffffff;">Built around ${esc(d.community)}.</td></tr>
                 <tr><td style="padding-top:12px; font-family:${FA}; font-size:14px; line-height:1.5; color:${C.heroSub};">Prepared for ${esc(d.contactFull)} &amp; the board.</td></tr>
               </table>
             </td>
