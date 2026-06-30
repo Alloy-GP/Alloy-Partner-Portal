@@ -1240,7 +1240,7 @@
 .proposal-system .fx-lead-pct b { font-size: 20px; }
 .proposal-system .fx-lead-pct span { font-size: 10.5px; font-weight: 700; color: #4faa5a; }
 .proposal-system .fx-lead-meta { font-size: 12.5px; color: var(--fg-muted); font-weight: 600; margin-top: -3px; }
-.proposal-system .fx-lead-quote { font-size: 13px; line-height: 1.55; color: var(--fg-3); font-style: italic; border-left: 2.5px solid var(--alloy-pink); padding-left: 12px; }
+.proposal-system .fx-lead-quote { font-size: 13px; line-height: 1.55; color: var(--fg-3); font-style: italic; border-left: 2.5px solid var(--alloy-pink); padding-left: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .proposal-system .fx-lead-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; padding-top: 13px; border-top: 1px solid var(--border-subtle); }
 .proposal-system .fx-lead-when { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: var(--fg-muted); }
 .proposal-system .fx-lead-when .arr { width: 8px; height: 8px; border-radius: 999px; background: var(--alloy-pink); flex: none; }
