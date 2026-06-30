@@ -10,6 +10,7 @@ import { DATA } from '../data.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import lottie from 'lottie-web/build/player/lottie_light';
 import scanningData from '../assets/scanning.json';
+import sendingMailData from '../assets/sending-mail.json';
 
 // ============================================================================
 // Proposals — CAM staff cockpit, v15 (Review → Build → Send → Close · Retain).
@@ -58,13 +59,13 @@ const stageOf = (s) => {
 // Looping scan animation (replaces the old lightning-bolt) for the "matching"
 // overlay. Cockpit-only — kept out of proposal-shared so the anonymous board
 // bundle stays lottie-free.
-function LottieScan({ size = 104, className }) {
+function LottieScan({ size = 104, className, data = scanningData }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current) return undefined;
     const anim = lottie.loadAnimation({
       container: ref.current, renderer: 'svg', loop: true, autoplay: true,
-      animationData: scanningData, rendererSettings: { progressiveLoad: false },
+      animationData: data, rendererSettings: { progressiveLoad: false },
     });
     return () => anim.destroy();
   }, []);
@@ -793,13 +794,7 @@ function LaunchOverlay({ sub }) {
   return (
     <div className="v2-launch">
       <div className="v2-launch-card">
-        <div className="v2-launch-sky">
-          <svg className="v2-launch-trail" viewBox="0 0 220 120" fill="none" aria-hidden="true">
-            <path d="M14 104 C 70 104, 120 70, 200 18" stroke="url(#lg)" strokeWidth="3" strokeLinecap="round" strokeDasharray="5 9" />
-            <defs><linearGradient id="lg" x1="0" y1="120" x2="220" y2="0"><stop offset="0" stopColor="#d9356e" stopOpacity="0" /><stop offset="1" stopColor="#d9356e" /></linearGradient></defs>
-          </svg>
-          <span className="v2-launch-plane"><I.Send width={30} height={30} /></span>
-        </div>
+        <LottieScan data={sendingMailData} size={132} className="v2-launch-scan" />
         <div className="v2-launch-txt">Sending to {sub.firstName}…</div>
         <div className="v2-launch-sub">{sub.email}</div>
       </div>
