@@ -18,7 +18,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 // Driven by any lead; shown in the Build preview iframe and at /proposals/board/:id.
 // ============================================================================
 
-const { useState, useRef, useEffect, useMemo } = React;
+const { useState, useRef, useEffect, useLayoutEffect, useMemo } = React;
 const c = COLORS;
 
 // The proposal's assigned rep (owner initials → who reaches out to the board).
@@ -292,14 +292,26 @@ function ConcernAccordion({ concerns }) {
   const [open, setOpen] = useState(0);
   const itemRefs = useRef({});
   const mounted = useRef(false);
-  // When a concern opens, bring its top into view — opening one collapses the
-  // one above it, which shifts the layout; without this the newly-opened card
-  // "bounces" off-screen. Skip on initial mount (don't yank the page on load).
-  useEffect(() => {
+  const clickTop = useRef(null); // clicked header's viewport-top at click time
+  // Opening a concern should glide its header to the top of the screen. The
+  // catch: opening one collapses the previously-open card, and if that card was
+  // ABOVE this one, its body unmounts and yanks this card upward in a single
+  // un-animated jump — then the smooth scroll animates from that yanked spot, so
+  // it reads as "scroll backwards, then settle." Fix in useLayoutEffect (before
+  // paint): first cancel the yank instantly so the header stays exactly under
+  // the user's finger, THEN smooth-scroll it to the top as one clean motion.
+  useLayoutEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }
     if (open < 0) return;
     const el = itemRefs.current[open];
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 14, behavior: 'smooth' });
+    if (!el) return;
+    const prev = clickTop.current;
+    if (prev != null) {
+      const delta = el.getBoundingClientRect().top - prev; // how far the collapse yanked it
+      if (delta) window.scrollBy(0, delta);                 // instant (pre-paint) — header stays put
+      clickTop.current = null;
+    }
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 14, behavior: 'smooth' });
   }, [open]);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -308,7 +320,7 @@ function ConcernAccordion({ concerns }) {
         const matchCount = concern.caps.length;
         return (
           <div key={i} ref={(el) => { itemRefs.current[i] = el; }} style={{ border: `1px solid ${isOpen ? c.pink : c.lightGray}`, borderRadius: 14, background: '#fff', overflow: 'hidden', boxShadow: isOpen ? '0 8px 22px -12px rgba(217,53,110,.45)' : '0 2px 8px rgba(56,28,79,.05)', transition: 'border-color .18s, box-shadow .18s' }}>
-            <button onClick={() => setOpen(isOpen ? -1 : i)} style={{ appearance: 'none', cursor: 'pointer', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button onClick={() => { if (!isOpen) { const cur = itemRefs.current[i]; clickTop.current = cur ? cur.getBoundingClientRect().top : null; } setOpen(isOpen ? -1 : i); }} style={{ appearance: 'none', cursor: 'pointer', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ width: 26, height: 26, borderRadius: 999, background: isOpen ? c.pink : c.lightGray, color: isOpen ? '#fff' : c.purple, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{i + 1}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: c.purple, lineHeight: 1.3 }}>{concern.label}</div>
