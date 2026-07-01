@@ -954,8 +954,10 @@ function LeadAnalytics({ s, notes, addNote }) {
         <div className="v2-w-colside">
           <div className="v2-card">
             <div className="v2-block-label">Activity</div>
-            <div className="v2-w-feed">
-              {w.feed.map((f, i) => (<div className="v2-w-evt" key={i} data-type={f.type}><span className="v2-w-evt-dot" /><div className="v2-w-evt-body"><div className="v2-w-evt-main">{f.event}{f.detail && <span className="v2-w-evt-tag">{f.detail}</span>}</div><div className="v2-w-evt-meta">{f.who} · {f.when}</div></div></div>))}
+            <div className="v2-w-feed-scroll">
+              <div className="v2-w-feed">
+                {w.feed.map((f, i) => (<div className="v2-w-evt" key={i} data-type={f.type}><span className="v2-w-evt-dot" /><div className="v2-w-evt-body"><div className="v2-w-evt-main">{f.event}{f.detail && <span className="v2-w-evt-tag">{f.detail}</span>}</div><div className="v2-w-evt-meta">{f.who} · {f.when}</div></div></div>))}
+              </div>
             </div>
           </div>
           <div className="v2-card">
@@ -1476,11 +1478,29 @@ export default function ProposalsScreen() {
       if (detail) { setToast({ msg: 'Send failed: ' + detail }); return; }
       setToast({ msg: `Proposal emailed to ${data.to}` });
     }
-    setSubs((p) => p.map((s) => (s.id === selectedId && s.status !== 'accepted' ? { ...s, status: 'sent' } : s)));
+    // Remember the address we actually sent to (may be a custom email, not the
+    // intake one) so resend/nudge and the "Sent to" line all use it.
+    setSubs((p) => p.map((s) => (s.id === selectedId && s.status !== 'accepted' ? { ...s, status: 'sent', email: recipient || s.email } : s)));
     setWatchId(selectedId); // land in Sent focused on this proposal's engagement
     setMode('sent');
   };
   const launch = (recipient) => { setLaunching(true); setTimeout(() => { setLaunching(false); send(recipient); }, 1850); };
+  // Resend / nudge — re-email the magic link to the address the proposal was
+  // sent to (persisted on the row, so a custom recipient is honored, not the
+  // original intake email). proposal-send with no `to` uses proposals.email.
+  const resendProposal = async (s, label) => {
+    if (live) {
+      const { data, error } = await supabase.functions.invoke('proposal-send', {
+        body: { leadKey: s.id, accountId: DATA.account.id, baseUrl: window.location.origin },
+      });
+      let detail = data?.error || '';
+      if (error && !detail) { try { detail = (await error.context.json())?.error || error.message; } catch { detail = error.message; } }
+      if (detail) { setToast({ msg: `${label} failed: ` + detail }); return; }
+      setToast({ msg: `${label} to ${data.to}` });
+    } else {
+      setToast({ msg: `${label} to ${s.email || s.firstName}` });
+    }
+  };
   // Mint a proposal from a WhatConverts intake lead (idempotent on lead_key) and
   // run the LLM match once. No popup, no per-lead navigation — used by the
   // auto-sync below. Returns the enriched proposal, or null if it already exists.
@@ -1583,8 +1603,8 @@ export default function ProposalsScreen() {
       {/* Sent — their court: engagement tracking + board responses + follow-up. */}
       {mode === 'sent' && (
         <CloseView subs={subs} watchId={watchId} setWatchId={setWatchId} onPick={pickSent}
-          onResend={(s) => setToast({ msg: `Magic link resent to ${s.firstName} · expires in 14 days` })}
-          onNudge={(s) => setToast({ msg: `Nudge sent to ${s.firstName} on the original thread` })}
+          onResend={(s) => resendProposal(s, 'Magic link resent')}
+          onNudge={(s) => resendProposal(s, 'Nudge sent')}
           onMarkWon={markWon} onMarkLost={markLost} notesMap={notesMap} addNote={addNote}
           onEditDetails={() => setEditOpen(true)} onRealign={() => setRealignOpen(true)} onOpenFull={(s) => window.open(BOARD_URL(s), '_blank', 'noopener')} />
       )}

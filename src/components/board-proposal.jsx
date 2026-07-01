@@ -743,6 +743,20 @@ function viewerKey() {
   } catch { return 'anon'; }
 }
 
+// Remember the board member's choice so reopening the link doesn't reset it.
+// Per-device (localStorage, keyed by board_token) — the realistic reopen is the
+// same person on the same phone. The server also has the record (proposal-respond),
+// but this makes the confirmation survive a reload with no round-trip.
+const RESP_KEY = (token) => 'cmgt-board-response-' + token;
+function readBoardResponse(token) {
+  if (!token) return null;
+  try { return localStorage.getItem(RESP_KEY(token)) || null; } catch { return null; }
+}
+function writeBoardResponse(token, action) {
+  if (!token) return;
+  try { localStorage.setItem(RESP_KEY(token), action); } catch { /* ignore */ }
+}
+
 // Emit board engagement to the proposal-track edge fn (the anonymous-write seam),
 // gated by the proposal's board_token. Skips the in-cockpit Build preview (which
 // renders this same doc inside an iframe) so staff previews don't count as board
@@ -777,7 +791,9 @@ function useBoardTelemetry(lead, enabled) {
 export function BoardProposal({ lead, showActionBar }) {
   const submission = useMemo(() => buildSubmission(lead), [lead]);
   const [modal, setModal] = useState(null);        // 'changes' | 'decline' | 'continue' | null
-  const [responded, setResponded] = useState(null); // bar confirmation after a response
+  // Seed from the remembered choice so reopening the link keeps the confirmation
+  // instead of resetting to the buttons.
+  const [responded, setResponded] = useState(() => (showActionBar ? readBoardResponse(lead?.boardToken) : null));
   // The board view (with the action bar) is the real surface → track engagement.
   useBoardTelemetry(lead, !!showActionBar);
 
@@ -788,6 +804,7 @@ export function BoardProposal({ lead, showActionBar }) {
     if (isSupabaseConfigured && supabase && lead?.boardToken && (typeof window === 'undefined' || window.top === window.self)) {
       supabase.functions.invoke('proposal-respond', { body: { token: lead.boardToken, action, label, meta, viewerKey: viewerKey() } }).catch(() => {});
     }
+    writeBoardResponse(lead?.boardToken, action); // remember across reloads
     setResponded(action);
   };
   const close = () => setModal(null);

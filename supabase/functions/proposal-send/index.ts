@@ -310,8 +310,10 @@ Deno.serve(async (req) => {
     });
     if (!res.ok) return json({ error: `resend ${res.status}`, detail: (await res.text()).slice(0, 300) }, 502);
 
-    // Only NOW mark it sent (don't claim sent if the email failed).
-    await admin.from("proposals").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", prop.id);
+    // Only NOW mark it sent (don't claim sent if the email failed). Persist the
+    // address we actually emailed (may be a custom recipient, not the intake
+    // email) so resend/nudge and the cockpit "Sent to" line reuse it.
+    await admin.from("proposals").update({ status: "sent", sent_at: new Date().toISOString(), email: recipient }).eq("id", prop.id);
 
     return json({ sent: true, to: recipient, link });
   } catch (e) {
