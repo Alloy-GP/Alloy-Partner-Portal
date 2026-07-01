@@ -578,7 +578,7 @@
 /* Build sidebar — two zones (handoff #26): matched concerns (the curated surface,
    in a tinted green card) sit above the fixed standard sections (locked, with a
    single "Always included" divider — not repeated per row). */
-.proposal-system .v2-cl-list.two-zone { padding: 14px; gap: 12px; }
+.proposal-system .v2-cl-list.two-zone { padding: 14px; gap: 12px; max-height: none; overflow: visible; }
 .proposal-system .v2-zone-c { background: #e6f3ee; border: 1px solid #cfe6dc; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .proposal-system .v2-zone-c-lbl { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 4px; }
 .proposal-system .v2-zone-c-lbl .l { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #2c7c63; }

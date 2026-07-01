@@ -610,11 +610,11 @@ function ClConcern({ concern, onToggle, onEdit, onRemove }) {
         <div className="v2-crow-meta">
           <span className="v2-fitchip">{concern.fit || 0}% fit</span>
           <span className="v2-crow-cap">{caps} matched cap{caps === 1 ? '' : 's'}</span>
+          <div className="v2-crow-acts">
+            <button className="v2-crow-act" title="Edit concern" onClick={(e) => { e.stopPropagation(); onEdit(); }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>
+            <button className="v2-crow-act danger" title="Remove concern" onClick={(e) => { e.stopPropagation(); onRemove(); }}><I.Close width={13} height={13} /></button>
+          </div>
         </div>
-      </div>
-      <div className="v2-crow-acts">
-        <button className="v2-crow-act" title="Edit concern" onClick={(e) => { e.stopPropagation(); onEdit(); }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>
-        <button className="v2-crow-act danger" title="Remove concern" onClick={(e) => { e.stopPropagation(); onRemove(); }}><I.Close width={13} height={13} /></button>
       </div>
     </div>
   );
