@@ -312,8 +312,10 @@ Deno.serve(async (req) => {
 
     // Only NOW mark it sent (don't claim sent if the email failed). Persist the
     // address we actually emailed (may be a custom recipient, not the intake
-    // email) so resend/nudge and the cockpit "Sent to" line reuse it.
-    await admin.from("proposals").update({ status: "sent", sent_at: new Date().toISOString(), email: recipient }).eq("id", prop.id);
+    // email) so resend/nudge and the cockpit "Sent to" line reuse it. Clear any
+    // prior board verdict — a (re)send is a fresh/revised proposal, so it reopens
+    // for response (this is also how the CAM recovers an accidental decline).
+    await admin.from("proposals").update({ status: "sent", sent_at: new Date().toISOString(), email: recipient, board_response: null }).eq("id", prop.id);
 
     return json({ sent: true, to: recipient, link });
   } catch (e) {

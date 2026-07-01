@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // (owner IS included — the board's point of contact.)
     const { data: row, error } = await admin
       .from("proposals")
-      .select("lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at, match_snapshot, owner")
+      .select("lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at, match_snapshot, owner, board_response")
       .eq("board_token", token)
       .maybeSingle();
     if (error) return json({ error: "lookup_failed" }, 500);
@@ -69,6 +69,10 @@ Deno.serve(async (req) => {
       // of truth for what the board sees — enrichLead prefers it over the baked
       // demo match. Without this the doc shows the un-edited concerns.
       matchSnapshot: row.match_snapshot || null,
+      // The board's verdict so far ({action, by, at} or null) — the doc shows a
+      // resolved banner to everyone once it's set, so a later viewer sees the
+      // decision instead of live buttons. Board-safe (it's the board's own call).
+      boardResponse: row.board_response || null,
     };
     return json({ proposal });
   } catch (e) {

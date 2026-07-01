@@ -331,9 +331,12 @@ export function aggregateWatch(events, lead) {
       type: e.event_type === "cta" ? "cta" : e.event_type === "section" ? "read" : "open",
     }));
 
-  // The board's latest explicit response (continue / changes / decline), pulled
+  // The board's latest explicit VERDICT (continue / changes / decline), pulled
   // from the cta events' meta — surfaced prominently in Close so staff act on it.
-  const responses = sorted.filter((e) => e.event_type === "cta" && e.meta && e.meta.action);
+  // 'question' events are voice, not a verdict → excluded here (they still show
+  // in the feed above).
+  const VERDICT_ACTIONS = ["continue", "changes", "decline"];
+  const responses = sorted.filter((e) => e.event_type === "cta" && e.meta && VERDICT_ACTIONS.includes(e.meta.action));
   const r = responses[responses.length - 1];
   const response = r ? { action: r.meta.action, label: r.section_name, meta: r.meta, when: relTime(r.created_at) } : null;
 

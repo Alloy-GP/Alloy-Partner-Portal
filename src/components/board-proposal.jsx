@@ -594,6 +594,24 @@ const mPrimary = { fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fon
 const mGhost = { fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '12px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'transparent', color: c.fgMuted };
 const mArea = { width: '100%', minHeight: 76, padding: '12px 14px', borderRadius: 12, border: `1px solid ${c.lightGray}`, fontFamily: 'Poppins,sans-serif', fontSize: 13.5, color: c.purple, resize: 'vertical', outline: 'none', boxSizing: 'border-box' };
 const mFoot = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 22 };
+const mInput = { width: '100%', padding: '11px 13px', borderRadius: 10, border: `1px solid ${c.lightGray}`, fontFamily: 'Poppins,sans-serif', fontSize: 13.5, color: c.purple, outline: 'none', boxSizing: 'border-box' };
+
+// Attribution on a board response: capture who's responding (the link is shared,
+// so "who" matters) and, for a binding verdict, confirm they speak for the board.
+// One field + one checkbox — identity-lite, no login. `by` flows to the verdict.
+function IdentityFields({ name, setName, authorized, setAuthorized, requireAuth }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={mInput} />
+      {requireAuth && (
+        <label style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginTop: 11, cursor: 'pointer', fontSize: 12.5, lineHeight: 1.4, color: c.bodyGray }}>
+          <input type="checkbox" checked={authorized} onChange={(e) => setAuthorized(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
+          <span>I'm authorized to respond on behalf of the board.</span>
+        </label>
+      )}
+    </div>
+  );
+}
 
 function BoardModal({ children, onClose, maxWidth = 540 }) {
   return (
@@ -628,31 +646,38 @@ function OptionPill({ checked, onClick, kind = 'check', children }) {
 function RequestChangesModal({ onClose, onResolve }) {
   const [areas, setAreas] = useState([]);
   const [specifics, setSpecifics] = useState('');
+  const [name, setName] = useState('');
   const toggle = (a) => setAreas((p) => (p.includes(a) ? p.filter((x) => x !== a) : [...p, a]));
-  const submit = () => { onResolve('changes', `Requested changes${areas.length ? ': ' + areas.join(', ') : ''}`, { areas, specifics: specifics.trim() }); onClose(); };
+  const ready = (areas.length || specifics.trim()) && name.trim();
+  const submit = () => { if (!ready) return; onResolve('changes', `Requested changes${areas.length ? ': ' + areas.join(', ') : ''}`, { areas, specifics: specifics.trim() }, name.trim()); onClose(); };
   return (
     <BoardModal onClose={onClose}>
       <MHead eyebrow="Request changes" color={c.purple} title="Where would you like edits?" sub="Pick any. We'll send a revised proposal within 2 business days — same link." />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         {CHANGE_AREAS.map((a) => <OptionPill key={a} checked={areas.includes(a)} onClick={() => toggle(a)}>{a}</OptionPill>)}
       </div>
-      <textarea style={mArea} placeholder="Specifics — what should change?" value={specifics} onChange={(e) => setSpecifics(e.target.value)} />
-      <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={{ ...mPrimary, opacity: areas.length || specifics.trim() ? 1 : 0.5 }} disabled={!areas.length && !specifics.trim()} onClick={submit}>Send request</button></div>
+      <textarea style={{ ...mArea, marginBottom: 14 }} placeholder="Specifics — what should change?" value={specifics} onChange={(e) => setSpecifics(e.target.value)} />
+      <IdentityFields name={name} setName={setName} />
+      <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={{ ...mPrimary, opacity: ready ? 1 : 0.5 }} disabled={!ready} onClick={submit}>Send request</button></div>
     </BoardModal>
   );
 }
 function DeclineModal({ onClose, onResolve }) {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
-  const submit = () => { onResolve('decline', `Declined${reason ? ': ' + reason : ''}`, { reason, notes: notes.trim() }); onClose(); };
+  const [name, setName] = useState('');
+  const [authorized, setAuthorized] = useState(false);
+  const ready = name.trim() && authorized;
+  const submit = () => { if (!ready) return; onResolve('decline', `Declined${reason ? ': ' + reason : ''}`, { reason, notes: notes.trim() }, name.trim()); onClose(); };
   return (
     <BoardModal onClose={onClose}>
       <MHead eyebrow="Declining the proposal" color={c.purple} title="No problem — what's the main reason?" sub="Optional, but it helps us learn. Nothing about your answer triggers a follow-up call." />
       <div style={{ display: 'grid', gap: 9, marginBottom: 14 }}>
         {DECLINE_REASONS.map((r) => <OptionPill key={r} kind="radio" checked={reason === r} onClick={() => setReason(r)}>{r}</OptionPill>)}
       </div>
-      <textarea style={mArea} placeholder="Anything else you'd like CMGT to know (optional)…" value={notes} onChange={(e) => setNotes(e.target.value)} />
-      <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={mPrimary} onClick={submit}>Send response</button></div>
+      <textarea style={{ ...mArea, marginBottom: 14 }} placeholder="Anything else you'd like CMGT to know (optional)…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <IdentityFields name={name} setName={setName} authorized={authorized} setAuthorized={setAuthorized} requireAuth />
+      <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={{ ...mPrimary, opacity: ready ? 1 : 0.5 }} disabled={!ready} onClick={submit}>Send response</button></div>
     </BoardModal>
   );
 }
@@ -660,8 +685,11 @@ function ContinueModal({ onClose, onResolve, rep }) {
   const slots = useMemo(() => upcomingSlots(), []);
   const [sel, setSel] = useState(null);
   const [done, setDone] = useState(null); // null | 'call' | 'email'
-  const confirmCall = () => { onResolve('continue', `Booked a discovery call · ${slots[sel].label}`, { method: 'call', slot: slots[sel].label }); setDone('call'); };
-  const chooseEmail = () => { onResolve('continue', 'Asked to connect by email', { method: 'email' }); setDone('email'); };
+  const [name, setName] = useState('');
+  const [authorized, setAuthorized] = useState(false);
+  const identok = name.trim() && authorized;
+  const confirmCall = () => { if (sel == null || !identok) return; onResolve('continue', `Booked a discovery call · ${slots[sel].label}`, { method: 'call', slot: slots[sel].label }, name.trim()); setDone('call'); };
+  const chooseEmail = () => { if (!identok) return; onResolve('continue', 'Asked to connect by email', { method: 'email' }, name.trim()); setDone('email'); };
 
   if (done) return (
     <BoardModal onClose={onClose}>
@@ -689,26 +717,67 @@ function ContinueModal({ onClose, onResolve, rep }) {
           </button>
         ))}
       </div>
-      <button onClick={chooseEmail} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.purple, fontSize: 12.5, fontWeight: 700, padding: '4px 0', textDecoration: 'underline' }}>Prefer to connect by email instead?</button>
-      <div style={mFoot}><button style={mGhost} onClick={onClose}>Not now</button><button style={{ ...mPrimary, opacity: sel == null ? 0.5 : 1 }} disabled={sel == null} onClick={confirmCall}>Confirm time</button></div>
+      <button onClick={chooseEmail} disabled={!identok} style={{ background: 'none', border: 'none', cursor: identok ? 'pointer' : 'default', color: c.purple, fontSize: 12.5, fontWeight: 700, padding: '4px 0', textDecoration: 'underline', opacity: identok ? 1 : 0.45 }}>Prefer to connect by email instead?</button>
+      <div style={{ marginTop: 14 }}><IdentityFields name={name} setName={setName} authorized={authorized} setAuthorized={setAuthorized} requireAuth /></div>
+      <div style={mFoot}><button style={mGhost} onClick={onClose}>Not now</button><button style={{ ...mPrimary, opacity: (sel == null || !identok) ? 0.5 : 1 }} disabled={sel == null || !identok} onClick={confirmCall}>Confirm time</button></div>
     </BoardModal>
   );
 }
 
-function BoardActionBar({ submission, responded, onOpen }) {
+// A board member's question/note — voice that's always available, even after a
+// verdict. Non-binding: records an event that surfaces in the CAM's Close feed.
+function QuestionModal({ onClose, onAsk, rep }) {
+  const [text, setText] = useState('');
+  const [name, setName] = useState('');
+  const [sent, setSent] = useState(false);
+  const ready = text.trim() && name.trim();
+  const submit = () => { if (!ready) return; onAsk(text.trim(), name.trim()); setSent(true); };
+  if (sent) return (
+    <BoardModal onClose={onClose}>
+      <div style={{ width: 46, height: 46, borderRadius: 999, background: c.cmgtGreen, display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name="check" size={22} color="#fff" /></div>
+      <MHead eyebrow="Sent" color={c.cmgtGreen} title="Your question is with the team." sub={`${rep.first} will follow up. You can keep reviewing the proposal — asking a question doesn't change your board's decision.`} />
+      <div style={{ ...mFoot, justifyContent: 'flex-end' }}><button style={mPrimary} onClick={onClose}>Done</button></div>
+    </BoardModal>
+  );
+  return (
+    <BoardModal onClose={onClose}>
+      <MHead eyebrow="Ask a question" color={c.purple} title="Something you'd like clarified?" sub={`Send it straight to ${rep.name}${rep.role ? ` (${rep.role})` : ''}. This is just a question — it won't accept, decline, or change the proposal.`} />
+      <textarea style={{ ...mArea, marginBottom: 14 }} placeholder="What would you like to know?" value={text} onChange={(e) => setText(e.target.value)} />
+      <IdentityFields name={name} setName={setName} />
+      <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={{ ...mPrimary, opacity: ready ? 1 : 0.5 }} disabled={!ready} onClick={submit}>Send question</button></div>
+    </BoardModal>
+  );
+}
+
+function BoardActionBar({ submission, boardResp, onOpen }) {
   const firstName = (submission.contactName || '').split(' ')[0] || 'there';
   const mobile = useIsMobile();
-  const confirm = {
-    changes: { ic: 'message-square', color: c.purple, text: <span><strong>Change request sent.</strong> We'll send a revised proposal shortly, {firstName}.</span> },
-    decline: { ic: 'x', color: c.fgMuted, text: <span><strong>Response recorded.</strong> Thanks for considering CMGT, {firstName}.</span> },
-    continue: { ic: 'check', color: c.cmgtGreen, text: <span><strong>You're moving forward — thank you, {firstName}.</strong> The CMGT team will be in touch to set up your discovery call.</span> },
-  }[responded];
+  // Once the board has a verdict, EVERY viewer sees a resolved banner (with who
+  // recorded it) instead of live buttons — a later member can't silently flip an
+  // accept into a change-request. They keep their voice via "Ask the team".
+  const verdict = boardResp?.action || null;
+  const banner = {
+    changes: { ic: 'message-square', color: c.purple, text: <span><strong>Change request sent.</strong> A revised proposal is on the way.</span> },
+    decline: { ic: 'x', color: c.fgMuted, text: <span><strong>Response recorded.</strong> Thanks for considering CMGT.</span> },
+    continue: { ic: 'check', color: c.cmgtGreen, text: <span><strong>Your board is moving forward.</strong> The CMGT team will be in touch to set up your discovery call.</span> },
+  }[verdict];
+  const attribution = boardResp ? [boardResp.by ? `Recorded by ${boardResp.by}` : 'Recorded', fmtWhen(boardResp.at)].filter(Boolean).join(' · ') : '';
+  const AskLink = ({ block }) => (
+    <button onClick={() => onOpen('question')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.purple, fontSize: 12, fontWeight: 700, padding: block ? '2px 0' : 0, textDecoration: 'underline', fontFamily: 'Gotham,Poppins,sans-serif' }}>Have a question? Ask the team</button>
+  );
   return (
     <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${c.lightGray}`, boxShadow: '0 -8px 24px rgba(56,28,79,0.10)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="bp-bar" style={{ maxWidth: 1100, margin: '0 auto', padding: mobile ? '12px 16px' : '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexDirection: mobile ? 'column' : 'row' }}>
-        {confirm ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, fontSize: 13.5, color: c.purple, fontWeight: 500, margin: '0 auto', textAlign: 'left' }}>
-            <span style={{ width: 30, height: 30, borderRadius: 999, background: confirm.color, color: '#fff', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={confirm.ic} size={15} /></span>{confirm.text}
+        {banner ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, margin: '0 auto', textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, fontSize: 13.5, color: c.purple, fontWeight: 500, textAlign: 'left' }}>
+              <span style={{ width: 30, height: 30, borderRadius: 999, background: banner.color, color: '#fff', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={banner.ic} size={15} /></span>{banner.text}
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', fontSize: 11.5, color: c.fgMuted }}>
+              {attribution && <span>{attribution}</span>}
+              {attribution && <span aria-hidden="true">·</span>}
+              <AskLink />
+            </div>
           </div>
         ) : mobile ? (
           <React.Fragment>
@@ -718,10 +787,14 @@ function BoardActionBar({ submission, responded, onOpen }) {
               <button onClick={() => onOpen('changes')} style={{ flex: 1, appearance: 'none', cursor: 'pointer', background: '#fff', border: `1px solid ${c.lightGray}`, color: c.purple, fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 11 }}>Request changes</button>
               <button onClick={() => onOpen('decline')} style={{ flex: 1, appearance: 'none', cursor: 'pointer', background: '#fff', border: `1px solid ${c.lightGray}`, color: c.pink, fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 11 }}>Decline</button>
             </div>
+            <AskLink block />
           </React.Fragment>
         ) : (
           <React.Fragment>
-            <div style={{ fontSize: 13, color: c.purple, fontWeight: 500 }}><strong>{firstName},</strong> you have until <strong>{submission.validThrough}</strong> to respond.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 13, color: c.purple, fontWeight: 500 }}><strong>{firstName},</strong> you have until <strong>{submission.validThrough}</strong> to respond.</div>
+              <AskLink />
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="ghost" size="md" onClick={() => onOpen('changes')}><Icon name="message-square" size={14} /> Request changes</Button>
               <Button variant="danger" size="md" onClick={() => onOpen('decline')}><Icon name="x" size={14} /> Decline</Button>
@@ -732,6 +805,19 @@ function BoardActionBar({ submission, responded, onOpen }) {
       </div>
     </div>
   );
+}
+
+// Short "when" for the resolved-verdict banner. Today → time; older → date.
+function fmtWhen(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    return sameDay
+      ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch { return ''; }
 }
 
 // Per-device anonymous viewer id (stable across reloads on the same browser).
@@ -790,22 +876,41 @@ function useBoardTelemetry(lead, enabled) {
 
 export function BoardProposal({ lead, showActionBar }) {
   const submission = useMemo(() => buildSubmission(lead), [lead]);
-  const [modal, setModal] = useState(null);        // 'changes' | 'decline' | 'continue' | null
-  // Seed from the remembered choice so reopening the link keeps the confirmation
-  // instead of resetting to the buttons.
-  const [responded, setResponded] = useState(() => (showActionBar ? readBoardResponse(lead?.boardToken) : null));
+  const [modal, setModal] = useState(null);        // 'changes' | 'decline' | 'continue' | 'question' | null
+  // The board's verdict {action, by, at}, seeded from the server (shared across
+  // all viewers of this link) or the per-device remembered action. Once set, the
+  // action bar shows a resolved banner instead of live buttons — so reopening the
+  // link keeps the decision, and a later member can't silently flip it.
+  const [boardResp, setBoardResp] = useState(() => {
+    if (!showActionBar) return null;
+    if (lead?.boardResponse) return lead.boardResponse;
+    const a = readBoardResponse(lead?.boardToken);
+    return a ? { action: a } : null;
+  });
   // The board view (with the action bar) is the real surface → track engagement.
   useBoardTelemetry(lead, !!showActionBar);
 
-  // Record a board response to the token-gated proposal-respond fn (anonymous;
-  // skip the cockpit preview iframe). Decline flips status server-side; the
-  // others record events that surface in the cockpit's Close feed.
-  const onResolve = (action, label, meta) => {
-    if (isSupabaseConfigured && supabase && lead?.boardToken && (typeof window === 'undefined' || window.top === window.self)) {
-      supabase.functions.invoke('proposal-respond', { body: { token: lead.boardToken, action, label, meta, viewerKey: viewerKey() } }).catch(() => {});
+  const inCockpitPreview = typeof window !== 'undefined' && window.top !== window.self;
+
+  // Record the board's VERDICT (continue/decline/changes) to the token-gated
+  // proposal-respond fn. Optimistic locally, then reconciled to the server's
+  // authoritative (forward-only) verdict — so a racing responder immediately
+  // sees the winning decision, not their own losing click.
+  const onResolve = (action, label, meta, by) => {
+    writeBoardResponse(lead?.boardToken, action); // remember on this device
+    setBoardResp({ action, by: by || undefined, at: new Date().toISOString() });
+    if (isSupabaseConfigured && supabase && lead?.boardToken && !inCockpitPreview) {
+      supabase.functions.invoke('proposal-respond', { body: { token: lead.boardToken, action, label, meta, viewerName: by, viewerKey: viewerKey() } })
+        .then(({ data }) => { if (data && data.boardResponse) setBoardResp(data.boardResponse); })
+        .catch(() => {});
     }
-    writeBoardResponse(lead?.boardToken, action); // remember across reloads
-    setResponded(action);
+  };
+  // A question is VOICE, not a verdict: records an event only, never touches the
+  // verdict. Always available, even after the board has decided.
+  const onAskQuestion = (text, by) => {
+    if (isSupabaseConfigured && supabase && lead?.boardToken && !inCockpitPreview) {
+      supabase.functions.invoke('proposal-respond', { body: { token: lead.boardToken, action: 'question', label: text, meta: { text }, viewerName: by, viewerKey: viewerKey() } }).catch(() => {});
+    }
   };
   const close = () => setModal(null);
   const barMobile = useIsMobile();
@@ -813,10 +918,11 @@ export function BoardProposal({ lead, showActionBar }) {
     <div className="bp-root" style={{ background: c.offWhite, paddingBottom: showActionBar ? (barMobile ? 168 : 76) : 0 }}>
       <GlobalStyles />
       <ProposalExp lead={lead} submission={submission} />
-      {showActionBar && <BoardActionBar submission={submission} responded={responded} onOpen={setModal} />}
+      {showActionBar && <BoardActionBar submission={submission} boardResp={boardResp} onOpen={setModal} />}
       {modal === 'changes' && <RequestChangesModal onClose={close} onResolve={onResolve} />}
       {modal === 'decline' && <DeclineModal onClose={close} onResolve={onResolve} />}
       {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} rep={repOf(lead.owner)} />}
+      {modal === 'question' && <QuestionModal onClose={close} onAsk={onAskQuestion} rep={repOf(lead.owner)} />}
     </div>
   );
 }
