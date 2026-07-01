@@ -29,6 +29,12 @@ const REP = {
 };
 const repOf = (owner) => REP[owner] || { name: `Your ${CAM_COMPANY?.shortName || 'CMGT'} lead`, first: `Your ${CAM_COMPANY?.shortName || 'CMGT'} lead`, role: 'Client Partnerships' };
 
+// The proof-point value is sometimes a tight stat ("97%", "Day 30", "Monthly")
+// and sometimes a multi-word phrase the matcher returns ("In-house maintenance",
+// "Full pod model"). Render stats big; render phrases smaller and wrapping so
+// they never blow out the box (the mobile card clips overflow → text cut off).
+const proofIsStat = (v) => String(v || '').trim().length <= 8;
+
 // ---------- atoms ----------
 function AccentBar({ height = 6 }) {
   return (
@@ -174,8 +180,8 @@ function AnswerPanel({ concern, index, total, onNext }) {
       <p style={{ fontSize: 16, color: c.bodyGray, lineHeight: 1.7, margin: '0 0 28px', maxWidth: 620, fontWeight: 400 }}>{concern.body}</p>
       {concern.metric && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '22px 24px', background: c.purple, color: '#fff', borderRadius: 12, marginBottom: 28 }}>
-          <div style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 900, fontSize: 48, color: c.yellow, lineHeight: 1, letterSpacing: '-0.02em' }}>{concern.metric.value}</div>
-          <div>
+          <div style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 900, fontSize: proofIsStat(concern.metric.value) ? 48 : 24, color: c.yellow, lineHeight: proofIsStat(concern.metric.value) ? 1 : 1.15, letterSpacing: '-0.02em', flexShrink: 1, minWidth: 0, overflowWrap: 'break-word' }}>{concern.metric.value}</div>
+          <div style={{ flexShrink: 0 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Proof point</div>
             <div style={{ fontSize: 14, color: '#fff', fontWeight: 500, marginTop: 4 }}>{concern.metric.label || concern.proof}</div>
           </div>
@@ -268,8 +274,8 @@ function AccordionBody({ concern }) {
       <p style={{ fontSize: 14.5, color: c.bodyGray, lineHeight: 1.65, margin: '0 0 18px' }}>{concern.body}</p>
       {concern.metric && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: c.purple, color: '#fff', borderRadius: 12, marginBottom: 18 }}>
-          <div style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 900, fontSize: 34, color: c.yellow, lineHeight: 1, flexShrink: 0 }}>{concern.metric.value}</div>
-          <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Proof point</div><div style={{ fontSize: 13, color: '#fff', fontWeight: 500, marginTop: 3 }}>{concern.metric.label || concern.proof}</div></div>
+          <div style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 900, fontSize: proofIsStat(concern.metric.value) ? 32 : 17, color: c.yellow, lineHeight: proofIsStat(concern.metric.value) ? 1 : 1.2, flexShrink: 1, minWidth: 0, overflowWrap: 'break-word' }}>{concern.metric.value}</div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Proof point</div><div style={{ fontSize: 13, color: '#fff', fontWeight: 500, marginTop: 3 }}>{concern.metric.label || concern.proof}</div></div>
         </div>
       )}
       <div style={{ fontSize: 10.5, color: c.pink, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>How we answer it</div>
