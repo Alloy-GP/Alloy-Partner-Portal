@@ -843,7 +843,7 @@ function ExpBar({ w }) { const e = expState(w); return <span className="v2-w-min
 
 function NudgeModal({ s, onClose, onSend }) {
   const w = getWatch(s);
-  const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— Amanda`);
+  const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— ${OWNER_NAMES[s.owner] || CAM_COMPANY.shortName}`);
   return (
     <div className="ps-scrim" onClick={onClose}>
       <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
@@ -1419,7 +1419,7 @@ export default function ProposalsScreen() {
     persist(id, { status: 'declined' });
   };
   const addNote = (id, text) => {
-    const next = [{ who: 'Amanda B.', when: 'Just now', text }, ...(notesMap[id] || [])];
+    const next = [{ who: DATA.user?.name || meName || 'You', when: 'Just now', text }, ...(notesMap[id] || [])];
     setNotesMap((m) => ({ ...m, [id]: next }));
     persist(id, { notes: next });
   };

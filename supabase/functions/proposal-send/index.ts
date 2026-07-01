@@ -40,12 +40,20 @@ const C = {
 };
 const FA = "Arial,Helvetica,sans-serif";
 
+// The proposal's assigned rep (owner initials → who signs the email). Mirrors
+// the cockpit owner picker + the board doc's rep map.
+const REP: Record<string, { name: string; role: string }> = {
+  AB: { name: "Amanda Betancourt", role: "COO" },
+  JR: { name: "Jordan R.", role: "Client Partnerships" },
+};
+
 interface EmailData {
   cam: string; camFull: string; tagline: string;
   firstName: string; contactFull: string; contactRole: string;
   community: string; city: string; homes: number; type: string; status: string;
   priorities: string[]; link: string; expires: string;
   camDomain: string; camEmail: string;
+  senderName: string; senderRole: string;
 }
 
 function priorityCell(label: string, rightCol: boolean): string {
@@ -211,8 +219,8 @@ function renderEmail(d: EmailData): string {
           <!-- 8 signature -->
           <tr>
             <td class="pad-sm" style="padding:22px 34px 30px 34px;">
-              <div style="font-family:${FA}; font-size:14.5px; font-weight:bold; color:${C.ink};">— The ${esc(d.cam)} team</div>
-              <div style="font-family:${FA}; font-size:12.5px; color:${C.muted}; padding-top:2px;">Client Partnerships · ${esc(d.camFull)}</div>
+              <div style="font-family:${FA}; font-size:14.5px; font-weight:bold; color:${C.ink};">— ${esc(d.senderName)}</div>
+              <div style="font-family:${FA}; font-size:12.5px; color:${C.muted}; padding-top:2px;">${esc(d.senderRole)} · ${esc(d.camFull)}</div>
             </td>
           </tr>
 
@@ -257,7 +265,7 @@ Deno.serve(async (req) => {
     });
     const { data: prop, error: readErr } = await userClient
       .from("proposals")
-      .select("id, account_id, board_token, email, community, first_name, contact, contact_role, city, homes, meta_type, meta_status, link_expires, match_snapshot")
+      .select("id, account_id, board_token, email, community, first_name, contact, contact_role, city, homes, meta_type, meta_status, link_expires, match_snapshot, owner")
       .eq("account_id", accountId).eq("lead_key", leadKey).maybeSingle();
     if (readErr) return json({ error: "read_failed", detail: readErr.message }, 500);
     if (!prop) return json({ error: "not_authorized_or_missing" }, 403);
@@ -280,6 +288,7 @@ Deno.serve(async (req) => {
     const priorities = Array.isArray(prop.match_snapshot?.concerns)
       ? prop.match_snapshot.concerns.map((c: any) => String(c?.label || "").trim()).filter(Boolean).slice(0, 4)
       : [];
+    const rep = REP[prop.owner] || { name: `The ${cam} team`, role: "Client Partnerships" };
 
     const html = renderEmail({
       cam, camFull, tagline: "We Manage. You Live.",
@@ -291,6 +300,7 @@ Deno.serve(async (req) => {
       type: prop.meta_type || "", status: prop.meta_status || "",
       priorities, link, expires: prop.link_expires || "",
       camDomain, camEmail: fromEmail,
+      senderName: rep.name, senderRole: rep.role,
     });
 
     const res = await fetch("https://api.resend.com/emails", {

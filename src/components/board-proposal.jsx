@@ -21,6 +21,14 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 const { useState, useRef, useEffect, useMemo } = React;
 const c = COLORS;
 
+// The proposal's assigned rep (owner initials → who reaches out to the board).
+// Kept in sync with the cockpit's owner picker (Amanda B. / Jordan R.).
+const REP = {
+  AB: { name: 'Amanda Betancourt', first: 'Amanda', role: 'COO' },
+  JR: { name: 'Jordan R.', first: 'Jordan', role: 'Client Partnerships' },
+};
+const repOf = (owner) => REP[owner] || { name: `Your ${CAM_COMPANY?.shortName || 'CMGT'} lead`, first: `Your ${CAM_COMPANY?.shortName || 'CMGT'} lead`, role: 'Client Partnerships' };
+
 // ---------- atoms ----------
 function AccentBar({ height = 6 }) {
   return (
@@ -458,6 +466,7 @@ function ProposalExp({ lead, submission }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const active = Math.min(activeIndex, Math.max(0, concerns.length - 1));
   const mobile = useIsMobile();
+  const rep = repOf(lead.owner);
   const firstName = (submission.contactName || '').split(' ')[0];
   return (
     <article style={{ background: c.offWhite }}>
@@ -535,7 +544,7 @@ function ProposalExp({ lead, submission }) {
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <Eyebrow color={c.yellow}>Next step</Eyebrow>
           <h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 40, margin: '14px 0 14px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Thirty minutes to decide if we're the right fit.</h2>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, marginBottom: 0 }}>Discovery call with Jeff Harman (CEO & founder) and Amanda Betancourt (COO). We finalize the engagement, walk through your governing documents, and answer anything this proposal didn't. Use the bar below to respond.</p>
+          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, marginBottom: 0 }}>Discovery call with Jeff Harman (CEO & founder) and {rep.name}{rep.role ? ` (${rep.role})` : ''}. We finalize the engagement, walk through your governing documents, and answer anything this proposal didn't. Use the bar below to respond.</p>
         </div>
       </section>
 
@@ -629,7 +638,7 @@ function DeclineModal({ onClose, onResolve }) {
     </BoardModal>
   );
 }
-function ContinueModal({ onClose, onResolve }) {
+function ContinueModal({ onClose, onResolve, rep }) {
   const slots = useMemo(() => upcomingSlots(), []);
   const [sel, setSel] = useState(null);
   const [done, setDone] = useState(null); // null | 'call' | 'email'
@@ -640,8 +649,8 @@ function ContinueModal({ onClose, onResolve }) {
     <BoardModal onClose={onClose}>
       <div style={{ width: 46, height: 46, borderRadius: 999, background: done === 'call' ? c.purple : c.cmgtGreen, display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name={done === 'call' ? 'check' : 'message-square'} size={22} color="#fff" /></div>
       <MHead eyebrow="Confirmed" color={c.cmgtGreen} title={done === 'call' ? "You're on the CMGT team's calendar." : "We'll be in touch by email."} sub={done === 'call'
-        ? 'A calendar invite is on its way to the email on file. Jeff and Amanda will call you at the number we have. Reply to the invite if you need to reschedule.'
-        : "Amanda will email you shortly to find a time that works — no call required until you're ready."} />
+        ? `A calendar invite is on its way to the email on file. Jeff and ${rep.first} will call you at the number we have. Reply to the invite if you need to reschedule.`
+        : `${rep.first} will email you shortly to find a time that works — no call required until you're ready.`} />
       {done === 'call' && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: c.offWhite, borderRadius: 12, padding: '14px 16px' }}>
         <div style={{ fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 800, color: c.purple }}>{slots[sel].label}</div>
         <div style={{ fontSize: 12, color: c.fgMuted, fontWeight: 600 }}>30 minutes</div>
@@ -652,7 +661,7 @@ function ContinueModal({ onClose, onResolve }) {
   return (
     <BoardModal onClose={onClose}>
       <div style={{ width: 46, height: 46, borderRadius: 999, background: c.cmgtGreen, display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name="check" size={22} color="#fff" /></div>
-      <MHead eyebrow="You're moving forward" color={c.cmgtGreen} title="One last step — pick a time for the discovery call." sub="30 minutes with Jeff Harman (CEO & founder) and Amanda Betancourt (COO). We finalize the engagement and walk through the transition checklist — your dedicated CAM is assigned during onboarding." />
+      <MHead eyebrow="You're moving forward" color={c.cmgtGreen} title="One last step — pick a time for the discovery call." sub={`30 minutes with Jeff Harman (CEO & founder) and ${rep.name}${rep.role ? ` (${rep.role})` : ''}. We finalize the engagement and walk through the transition checklist — your dedicated CAM is assigned during onboarding.`} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 9, marginBottom: 10 }}>
         {slots.map((s, i) => (
           <button key={i} onClick={() => setSel(i)} style={{ padding: '12px 6px', borderRadius: 11, border: `1.5px solid ${sel === i ? c.purple : c.lightGray}`, background: sel === i ? 'rgba(43,44,108,0.05)' : '#fff', cursor: 'pointer', textAlign: 'center' }}>
@@ -772,7 +781,7 @@ export function BoardProposal({ lead, showActionBar }) {
       {showActionBar && <BoardActionBar submission={submission} responded={responded} onOpen={setModal} />}
       {modal === 'changes' && <RequestChangesModal onClose={close} onResolve={onResolve} />}
       {modal === 'decline' && <DeclineModal onClose={close} onResolve={onResolve} />}
-      {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} />}
+      {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} rep={repOf(lead.owner)} />}
     </div>
   );
 }

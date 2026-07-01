@@ -9,7 +9,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // can view it; that's intended — boards forward links to each other). The
 // service role reads the proposal and returns a BOARD-SAFE subset: the board's
 // own submission + what's needed to render the doc. It deliberately omits
-// internal/PII-ish fields (email, phone, owner, status, disq, notes, sales).
+// internal/PII-ish fields (email, phone, status, disq, notes, sales). It DOES
+// return `owner` (the rep initials) so the doc can name the point of contact.
 //
 // The client then enriches it locally (matcher + UVP prose are in the bundle)
 // and renders the same board doc the cockpit preview shows.
@@ -38,10 +39,11 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // Board-safe columns only — never select email/phone/owner/notes/etc.
+    // Board-safe columns only — never select email/phone/notes/sales/etc.
+    // (owner IS included — the board's point of contact.)
     const { data: row, error } = await admin
       .from("proposals")
-      .select("lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at, match_snapshot")
+      .select("lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at, match_snapshot, owner")
       .eq("board_token", token)
       .maybeSingle();
     if (error) return json({ error: "lookup_failed" }, 500);
@@ -59,6 +61,10 @@ Deno.serve(async (req) => {
       perHome: Number(row.per_home) || 0,
       quoteValue: row.quote_value != null ? row.quote_value : undefined,
       linkExpires: row.link_expires, sentAt: row.sent_at || null,
+      // The assigned rep (owner initials) so the doc can name who reaches out
+      // ("Jordan will email you…") instead of a hardcoded person. Board-safe:
+      // the board should know their point of contact.
+      owner: row.owner || null,
       // The CAM's edited match (concern adds/removes/toggles/text) is the source
       // of truth for what the board sees — enrichLead prefers it over the baked
       // demo match. Without this the doc shows the un-edited concerns.
