@@ -601,51 +601,68 @@ function ClSection({ s, toggle, onEdit }) {
 // match_snapshot path as the New stage), so the live preview reflects them.
 function ClConcern({ concern, onToggle, onEdit, onRemove }) {
   const on = concern.on !== false;
+  const caps = (concern.caps || []).length;
   return (
-    <div className="v2-cl" data-off={!on}>
-      <div className="v2-cl-main" onClick={onToggle}>
-        <span className="v2-cl-check" data-on={on}>{on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>}</span>
-        <div className="v2-cl-info"><div className="v2-cl-t">{concern.label}</div><div className="v2-cl-n">{on ? `${concern.fit || 0}% fit · in the proposal` : 'Excluded — won’t show on the proposal'}</div></div>
-        <button className="v2-cl-pencil" title="Edit concern" onClick={(e) => { e.stopPropagation(); onEdit(); }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>
-        <button className="v2-cl-pencil danger" title="Remove concern" onClick={(e) => { e.stopPropagation(); onRemove(); }}><I.Close width={13} height={13} /></button>
+    <div className="v2-crow" data-off={!on} onClick={onToggle}>
+      <span className="v2-chk">{on && <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>}</span>
+      <div className="v2-crow-main">
+        <div className="v2-crow-title">{concern.label}</div>
+        <div className="v2-crow-meta">
+          <span className="v2-fitchip">{concern.fit || 0}% fit</span>
+          <span className="v2-crow-cap">{caps} matched cap{caps === 1 ? '' : 's'}</span>
+        </div>
+      </div>
+      <div className="v2-crow-acts">
+        <button className="v2-crow-act" title="Edit concern" onClick={(e) => { e.stopPropagation(); onEdit(); }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>
+        <button className="v2-crow-act danger" title="Remove concern" onClick={(e) => { e.stopPropagation(); onRemove(); }}><I.Close width={13} height={13} /></button>
       </div>
     </div>
   );
 }
 
-// Non-editable structural section — always part of every proposal, so it reads
-// as a fixed part of the document, not a toggle.
+// Non-editable structural section — always part of every proposal. Reads as a
+// locked, fixed row (the "Always included" tag lives once on the zone divider).
 function ClFixed({ s }) {
   return (
-    <div className="v2-cl v2-cl-fixed">
-      <div className="v2-cl-main" style={{ cursor: 'default' }}>
-        <span className="v2-cl-bullet" aria-hidden="true" />
-        <div className="v2-cl-info"><div className="v2-cl-t">{s.title}</div><div className="v2-cl-n">{s.note}</div></div>
-        <span className="v2-cl-std">Always included</span>
-      </div>
+    <div className="v2-srow">
+      <span className="v2-lock" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></span>
+      <div className="v2-srow-main"><div className="v2-srow-title">{s.title}</div><div className="v2-srow-note">{s.note}</div></div>
     </div>
   );
 }
 
+// Build sidebar — two zones (handoff #26). Zone 1: the matched concerns the admin
+// curates (toggle / edit / remove), in a tinted green card. Zone 2: the fixed
+// standard sections, locked, under a single "Always included" divider. Ordered by
+// type (decision surface leads), not document order.
 function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onApplyMatch }) {
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null
   const concerns = sub.concerns || [];
   const onCount = concerns.filter((c) => c.on !== false).length;
-  const cover = sections.filter((s) => s.id === 'cover');
-  const rest = sections.filter((s) => !s.id.startsWith('pain') && s.id !== 'cover');
+  const standard = sections.filter((s) => !s.id.startsWith('pain')); // cover + fixed sections
   return (
     <div className="v2-checklist">
-      <div className="v2-checklist-head"><div className="t">Sections</div><div className="s">{onCount} of {concerns.length} concerns included · the rest are standard parts of every proposal</div></div>
-      <div className="v2-cl-list">
-        {cover.map((s) => <ClFixed key={s.id} s={s} />)}
-        {concerns.map((cc, i) => (
-          <ClConcern key={sub.id + '-c' + i} concern={cc}
-            onToggle={() => onApplyMatch(concerns.map((x, k) => (k === i ? { ...x, on: x.on === false } : x)), sub.match)}
-            onEdit={() => setConcernEdit(i)}
-            onRemove={() => onApplyMatch(concerns.filter((_, k) => k !== i), sub.match)} />
-        ))}
-        <button className="fx-add-concern" onClick={() => setConcernEdit('new')}><I.Plus width={14} height={14} /> Add a concern</button>
-        {rest.map((s) => <ClFixed key={s.id} s={s} />)}
+      <div className="v2-checklist-head">
+        <div className="t">Sections</div>
+        <div className="s">{concerns.length} concern{concerns.length === 1 ? '' : 's'} matched to their intake, plus {standard.length} section{standard.length === 1 ? '' : 's'} every proposal includes.</div>
+      </div>
+      <div className="v2-cl-list two-zone">
+        {/* Zone 1 — matched concerns (the curated surface) */}
+        <div className="v2-zone-c">
+          <div className="v2-zone-c-lbl"><span className="l">Matched concerns</span><span className="r">{onCount} of {concerns.length} on</span></div>
+          {concerns.map((cc, i) => (
+            <ClConcern key={sub.id + '-c' + i} concern={cc}
+              onToggle={() => onApplyMatch(concerns.map((x, k) => (k === i ? { ...x, on: x.on === false } : x)), sub.match)}
+              onEdit={() => setConcernEdit(i)}
+              onRemove={() => onApplyMatch(concerns.filter((_, k) => k !== i), sub.match)} />
+          ))}
+          <button className="v2-addc" onClick={() => setConcernEdit('new')}><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg> Add a concern</button>
+        </div>
+        {/* Zone 2 — standard sections (fixed scaffolding) */}
+        <div className="v2-grp"><span>Standard sections</span><span className="ln" /><span>Always included</span></div>
+        <div>
+          {standard.map((s) => <ClFixed key={s.id} s={s} />)}
+        </div>
       </div>
       {concernEdit != null && (
         <ConcernEditModal
