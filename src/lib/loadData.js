@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { enrichLead } from './proposalMockData.js';
+import { isPlanningItem } from './quarterStats.js';
 
 // A proposals row (snake_case DB) → the raw lead shape enrichLead consumes
 // (camelCase, matching proposalMockData's LEADS_RAW). Shared by loadData and the
@@ -146,7 +147,16 @@ export async function loadAccountData(session, accountId, me) {
       .sort((a, b) => (a.sort || 0) - (b.sort || 0))
       .map((i) => ({ text: i.text, meta: i.meta }));
 
+  // A "Q<n> Planning" Monday item that isn't complete (status !== 'live') means
+  // the current quarter is still being planned → dashboard shows the Planning
+  // state. Excluded from the project lists below so it never shows as work/counts.
+  const planningActive = (projectsRes.data || []).some(
+    (p) => isPlanningItem(p.title) && p.status !== 'live',
+  );
+
   return {
+    // Current quarter still in planning (a non-complete "Q<n> Planning" item exists).
+    planningActive,
     user: {
       id: session.user.id,
       name: profile.name || '',
@@ -202,7 +212,7 @@ export async function loadAccountData(session, accountId, me) {
     // Active/delivered work. Items from Monday's "Planned Work" group (status
     // 'planned') are split into `plannedProjects` below so they never count in
     // the active project views (sidebar, dashboard, Projects screen, card stats).
-    projects: (projectsRes.data || []).filter((p) => p.status !== 'planned').map((p) => ({
+    projects: (projectsRes.data || []).filter((p) => p.status !== 'planned' && !isPlanningItem(p.title)).map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase, engines: p.engines || [],
       pct: p.pct, status: p.status, origin: p.origin || 'added',
       due: p.due_label || '', dueRel: p.due_rel || relativeDue(p.due_date), dueDate: p.due_date || null,
@@ -219,7 +229,7 @@ export async function loadAccountData(session, accountId, me) {
       thumb: a.thumb_url || null, download: a.download_url || null,
     })),
     // Planned/queued work → Account page "On the horizon".
-    plannedProjects: (projectsRes.data || []).filter((p) => p.status === 'planned').map((p) => ({
+    plannedProjects: (projectsRes.data || []).filter((p) => p.status === 'planned' && !isPlanningItem(p.title)).map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase || null,
       dueDate: p.due_date || null, dueLabel: p.due_label || '',
     })),

@@ -431,10 +431,12 @@ function ThisQuarterCard({ onNav }) {
 
   // PLANNING STATE — until this quarter's plan is published, don't show a score
   // (a pre-plan quarter has a handful of stray tasks that read as bogus progress).
-  // Gated on an explicit, strategist-controlled flag (accounts.plan_published_quarters);
-  // '*' or the current quarter's label unlocks the full card.
+  // Driver: a Monday project titled "Q<n> Planning" that isn't Complete →
+  // DATA.planningActive (resolved in loadData). Mark it Complete (or remove it)
+  // to reveal the full card. `plan_published_quarters` includes "*" is a hard
+  // override (mock/demo, or to force the full card regardless of Monday).
   const pub = DATA.account?.planPublishedQuarters || [];
-  const planPublished = pub.includes("*") || pub.includes(s.label);
+  const planPublished = pub.includes("*") || !DATA.planningActive;
   if (!planPublished) {
     return (
       <div className="tq-card tq-planning dash-link" data-tour="quarterly-playbook" role="button" tabIndex={0} onClick={() => onNav("projects")} onKeyDown={(e) => { if (e.key === "Enter") onNav("projects"); }}>
