@@ -13,6 +13,7 @@ import SnapshotScreen from './components/SnapshotScreen.jsx';
 import PerformanceScreen from './components/PerformanceScreen.jsx';
 import AccountScreen from './components/AccountScreen.jsx';
 import { AssetsScreen } from './components/screen-assets.jsx';
+import ProposalsScreen from './components/screen-proposals.jsx';
 import PrivacyScreen from './components/PrivacyScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
@@ -29,7 +30,7 @@ const PATHS = {
   dashboard: '/', leads: '/partnership', snapshot: '/snapshot', roi: '/roi', projects: '/playbook', tickets: '/tickets',
   performance: '/visibility',
   playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account', privacy: '/privacy',
-  assets: '/assets',
+  assets: '/assets', proposals: '/proposals',
 };
 
 // App entry — composes Sidebar + screen
@@ -44,6 +45,20 @@ const TWEAKS = /*EDITMODE-BEGIN*/{
 function App({ session, onSignOut, staffNav } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
+  // "View as client" — staff QA. Drops the staff override so the app renders
+  // exactly what a CLIENT of this account sees (proposals hidden unless the
+  // account's flag is on, staff nav gone, etc.). Account ACCESS is unaffected —
+  // AuthGate uses the real `me.isStaff`; only in-app gating flips. `staffNav` is
+  // the REAL staff flag (truthy only for staff), so the exit toggle never hides.
+  const realStaff = !!staffNav;
+  const viewAsClient = realStaff && new URLSearchParams(location.search).get('as') === 'client';
+  if (DATA.user) DATA.user.isStaff = realStaff && !viewAsClient; // effective flag — children read it synchronously this render
+  const toggleViewAsClient = () => {
+    const sp = new URLSearchParams(location.search);
+    if (viewAsClient) sp.delete('as'); else sp.set('as', 'client');
+    const qs = sp.toString();
+    navigate(`${location.pathname}${qs ? '?' + qs : ''}`);
+  };
   // A staff member viewing a client carries the client in the URL: /c/:id/...
   // Screens are parsed from the path *after* that optional prefix.
   const parts = location.pathname.split('/').filter(Boolean);
@@ -139,6 +154,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     rewards: { t: "Recognition", s: "Wins, made tangible" },
     'account-details': { t: "Account Details", s: "Your plan, team, and account settings" },
     assets: { t: "Assets", s: `Everything Alloy has made for ${DATA.account.company}` },
+    proposals: { t: "Proposals", s: "Intake, match, and send tailored proposals" },
     privacy: { t: "Privacy", s: "How your information is handled" },
   };
 
@@ -167,6 +183,12 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "performance": return <PerformanceScreen onNav={handleNav}/>;
       case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       case "assets": return <AssetsScreen/>;
+      // Proposals is OFF for every client by default. Visible only to Alloy
+      // staff, or to a client whose account has proposals_enabled = true. Gating
+      // the ROUTE (not just the nav) so a direct URL can't reach it either.
+      case "proposals": return (DATA.user?.isStaff || DATA.account?.proposalsEnabled)
+        ? <ProposalsScreen/>
+        : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
       case "privacy": return <PrivacyScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
     }
@@ -174,7 +196,13 @@ function App({ session, onSignOut, staffNav } = {}) {
 
   return (
     <>
-    <div className={`app density-${tweaks.density}${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarMode === "hover" ? " sidebar-hover" : ""}${sidebarMode === "hover" && sidebarHover ? " is-hovering" : ""}`} data-bg={tweaks.showBg ? "on" : "off"}>
+    {viewAsClient && (
+      <div role="button" onClick={toggleViewAsClient} title="Click to exit client view"
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: 'var(--alloy-purple, #2b2c6c)', color: '#fff', textAlign: 'center', padding: '6px 12px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+        👁 Viewing as a client — staff tools hidden. {DATA.account?.shortName ? `(${DATA.account.shortName})` : ''} &nbsp;·&nbsp; Click to exit
+      </div>
+    )}
+    <div className={`app density-${tweaks.density}${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarMode === "hover" ? " sidebar-hover" : ""}${sidebarMode === "hover" && sidebarHover ? " is-hovering" : ""}`} data-bg={tweaks.showBg ? "on" : "off"} style={viewAsClient ? { paddingTop: 30 } : undefined}>
       {/* Mobile top bar — brand + hamburger that opens the sidebar drawer. Hidden ≥961px. */}
       <div className={`mobile-bar${barHidden ? " hidden" : ""}`}>
         <div className="brand" role="button" tabIndex={0} aria-label="Go to dashboard"
@@ -194,7 +222,7 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       {/* Sidebar (responsive) */}
       <div className={`sidebar-wrap ${mobileNav ? "open" : ""}`}>
-        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} session={session} onSignOut={onSignOut} staffNav={staffNav} sidebarMode={sidebarMode} onSetMode={chooseMode}
+        <Sidebar active={active} onNav={handleNav} role={role} onRole={setRole} tier={DATA.account.tier} density={tweaks.density} t={tweaks} setTweak={setTweak} collapsed={sidebarCollapsed} session={session} onSignOut={onSignOut} staffNav={staffNav} viewAsClient={viewAsClient} onToggleViewAsClient={toggleViewAsClient} sidebarMode={sidebarMode} onSetMode={chooseMode}
           onHoverChange={(h) => { if (sidebarMode === "hover") setSidebarHover(h); }} />
         <div className="sidebar-scrim" onClick={() => setMobileNav(false)}/>
       </div>

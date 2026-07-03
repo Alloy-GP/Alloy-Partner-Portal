@@ -401,6 +401,65 @@ function ThisQuarterCard({ onNav }) {
   // the size difference between segments reads clearly.
   const segStyle = (n) => ({ flex: n, minWidth: `${n < 10 ? 16 : n < 100 ? 25 : 32}px` });
 
+  // The toolkit strip is honest in every state (which systems are on/locked), so
+  // it anchors both the planning card and the full score card.
+  const toolkitBlock = (
+    <>
+      <div className="tq-divider" />
+      <div className="tq-toolkit">
+        <div className="tq-tk-head">
+          <span className="tq-tk-label">Alloy Toolkit · {toolkit.length} systems</span>
+          <span className="tq-tk-meta">{onCount} on</span>
+        </div>
+        <div className="tq-tk-grid">
+          {toolkit.map((t) => (
+            <div key={t.name} className={`tq-tk-tile${t.on ? "" : " locked"}`}>
+              <span className="tq-tk-nm">{t.name}</span>
+              {t.on ? (
+                <span className="tq-tk-st on">On</span>
+              ) : (
+                <span className="tq-tk-st locked" title="Not switched on">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+
+  // PLANNING STATE — until this quarter's plan is published, don't show a score
+  // (a pre-plan quarter has a handful of stray tasks that read as bogus progress).
+  // Driver: a Monday project titled "Q<n> Planning" that isn't Complete →
+  // DATA.planningActive (resolved in loadData). Mark it Complete (or remove it)
+  // to reveal the full card. `plan_published_quarters` includes "*" is a hard
+  // override (mock/demo, or to force the full card regardless of Monday).
+  const pub = DATA.account?.planPublishedQuarters || [];
+  const planPublished = pub.includes("*") || !DATA.planningActive;
+  if (!planPublished) {
+    return (
+      <div className="tq-card tq-planning dash-link" data-tour="quarterly-playbook" role="button" tabIndex={0} onClick={() => onNav("projects")} onKeyDown={(e) => { if (e.key === "Enter") onNav("projects"); }}>
+        <div className="tq-head">
+          <span className="tq-ic"><I.Book width={22} height={22} /></span>
+          <div className="tq-head-txt">
+            <div className="tq-eyebrow">{s.label}</div>
+            <div className="tq-title">Quarterly Playbook</div>
+          </div>
+          <button className="tq-cta" onClick={(e) => { e.stopPropagation(); onNav("projects"); }} aria-label="Open Quarterly Playbook">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </button>
+        </div>
+        <div className="tq-plan-hero">
+          <span className="tq-pace planning"><span className="tq-pace-dot" />In planning</span>
+          <div className="tq-plan-h">This quarter's plan is being built.</div>
+          <div className="tq-plan-sub">Your Alloy strategist is finalizing the {s.label} roadmap — your playbook lands here once it's locked in.</div>
+        </div>
+        {toolkitBlock}
+      </div>
+    );
+  }
+
   if (!s.hasData) {
     return (
       <div className="tq-card tq-empty" data-tour="quarterly-playbook">
@@ -494,27 +553,7 @@ function ThisQuarterCard({ onNav }) {
         </>
       )}
 
-      <div className="tq-divider" />
-      <div className="tq-toolkit">
-        <div className="tq-tk-head">
-          <span className="tq-tk-label">Alloy Toolkit · {toolkit.length} systems</span>
-          <span className="tq-tk-meta">{onCount} on</span>
-        </div>
-        <div className="tq-tk-grid">
-          {toolkit.map((t) => (
-            <div key={t.name} className={`tq-tk-tile${t.on ? "" : " locked"}`}>
-              <span className="tq-tk-nm">{t.name}</span>
-              {t.on ? (
-                <span className="tq-tk-st on">On</span>
-              ) : (
-                <span className="tq-tk-st locked" title="Not switched on">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      {toolkitBlock}
     </div>
   );
 }

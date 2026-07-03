@@ -7,6 +7,7 @@ export const DATA = {
     tier: "Accelerate",
     market: "Austin–Round Rock TX",
     since: "Mar 2025",
+    planPublishedQuarters: ["*"], // demo: always show the full Playbook card
   },
   // Recurring services — pulled from client config. Always-on engagements that show alongside one-off projects.
   recurringServices: [

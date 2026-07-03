@@ -34,6 +34,19 @@ export function currentQuarter(now = new Date()) {
 const toDate = (d) => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`) : null);
 const inRange = (d, start, end) => { const x = toDate(d); return !!x && x >= start && x <= end; };
 
+// The "Q<n> Planning" control item (Skyler's convention): a Monday project whose
+// title starts with the CURRENT quarter's "Q<n>" and contains "planning". While
+// such an item exists and is NOT complete, the quarter is still being planned →
+// the dashboard shows the Planning state instead of a (premature) score. Matched
+// by title so the strategist drives it entirely from Monday; the loader excludes
+// it from the real project lists so it never shows as client work or counts.
+// Quarter-scoped by the "Q<n>" in the title, so a stale prior-quarter item can't
+// trigger it. e.g. "Q3 Planning", "Q3 2026 Planning", "Q3 – Roadmap Planning".
+export function isPlanningItem(title, now = new Date()) {
+  const { q } = currentQuarter(now);
+  return new RegExp(`^\\s*q${q}\\b.*planning`, "i").test(String(title || ""));
+}
+
 // CANONICAL "in motion now" — active projects being driven. Status-based,
 // all-time, no due-date requirement (an active project with no date set still
 // counts — that's what was wrongly dropping clients to 0/undercounting).

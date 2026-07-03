@@ -8,7 +8,7 @@ import { inMotionNow } from '../lib/quarterStats.js';
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
-function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, sidebarMode, onSetMode, onHoverChange }) {
+function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, viewAsClient, onToggleViewAsClient, sidebarMode, onSetMode, onHoverChange }) {
   const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [ctrlOpen, setCtrlOpen] = useState(false);
 
@@ -40,6 +40,9 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     { id: "projects", label: "Playbook", icon: I.Book, group: "work", count: openProjects },
     { id: "leads", label: "Partnership", icon: I.TrendUp, group: "work", count: leadsToReview },
     { id: "performance", label: "Visibility", icon: I.Eye, group: "work" },
+    // Proposal system — shows to a client when their account has proposals
+    // enabled (decision 1); otherwise staff-only (still reachable by URL).
+    { id: "proposals", label: "Proposals", icon: I.Doc, group: "work", staff: !DATA.account?.proposalsEnabled },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Image, group: "account" },
     { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: (DATA.account && DATA.account.dashUploadUrl) || "https://dam.alloygp.co" },
@@ -121,8 +124,10 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
         ))}
 
         {/* Client Center — staff-only nav above any single client. Rendered as a
-            normal nav section so it collapses to icons with the sidebar. */}
-        {staffNav ? (
+            normal nav section so it collapses to icons with the sidebar. Hidden
+            while "viewing as client" so the QA view is faithful (exit via the
+            top banner). */}
+        {staffNav && !viewAsClient ? (
           <>
             <div className="nav-section-label has-divider">Client Center</div>
             <div className="nav-item" data-active={false} onClick={staffNav.onHome} title="All clients">
@@ -133,6 +138,12 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
               <span className="icon"><I.Bolt /></span>
               <span>Admin</span>
             </div>
+            {onToggleViewAsClient && (
+              <div className="nav-item" data-active={false} onClick={onToggleViewAsClient} title="See exactly what this client sees — staff tools hidden">
+                <span className="icon"><I.Eye /></span>
+                <span>View as client</span>
+              </div>
+            )}
           </>
         ) : null}
       </nav>

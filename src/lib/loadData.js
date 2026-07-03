@@ -1,4 +1,30 @@
 import { supabase } from './supabase.js';
+import { enrichLead } from './proposalMockData.js';
+import { isPlanningItem } from './quarterStats.js';
+
+// A proposals row (snake_case DB) → the raw lead shape enrichLead consumes
+// (camelCase, matching proposalMockData's LEADS_RAW). Shared by loadData and the
+// board route's standalone fetch so the mapping never drifts.
+export function proposalRowToRaw(p) {
+  return {
+    id: p.lead_key,
+    community: p.community, contact: p.contact, contactRole: p.contact_role, firstName: p.first_name,
+    city: p.city, homes: p.homes, status: p.status, priority: p.priority, owner: p.owner,
+    perHome: Number(p.per_home) || 0, received: p.received,
+    email: p.email, phone: p.phone, metaType: p.meta_type, metaStatus: p.meta_status,
+    dues: p.dues, engageTimeline: p.engage_timeline, budget: p.budget,
+    selectedPains: p.selected_pains || [], quote: p.quote,
+    disq: p.disq, disqReason: p.disq_reason, linkExpires: p.link_expires,
+    quoteValue: p.quote_value != null ? p.quote_value : undefined,
+    salesValue: p.sales_value != null ? p.sales_value : undefined,
+    tierId: p.tier_id, notes: p.notes || [], _dbId: p.id,
+    boardToken: p.board_token, sentAt: p.sent_at || null,
+    arrivedAt: p.created_at || null, // when the lead landed in the New inbox
+    openedAt: p.opened_at || null, openedBy: p.opened_by || null, // null → "new"; set → "reviewed"
+    matchSnapshot: p.match_snapshot || null, // persisted LLM match (preferred by enrichLead)
+    boardResponse: p.board_response || null, // the board's verdict {action, by, at} (forward-only)
+  };
+}
 
 // Static UI config (not account data) — mirrors the mock's DATA.roles.
 const ROLES = [
@@ -63,7 +89,7 @@ export async function loadAccountData(session, accountId, me) {
     activityRes, ticketsRes, kpisRes, roiRes, libraryRes,
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
-    toolkitRes, assetsRes,
+    toolkitRes, assetsRes, proposalUvpsRes, proposalsRes, proposalEventsRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -92,6 +118,16 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('program_quarters').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('toolkit_systems').select('name, sort').eq('account_id', accountId).order('sort'),
     supabase.from('assets').select('*').eq('account_id', accountId).order('sort'),
+    // Proposal system · this CAM's UVP library (the matcher's backbone). Ordered
+    // by `position` so the array index === the canonical cap index that concern
+    // matches reference. Empty for accounts not running proposals.
+    supabase.from('proposal_uvps').select('*').eq('account_id', accountId).order('position'),
+    // Proposal system · the pipeline. Raw submission + state; match/sections/
+    // pricing are derived at load by enrichLead. Empty for non-proposals accounts.
+    supabase.from('proposals').select('*').eq('account_id', accountId).order('sort'),
+    // Proposal system · board engagement telemetry (Close). Aggregated per
+    // proposal into the WATCH shape by enrichLead. Empty until a board opens one.
+    supabase.from('proposal_events').select('*').eq('account_id', accountId).order('created_at'),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -111,7 +147,16 @@ export async function loadAccountData(session, accountId, me) {
       .sort((a, b) => (a.sort || 0) - (b.sort || 0))
       .map((i) => ({ text: i.text, meta: i.meta }));
 
+  // A "Q<n> Planning" Monday item that isn't complete (status !== 'live') means
+  // the current quarter is still being planned → dashboard shows the Planning
+  // state. Excluded from the project lists below so it never shows as work/counts.
+  const planningActive = (projectsRes.data || []).some(
+    (p) => isPlanningItem(p.title) && p.status !== 'live',
+  );
+
   return {
+    // Current quarter still in planning (a non-complete "Q<n> Planning" item exists).
+    planningActive,
     user: {
       id: session.user.id,
       name: profile.name || '',
@@ -148,6 +193,13 @@ export async function loadAccountData(session, accountId, me) {
       wcQualifiedBySource: account.wc_qualified_by_source || {},
       wcQualifiedByYear: account.wc_qualified_by_year || {},
       wcFirstLeadAt: account.wc_first_lead_at || null,
+      // Proposal system on/off (decision 1). Drives the Partnership↔Proposals
+      // lens + the Proposals nav for client users.
+      proposalsEnabled: !!account.proposals_enabled,
+      // Quarters whose plan is published — the Quarterly Playbook card shows its
+      // score only when the current quarter is listed here, else a Planning
+      // state (so a pre-plan quarter doesn't read as bogus progress). '*' = always.
+      planPublishedQuarters: Array.isArray(account.plan_published_quarters) ? account.plan_published_quarters : [],
     },
     roles: ROLES,
     recurringServices: (recurringRes.data || []).map((r) => ({
@@ -160,7 +212,7 @@ export async function loadAccountData(session, accountId, me) {
     // Active/delivered work. Items from Monday's "Planned Work" group (status
     // 'planned') are split into `plannedProjects` below so they never count in
     // the active project views (sidebar, dashboard, Projects screen, card stats).
-    projects: (projectsRes.data || []).filter((p) => p.status !== 'planned').map((p) => ({
+    projects: (projectsRes.data || []).filter((p) => p.status !== 'planned' && !isPlanningItem(p.title)).map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase, engines: p.engines || [],
       pct: p.pct, status: p.status, origin: p.origin || 'added',
       due: p.due_label || '', dueRel: p.due_rel || relativeDue(p.due_date), dueDate: p.due_date || null,
@@ -177,7 +229,7 @@ export async function loadAccountData(session, accountId, me) {
       thumb: a.thumb_url || null, download: a.download_url || null,
     })),
     // Planned/queued work → Account page "On the horizon".
-    plannedProjects: (projectsRes.data || []).filter((p) => p.status === 'planned').map((p) => ({
+    plannedProjects: (projectsRes.data || []).filter((p) => p.status === 'planned' && !isPlanningItem(p.title)).map((p) => ({
       id: p.code || p.monday_item_id, title: p.title, phase: p.phase || null,
       dueDate: p.due_date || null, dueLabel: p.due_label || '',
     })),
@@ -309,5 +361,30 @@ export async function loadAccountData(session, accountId, me) {
       id: p.id, name: p.name || '', initials: p.initials || '',
       avatarUrl: p.avatar_url || null, role: p.role || 'owner', isStaff: !!p.is_staff,
     })),
+    // Proposal system · the CAM's UVP library, in canonical cap order. Shape
+    // mirrors src/lib/proposalUVPs.js so the UVP Library + matcher consume it
+    // exactly like the mock. `_position` is the cap index; `_dbId` is the row id
+    // for write-back. Absent/empty for accounts not running proposals → the UI
+    // falls back to the canonical mock list.
+    proposalUvps: (proposalUvpsRes.data || []).map((u) => ({
+      id: u.slug, title: u.title, short: u.short || '', body: u.body || '',
+      icon: u.icon || 'sparkles', category: u.category || 'operations',
+      tags: u.tags || [],
+      proof: (u.proof_value || u.proof_label) ? { value: u.proof_value, label: u.proof_label } : null,
+      active: u.active, _dbId: u.id, _position: u.position,
+    })),
+    // Proposal system · the pipeline. Each DB row → the raw submission shape →
+    // enrichLead (match/concerns/sections/pricing/Close telemetry), so the
+    // cockpit renders these identically to the mock LEADS. Real board-engagement
+    // events (grouped per proposal) flow in so Close shows live data; enrichLead
+    // aggregates them, falling back to mock WATCH when a proposal has none.
+    proposals: (() => {
+      const eventsByProposal = {};
+      (proposalEventsRes.data || []).forEach((e) => {
+        (eventsByProposal[e.proposal_id] = eventsByProposal[e.proposal_id] || []).push(e);
+      });
+      return (proposalsRes.data || []).map((p) =>
+        enrichLead({ ...proposalRowToRaw(p), events: eventsByProposal[p.id] || [] }));
+    })(),
   };
 }

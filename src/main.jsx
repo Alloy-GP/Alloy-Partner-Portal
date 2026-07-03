@@ -20,6 +20,7 @@ import './styles/11-roadmap.css';
 import './styles/12-quarter-card.css';
 import './styles/13-assets.css';
 import './styles/14-privacy.css';
+import './styles/15-proposals.css';
 
 import AuthGate from './AuthGate.jsx';
 
