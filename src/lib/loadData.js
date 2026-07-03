@@ -186,6 +186,10 @@ export async function loadAccountData(session, accountId, me) {
       // Proposal system on/off (decision 1). Drives the Partnership↔Proposals
       // lens + the Proposals nav for client users.
       proposalsEnabled: !!account.proposals_enabled,
+      // Quarters whose plan is published — the Quarterly Playbook card shows its
+      // score only when the current quarter is listed here, else a Planning
+      // state (so a pre-plan quarter doesn't read as bogus progress). '*' = always.
+      planPublishedQuarters: Array.isArray(account.plan_published_quarters) ? account.plan_published_quarters : [],
     },
     roles: ROLES,
     recurringServices: (recurringRes.data || []).map((r) => ({

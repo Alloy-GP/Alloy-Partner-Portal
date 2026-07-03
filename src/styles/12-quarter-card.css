@@ -17,6 +17,14 @@
 .tq-pace { align-self: center; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #e6f3f0; color: #2c8a6e; font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
 .tq-pace-dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
 .tq-pace.behind { background: var(--alloy-yellow-tint, #fdf6e0); color: #b8881a; }
+.tq-pace.planning { background: var(--alloy-yellow-tint, #fdf6e0); color: #b8881a; }
+
+/* Planning state — shown until the quarter's plan is published (replaces the
+   score hero with a calm status so a pre-plan quarter doesn't read as progress). */
+.tq-plan-hero { margin-top: 20px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.tq-plan-hero .tq-pace { align-self: flex-start; }
+.tq-plan-h { font-family: var(--font-display); font-weight: 800; font-size: 22px; line-height: 1.15; letter-spacing: -0.02em; color: var(--alloy-purple, #381c4f); }
+.tq-plan-sub { font-size: 13.5px; font-weight: 500; color: var(--fg-muted, #7a6f88); line-height: 1.55; max-width: 46ch; }
 
 .tq-cta { width: 38px; height: 38px; border: none; cursor: pointer; border-radius: 10px; background: var(--alloy-purple, #381c4f); color: #fff; display: grid; place-items: center; flex-shrink: 0; transition: background .15s ease; }
 .tq-cta:hover { background: var(--alloy-pink, #d9356e); }
