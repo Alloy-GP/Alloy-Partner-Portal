@@ -98,8 +98,10 @@ Deno.serve(async (req) => {
     const challenges = str(body?.challenges, 6000);
 
     if (!company) return json({ error: "Company name is required." }, 400);
-    if (!goals) return json({ error: "Please share at least one goal." }, 400);
+    if (!contactName) return json({ error: "Your name is required." }, 400);
     if (!email || !isEmail(email)) return json({ error: "A valid email is required." }, 400);
+    if (!goals) return json({ error: "Please share at least one goal." }, 400);
+    if (!challenges) return json({ error: "Please share your challenges." }, 400);
 
     const key = Deno.env.get("RESEND_API_KEY");
     if (!key) return json({ error: "RESEND_API_KEY not set" }, 500);

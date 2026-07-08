@@ -30,7 +30,7 @@ function QuarterGoalsForm() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!company.trim() || !goals.trim() || !email.trim()) return;
+    if (!company.trim() || !contactName.trim() || !email.trim() || !goals.trim() || !challenges.trim()) return;
     setStatus('sending');
     setError('');
     try {
@@ -121,6 +121,7 @@ function QuarterGoalsForm() {
                     id="qg-name"
                     type="text"
                     autoComplete="name"
+                    required
                     placeholder="First and last"
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
@@ -160,10 +161,11 @@ function QuarterGoalsForm() {
 
               <div className="qg-field">
                 <label htmlFor="qg-challenges">
-                  Challenges <span className="qg-hint">— what's getting in the way? (optional)</span>
+                  Challenges <span className="qg-hint">— what's getting in the way?</span>
                 </label>
                 <textarea
                   id="qg-challenges"
+                  required
                   rows={4}
                   placeholder="e.g. Not enough time, unclear on where to invest, last quarter's campaign underperformed…"
                   value={challenges}
@@ -190,7 +192,7 @@ function QuarterGoalsForm() {
               <button
                 type="submit"
                 className="qg-submit"
-                disabled={sending || !company.trim() || !goals.trim() || !email.trim()}
+                disabled={sending || !company.trim() || !contactName.trim() || !email.trim() || !goals.trim() || !challenges.trim()}
               >
                 {sending ? 'Sending…' : 'Send my goals'}
               </button>
