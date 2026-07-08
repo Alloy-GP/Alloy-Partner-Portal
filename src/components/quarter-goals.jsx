@@ -10,17 +10,15 @@ import './quarter-goals.css';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// The quarter we're collecting FOR — the one after the current calendar quarter.
-function nextQuarterLabel(now = new Date()) {
-  const qi = Math.floor(now.getMonth() / 3); // 0..3, current quarter
-  let nq = qi + 1;
-  let year = now.getFullYear();
-  if (nq > 3) { nq = 0; year += 1; }
-  return `Q${nq + 1} ${year}`;
+// The quarter we're collecting FOR — the current calendar quarter (this runs at
+// the start of the quarter as a pre-planning intake).
+function currentQuarterLabel(now = new Date()) {
+  const qi = Math.floor(now.getMonth() / 3); // 0..3
+  return `Q${qi + 1} ${now.getFullYear()}`;
 }
 
 function QuarterGoalsForm() {
-  const quarter = nextQuarterLabel();
+  const quarter = currentQuarterLabel();
   const [company, setCompany] = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
