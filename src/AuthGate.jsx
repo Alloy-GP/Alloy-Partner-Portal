@@ -10,6 +10,7 @@ import NoAccess from './components/NoAccess.jsx';
 import AlloyHome from './components/AlloyHome.jsx';
 import AdminScreen from './components/AdminScreen.jsx';
 import { BoardProposalPage } from './components/board-proposal.jsx';
+import QuarterGoalsForm from './components/quarter-goals.jsx';
 import App from './App.jsx';
 
 // Staff-level Admin page — global client management, lives above any single
@@ -147,6 +148,10 @@ function AuthGate() {
   // board opens. No portal shell, no auth (the future anonymous board surface).
   const boardMatch = location.pathname.match(/\/proposals\/board\/([^/?#]+)/);
   if (boardMatch) return <BoardProposalPage id={decodeURIComponent(boardMatch[1])} />;
+
+  // Public, shell-less pre-planning goals form — a shareable link (no auth) for
+  // clients to submit next quarter's goals. Runs even in mock mode.
+  if (/^\/goals\/?$/.test(location.pathname)) return <QuarterGoalsForm />;
 
   if (!configured) return <App />;
   if (loading) return splash;

@@ -1,0 +1,172 @@
+/* Public pre-planning goals form — same brand chrome as the login screen
+   (purple stage + glow + white card), widened for the longer intake fields. */
+
+.qg-page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--alloy-purple-deep);
+  overflow: auto;
+}
+
+.qg-bg {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 40% at 25% 20%, rgba(217, 53, 110, 0.35), transparent 70%),
+    radial-gradient(45% 45% at 80% 30%, rgba(245, 216, 128, 0.22), transparent 70%),
+    radial-gradient(50% 50% at 60% 90%, rgba(161, 200, 231, 0.25), transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.qg-card {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 40px 40px 30px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.qg-logo {
+  height: 32px;
+  width: auto;
+  margin: 0 0 22px;
+  display: block;
+}
+
+.qg-eyebrow {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--alloy-pink);
+  margin: 0 0 6px;
+}
+
+.qg-card h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 25px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  margin: 0 0 10px;
+}
+
+.qg-sub {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--fg-muted);
+  margin: 0 0 26px;
+}
+.qg-sub strong { color: var(--fg-2); }
+
+.qg-form { display: flex; flex-direction: column; gap: 16px; text-align: left; }
+
+.qg-field { display: flex; flex-direction: column; gap: 7px; }
+.qg-row { display: flex; gap: 14px; }
+.qg-row .qg-field { flex: 1; min-width: 0; }
+
+.qg-field label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.qg-field .qg-hint {
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg-muted);
+}
+
+.qg-form input,
+.qg-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--fg);
+  background: var(--alloy-off-white);
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.qg-form textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
+
+.qg-form input:focus,
+.qg-form textarea:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--alloy-purple);
+  box-shadow: 0 0 0 3px rgba(56, 28, 79, 0.12);
+}
+.qg-form input:disabled,
+.qg-form textarea:disabled { opacity: 0.6; }
+
+/* Honeypot — visually and semantically hidden from real users. */
+.qg-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+.qg-submit {
+  margin-top: 4px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--alloy-pink);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  transition: background 0.15s, transform 0.05s;
+}
+.qg-submit:hover:not(:disabled) { filter: brightness(0.94); }
+.qg-submit:active:not(:disabled) { transform: translateY(1px); }
+.qg-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.qg-error {
+  background: var(--alloy-pink-tint);
+  color: var(--alloy-pink);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+}
+
+.qg-done-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 0 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--alloy-purple-tint);
+  color: var(--alloy-purple);
+}
+
+.qg-foot {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+.qg-foot a { color: var(--alloy-purple); font-weight: 600; }
+.qg-foot a:hover { color: var(--alloy-pink); }
+
+@media (max-width: 560px) {
+  .qg-card { padding: 30px 22px 24px; }
+  .qg-row { flex-direction: column; gap: 16px; }
+}
