@@ -29,10 +29,8 @@ const isEmail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 const nl2br = (s: string) => esc(s).replace(/\r?\n/g, "<br>");
 
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
-// Where the intake lands. Override with GOALS_NOTIFY_EMAIL (comma-separated for
-// multiple recipients); falls back to the team inbox.
-const NOTIFY = (Deno.env.get("GOALS_NOTIFY_EMAIL") || "hello@alloygp.co")
-  .split(",").map((s) => s.trim()).filter(Boolean);
+// Where the intake lands — the team inbox (same one surfaced across the portal).
+const NOTIFY = ["hello@alloygp.co"];
 const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
 
 function renderEmail(f: {
