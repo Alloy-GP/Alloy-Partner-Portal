@@ -25,7 +25,7 @@ function NoAccess({ email, onSignOut }) {
           Sign out
         </button>
         <div className="login-foot">
-          Questions? Email <a href="mailto:hello@alloygp.co">hello@alloygp.co</a>
+          Questions? Email <a href="mailto:team@alloygp.co">team@alloygp.co</a>
         </div>
       </div>
     </div>

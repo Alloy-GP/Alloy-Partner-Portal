@@ -30,7 +30,7 @@ const nl2br = (s: string) => esc(s).replace(/\r?\n/g, "<br>");
 
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
 // Where the intake lands — the team inbox (same one surfaced across the portal).
-const NOTIFY = ["hello@alloygp.co"];
+const NOTIFY = ["team@alloygp.co"];
 const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
 
 function renderEmail(f: {
