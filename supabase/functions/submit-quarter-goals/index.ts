@@ -29,8 +29,10 @@ const isEmail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 const nl2br = (s: string) => esc(s).replace(/\r?\n/g, "<br>");
 
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
-// Where the intake lands — the team inbox (same one surfaced across the portal).
-const NOTIFY = ["team@alloygp.co"];
+// Where the intake lands — the INTERNAL team inbox. NOTE: this is deliberately
+// NOT team@alloygp.co (that's the public "email us directly" address in the
+// portal links/footers); form submissions notify the internal inbox instead.
+const NOTIFY = ["admin@alloygp.co"];
 const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
 
 function renderEmail(f: {
