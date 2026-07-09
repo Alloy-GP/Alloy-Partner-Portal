@@ -91,8 +91,8 @@ function QuarterGoalsForm() {
           </>
         ) : (
           <>
-            <div className="qg-eyebrow">Pre-planning · {quarter}</div>
-            <h1>Let's plan your next quarter</h1>
+            <div className="qg-eyebrow">Planning · {quarter}</div>
+            <h1>Help us wrap up your {quarter} plan</h1>
             <p className="qg-sub">
               Tell us what you want to accomplish in <strong>{quarter}</strong> and
               what's getting in the way. Your Alloy team will use this to build
