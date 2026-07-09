@@ -86,7 +86,7 @@ function QuarterGoalsForm() {
             </p>
             <div className="qg-foot">
               Need to change something? Email us at{' '}
-              <a href="mailto:hello@alloygp.co">hello@alloygp.co</a>.
+              <a href="mailto:team@alloygp.co">team@alloygp.co</a>.
             </div>
           </>
         ) : (
@@ -200,7 +200,7 @@ function QuarterGoalsForm() {
 
             <div className="qg-foot">
               Questions? Reach your Alloy team at{' '}
-              <a href="mailto:hello@alloygp.co">hello@alloygp.co</a>.
+              <a href="mailto:team@alloygp.co">team@alloygp.co</a>.
             </div>
           </>
         )}

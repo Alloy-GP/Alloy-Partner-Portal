@@ -181,7 +181,7 @@ function Login() {
 
         <div className="login-foot">
           Trouble signing in? Reach your Alloy team at{' '}
-          <a href="mailto:hello@alloygp.co">hello@alloygp.co</a>
+          <a href="mailto:team@alloygp.co">team@alloygp.co</a>
         </div>
       </div>
     </div>

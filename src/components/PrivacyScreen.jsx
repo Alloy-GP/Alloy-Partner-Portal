@@ -96,7 +96,7 @@ function PrivacyScreen() {
           <h2>Questions?</h2>
           <p>
             Reach your Alloy team anytime at{' '}
-            <a href="mailto:hello@alloygp.co">hello@alloygp.co</a>. For the binding
+            <a href="mailto:team@alloygp.co">team@alloygp.co</a>. For the binding
             terms of our work together, your Alloy partnership agreement governs.
           </p>
         </footer>
