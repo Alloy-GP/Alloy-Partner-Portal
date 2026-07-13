@@ -2,7 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Syncs WhatConverts leads into the portal's `leads` table, per account
-// (accounts.whatconverts_profile_id holds a WhatConverts *account_id*).
+// (accounts.whatconverts_profile_id holds one or more WhatConverts *account_ids*,
+// comma-separated — a client can span multiple WC accounts, e.g. main + landing).
 // Mirrors sync-monday: delete-all-then-insert per account, over a recent
 // window. Paginates so the full window is captured (no silent cap).
 //
@@ -213,8 +214,28 @@ async function fetchAllLeads(acctId: string, startDate: string): Promise<any[]> 
   return all;
 }
 
+// A client can span MULTIPLE WhatConverts accounts (main site + landing page +
+// …), stored comma-separated in whatconverts_profile_id. Fetch each, merge +
+// dedup by lead_id, order newest-first, then delete-all-insert.
+function parseAccountIds(v: unknown): string[] {
+  return String(v ?? "").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+}
+
 async function syncAccount(supabase: any, acct: any, startDate: string) {
-  const raw = await fetchAllLeads(acct.whatconverts_profile_id, startDate);
+  const ids = parseAccountIds(acct.whatconverts_profile_id);
+  const seen = new Set<string>();
+  const raw: any[] = [];
+  for (const id of ids) {
+    const batch = await fetchAllLeads(id, startDate);
+    for (const l of batch) {
+      const k = l.lead_id != null ? String(l.lead_id) : `${id}-${raw.length}`;
+      if (seen.has(k)) continue;   // WC lead_ids are globally unique; dedup defensively
+      seen.add(k);
+      raw.push(l);
+    }
+  }
+  // Merged across sources → re-order newest-first so the `sort` index is stable.
+  raw.sort((a, b) => new Date(b.date_created || 0).getTime() - new Date(a.date_created || 0).getTime());
   const leads = raw.map((l, i) => mapLead(l, i, acct.id));
 
   // Mirror WhatConverts for this account: clear then insert.
