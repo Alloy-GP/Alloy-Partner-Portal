@@ -236,15 +236,21 @@ async function syncAccount(supabase: any, acct: any, startDate: string) {
   }
   // Merged across sources → re-order newest-first so the `sort` index is stable.
   raw.sort((a, b) => new Date(b.date_created || 0).getTime() - new Date(a.date_created || 0).getTime());
-  const leads = raw.map((l, i) => mapLead(l, i, acct.id));
+  const stamp = new Date().toISOString();
+  const leads = raw.map((l, i) => ({ ...mapLead(l, i, acct.id), last_synced_at: stamp }));
 
-  // Mirror WhatConverts for this account: clear then insert.
-  const { error: delErr } = await supabase.from("leads").delete().eq("account_id", acct.id);
-  if (delErr) throw new Error(`delete: ${delErr.message}`);
+  // Upsert-and-prune (NOT delete-all-then-insert): write current leads keyed by
+  // (account_id, wc_lead_id), then delete only rows this run did NOT touch
+  // (removed/aged-out in WhatConverts). No window where the table is empty, and
+  // upsert refreshes edits (quotable, value, contact) in place.
   if (leads.length) {
-    const { error: insErr } = await supabase.from("leads").insert(leads);
-    if (insErr) throw new Error(`insert: ${insErr.message}`);
+    const { error: upErr } = await supabase.from("leads").upsert(leads, { onConflict: "account_id,wc_lead_id" });
+    if (upErr) throw new Error(`upsert: ${upErr.message}`);
   }
+  const { error: p1 } = await supabase.from("leads").delete().eq("account_id", acct.id).lt("last_synced_at", stamp);
+  if (p1) throw new Error(`prune: ${p1.message}`);
+  const { error: p2 } = await supabase.from("leads").delete().eq("account_id", acct.id).is("last_synced_at", null);
+  if (p2) throw new Error(`prune-null: ${p2.message}`);
   return leads.length;
 }
 
