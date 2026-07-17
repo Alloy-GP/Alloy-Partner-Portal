@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "unauthorized" }, 401);
 
     const { data: profile } = await userClient
-      .from("profiles").select("account_id, is_staff").eq("id", user.id).maybeSingle();
+      .from("profiles").select("account_id, is_staff, name").eq("id", user.id).maybeSingle();
     if (!profile?.account_id) return json({ error: "no account" }, 403);
 
     const body = await req.json().catch(() => ({}));
@@ -217,11 +217,26 @@ Deno.serve(async (req) => {
       const t = await zd(`/tickets/${id}.json`);
       if (String(t.ticket.organization_id) !== String(orgId)) return json({ error: "forbidden" }, 403);
 
+      // Author the reply as the CALLER. For a CLIENT this must resolve to their
+      // OWN Zendesk end-user, never the fallback API agent — otherwise Zendesk
+      // treats it as an Alloy reply and emails the client about their own update.
+      // Search first (so we never rename an existing user); if a client isn't in
+      // Zendesk yet, create them (pre-verified, so no verification email). Staff
+      // that don't resolve fall back to the API agent — still an agent reply.
       let authorId: number | undefined;
       try {
         const u = await zd(`/users/search.json?query=${encodeURIComponent(user.email || "")}`);
         if (u.users?.[0]?.id) authorId = u.users[0].id;
-      } catch { /* fall back to API agent */ }
+      } catch { /* ignore */ }
+      if (!authorId && !profile.is_staff && user.email) {
+        try {
+          const cu = await zd(`/users/create_or_update.json`, {
+            method: "POST",
+            body: JSON.stringify({ user: { email: user.email, name: profile.name || user.email.split("@")[0], verified: true } }),
+          });
+          if (cu.user?.id) authorId = cu.user.id;
+        } catch { /* fall back to API agent */ }
+      }
 
       const comment: any = { body: text || " ", public: true };
       if (authorId) comment.author_id = authorId;
