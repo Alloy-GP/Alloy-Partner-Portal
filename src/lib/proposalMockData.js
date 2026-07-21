@@ -356,13 +356,20 @@ export function aggregateWatch(events, lead) {
 // engine (or a baked LLM match) + attach Close telemetry + build the section
 // checklist + pricing-friendly fields. ONE path for both the mock pipeline and
 // DB-loaded proposals (loadData calls this), so they render identically.
-export function enrichLead(s) {
+export function enrichLead(s, cam) {
   // Prefer a baked LLM match (run scripts/llm-precompute-matches.mjs) when present;
   // otherwise the deterministic tag engine. Either way the shape is identical, so
   // the screen is matcher-agnostic. `_source` lets the UI show which ran.
   // Match precedence: a persisted LLM snapshot (real lead, matched once at
   // intake) > a baked demo LLM match > the deterministic tag engine fallback.
-  const m = s.matchSnapshot || LLM_MATCHES[s.id] || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, UVPS, { prose: PAIN_PROSE, topCaps: 4 }), _source: "engine" };
+  //
+  // `cam` (a CAM profile from camProfiles.js) white-labels the matcher per
+  // account: the UVP set + per-concern prose + includes come from the account's
+  // CAM. Omitted → the module defaults (CMGT), so existing callers are unchanged.
+  const uvps = cam?.uvps || UVPS;
+  const prose = cam?.painProse || PAIN_PROSE;
+  const includesList = cam?.includes || INCLUDES;
+  const m = s.matchSnapshot || LLM_MATCHES[s.id] || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, uvps, { prose, topCaps: 4 }), _source: "engine" };
   const tierName = "Full-Service Management";
   const quoteValue = s.quoteValue != null ? s.quoteValue : Math.round((s.perHome || 0) * (s.homes || 0) * 12);
   const first = s.received ? s.received.split(" · ")[0] : "intake";
@@ -374,7 +381,7 @@ export function enrichLead(s) {
     // Close engagement: real aggregated board events when present, else the mock
     // WATCH (demo boards without live telemetry yet).
     watch: (s.events && s.events.length) ? aggregateWatch(s.events, s) : (WATCH[s.id] || null),
-    includes: INCLUDES,
+    includes: includesList,
     sections: buildSections(m.concerns), // Build checklist skeleton
     gapNote: "There's almost always a small gap worth aligning on — let's talk it through on the discovery call before you sign anything.",
     tagline: `Built around the ${m.concerns.length} concerns ${s.firstName} raised on ${first}.`,
