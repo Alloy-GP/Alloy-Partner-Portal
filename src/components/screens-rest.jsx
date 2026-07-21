@@ -672,6 +672,7 @@ function buildLeadsPage() {
     time: l.time || "",
     date: l.date || "",
     status: statusOf(l),
+    reason: l.quotable === "no" ? (l.leadStatus || null) : null, // spam | duplicate | null (refines "not a fit")
     note: l.message || "",
     fields: cleanFields(l),
     facts: keyFacts(l.fields),
@@ -759,22 +760,31 @@ function LeadsScreen() {
 
   const quotableOf = (status) => status === "qualified" ? "yes" : status === "notfit" ? "no" : "pending";
 
-  const setStatus = async (id, status) => {
+  // status: qualified | review(=pending) | notfit. reason (notfit only): spam | duplicate | null.
+  // "Not a fit", "Spam", "Duplicate" all set quotable="no"; reason distinguishes them.
+  const REASON_LABEL = { spam: "spam", duplicate: "duplicate" };
+  const setStatus = async (id, status, reason = null) => {
+    const canonical = status === "pending" ? "review" : status;
     const lead = leads.find((l) => l.id === id);
     if (!lead) return;
-    const prev = { status: lead.status };
-    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, status } : l));   // keep values across status
-    setToast({ id, prev, label: status === "qualified" ? `${lead.person} marked qualified` : status === "notfit" ? `${lead.person} marked not a fit` : `${lead.person} moved to pending` });
+    const nextReason = canonical === "notfit" ? (reason || null) : null;
+    const prev = { status: lead.status, reason: lead.reason || null };
+    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, status: canonical, reason: nextReason } : l));   // keep values across status
+    const label = canonical === "qualified" ? `${lead.person} marked qualified`
+      : canonical === "review" ? `${lead.person} moved to pending`
+      : nextReason ? `${lead.person} marked ${REASON_LABEL[nextReason]}`
+      : `${lead.person} marked not a fit`;
+    setToast({ id, prev, label });
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 6000);
-    try { await qualifyLead(id, { quotable: quotableOf(status) }); } catch (e) { /* optimistic; next sync reconciles */ }
+    try { await qualifyLead(id, { quotable: quotableOf(canonical), leadStatus: nextReason }); } catch (e) { /* optimistic; next sync reconciles */ }
   };
   const undo = async () => {
     if (!toast) return;
     const t = toast;
-    setLeads((ls) => ls.map((l) => l.id === t.id ? { ...l, status: t.prev.status } : l));
+    setLeads((ls) => ls.map((l) => l.id === t.id ? { ...l, status: t.prev.status, reason: t.prev.reason ?? null } : l));
     setToast(null);
-    try { await qualifyLead(t.id, { quotable: quotableOf(t.prev.status) }); } catch (e) { /* */ }
+    try { await qualifyLead(t.id, { quotable: quotableOf(t.prev.status), leadStatus: t.prev.reason ?? null }); } catch (e) { /* */ }
   };
   // Free-form value edit (monthly); persists regardless of status.
   const saveValues = async (id, quoteStr, salesStr) => {
@@ -984,7 +994,7 @@ function LeadsScreen() {
                     <span className="tag tag-status-live"><span className="dot" />Qualified</span>
                   </>
                 ) : (
-                  <span className="tag tag-status-done"><span className="dot" />Not a fit</span>
+                  <span className="tag tag-status-done"><span className="dot" />{l.reason === "spam" ? "Spam" : l.reason === "duplicate" ? "Duplicate" : "Not a fit"}</span>
                 )}
               </div>
             </div>
@@ -1012,7 +1022,9 @@ function LeadsScreen() {
               <div className="ld-status-seg">
                 <button className={`ld-seg-btn yes${panelLead.status === "qualified" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "qualified")}>{panelLead.status === "qualified" ? <I.Check width={12} height={12} /> : null}Qualified</button>
                 <button className={`ld-seg-btn pend${panelLead.status === "review" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "pending")}>{panelLead.status === "review" ? <I.Check width={12} height={12} /> : null}Pending</button>
-                <button className={`ld-seg-btn no${panelLead.status === "notfit" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "notfit")}>{panelLead.status === "notfit" ? <I.Check width={12} height={12} /> : null}Not a fit</button>
+                <button className={`ld-seg-btn no${panelLead.status === "notfit" && !panelLead.reason ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "notfit", null)}>{panelLead.status === "notfit" && !panelLead.reason ? <I.Check width={12} height={12} /> : null}Not a fit</button>
+                <button className={`ld-seg-btn spam${panelLead.status === "notfit" && panelLead.reason === "spam" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "notfit", "spam")}>{panelLead.status === "notfit" && panelLead.reason === "spam" ? <I.Check width={12} height={12} /> : null}Spam</button>
+                <button className={`ld-seg-btn dup${panelLead.status === "notfit" && panelLead.reason === "duplicate" ? " on" : ""}`} onClick={() => setStatus(panelLead.id, "notfit", "duplicate")}>{panelLead.status === "notfit" && panelLead.reason === "duplicate" ? <I.Check width={12} height={12} /> : null}Duplicate</button>
               </div>
             </div>
             <div className="ld-panel-body">

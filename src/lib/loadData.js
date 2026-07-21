@@ -99,7 +99,7 @@ export async function loadAccountData(session, accountId, me) {
     // Trim the bulk leads load to list-view columns only. The heavy panel-only
     // columns (journey ~650kB, message ~140kB across 800+ leads) are lazy-fetched
     // per-lead when a detail panel opens — they were dominating page-load time.
-    supabase.from('leads').select('wc_lead_id, name, email, phone, company, source, quality, quotable, value, quote_value, sales_value, type, time_label, created_at, page, fields, context, sort').eq('account_id', accountId).order('sort'),
+    supabase.from('leads').select('wc_lead_id, name, email, phone, company, source, quality, quotable, lead_status, value, quote_value, sales_value, type, time_label, created_at, page, fields, context, sort').eq('account_id', accountId).order('sort'),
     supabase.from('activity').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('tickets').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('kpis').select('*').eq('account_id', accountId).order('sort'),
@@ -247,7 +247,7 @@ export async function loadAccountData(session, accountId, me) {
     ticketCounts: Object.fromEntries((ticketSummariesRes.data || []).filter((t) => t.comment_count != null).map((t) => [t.zendesk_id, t.comment_count])),
     recentLeads: (leadsRes.data || []).map((l) => ({
       id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, source: l.source,
-      quality: l.quality, quotable: l.quotable,
+      quality: l.quality, quotable: l.quotable, leadStatus: l.lead_status,
       value: l.value, quoteValue: l.quote_value, salesValue: l.sales_value,
       type: l.type, time: l.time_label, date: l.created_at, fields: l.fields, context: l.context, page: l.page,
       // message + journey lazy-loaded in the lead detail panel (see LeadsScreen)
