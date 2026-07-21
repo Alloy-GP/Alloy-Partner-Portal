@@ -1379,6 +1379,8 @@ export default function ProposalsScreen() {
   const [notesMap, setNotesMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { if (s.notes && s.notes.length) m[s.id] = s.notes; }); return m; });
   const [toast, setToast] = useState(null);
   const [launching, setLaunching] = useState(false);
+  const [resetting, setResetting] = useState(false); // demo pipeline reset in flight
+  const [resetArmed, setResetArmed] = useState(false); // two-click guard on the demo reset
   const [editorMap, setEditorMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { m[s.id] = (s.sections || []).map((x) => ({ ...x })); }); return m; });
   const sub = subs.find((s) => s.id === selectedId) || subs[0];
   const sections = editorMap[selectedId] || [];
@@ -1394,6 +1396,25 @@ export default function ProposalsScreen() {
     supabase.from('proposals').update(patch)
       .eq('account_id', DATA.account.id).eq('lead_key', leadKey)
       .then(({ error }) => { if (error) setToast({ msg: 'Save failed: ' + error.message }); });
+  };
+
+  // Demo account only (staff): a discreet reset that re-seeds the Northstar demo
+  // pipeline to its starting state via the reset-demo edge function. The function
+  // is hard-scoped server-side to the demo account id, so it can never touch a
+  // real client. Two-click confirm avoids an accidental reset mid-demo.
+  const DEMO_ACCOUNT_ID = 'de300000-0000-4000-8000-000000000001';
+  const isDemo = !!DATA.user?.isStaff && DATA.account?.id === DEMO_ACCOUNT_ID;
+  const resetDemo = async () => {
+    if (!resetArmed) { setResetArmed(true); setTimeout(() => setResetArmed(false), 4000); return; }
+    setResetArmed(false); setResetting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-demo', { body: {} });
+      if (error || data?.error) throw new Error(error?.message || data?.error || 'reset failed');
+      window.location.reload(); // reload → fresh DATA (pristine pipeline)
+    } catch (e) {
+      setResetting(false);
+      setToast({ msg: 'Reset failed: ' + (e.message || e) });
+    }
   };
 
   const meName = (DATA.user?.name || '').split(/\s+/)[0] || 'a teammate';
@@ -1591,6 +1612,14 @@ export default function ProposalsScreen() {
           <button className="v2-lib-btn" data-on={mode === 'library'} onClick={() => setMode('library')} title="The capabilities every proposal matches against">
             <I.Bolt width={14} height={14} /> UVP Library
           </button>
+          {isDemo && (
+            <button className={'fx-demo-reset' + (resetArmed ? ' armed' : '')} onClick={resetDemo} disabled={resetting}
+              title="Reset the demo pipeline to its starting state">
+              {resetting ? 'Resetting…' : resetArmed ? 'Reset demo?' : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
