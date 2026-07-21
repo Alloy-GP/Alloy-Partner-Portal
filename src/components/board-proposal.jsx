@@ -1,33 +1,37 @@
 import React from 'react';
 import { getLeads, enrichLead } from '../lib/proposalMockData.js';
-import { COLORS, UVPS, TIERS, TEAM, ONBOARDING_TIMELINE, buildSubmission, CAM_COMPANY } from '../lib/boardData.js';
+import { COLORS, buildSubmission } from '../lib/boardData.js';
+import { camFor, DEFAULT_CAM } from '../lib/camProfiles.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 
 // ============================================================================
-// Board-facing proposal document (Direction 3 · Interactive) — the real
-// CMGT-branded page the HOA board reads (ported from board/proposal-exp.jsx).
+// Board-facing proposal document (Direction 3 · Interactive) — the white-labeled
+// page the HOA board reads (ported from board/proposal-exp.jsx). The CAM identity
+// (name, logo, contact, team, tiers, onboarding, UVPs, prose) comes from the
+// account's profile via camFor(lead.accountId) → CamCtx; see camProfiles.js.
 //
 // Renders from the SAME enriched lead data the Review screen uses — the lead's
 // `concerns` (label/headline/body/proof/metric/caps), `links`, `match`,
 // `capsMatched`/`capsTotal`, `gapNote` (the LLM/engine output). So Review →
 // Build → board doc → Close all show one consistent example. UVP `caps` are
-// indices into UVPS (the 14-UVP library, identical order in board + cockpit
-// data), which supplies the per-cap title/body/icon shown on each concern.
+// indices into the CAM's UVP library (cam.uvps — same array the matcher derived
+// against), which supplies the per-cap title/body/icon shown on each concern.
 //
 // Self-contained inline styles via COLORS (NOT the .proposal-system scoped CSS).
 // Driven by any lead; shown in the Build preview iframe and at /proposals/board/:id.
 // ============================================================================
 
-const { useState, useRef, useEffect, useLayoutEffect, useMemo } = React;
+const { useState, useRef, useEffect, useLayoutEffect, useMemo, useContext } = React;
 const c = COLORS;
 
-// The proposal's assigned rep (owner initials → who reaches out to the board).
-// Kept in sync with the cockpit's owner picker (Amanda B. / Jordan R.).
-const REP = {
-  AB: { name: 'Amanda Betancourt', first: 'Amanda', role: 'COO' },
-  JR: { name: 'Jordan R.', first: 'Jordan', role: 'Client Partnerships' },
-};
-const repOf = (owner) => REP[owner] || { name: `Your ${CAM_COMPANY?.shortName || 'CMGT'} lead`, first: `Your ${CAM_COMPANY?.shortName || 'CMGT'} lead`, role: 'Client Partnerships' };
+// The white-label CAM identity for the proposal being viewed, provided by
+// BoardProposal (resolved from lead.accountId) and read by every sub-component.
+const CamCtx = React.createContext(DEFAULT_CAM);
+const useCam = () => useContext(CamCtx);
+
+// The proposal's assigned rep (owner initials → who reaches out to the board),
+// per the account's CAM. Falls back to a generic "Your <CAM> lead".
+const repOf = (owner, cam) => (cam && cam.reps && cam.reps[owner]) || { name: `Your ${cam?.shortName || 'team'} lead`, first: `Your ${cam?.shortName || 'team'} lead`, role: 'Client Partnerships' };
 
 // The proof-point value is sometimes a tight stat ("97%", "Day 30", "Monthly")
 // and sometimes a multi-word phrase the matcher returns ("In-house maintenance",
@@ -79,9 +83,14 @@ export function Icon({ name, size = 20, color = 'currentColor', strokeWidth = 1.
   }
 }
 function CAMLogo({ scheme = 'light', size = 'md' }) {
+  const cam = useCam();
   const h = { sm: 22, md: 30, lg: 44 }[size];
-  const src = scheme === 'dark' ? '/proposal-assets/cmgt-logo-white.svg' : '/proposal-assets/cmgt-logo.svg';
-  return <img src={src} alt="CMGT" style={{ height: h, display: 'block' }} />;
+  if (cam.logo) {
+    const src = scheme === 'dark' ? (cam.logo.dark || cam.logo.light) : cam.logo.light;
+    return <img src={src} alt={cam.name} style={{ height: h, display: 'block' }} />;
+  }
+  // No logo asset → a clean text wordmark (demo / white-label CAMs).
+  return <span style={{ fontFamily: 'Gotham, Poppins, sans-serif', fontWeight: 800, fontSize: Math.round(h * 0.6), letterSpacing: '-0.01em', color: scheme === 'dark' ? '#fff' : c.purple, lineHeight: 1, display: 'block', whiteSpace: 'nowrap' }}>{cam.shortName}</span>;
 }
 
 function GlobalStyles() {
@@ -140,10 +149,11 @@ function ScoreCard({ lead }) {
 }
 
 function PainRail({ concerns, activeIndex, onSelect }) {
+  const cam = useCam();
   return (
     <div style={{ position: 'sticky', top: 18, alignSelf: 'start' }}>
       <Eyebrow color={c.pink}>Your concerns</Eyebrow>
-      <div style={{ fontSize: 12, color: c.fgMuted, marginTop: 6, marginBottom: 14, lineHeight: 1.55 }}>Click any to see how CMGT addresses it.</div>
+      <div style={{ fontSize: 12, color: c.fgMuted, marginTop: 6, marginBottom: 14, lineHeight: 1.55 }}>Click any to see how {cam.shortName} addresses it.</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {concerns.map((concern, i) => {
           const on = i === activeIndex;
@@ -165,8 +175,9 @@ function PainRail({ concerns, activeIndex, onSelect }) {
 }
 
 function AnswerPanel({ concern, index, total, onNext }) {
+  const cam = useCam();
   if (!concern) return null;
-  const caps = concern.caps.map((i) => UVPS[i]).filter(Boolean);
+  const caps = concern.caps.map((i) => cam.uvps[i]).filter(Boolean);
   return (
     <div key={index} style={{ background: '#fff', borderRadius: 14, padding: 40, border: `1px solid ${c.lightGray}`, boxShadow: '0 2px 8px rgba(56,28,79,.05)', animation: 'bp-fadeUp 320ms cubic-bezier(.16,1,.3,1)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
@@ -204,13 +215,14 @@ function AnswerPanel({ concern, index, total, onNext }) {
 }
 
 function EngineGraph({ concerns }) {
+  const cam = useCam();
   const wrapRef = useRef(null);
   const [W, setW] = useState(900);
   const [active, setActive] = useState(null);
   useEffect(() => { const measure = () => { if (wrapRef.current) setW(wrapRef.current.offsetWidth); }; measure(); window.addEventListener('resize', measure); return () => window.removeEventListener('resize', measure); }, []);
   const capList = useMemo(() => { const set = []; concerns.forEach((c2) => c2.caps.forEach((i) => { if (!set.includes(i)) set.push(i); })); return set; }, [concerns]);
   const pains = concerns.map((c2) => c2.label);
-  const uvps = capList.map((i) => ({ i, title: (UVPS[i]?.title || '').split('—')[0].trim() }));
+  const uvps = capList.map((i) => ({ i, title: (cam.uvps[i]?.title || '').split('—')[0].trim() }));
   const n = pains.length, m = uvps.length, rowH = 50, padTop = 16, H = Math.max(n, m) * rowH + 28, usableH = H - padTop * 2;
   const yL = (i) => padTop + (usableH * (i + 0.5)) / n;
   const yR = (i) => padTop + (usableH * (i + 0.5)) / m;
@@ -224,7 +236,7 @@ function EngineGraph({ concerns }) {
     <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: c.yellow, width: '40%' }}>Your concerns</span>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: c.green, textAlign: 'right', width: '40%' }}>CMGT capabilities</span>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: c.green, textAlign: 'right', width: '40%' }}>{cam.shortName} capabilities</span>
       </div>
       <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: H }}>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
@@ -267,7 +279,8 @@ function useIsMobile(bp = 768) {
 // The answer content of a concern, sans the desktop card chrome — used inside
 // the mobile accordion (the summary already carries the concern label).
 function AccordionBody({ concern }) {
-  const caps = concern.caps.map((i) => UVPS[i]).filter(Boolean);
+  const cam = useCam();
+  const caps = concern.caps.map((i) => cam.uvps[i]).filter(Boolean);
   return (
     <div>
       {concern.headline && <h3 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 21, color: c.purple, lineHeight: 1.2, margin: '2px 0 12px', letterSpacing: '-0.01em' }}>{concern.headline}</h3>}
@@ -345,13 +358,14 @@ function ConcernAccordion({ concerns }) {
 // Mobile matching engine = stacked list (the bipartite SVG is unreadable on a
 // phone): one card per concern + its matched capabilities below a divider.
 function EngineList({ concerns }) {
+  const cam = useCam();
   const capSet = []; concerns.forEach((c2) => c2.caps.forEach((i) => { if (!capSet.includes(i)) capSet.push(i); }));
   const connections = concerns.reduce((a, c2) => a + c2.caps.length, 0);
   return (
     <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {concerns.map((c2, i) => {
-          const caps = c2.caps.map((ci) => UVPS[ci]).filter(Boolean);
+          const caps = c2.caps.map((ci) => cam.uvps[ci]).filter(Boolean);
           return (
             <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '14px 16px' }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -383,7 +397,8 @@ function EngineList({ concerns }) {
 }
 
 function ExpPricing({ submission }) {
-  const tiersAll = submission.tiers || TIERS;
+  const cam = useCam();
+  const tiersAll = submission.tiers || cam.tiers;
   const visible = (submission.tiersToShow && submission.tiersToShow.length) ? tiersAll.filter((t) => submission.tiersToShow.includes(t.id)) : tiersAll;
   const [selected, setSelected] = useState(submission.recommendedTierId || visible[0]?.id || 'full');
   const tier = visible.find((t) => t.id === selected) || visible[0];
@@ -443,10 +458,11 @@ function ExpPricing({ submission }) {
 }
 
 function Timeline() {
+  const cam = useCam();
   return (
     <div style={{ position: 'relative', paddingLeft: 26 }}>
       <span style={{ position: 'absolute', left: 6, top: 8, bottom: 8, width: 2, background: c.lightGray }} />
-      {ONBOARDING_TIMELINE.map((t, i) => (
+      {cam.onboarding.map((t, i) => (
         <div key={i} style={{ position: 'relative', padding: '8px 0 16px' }}>
           <span style={{ position: 'absolute', left: -23, top: 6, width: 11, height: 11, borderRadius: 999, background: '#fff', border: `2.5px solid ${c.green}` }} />
           <div style={{ fontFamily: 'Gotham, sans-serif', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: c.green }}>{t.day}</div>
@@ -459,17 +475,18 @@ function Timeline() {
 }
 
 function ProposalFooter({ submission }) {
+  const cam = useCam();
   return (
     <div style={{ background: c.purpleDeep, color: '#fff' }}>
       <AccentBar />
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '44px 32px 24px' }}>
         <div className="bp-foot" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 40, marginBottom: 32 }}>
-          <div><CAMLogo scheme="dark" size="md" /><div style={{ fontSize: 13, opacity: 0.7, marginTop: 16, lineHeight: 1.65, maxWidth: 360 }}>Community association management for the Gulf South. Family-run since 2007. CAI member · CMCA-credentialed team.</div></div>
-          <div><div style={{ fontSize: 11, fontWeight: 700, color: c.yellow, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Contact</div><div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.85 }}>cmgt.org<br />proposals@cmgt.org<br />(225) 791-1505</div></div>
-          <div><div style={{ fontSize: 11, fontWeight: 700, color: c.yellow, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Office</div><div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.85 }}>140 Aspen Square, Suite H<br />Denham Springs, LA 70726</div></div>
+          <div><CAMLogo scheme="dark" size="md" /><div style={{ fontSize: 13, opacity: 0.7, marginTop: 16, lineHeight: 1.65, maxWidth: 360 }}>{cam.footerBlurb}</div></div>
+          <div><div style={{ fontSize: 11, fontWeight: 700, color: c.yellow, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Contact</div><div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.85 }}>{cam.contact.web}<br />{cam.contact.email}<br />{cam.contact.phone}</div></div>
+          <div><div style={{ fontSize: 11, fontWeight: 700, color: c.yellow, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Office</div><div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.85 }}>{cam.office[0]}<br />{cam.office[1]}</div></div>
         </div>
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', paddingTop: 18, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
-          <span>© 2026 Community Management, LLC · Proposal {submission.proposalId || ''}</span>
+          <span>© 2026 {cam.legalName} · Proposal {submission.proposalId || ''}</span>
           <span style={{ fontWeight: 700, color: c.yellow, letterSpacing: '0.1em', textTransform: 'uppercase' }}><span style={{ marginRight: 6, opacity: 0.6 }}>Built with</span>Alloy</span>
         </div>
       </div>
@@ -480,11 +497,12 @@ function ProposalFooter({ submission }) {
 function ProposalExp({ lead, submission }) {
   // Only concerns the CAM kept included (Build can toggle one off → it drops
   // from the board doc). Undefined `on` = included (legacy / never-toggled).
+  const cam = useCam();
   const concerns = (lead.concerns || []).filter((cc) => cc.on !== false);
   const [activeIndex, setActiveIndex] = useState(0);
   const active = Math.min(activeIndex, Math.max(0, concerns.length - 1));
   const mobile = useIsMobile();
-  const rep = repOf(lead.owner);
+  const rep = repOf(lead.owner, cam);
   const firstName = (submission.contactName || '').split(' ')[0];
   return (
     <article style={{ background: c.offWhite }}>
@@ -508,7 +526,7 @@ function ProposalExp({ lead, submission }) {
         mobile
           ? <section data-section="Concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 22px 44px' }}>
               <Eyebrow color={c.pink}>Your concerns</Eyebrow>
-              <div style={{ fontSize: 12.5, color: c.fgMuted, margin: '6px 0 16px', lineHeight: 1.55 }}>Tap any concern to see how CMGT addresses it.</div>
+              <div style={{ fontSize: 12.5, color: c.fgMuted, margin: '6px 0 16px', lineHeight: 1.55 }}>Tap any concern to see how {cam.shortName} addresses it.</div>
               <ConcernAccordion concerns={concerns} />
             </section>
           : <section data-section="Concerns" className="bp-concerns" style={{ maxWidth: 1180, margin: '0 auto', padding: '44px 36px 64px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
@@ -538,9 +556,9 @@ function ProposalExp({ lead, submission }) {
       <section data-section="Your team" style={{ padding: '0 36px 64px', background: c.offWhite }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <Eyebrow color={c.pink}>Your team</Eyebrow>
-          <h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 36, color: c.purple, margin: '12px 0 24px', letterSpacing: '-0.015em' }}>{TEAM.length} humans who'll know your buildings.</h2>
-          <div className="bp-team" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(TEAM.length, 4)}, 1fr)`, gap: 12 }}>
-            {TEAM.map((t) => (
+          <h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 36, color: c.purple, margin: '12px 0 24px', letterSpacing: '-0.015em' }}>{cam.team.length} humans who'll know your buildings.</h2>
+          <div className="bp-team" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(cam.team.length, 4)}, 1fr)`, gap: 12 }}>
+            {cam.team.map((t) => (
               <div key={t.name} style={{ background: '#fff', borderRadius: 12, padding: 20, border: `1px solid ${c.lightGray}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 999, background: t.color, color: c.purple, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 17 }}>{t.initials}</div>
                 <div><div style={{ fontSize: 14, fontWeight: 700, color: c.purple }}>{t.name}</div><div style={{ fontSize: 10.5, color: c.pink, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 3, marginBottom: 8 }}>{t.role}</div><div style={{ fontSize: 12, color: c.bodyGray, lineHeight: 1.5 }}>{t.bio}</div></div>
@@ -562,7 +580,7 @@ function ProposalExp({ lead, submission }) {
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <Eyebrow color={c.yellow}>Next step</Eyebrow>
           <h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 40, margin: '14px 0 14px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Thirty minutes to decide if we're the right fit.</h2>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, marginBottom: 0 }}>Discovery call with Jeff Harman (CEO & founder) and {rep.name}{rep.role ? ` (${rep.role})` : ''}. We finalize the engagement, walk through your governing documents, and answer anything this proposal didn't. Use the bar below to respond.</p>
+          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, marginBottom: 0 }}>Discovery call with {cam.discoveryLead} and {rep.name}{rep.role ? ` (${rep.role})` : ''}. We finalize the engagement, walk through your governing documents, and answer anything this proposal didn't. Use the bar below to respond.</p>
         </div>
       </section>
 
@@ -663,6 +681,7 @@ function RequestChangesModal({ onClose, onResolve }) {
   );
 }
 function DeclineModal({ onClose, onResolve }) {
+  const cam = useCam();
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [name, setName] = useState('');
@@ -675,13 +694,14 @@ function DeclineModal({ onClose, onResolve }) {
       <div style={{ display: 'grid', gap: 9, marginBottom: 14 }}>
         {DECLINE_REASONS.map((r) => <OptionPill key={r} kind="radio" checked={reason === r} onClick={() => setReason(r)}>{r}</OptionPill>)}
       </div>
-      <textarea style={{ ...mArea, marginBottom: 14 }} placeholder="Anything else you'd like CMGT to know (optional)…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <textarea style={{ ...mArea, marginBottom: 14 }} placeholder={`Anything else you'd like ${cam.shortName} to know (optional)…`} value={notes} onChange={(e) => setNotes(e.target.value)} />
       <IdentityFields name={name} setName={setName} authorized={authorized} setAuthorized={setAuthorized} requireAuth />
       <div style={mFoot}><button style={mGhost} onClick={onClose}>Cancel</button><button style={{ ...mPrimary, opacity: ready ? 1 : 0.5 }} disabled={!ready} onClick={submit}>Send response</button></div>
     </BoardModal>
   );
 }
 function ContinueModal({ onClose, onResolve, rep }) {
+  const cam = useCam();
   const slots = useMemo(() => upcomingSlots(), []);
   const [sel, setSel] = useState(null);
   const [done, setDone] = useState(null); // null | 'call' | 'email'
@@ -694,8 +714,8 @@ function ContinueModal({ onClose, onResolve, rep }) {
   if (done) return (
     <BoardModal onClose={onClose}>
       <div style={{ width: 46, height: 46, borderRadius: 999, background: done === 'call' ? c.purple : c.cmgtGreen, display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name={done === 'call' ? 'check' : 'message-square'} size={22} color="#fff" /></div>
-      <MHead eyebrow="Confirmed" color={c.cmgtGreen} title={done === 'call' ? "You're on the CMGT team's calendar." : "We'll be in touch by email."} sub={done === 'call'
-        ? `A calendar invite is on its way to the email on file. Jeff and ${rep.first} will call you at the number we have. Reply to the invite if you need to reschedule.`
+      <MHead eyebrow="Confirmed" color={c.cmgtGreen} title={done === 'call' ? `You're on the ${cam.shortName} team's calendar.` : "We'll be in touch by email."} sub={done === 'call'
+        ? `A calendar invite is on its way to the email on file. ${cam.discoveryLeadFirst} and ${rep.first} will call you at the number we have. Reply to the invite if you need to reschedule.`
         : `${rep.first} will email you shortly to find a time that works — no call required until you're ready.`} />
       {done === 'call' && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: c.offWhite, borderRadius: 12, padding: '14px 16px' }}>
         <div style={{ fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 800, color: c.purple }}>{slots[sel].label}</div>
@@ -707,7 +727,7 @@ function ContinueModal({ onClose, onResolve, rep }) {
   return (
     <BoardModal onClose={onClose}>
       <div style={{ width: 46, height: 46, borderRadius: 999, background: c.cmgtGreen, display: 'grid', placeItems: 'center', marginBottom: 16 }}><Icon name="check" size={22} color="#fff" /></div>
-      <MHead eyebrow="You're moving forward" color={c.cmgtGreen} title="One last step — pick a time for the discovery call." sub={`30 minutes with Jeff Harman (CEO & founder) and ${rep.name}${rep.role ? ` (${rep.role})` : ''}. We finalize the engagement and walk through the transition checklist — your dedicated CAM is assigned during onboarding.`} />
+      <MHead eyebrow="You're moving forward" color={c.cmgtGreen} title="One last step — pick a time for the discovery call." sub={`30 minutes with ${cam.discoveryLead} and ${rep.name}${rep.role ? ` (${rep.role})` : ''}. We finalize the engagement and walk through the transition checklist — your dedicated CAM is assigned during onboarding.`} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 9, marginBottom: 10 }}>
         {slots.map((s, i) => (
           <button key={i} onClick={() => setSel(i)} style={{ padding: '12px 6px', borderRadius: 11, border: `1.5px solid ${sel === i ? c.purple : c.lightGray}`, background: sel === i ? 'rgba(43,44,108,0.05)' : '#fff', cursor: 'pointer', textAlign: 'center' }}>
@@ -750,6 +770,7 @@ function QuestionModal({ onClose, onAsk, rep }) {
 }
 
 function BoardActionBar({ submission, boardResp, onOpen }) {
+  const cam = useCam();
   const firstName = (submission.contactName || '').split(' ')[0] || 'there';
   const mobile = useIsMobile();
   // Once the board has a verdict, EVERY viewer sees a resolved banner (with who
@@ -758,8 +779,8 @@ function BoardActionBar({ submission, boardResp, onOpen }) {
   const verdict = boardResp?.action || null;
   const banner = {
     changes: { ic: 'message-square', color: c.purple, text: <span><strong>Change request sent.</strong> A revised proposal is on the way.</span> },
-    decline: { ic: 'x', color: c.fgMuted, text: <span><strong>Response recorded.</strong> Thanks for considering CMGT.</span> },
-    continue: { ic: 'check', color: c.cmgtGreen, text: <span><strong>Your board is moving forward.</strong> The CMGT team will be in touch to set up your discovery call.</span> },
+    decline: { ic: 'x', color: c.fgMuted, text: <span><strong>Response recorded.</strong> Thanks for considering {cam.shortName}.</span> },
+    continue: { ic: 'check', color: c.cmgtGreen, text: <span><strong>Your board is moving forward.</strong> The {cam.shortName} team will be in touch to set up your discovery call.</span> },
   }[verdict];
   const attribution = boardResp ? [boardResp.by ? `Recorded by ${boardResp.by}` : 'Recorded', fmtWhen(boardResp.at)].filter(Boolean).join(' · ') : '';
   const AskLink = ({ block }) => (
@@ -875,7 +896,8 @@ function useBoardTelemetry(lead, enabled) {
 }
 
 export function BoardProposal({ lead, showActionBar }) {
-  const submission = useMemo(() => buildSubmission(lead), [lead]);
+  const cam = useMemo(() => camFor(lead?.accountId), [lead?.accountId]);
+  const submission = useMemo(() => buildSubmission(lead, cam), [lead, cam]);
   const [modal, setModal] = useState(null);        // 'changes' | 'decline' | 'continue' | 'question' | null
   // The board's verdict {action, by, at}, seeded from the server (shared across
   // all viewers of this link) or the per-device remembered action. Once set, the
@@ -915,15 +937,17 @@ export function BoardProposal({ lead, showActionBar }) {
   const close = () => setModal(null);
   const barMobile = useIsMobile();
   return (
-    <div className="bp-root" style={{ background: c.offWhite, paddingBottom: showActionBar ? (barMobile ? 168 : 76) : 0 }}>
-      <GlobalStyles />
-      <ProposalExp lead={lead} submission={submission} />
-      {showActionBar && <BoardActionBar submission={submission} boardResp={boardResp} onOpen={setModal} />}
-      {modal === 'changes' && <RequestChangesModal onClose={close} onResolve={onResolve} />}
-      {modal === 'decline' && <DeclineModal onClose={close} onResolve={onResolve} />}
-      {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} rep={repOf(lead.owner)} />}
-      {modal === 'question' && <QuestionModal onClose={close} onAsk={onAskQuestion} rep={repOf(lead.owner)} />}
-    </div>
+    <CamCtx.Provider value={cam}>
+      <div className="bp-root" style={{ background: c.offWhite, paddingBottom: showActionBar ? (barMobile ? 168 : 76) : 0 }}>
+        <GlobalStyles />
+        <ProposalExp lead={lead} submission={submission} />
+        {showActionBar && <BoardActionBar submission={submission} boardResp={boardResp} onOpen={setModal} />}
+        {modal === 'changes' && <RequestChangesModal onClose={close} onResolve={onResolve} />}
+        {modal === 'decline' && <DeclineModal onClose={close} onResolve={onResolve} />}
+        {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} rep={repOf(lead.owner, cam)} />}
+        {modal === 'question' && <QuestionModal onClose={close} onAsk={onAskQuestion} rep={repOf(lead.owner, cam)} />}
+      </div>
+    </CamCtx.Provider>
   );
 }
 
@@ -944,7 +968,7 @@ export function BoardProposalPage({ id }) {
     (async () => {
       const { data, error } = await supabase.functions.invoke('proposal-board', { body: { token: id } });
       if (cancelled) return;
-      if (!error && data && data.proposal) { setLead(enrichLead(data.proposal)); setStatus('idle'); }
+      if (!error && data && data.proposal) { setLead(enrichLead(data.proposal, camFor(data.proposal.accountId))); setStatus('idle'); }
       else setStatus('notfound');
     })();
     return () => { cancelled = true; };

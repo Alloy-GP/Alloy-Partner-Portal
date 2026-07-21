@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { enrichLead } from './proposalMockData.js';
+import { camFor } from './camProfiles.js';
 import { isPlanningItem } from './quarterStats.js';
 
 // A proposals row (snake_case DB) → the raw lead shape enrichLead consumes
@@ -8,6 +9,7 @@ import { isPlanningItem } from './quarterStats.js';
 export function proposalRowToRaw(p) {
   return {
     id: p.lead_key,
+    accountId: p.account_id, // which CAM this proposal belongs to (white-label lookup)
     community: p.community, contact: p.contact, contactRole: p.contact_role, firstName: p.first_name,
     city: p.city, homes: p.homes, status: p.status, priority: p.priority, owner: p.owner,
     perHome: Number(p.per_home) || 0, received: p.received,
@@ -383,8 +385,9 @@ export async function loadAccountData(session, accountId, me) {
       (proposalEventsRes.data || []).forEach((e) => {
         (eventsByProposal[e.proposal_id] = eventsByProposal[e.proposal_id] || []).push(e);
       });
+      const cam = camFor(accountId); // white-label the matcher to this account's CAM
       return (proposalsRes.data || []).map((p) =>
-        enrichLead({ ...proposalRowToRaw(p), events: eventsByProposal[p.id] || [] }));
+        enrichLead({ ...proposalRowToRaw(p), events: eventsByProposal[p.id] || [] }, cam));
     })(),
   };
 }

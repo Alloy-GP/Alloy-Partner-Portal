@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // (owner IS included — the board's point of contact.)
     const { data: row, error } = await admin
       .from("proposals")
-      .select("lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at, match_snapshot, owner, board_response")
+      .select("account_id, lead_key, board_token, community, contact, contact_role, first_name, city, homes, meta_type, meta_status, dues, engage_timeline, budget, quote, received, selected_pains, tier_id, per_home, quote_value, link_expires, sent_at, match_snapshot, owner, board_response")
       .eq("board_token", token)
       .maybeSingle();
     if (error) return json({ error: "lookup_failed" }, 500);
@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
     // Map to the raw lead shape the client's enrichLead consumes (camelCase).
     const proposal = {
       id: row.lead_key,
+      accountId: row.account_id, // which CAM this belongs to → the doc's white-label identity
       boardToken: row.board_token,
       community: row.community, contact: row.contact, contactRole: row.contact_role, firstName: row.first_name,
       city: row.city, homes: row.homes,
