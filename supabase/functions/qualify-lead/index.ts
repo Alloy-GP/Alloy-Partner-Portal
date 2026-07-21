@@ -66,6 +66,17 @@ Deno.serve(async (req) => {
     const quotable = String(body.quotable || "").trim().toLowerCase();
     if (!["yes", "no", "pending"].includes(quotable)) return json({ error: "bad quotable" }, 400);
 
+    // Optional portal-LOCAL disqualification reason, refining "not a fit":
+    // 'spam' | 'duplicate' | null. NOT written back to WhatConverts. Only touched
+    // when the key is present (value-only saves omit it, leaving it unchanged).
+    const hasLeadStatus = body.leadStatus !== undefined;
+    let leadStatus: string | null = null;
+    if (hasLeadStatus) {
+      const v = String(body.leadStatus ?? "").trim().toLowerCase();
+      if (v && !["spam", "duplicate"].includes(v)) return json({ error: "bad leadStatus" }, 400);
+      leadStatus = v || null;
+    }
+
     // Resolve which account we're acting on. Clients are pinned to their own.
     const requested = body.accountId ? String(body.accountId) : null;
     let targetAccountId = String(profile.account_id);
@@ -106,6 +117,7 @@ Deno.serve(async (req) => {
     const patch: Record<string, unknown> = { quality, quotable };
     if (quoteValue != null) patch.quote_value = quoteValue;
     if (salesValue != null) patch.sales_value = salesValue;
+    if (hasLeadStatus) patch.lead_status = leadStatus; // portal-local reason (spam|duplicate|null)
     // Values are stored MONTHLY (as entered & written to WhatConverts); the
     // display string is annualized (x12). Favor closed (sales) then quote.
     const { data: row } = await admin.from("leads").select("quote_value, sales_value").eq("id", lead.id).maybeSingle();
@@ -116,7 +128,7 @@ Deno.serve(async (req) => {
 
     const { data: updated, error: upErr } = await admin
       .from("leads").update(patch).eq("id", lead.id)
-      .select("id, wc_lead_id, name, source, quality, quotable, value, quote_value, sales_value, type, time_label")
+      .select("id, wc_lead_id, name, source, quality, quotable, lead_status, value, quote_value, sales_value, type, time_label")
       .maybeSingle();
     if (upErr) return json({ error: `db: ${upErr.message}` }, 500);
 

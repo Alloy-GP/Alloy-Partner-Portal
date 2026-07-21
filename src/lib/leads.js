@@ -6,18 +6,20 @@ import { DATA } from '../data.js';
 // the active account id; the function re-validates the lead belongs to it
 // (clients only their own account, staff any). Returns null in mock mode.
 //
-// opts: { quotable: 'yes'|'no'|'pending', quoteValue?, salesValue? }
+// opts: { quotable: 'yes'|'no'|'pending', quoteValue?, salesValue?, leadStatus? }
+// leadStatus (portal-local disqualification reason: 'spam'|'duplicate'|null) is
+// only sent when the caller includes the key, so value-only saves don't touch it.
 export async function qualifyLead(wcLeadId, opts = {}) {
   if (!isSupabaseConfigured) return null;
-  const { data, error } = await supabase.functions.invoke('qualify-lead', {
-    body: {
-      accountId: DATA.account?.id,
-      wcLeadId,
-      quotable: opts.quotable,
-      quoteValue: opts.quoteValue,
-      salesValue: opts.salesValue,
-    },
-  });
+  const body = {
+    accountId: DATA.account?.id,
+    wcLeadId,
+    quotable: opts.quotable,
+    quoteValue: opts.quoteValue,
+    salesValue: opts.salesValue,
+  };
+  if ('leadStatus' in opts) body.leadStatus = opts.leadStatus;
+  const { data, error } = await supabase.functions.invoke('qualify-lead', { body });
   if (error) throw error;
   if (data && data.error) throw new Error(data.error);
   return data && data.lead;
