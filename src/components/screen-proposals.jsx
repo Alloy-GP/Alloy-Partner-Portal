@@ -1,7 +1,8 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { I } from './icons.jsx';
-import { getLeads, enrichLead, UVPS, UVP_TITLES, UVP_BLURBS, PAIN_POINTS, pricing, freshWatch, CAM_COMPANY } from '../lib/proposalMockData.js';
+import { getLeads, enrichLead, PAIN_POINTS, pricing, freshWatch } from '../lib/proposalMockData.js';
+import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { matchLeadWithLLM, realignFromTranscript, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
@@ -11,6 +12,13 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import lottie from 'lottie-web/build/player/lottie_light';
 import scanningData from '../assets/scanning.json';
 import sendingMailData from '../assets/sending-mail.json';
+
+// The white-label CAM identity for the account being viewed. DATA is a live
+// singleton populated before the cockpit renders, so this resolves per render.
+// caps index into cam.uvps (the same set the matcher derived against).
+const cam = () => camFor(DATA.account?.id);
+const camTitles = () => cam().uvps.map((u) => u.title);
+const camBlurbs = () => cam().uvps.map((u) => u.short);
 
 // ============================================================================
 // Proposals — CAM staff cockpit, v15 (Review → Build → Send → Close · Retain).
@@ -186,7 +194,7 @@ function QualifyModal({ s, onClose, onQualify, onDisqualify }) {
             <div className="v2-qual-owners">
               {['AB', 'JR'].map((o) => (
                 <button key={o} className="v2-qual-owner" data-on={owner === o} onClick={() => setOwner(o)}>
-                  <OwnerAvatar initials={o} size={24} /><span>{o === 'AB' ? 'Amanda B.' : 'Jordan R.'}</span>
+                  <OwnerAvatar initials={o} size={24} /><span>{cam().ownerShort[o] || o}</span>
                   {owner === o && <span className="v2-qual-tick"><I.Check width={12} height={12} /></span>}
                 </button>
               ))}
@@ -404,8 +412,8 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
               <button className="v2-engine-modal-x" onClick={() => setShowEngine(false)} aria-label="Close"><I.Close width={16} height={16} /></button>
             </div>
             <div className="v2-engine-modal-body">
-              <div className="ps-graph-cols"><span className="ps-graph-col l">{sub.community} pain points</span><span className="ps-graph-col r">{CAM_COMPANY.shortName} UVPs</span></div>
-              <MatchingEngine concerns={sub.concerns} uvps={UVP_TITLES} links={sub.links} />
+              <div className="ps-graph-cols"><span className="ps-graph-col l">{sub.community} pain points</span><span className="ps-graph-col r">{cam().shortName} UVPs</span></div>
+              <MatchingEngine concerns={sub.concerns} uvps={camTitles()} links={sub.links} />
             </div>
           </div>
         </div>
@@ -425,7 +433,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
           <div className="v2-match-head">
             <MatchRing value={sub.match} size={58} />
             <div className="v2-match-head-text">
-              <h3 className="v2-match-h">Currently Matching “{sub.community}” with {CAM_COMPANY.shortName}’s Expertise</h3>
+              <h3 className="v2-match-h">Currently Matching “{sub.community}” with {cam().shortName}’s Expertise</h3>
               <div className="v2-match-meta"><b>{sub.concerns.length}</b> concerns&nbsp;·&nbsp;<b>{matched}</b> capabilities matched&nbsp;·&nbsp;from their intake form
                 {overallEdit !== null
                   ? <span className="fx-overall-edit"><input type="number" min="0" max="100" value={overallEdit} autoFocus onChange={(e) => setOverallEdit(e.target.value)} onBlur={() => { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); }} onKeyDown={(e) => { if (e.key === 'Enter') { onApplyMatch(sub.concerns, parseInt(overallEdit) || 0); setOverallEdit(null); } }} /> % overall</span>
@@ -443,7 +451,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
             </button>
           </div>
           <div className="v2-match-list">
-            {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={UVP_TITLES} blurbs={UVP_BLURBS} index={i + 1}
+            {sub.concerns.map((c, i) => <MatchConcern key={sub.id + i} concern={c} uvps={camTitles()} blurbs={camBlurbs()} index={i + 1}
               onEdit={() => setConcernEdit(i)}
               onRemove={() => onApplyMatch(sub.concerns.filter((_, k) => k !== i), sub.match)} />)}
           </div>
@@ -492,7 +500,6 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 }
 
 // ============================ BUILD ============================
-const OWNER_NAMES = { AB: 'Amanda', JR: 'Jordan' };
 
 // The pinned lead card — a compact header that pins below the stepper and travels
 // across stages, swapping its status pill + 3 figures by where the lead is. In
@@ -502,7 +509,7 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
   const monthly = ((perHome != null ? perHome : sub.perHome) || 0) * sub.homes;
   const STATUS = { new: 'New · unworked', build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
   const ownerFig = sub.owner
-    ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{OWNER_NAMES[sub.owner] || sub.owner}</> }
+    ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{cam().ownerFirst[sub.owner] || sub.owner}</> }
     : { k: 'Owner', v: 'Unassigned' };
   let figs, statusText = STATUS[stage];
   if (stage === 'sent') {
@@ -685,7 +692,7 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, onApplyMatch, 
       <div className="v2-browser">
         <div className="v2-browser-bar">
           <div className="v2-dots"><span /><span /><span /></div>
-          <div className="v2-url"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>{CAM_COMPANY.shortName.toLowerCase()}.org/p/{sub.id.toLowerCase()}</div>
+          <div className="v2-url"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>{cam().contact.web}/p/{sub.id.toLowerCase()}</div>
           <span className="v2-browser-live"><span className="d" />Live preview</span>
         </div>
         <div className="v2-browser-body">
@@ -717,8 +724,8 @@ function NewEmailPreview({ sub }) {
   return (
     <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', border: `1px solid ${EML.hairline}`, fontFamily: FB }}>
       <div style={{ background: EML.brand, padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: FD, fontWeight: 700, fontSize: 17, letterSpacing: '.04em', color: '#fff' }}>{CAM_COMPANY.shortName}</span>
-        <span style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: '#aab0e0' }}>{CAM_COMPANY.tagline}</span>
+        <span style={{ fontFamily: FD, fontWeight: 700, fontSize: 17, letterSpacing: '.04em', color: '#fff' }}>{cam().shortName}</span>
+        <span style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: '#aab0e0' }}>{cam().tagline}</span>
       </div>
       <div style={{ background: EML.navy, padding: '34px 26px 32px', color: '#fff' }}>
         <div style={{ fontFamily: FD, fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#c8ccf0' }}><span style={{ width: 20, height: 3, background: EML.accent, display: 'inline-block' }} />Your management proposal</div>
@@ -754,8 +761,8 @@ function NewEmailPreview({ sub }) {
         <div style={{ background: EML.tint, borderRadius: 10, padding: '12px 14px', display: 'flex', gap: 10, fontSize: 12, lineHeight: 1.5, color: EML.muted }}><span aria-hidden="true">🔒</span><span><b style={{ color: EML.body }}>One-tap secure link — no password.</b> It signs you in automatically and works only from this email.</span></div>
       </div>
       <div style={{ padding: '16px 24px 22px' }}>
-        <div style={{ fontFamily: FD, fontWeight: 700, fontSize: 14, color: EML.ink }}>— The {CAM_COMPANY.shortName} team</div>
-        <div style={{ fontSize: 12, color: EML.muted, marginTop: 2 }}>Client Partnerships · {CAM_COMPANY.shortName}</div>
+        <div style={{ fontFamily: FD, fontWeight: 700, fontSize: 14, color: EML.ink }}>— The {cam().shortName} team</div>
+        <div style={{ fontSize: 12, color: EML.muted, marginTop: 2 }}>Client Partnerships · {cam().shortName}</div>
       </div>
     </div>
   );
@@ -771,7 +778,7 @@ function MomentOfTruth({ sub, onSend }) {
         <span className="v2-preview-av v2-mail-av"><I.Send width={17} height={17} /></span>
         <div className="v2-preview-id">
           <div className="t">The email {sub.firstName} receives</div>
-          <div className="s">From {CAM_COMPANY.shortName} · a one-tap magic link to the live proposal</div>
+          <div className="s">From {cam().shortName} · a one-tap magic link to the live proposal</div>
         </div>
         <div className="grow" />
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12 }}>
@@ -795,7 +802,7 @@ function MomentOfTruth({ sub, onSend }) {
           <h3 className="v2-mail-subject">Built around {sub.community} — your management proposal</h3>
           <div className="v2-mail-meta">
             <span className="v2-mail-sender-av">A</span>
-            <div className="v2-mail-who"><div className="from">{CAM_COMPANY.shortName} Community Management <span className="addr">{'<proposals@cmgt.org>'}</span></div><div className="to">to {sub.firstName} ▾</div></div>
+            <div className="v2-mail-who"><div className="from">{cam().emailFromName} <span className="addr">{`<${cam().contact.email}>`}</span></div><div className="to">to {sub.firstName} ▾</div></div>
             <div className="v2-mail-time">now</div>
           </div>
         </div>
@@ -860,7 +867,7 @@ function ExpBar({ w }) { const e = expState(w); return <span className="v2-w-min
 
 function NudgeModal({ s, onClose, onSend }) {
   const w = getWatch(s);
-  const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— ${OWNER_NAMES[s.owner] || CAM_COMPANY.shortName}`);
+  const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— ${cam().ownerFirst[s.owner] || cam().shortName}`);
   return (
     <div className="ps-scrim" onClick={onClose}>
       <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
@@ -1195,9 +1202,10 @@ function WonLostView({ subs }) {
 // Layer B — after hand-editing concerns, recompute the caps-derived fields so
 // scores / links / capsMatched stay consistent. Overall % stays user-controlled.
 function recomputeMatch(concerns, overall, source) {
-  const n = UVPS.length;
+  const uvps = cam().uvps;
+  const n = uvps.length;
   const active = concerns.filter((c) => c.on !== false); // excluded concerns don't count
-  const scores = UVPS.map((_, i) => active.filter((c) => (c.caps || []).includes(i)).length);
+  const scores = uvps.map((_, i) => active.filter((c) => (c.caps || []).includes(i)).length);
   return {
     match: Math.max(0, Math.min(100, Math.round(overall || 0))),
     concerns, scores, links: concerns.map((c) => c.caps || []),
@@ -1221,7 +1229,7 @@ function ConcernEditModal({ concern, onClose, onSave }) {
           <label className="fx-ef full"><span className="fx-ef-k">Fit % · how completely your UVPs answer it</span><input type="number" min="0" max="100" value={f.fit} onChange={(e) => setF((p) => ({ ...p, fit: e.target.value }))} /></label>
           <div className="fx-ef full"><span className="fx-ef-k">Which UVPs answer this concern</span>
             <div className="fx-cap-pick">
-              {UVP_TITLES.map((t, i) => <button key={i} type="button" className="fx-cap-opt" data-on={f.caps.includes(i)} onClick={() => toggleCap(i)}>{f.caps.includes(i) ? '✓ ' : ''}{t}</button>)}
+              {camTitles().map((t, i) => <button key={i} type="button" className="fx-cap-opt" data-on={f.caps.includes(i)} onClick={() => toggleCap(i)}>{f.caps.includes(i) ? '✓ ' : ''}{t}</button>)}
             </div>
           </div>
           <label className="fx-ef full"><span className="fx-ef-k">Headline · one line the board reads</span><input value={f.headline} onChange={(e) => setF((p) => ({ ...p, headline: e.target.value }))} /></label>
@@ -1299,7 +1307,7 @@ function RealignModal({ sub, onClose, onApply }) {
     setPhase('loading'); setErr('');
     try {
       const proposal = { community: sub.community, contact: sub.contact, contactRole: sub.contactRole, email: sub.email, phone: sub.phone, city: sub.city, homes: sub.homes, metaType: sub.metaType, metaStatus: sub.metaStatus, dues: sub.dues, engageTimeline: sub.engageTimeline, budget: sub.budget, concerns: sub.concerns };
-      const res = await realignFromTranscript(proposal, { uvps: UVPS.map((u) => ({ title: u.title, blurb: u.short })), transcript });
+      const res = await realignFromTranscript(proposal, { uvps: cam().uvps.map((u) => ({ title: u.title, blurb: u.short })), transcript });
       const af = {}; (res.fieldChanges || []).forEach((_, i) => { af[i] = true; });
       const ac = {}; (res.addedConcerns || []).forEach((_, i) => { ac[i] = true; });
       setDiff(res); setAccF(af); setAccC(ac); setPhase('review');
@@ -1562,7 +1570,7 @@ export default function ProposalsScreen() {
     if (LLM_ENABLED) {
       setMatching({ community: raw.community });
       try {
-        snapshot = await matchLeadWithLLM(raw, { uvps: UVPS.map((u) => ({ title: u.title, blurb: u.short })), painPoints: PAIN_POINTS });
+        snapshot = await matchLeadWithLLM(raw, { uvps: cam().uvps.map((u) => ({ title: u.title, blurb: u.short })), painPoints: PAIN_POINTS });
         if (live && snapshot) await supabase.from('proposals').update({ match_snapshot: snapshot }).eq('account_id', DATA.account.id).eq('lead_key', raw.id);
       } catch (e) { /* LLM unavailable → deterministic engine */ }
     }
@@ -1667,7 +1675,7 @@ export default function ProposalsScreen() {
           <div className="v2-launch-card fx-scan-card">
             <div className="fx-scan-glow"><LottieScan size={92} className="v2-launch-scan" /></div>
             <div className="fx-scan-eyebrow"><span className="fx-scan-dot" aria-hidden="true" />Matching engine · Working</div>
-            <div className="v2-launch-txt">Matching {matching.community} with {CAM_COMPANY.shortName}’s expertise</div>
+            <div className="v2-launch-txt">Matching {matching.community} with {cam().shortName}’s expertise</div>
             <div className="v2-launch-sub">Reading the board's intake and mapping each concern to your UVPs.</div>
             <div className="fx-scan-bar"><span /></div>
           </div>

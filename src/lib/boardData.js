@@ -105,9 +105,11 @@ const fmt2 = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, 
 
 // Map a portal lead → the board `submission` shape + a per-lead tiers array (so
 // the recommended-tier math reflects this lead's homes × per-home rate).
-export function buildSubmission(lead) {
+export function buildSubmission(lead, cam) {
+  const baseTiers = cam?.tiers || TIERS;
+  const preparedBy = cam?.preparedBy || { name: "Amanda Betancourt", role: "COO" };
   const monthly = (lead.perHome || 0) * lead.homes;
-  const tiers = TIERS.map((t) => t.id !== "full" ? t : {
+  const tiers = baseTiers.map((t) => t.id !== "full" ? t : {
     ...t,
     tagline: `Recommended for ${lead.shortName || lead.community}`,
     quotedRate: lead.perHome, monthlyTotal: monthly, annualTotal: monthly * 12,
@@ -136,7 +138,7 @@ export function buildSubmission(lead) {
     recommendedTierId: lead.recommendedTierId || "full",
     tiersToShow: lead.tiersToShow || ["full"],
     leadCAM: null,
-    preparedBy: { name: "Amanda Betancourt", role: "COO" },
+    preparedBy,
     tiers,
   };
 }
