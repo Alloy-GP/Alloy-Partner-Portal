@@ -96,19 +96,25 @@ export function quarterStats(projects = [], now = new Date()) {
 
   // Pace = delivered % vs how much of the quarter has elapsed, with a 10-point
   // grace band — real work doesn't burn down perfectly evenly, so only flag
-  // "Behind" when meaningfully off pace (not for a near-finished quarter where
-  // a few in-flight tasks lag the calendar by a hair).
+  // off-pace when meaningfully behind the calendar (not for a near-finished
+  // quarter where a few in-flight tasks lag the calendar by a hair).
   const PACE_GRACE = 10;
   const span = end - start;
   const elapsed = Math.min(Math.max(now - start, 0), span);
   const elapsedPct = span ? Math.round((elapsed / span) * 100) : 0;
-  const pace = pct >= elapsedPct - PACE_GRACE ? "On track" : "Behind";
+  const offPace = pct < elapsedPct - PACE_GRACE;
+  // Genuinely late work: due before today, still not delivered. "Behind" fires
+  // ONLY when off the calendar pace AND something is actually overdue — so a
+  // client with nothing past due never reads "Behind" just for being early in
+  // the quarter (delivered % naturally trails elapsed % before work lands).
+  const overdue = items.filter((p) => !isDelivered(p) && (() => { const d = toDate(p.dueDate); return d && d < now; })()).length;
+  const pace = (offPace && overdue > 0) ? "Behind" : "On track";
 
   return {
     label, q, year, start, end,
     total, planned, added, delivered, inFlight,
     plannedDone, plannedMotion, addedDone, addedMotion,
-    pct, scopeDelta, elapsedPct, pace,
+    pct, scopeDelta, elapsedPct, pace, offPace, overdue,
     hasData: total > 0,
   };
 }
