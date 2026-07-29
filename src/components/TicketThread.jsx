@@ -42,6 +42,29 @@ function Attachment({ a }) {
   );
 }
 
+// Turn links in a plain-text ticket body into clickable anchors: both bare
+// http(s) URLs and the [label](url) markdown Zendesk leaves in email-sourced
+// comments. Builds React nodes (never dangerouslySetInnerHTML) and only emits
+// http/https hrefs, so it's XSS-safe — anything else stays inert text.
+function linkify(text) {
+  if (!text) return text;
+  const re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
+  const nodes = [];
+  let last = 0, m, key = 0;
+  const A = (href, label) => (
+    <a key={`lk${key++}`} href={href} target="_blank" rel="noreferrer noopener"
+      style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 600, wordBreak: 'break-word' }}>{label}</a>
+  );
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    if (m[1] && m[2]) nodes.push(A(m[2], m[1]));   // [label](url)
+    else nodes.push(A(m[3], m[3]));                 // bare url
+    last = re.lastIndex;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
 function Bubble({ m }) {
   const mine = m.mine;
   const atts = m.attachments || [];
@@ -57,7 +80,7 @@ function Bubble({ m }) {
         </div>
         {m.body && m.body.trim() ? (
           <div style={{ padding: '12px 14px', background: mine ? 'var(--alloy-purple)' : '#fff', color: mine ? '#fff' : 'var(--fg-3)', borderRadius: 10, fontSize: 13.5, lineHeight: 1.5, border: mine ? 'none' : '1px solid var(--border-subtle)', whiteSpace: 'pre-wrap' }}>
-            {m.body}
+            {linkify(m.body)}
           </div>
         ) : null}
         {atts.length ? (
