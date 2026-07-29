@@ -63,6 +63,38 @@ function cleanMessage(raw: string): string {
   return cleaned || (raw || "").trim();
 }
 
+// Zendesk's plain-text comment `body` flattens HTML <a href> anchors to just the
+// visible label (the URL is dropped) -- so a hyperlinked phrase arrives as bare
+// text the portal can't linkify. Recover the hrefs from `html_body` and splice
+// them back onto the matching label as [label](url) markdown, which the portal's
+// linkify() turns into a real link. Only http/https anchors; if a label isn't
+// found in the plain body we leave it untouched (no change vs today).
+function bodyWithLinks(comment: any): string {
+  const plain = comment?.body || "";
+  const html = comment?.html_body || "";
+  if (!html || !/<a\b/i.test(html)) return plain;
+  const decode = (s: string) => s
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .trim();
+  let out = plain;
+  const re = /<a\b[^>]*?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const href = m[1];
+    if (!/^https?:\/\//i.test(href)) continue;   // only real web links
+    const label = decode(m[2]);
+    if (!label || label === href) continue;       // bare URLs already linkify client-side
+    if (out.includes(`](${href})`)) continue;     // already markdown
+    const i = out.indexOf(label);
+    if (i === -1) continue;                        // label not in the plain body -> leave as-is
+    out = out.slice(0, i) + `[${label}](${href})` + out.slice(i + label.length);
+  }
+  return out;
+}
+
 function mapTicket(t: any) {
   return {
     id: String(t.id),
@@ -193,7 +225,7 @@ Deno.serve(async (req) => {
           const a = users[String(m.author_id)] || {};
           return {
             id: String(m.id),
-            body: cleanMessage(m.body),
+            body: cleanMessage(bodyWithLinks(m)),
             created_at: m.created_at,
             author: a.name || "Alloy",
             // role=end-user => the client ("you"); else the Alloy team
