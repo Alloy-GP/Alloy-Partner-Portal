@@ -109,6 +109,7 @@ function TicketThread({ id, onChanged }) {
   const [addingCc, setAddingCc] = useState(false);
   const [newCc, setNewCc] = useState('');          // header "add CC" field
   const fileInput = useRef(null);
+  const scrollRef = useRef(null);   // messages scroll area — auto-scrolled to newest
   const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [replyStatus, setReplyStatus] = useState('pending'); // staff-only: status after reply
 
@@ -125,6 +126,10 @@ function TicketThread({ id, onChanged }) {
   };
 
   useEffect(() => { if (id) { setReply(''); setFiles([]); setCc(''); setNewCc(''); load(); } /* eslint-disable-next-line */ }, [id]);
+
+  // Land on the newest message whenever the thread loads or refreshes (after a
+  // send), so long threads open at the bottom instead of the top.
+  useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [data]);
 
   const send = async () => {
     const text = reply.trim();
@@ -235,7 +240,7 @@ function TicketThread({ id, onChanged }) {
         </div>
       </div>
 
-      <div style={{ padding: '22px', flex: 1, overflowY: 'auto', background: 'var(--alloy-off-white)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div ref={scrollRef} style={{ padding: '22px', flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--alloy-off-white)', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {data.messages.length === 0 ? (
           <div style={{ color: 'var(--fg-muted)', fontSize: 13, alignSelf: 'center' }}>No messages yet.</div>
         ) : data.messages.map((m) => <Bubble key={m.id} m={m} />)}
