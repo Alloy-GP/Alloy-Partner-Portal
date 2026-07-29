@@ -60,9 +60,9 @@ function TicketsScreen() {
 
   return (
     <div className="content" data-screen-label="04 Support">
-      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 0, border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff", minHeight: 620 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 0, border: "1px solid var(--border-subtle)", borderRadius: 14, overflow: "hidden", background: "#fff", height: "calc(100dvh - 168px)", minHeight: 480 }}>
         {/* Left list */}
-        <div style={{ borderRight: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
+        <div style={{ borderRight: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", minHeight: 0 }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: 8, background: "var(--alloy-off-white)" }}>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               {FBTN("mytasks", `${clientName} Tasks (${counts.mytasks})`)}
@@ -106,7 +106,7 @@ function TicketsScreen() {
           </div>
         </div>
         {/* Right detail */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           {activeId ? (
             <TicketThread id={activeId} onChanged={loadList} />
           ) : (
