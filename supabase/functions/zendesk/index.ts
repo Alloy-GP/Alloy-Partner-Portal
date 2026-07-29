@@ -3,7 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Zendesk proxy. The portal calls this (with the signed-in user's JWT) to
 // list / read / reply to the *account's* tickets. Scoped to the account's
-// Zendesk organization; only PUBLIC comments are ever returned or posted —
+// Zendesk organization; only PUBLIC comments are ever returned or posted --
 // internal agent notes never reach a client.
 //
 // Secrets: ZENDESK_SUBDOMAIN (e.g. "alloycreatives"), ZENDESK_EMAIL, ZENDESK_API_TOKEN.
@@ -26,7 +26,7 @@ async function zd(path: string, init?: RequestInit) {
   return res.json();
 }
 
-// Called from the browser (supabase.functions.invoke) → needs CORS.
+// Called from the browser (supabase.functions.invoke) -> needs CORS.
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -75,7 +75,7 @@ function mapTicket(t: any) {
   };
 }
 
-// Public attachments on a comment → light shape for the UI.
+// Public attachments on a comment -> light shape for the UI.
 function mapAttachments(att: any[]): any[] {
   return (att || []).map((a) => ({
     id: String(a.id),
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "unauthorized" }, 401);
 
     const { data: profile } = await userClient
-      .from("profiles").select("account_id, is_staff").eq("id", user.id).maybeSingle();
+      .from("profiles").select("account_id, is_staff, name").eq("id", user.id).maybeSingle();
     if (!profile?.account_id) return json({ error: "no account" }, 403);
 
     const body = await req.json().catch(() => ({}));
@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
 
     // Resolve which account's tickets to act on. A client can ONLY ever touch
     // their own account; staff may view any client. This is the cross-tenant
-    // boundary — never trust the requested id for non-staff.
+    // boundary -- never trust the requested id for non-staff.
     const requested = body.accountId ? String(body.accountId) : null;
     let targetAccountId = profile.account_id;
     if (requested && requested !== String(profile.account_id)) {
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
     const { data: account } = await userClient
       .from("accounts").select("zendesk_org_id").eq("id", targetAccountId).maybeSingle();
-    // No row (or RLS hid it) → treat as not authorized / not configured.
+    // No row (or RLS hid it) -> treat as not authorized / not configured.
     const orgId = account?.zendesk_org_id || null;
 
     // --- staff-only: find an org id by name (one-time setup helper) ---
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     }
 
     // --- upload a file to Zendesk, returns a token to attach on a reply ---
-    // (No org needed — the reply itself is org-checked; any signed-in user with
+    // (No org needed -- the reply itself is org-checked; any signed-in user with
     // an account may stage an upload.)
     if (action === "upload") {
       const filename = String(body.filename || "file");
@@ -217,18 +217,37 @@ Deno.serve(async (req) => {
       const t = await zd(`/tickets/${id}.json`);
       if (String(t.ticket.organization_id) !== String(orgId)) return json({ error: "forbidden" }, 403);
 
+      // Author the reply as the CALLER. For a CLIENT this must resolve to their
+      // OWN Zendesk end-user, never the fallback API agent -- otherwise Zendesk
+      // treats it as an Alloy reply and emails the client about their own update.
+      // Search first (so we never rename an existing user); if a client isn't in
+      // Zendesk yet, create them (pre-verified, so no verification email). Staff
+      // that don't resolve fall back to the API agent -- still an agent reply.
       let authorId: number | undefined;
       try {
         const u = await zd(`/users/search.json?query=${encodeURIComponent(user.email || "")}`);
         if (u.users?.[0]?.id) authorId = u.users[0].id;
-      } catch { /* fall back to API agent */ }
+      } catch { /* ignore */ }
+      if (!authorId && !profile.is_staff && user.email) {
+        try {
+          const cu = await zd(`/users/create_or_update.json`, {
+            method: "POST",
+            body: JSON.stringify({ user: { email: user.email, name: profile.name || user.email.split("@")[0], verified: true } }),
+          });
+          if (cu.user?.id) authorId = cu.user.id;
+        } catch { /* fall back to API agent */ }
+      }
 
       const comment: any = { body: text || " ", public: true };
       if (authorId) comment.author_id = authorId;
       if (uploads.length) comment.uploads = uploads;
       const ticket: any = { comment };
-      // Optional explicit status (staff-controlled): open | pending | solved.
+      // Status after the reply. Staff set it explicitly (open|pending|solved). A
+      // CLIENT reply reopens a waiting/resolved ticket (pending|hold|solved ->
+      // open) so it re-enters the queue -- Zendesk's own auto-reopen doesn't fire
+      // reliably for API-posted comments.
       if (["open", "pending", "solved"].includes(body.status)) ticket.status = body.status;
+      else if (!profile.is_staff && ["pending", "hold", "solved"].includes(t.ticket.status)) ticket.status = "open";
       // Optional CCs to add with this reply.
       if (Array.isArray(body.cc) && body.cc.length) {
         ticket.email_ccs = body.cc.map((e: string) => ({ user_email: String(e), action: "put" }));
