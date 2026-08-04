@@ -20,6 +20,7 @@ import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
 import { can } from './lib/perms.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
+import NewsletterModal from './components/NewsletterModal.jsx';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 // NOTE: the KEYS are historical screen-ids (kept stable so analytics + onNav
@@ -75,6 +76,14 @@ function App({ session, onSignOut, staffNav } = {}) {
   const [tweaks, setTweaks] = useState(TWEAKS);
   const [mobileNav, setMobileNav] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  // Newsletter intake — the account's current OPEN round surfaces as an item in
+  // the Action Queue (dashboard) + "Waiting on you" (Playbook), NOT a banner.
+  // `openNewsletter` is the trigger those surfaces call; null when nothing's due.
+  const nlReq = (DATA.newsletterRequest && DATA.newsletterRequest.status === 'open') ? DATA.newsletterRequest : null;
+  const [nlModalOpen, setNlModalOpen] = useState(false);
+  // Each "Open Form" click logs a newsletter_open event (client-only; track()
+  // skips staff) → powers the admin "opened by / clicks" analytics.
+  const openNewsletter = nlReq ? () => { track('newsletter_open', { requestId: nlReq.id }); setNlModalOpen(true); } : null;
   // Mobile top bar hides on scroll-down, returns on scroll-up.
   const [barHidden, setBarHidden] = useState(false);
   // Sidebar control: expanded | collapsed | hover (expand on hover).
@@ -171,9 +180,9 @@ function App({ session, onSignOut, staffNav } = {}) {
   const screen = (() => {
     if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav}/>;
     switch (active) {
-      case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
+      case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
       case "roi": return <ROIScreen/>;
-      case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
+      case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter}/>;
       case "tickets": return <TicketsScreen/>;
       case "leads": return <LeadsScreen/>;
       case "playbook": return <RoadmapScreen onNav={handleNav}/>;
@@ -228,7 +237,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       </div>
 
       <main className="main">
-        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
+        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter}/>
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
 
@@ -249,6 +258,14 @@ function App({ session, onSignOut, staffNav } = {}) {
           onClose={() => setComposeOpen(false)}
           onCreated={(id) => { setComposeOpen(false); handleNav('tickets', id); }}
           onNav={(screen) => { setComposeOpen(false); handleNav(screen); }}
+        />
+      ) : null}
+
+      {nlModalOpen && nlReq ? (
+        <NewsletterModal
+          request={nlReq}
+          onClose={() => setNlModalOpen(false)}
+          onSubmitted={(ticketId) => { setNlModalOpen(false); if (ticketId) handleNav('tickets', ticketId); }}
         />
       ) : null}
     </div>

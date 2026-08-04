@@ -194,7 +194,7 @@ function ProjRow({ p, isOverdue }) {
   );
 }
 
-function ProjectsScreen({ onNav, onCompose }) {
+function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
   // Zones 1 & 2 are Zendesk tickets: pending = waiting on you, open = we're on it.
   const [tickets, setTickets] = React.useState(null);
   React.useEffect(() => {
@@ -243,6 +243,10 @@ function ProjectsScreen({ onNav, onCompose }) {
   // Past-due: a due date before today on work that isn't already complete.
   const isOverdue = (p) => p.status !== "live" && p.dueDate && new Date(`${p.dueDate}T00:00:00`) < _today0;
   const leadsToQualify = (DATA.recentLeads || []).filter((l) => l.quotable !== "yes" && l.quotable !== "no").length;
+  // Open newsletter round → a "waiting on you" card (submit content).
+  const nlReq = (onNewsletter && DATA.newsletterRequest && DATA.newsletterRequest.status === "open") ? DATA.newsletterRequest : null;
+  const nlExtra = nlReq ? 1 : 0;
+  const fmtDue = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return d; } };
   // Skeleton count: the synced tickets snapshot lags live Zendesk, so remember
   // last visit's real "Waiting on you" count per account and render that many
   // placeholders — the grid keeps its shape when the live list resolves.
@@ -256,9 +260,9 @@ function ProjectsScreen({ onNav, onCompose }) {
   })();
   React.useEffect(() => {
     if (loading) return;
-    const n = pending.length + (leadsToQualify > 0 ? 1 : 0);
+    const n = pending.length + (leadsToQualify > 0 ? 1 : 0) + nlExtra;
     try { if (n >= 1) localStorage.setItem(waitCountKey, String(n)); } catch { /* ignore */ }
-  }, [loading, pending.length, leadsToQualify, waitCountKey]);
+  }, [loading, pending.length, leadsToQualify, nlExtra, waitCountKey]);
 
   // Cap the "Completed" group to THIS calendar quarter — older delivered work is
   // history and lives on the Roadmap, so the Playbook stays focused on the now.
@@ -307,7 +311,7 @@ function ProjectsScreen({ onNav, onCompose }) {
       {/* ===== 1 · Waiting on you ===== */}
       <div className="pj-wait-card">
         <div className="pj-wait-head">
-          <span className="pj-sec-ic num" style={{ background: "rgba(133,107,32,0.12)", color: "#856b20" }}>{loading ? "—" : pending.length + (leadsToQualify > 0 ? 1 : 0)}</span>
+          <span className="pj-sec-ic num" style={{ background: "rgba(133,107,32,0.12)", color: "#856b20" }}>{loading ? "—" : pending.length + (leadsToQualify > 0 ? 1 : 0) + nlExtra}</span>
           <div className="pj-sec-titles"><div className="pj-sec-title">Waiting on you</div></div>
         </div>
         <div className="pj-wait-divider" />
@@ -361,7 +365,21 @@ function ProjectsScreen({ onNav, onCompose }) {
             <div className="pj-cta"><span className="pj-card-msg solo lead">Qualify leads <I.Arrow width={14} height={14} /></span></div>
           </div>
         ) : null}
-        {tickets !== null && pending.length === 0 && leadsToQualify === 0 ? (
+        {!loading && nlReq ? (
+          <div className="pj-card lead pj-clickable" role="button" tabIndex={0} onClick={onNewsletter}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNewsletter(); } }}>
+            <div className="pj-card-top">
+              <span className="pj-leadtag" style={{ background: "var(--alloy-pink-tint)", color: "var(--alloy-pink)" }}>Newsletter</span>
+              {nlReq.dueDate ? <span className="pj-due lead"><I.Clock width={11} height={11} /> due {fmtDue(nlReq.dueDate)}</span> : null}
+            </div>
+            <div className="pj-lead-hero">
+              <div aria-hidden="true" style={{ color: "var(--alloy-pink)", display: "flex", alignItems: "center" }}><I.Send width={30} height={30} /></div>
+              <div className="pj-lead-sub">{nlReq.title} — tell us what to feature</div>
+            </div>
+            <div className="pj-cta"><span className="pj-card-msg solo lead">Open Form <I.Arrow width={14} height={14} /></span></div>
+          </div>
+        ) : null}
+        {tickets !== null && pending.length === 0 && leadsToQualify === 0 && !nlReq ? (
           <div className="pj-empty">Nothing waiting on you — you're all caught up.</div>
         ) : null}
       </div>

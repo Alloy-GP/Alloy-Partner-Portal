@@ -59,7 +59,7 @@ function quarterTimePct(pb) {
 }
 
 // Dashboard screen — warm, celebratory home
-function Dashboard({ role, density, onNav, onCompose, t, mobileNav, setMobileNav }) {
+function Dashboard({ role, density, onNav, onCompose, onNewsletter, t, mobileNav, setMobileNav }) {
   const tierClass = (DATA.account.tier || "").toLowerCase();
   return (
     <div className="content" data-screen-label="01 Dashboard">
@@ -71,7 +71,7 @@ function Dashboard({ role, density, onNav, onCompose, t, mobileNav, setMobileNav
 
       {/* Action queue + Projects + Activity — full width, prominent, directly under banner */}
       <div className="dash-spotlight">
-        <ActionQueue onNav={onNav} />
+        <ActionQueue onNav={onNav} onNewsletter={onNewsletter} />
         <div className="dash-mid">
           <ThisQuarterCard onNav={onNav} />
         </div>
@@ -184,7 +184,7 @@ function AlloyHero({ onNav, mobileNav, setMobileNav }) {
   );
 }
 
-function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, onNewRequest }) {
+function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, onNewRequest, onNewsletter }) {
   const [open, setOpen] = React.useState(false);
   const pending = usePending(); // live Zendesk tickets waiting on the client
   const notifs = pending || [];
@@ -194,7 +194,9 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, 
   const leadsToQualify = leadAlertsOn
     ? (DATA.recentLeads || []).filter((l) => l.quotable !== "yes" && l.quotable !== "no").length
     : 0;
-  const waitingCount = notifs.length + leadsToQualify;
+  // Open newsletter round → a notification prompting the client to submit content.
+  const nlReq = (onNewsletter && DATA.newsletterRequest && DATA.newsletterRequest.status === "open") ? DATA.newsletterRequest : null;
+  const waitingCount = notifs.length + leadsToQualify + (nlReq ? 1 : 0);
   const ref = React.useRef(null);
   const [userOpen, setUserOpen] = React.useState(false);
   const userRef = React.useRef(null);
@@ -250,6 +252,16 @@ function DesktopTopBar({ onNav, title, isDashboard, active, session, onSignOut, 
               </div>
             ) : (
               <>
+                {nlReq ? (
+                  <button className="ds-notif-item" role="menuitem" onClick={() => { setOpen(false); onNewsletter(); }}>
+                    <span className="ds-notif-ic"><I.Send width={15} height={15}/></span>
+                    <span className="ds-notif-body">
+                      <span className="ds-notif-item-title">{nlReq.title}</span>
+                      <span className="ds-notif-item-sub">Tell us what to feature — open the form</span>
+                    </span>
+                    <span className="ds-notif-unread" aria-hidden="true"/>
+                  </button>
+                ) : null}
                 {leadsToQualify > 0 ? (
                   <button className="ds-notif-item" role="menuitem" onClick={() => { setOpen(false); onNav("leads"); }}>
                     <span className="ds-notif-ic"><I.Chart width={15} height={15}/></span>
@@ -781,14 +793,17 @@ function Sparkline({ tone = "pink" }) {
 }
 
 // Action queue — only items waiting on the client (review + blocked)
-function ActionQueue({ onNav }) {
+function ActionQueue({ onNav, onNewsletter }) {
   // Action queue = the account's Zendesk tickets that are "pending" (waiting on
   // the customer). Fetched LIVE from Zendesk (source of truth) — no sync table
   // to drift, and "pending" is the agent's deliberate "ball is in your court".
   const pending = usePending(); // null = loading, else array of pending tickets
   // Needs triage = not yet qualified ("yes") and not marked "not a fit" ("no").
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
+  // Open newsletter round for this account → an action item (submit content).
+  const nlReq = (onNewsletter && DATA.newsletterRequest && DATA.newsletterRequest.status === "open") ? DATA.newsletterRequest : null;
   const items = (pending || []).slice(0, 20);
+  const fmtDue = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return d; } };
   const ago = (iso) => {
     if (!iso) return "";
     const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -814,8 +829,9 @@ function ActionQueue({ onNav }) {
     setSc(prev => (prev.more === more && prev.atEnd === atEnd ? prev : { more, atEnd }));
   }, []);
   React.useLayoutEffect(() => { onScroll(); }, [items.length, onScroll]);
-  // Fully clear = inbox loaded, no pending tickets AND no leads to qualify.
-  const allClear = pending !== null && items.length === 0 && pendingLeads === 0;
+  // Fully clear = inbox loaded, no pending tickets, no leads to qualify, and no
+  // newsletter content owed.
+  const allClear = pending !== null && items.length === 0 && pendingLeads === 0 && !nlReq;
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon" data-tour="queue">
       <div className="banner-card-head">
@@ -837,6 +853,22 @@ function ActionQueue({ onNav }) {
           <div className="aq-clear-pill"><I.Bell width={14} height={14} /> We'll flag anything that needs you</div>
         </div>
       ) : (<>
+      {nlReq ? (
+        <div className="aq-leads" role="button" tabIndex={0} onClick={onNewsletter}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNewsletter(); } }}
+          style={{ marginBottom: (pendingLeads > 0 || items.length > 0) ? 14 : 0 }}>
+          <div className="aq-leads-row">
+            <div className="aq-leads-grp">
+              <span aria-hidden="true" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: "var(--alloy-pink-tint)", color: "var(--alloy-pink)", display: "grid", placeItems: "center" }}><I.Send width={20} height={20} /></span>
+              <span className="aq-leads-txt">
+                <span style={{ display: "block", fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 15, color: "var(--alloy-purple)" }}>{nlReq.title}</span>
+                <span style={{ display: "block", fontSize: 12.5, color: "var(--fg-muted)" }}>Tell us what to feature{nlReq.dueDate ? ` · due ${fmtDue(nlReq.dueDate)}` : ""}</span>
+              </span>
+            </div>
+            <button className="aq-leads-cta" onClick={(e) => { e.stopPropagation(); onNewsletter(); }}>Open Form</button>
+          </div>
+        </div>
+      ) : null}
       {pendingLeads > 0 ? (
         <div className="aq-leads" role="button" tabIndex={0} onClick={() => onNav("leads")}>
           <div className="aq-leads-row">

@@ -68,6 +68,11 @@ Deno.serve(async (req) => {
     if (!subject || !text) return json({ error: "subject and message required" }, 400);
     const priority = ["low", "normal", "high", "urgent"].includes(body.priority) ? body.priority : undefined;
     const uploads = Array.isArray(body.uploads) ? body.uploads.filter(Boolean) : [];
+    // Optional tags — lets specialized requests (e.g. newsletter intake) be
+    // filtered/routed in Zendesk. Sanitized to Zendesk-safe tag tokens.
+    const tags = Array.isArray(body.tags)
+      ? body.tags.map((t: unknown) => String(t).toLowerCase().replace(/[^a-z0-9_-]+/g, "_").slice(0, 60)).filter(Boolean).slice(0, 10)
+      : [];
 
     // Ensure the requester EXISTS and is a MEMBER of the account's org, so the
     // ticket actually lands in that org. Zendesk ties a ticket's organization to
@@ -88,6 +93,7 @@ Deno.serve(async (req) => {
     if (uploads.length) comment.uploads = uploads;
     const ticket: Record<string, unknown> = { subject, organization_id: Number(orgId), comment };
     if (priority) ticket.priority = priority;
+    if (tags.length) ticket.tags = tags;
     if (requesterId) ticket.requester_id = requesterId;
     else ticket.requester = { name: reqName, email: user.email };
 

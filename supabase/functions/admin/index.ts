@@ -674,6 +674,97 @@ Deno.serve(async (req) => {
       return json({ ok: true, email });
     }
 
+    // --- Newsletter intake: open a round, track submissions, close ---
+    if (action === "newsletter_list") {
+      // Every request + its account name, newest first. Powers the admin tracker.
+      // Also roll up newsletter_open / newsletter_submit events per request →
+      // engagement analytics (who opened, how many clicks, who filled it out).
+      const [{ data: reqs, error }, { data: accts }, { data: evs }, { data: profs }] = await Promise.all([
+        admin.from("newsletter_requests").select("*").order("created_at", { ascending: false }),
+        admin.from("accounts").select("id, company, short_name"),
+        admin.from("events").select("user_id, type, meta, created_at").in("type", ["newsletter_open", "newsletter_submit"]),
+        admin.from("profiles").select("id, name"),
+      ]);
+      if (error) throw error;
+      const nameOf: Record<string, any> = {};
+      for (const a of accts || []) nameOf[a.id] = a;
+      const userName: Record<string, string> = {};
+      for (const p of profs || []) userName[p.id] = p.name || "";
+
+      // Group events by the request id carried in meta.
+      const agg: Record<string, { opens: number; openers: Record<string, number>; lastOpen: string | null; submits: number; submitters: Record<string, number> }> = {};
+      for (const e of evs || []) {
+        const rid = e.meta && (e.meta as any).requestId;
+        if (!rid) continue;
+        const g = agg[rid] || (agg[rid] = { opens: 0, openers: {}, lastOpen: null, submits: 0, submitters: {} });
+        if (e.type === "newsletter_open") {
+          g.opens++;
+          if (e.user_id) g.openers[e.user_id] = (g.openers[e.user_id] || 0) + 1;
+          if (!g.lastOpen || e.created_at > g.lastOpen) g.lastOpen = e.created_at;
+        } else if (e.type === "newsletter_submit") {
+          g.submits++;
+          if (e.user_id) g.submitters[e.user_id] = (g.submitters[e.user_id] || 0) + 1;
+        }
+      }
+
+      const requests = (reqs || []).map((r: any) => {
+        const g = agg[r.id];
+        const openers = g
+          ? Object.entries(g.openers).map(([uid, count]) => ({ name: userName[uid] || "A team member", count })).sort((a, b) => b.count - a.count)
+          : [];
+        return {
+          ...r,
+          account_name: (nameOf[r.account_id]?.short_name) || (nameOf[r.account_id]?.company) || "—",
+          account_company: nameOf[r.account_id]?.company || "",
+          analytics: {
+            opens: g ? g.opens : 0,          // total "Open Form" clicks
+            openerCount: openers.length,      // distinct people who opened it
+            openers,                          // [{ name, count }]
+            lastOpen: g ? g.lastOpen : null,
+            submits: g ? g.submits : 0,
+          },
+        };
+      });
+      return json({ requests, accounts: (accts || []).sort((a: any, b: any) => String(a.company).localeCompare(String(b.company))) });
+    }
+
+    if (action === "newsletter_open") {
+      // Open a round for a hand-picked set of clients. Skips any client that
+      // already has a live (open or submitted) round — one banner at a time.
+      const ids: string[] = Array.isArray(body.accountIds) ? body.accountIds.filter(Boolean).map(String) : [];
+      if (!ids.length) return json({ error: "select at least one client" }, 400);
+      const title = String(body.title || "").trim() || "Newsletter";
+      const due = body.due_date ? String(body.due_date) : null;
+      const { data: live } = await admin
+        .from("newsletter_requests").select("account_id").in("account_id", ids).neq("status", "closed");
+      const already = new Set((live || []).map((r: any) => r.account_id));
+      const toInsert = ids.filter((id) => !already.has(id));
+      let opened = 0;
+      if (toInsert.length) {
+        const rows = toInsert.map((account_id) => ({
+          account_id, title, due_date: due, status: "open", created_by: user.id,
+        }));
+        const { error } = await admin.from("newsletter_requests").insert(rows);
+        if (error) throw error;
+        opened = rows.length;
+      }
+      return json({ ok: true, opened, skipped: ids.length - opened });
+    }
+
+    if (action === "newsletter_close") {
+      if (!body.id) return json({ error: "id required" }, 400);
+      const { error } = await admin.from("newsletter_requests").update({ status: "closed" }).eq("id", body.id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
+    if (action === "newsletter_delete") {
+      if (!body.id) return json({ error: "id required" }, 400);
+      const { error } = await admin.from("newsletter_requests").delete().eq("id", body.id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
     return json({ error: "unknown action" }, 400);
   } catch (e) {
     const msg = String(e);

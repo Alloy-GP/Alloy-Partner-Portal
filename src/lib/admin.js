@@ -31,6 +31,13 @@ export const snapshotQueue = () => call('snapshot_queue');
 export const updateSnapshot = (id, fields) => call('update_snapshot', { id, ...fields });
 export const regenerateSnapshot = (accountId) => call('regenerate_snapshot', { account_id: accountId });
 export const approveSnapshot = (id) => call('approve_snapshot', { id });
+// Newsletter intake (staff): open a round for selected clients, track + close.
+export const listNewsletterRequests = () => call('newsletter_list');
+export const openNewsletterRound = (accountIds, title, dueDate) =>
+  call('newsletter_open', { accountIds, title, due_date: dueDate || null });
+export const closeNewsletterRequest = (id) => call('newsletter_close', { id });
+export const deleteNewsletterRequest = (id) => call('newsletter_delete', { id });
+
 export const addInvite = (accountId, invite) =>
   call('add_invite', { account_id: accountId, redirectTo: window.location.origin, ...invite });
 export const removeInvite = (email) => call('remove_invite', { email });
