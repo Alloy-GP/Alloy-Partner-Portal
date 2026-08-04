@@ -5,6 +5,7 @@ import {
   listInvites, addInvite, removeInvite, uploadLogo, setDashConfig,
 } from '../lib/admin.js';
 import AdminAnalytics from './AdminAnalytics.jsx';
+import AdminNewsletter from './AdminNewsletter.jsx';
 import SyncHealth from './SyncHealth.jsx';
 import { CLIENT_ROLES } from '../lib/perms.js';
 
@@ -147,7 +148,7 @@ function AdminScreen({ startNew, selectId }) {
   return (
     <div className="content" data-screen-label="Admin">
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {['clients', 'analytics', 'health'].map((id) => (
+        {['clients', 'analytics', 'newsletter', 'health'].map((id) => (
           <button key={id} onClick={() => setTab(id)} className="btn btn-sm"
             style={{ background: tab === id ? 'var(--alloy-purple)' : 'transparent', color: tab === id ? '#fff' : 'var(--alloy-purple)', padding: '6px 14px', textTransform: 'capitalize' }}>
             {id}
@@ -155,7 +156,7 @@ function AdminScreen({ startNew, selectId }) {
         ))}
       </div>
 
-      {tab === 'health' ? <SyncHealth /> : tab === 'analytics' ? <AdminAnalytics /> : (
+      {tab === 'health' ? <SyncHealth /> : tab === 'analytics' ? <AdminAnalytics /> : tab === 'newsletter' ? <AdminNewsletter /> : (
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
         {/* Accounts list */}
         <div className="card" style={{ padding: 0, alignSelf: 'start' }}>

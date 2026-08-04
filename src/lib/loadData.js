@@ -92,6 +92,7 @@ export async function loadAccountData(session, accountId, me) {
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
     toolkitRes, assetsRes, proposalUvpsRes, proposalsRes, proposalEventsRes,
+    newsletterRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -130,6 +131,11 @@ export async function loadAccountData(session, accountId, me) {
     // Proposal system · board engagement telemetry (Close). Aggregated per
     // proposal into the WATCH shape by enrichLead. Empty until a board opens one.
     supabase.from('proposal_events').select('*').eq('account_id', accountId).order('created_at'),
+    // Newsletter intake · the client's current OPEN round, if any. Drives the
+    // portal-wide "tell us what to feature" banner + the submit form. Empty for
+    // accounts with no round open. Once submitted/closed it's no longer 'open',
+    // so the banner clears automatically.
+    supabase.from('newsletter_requests').select('*').eq('account_id', accountId).eq('status', 'open').order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -389,5 +395,15 @@ export async function loadAccountData(session, accountId, me) {
       return (proposalsRes.data || []).map((p) =>
         enrichLead({ ...proposalRowToRaw(p), events: eventsByProposal[p.id] || [] }, cam));
     })(),
+    // Newsletter intake · the current open round for this account (or null).
+    // camelCased for the banner + submit form. `submission` stays null until
+    // the client fills it in.
+    newsletterRequest: newsletterRes && newsletterRes.data ? {
+      id: newsletterRes.data.id,
+      title: newsletterRes.data.title || 'Newsletter',
+      status: newsletterRes.data.status,
+      dueDate: newsletterRes.data.due_date || null,
+      submission: newsletterRes.data.submission || null,
+    } : null,
   };
 }
