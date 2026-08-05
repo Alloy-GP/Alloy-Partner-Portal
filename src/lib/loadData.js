@@ -92,7 +92,7 @@ export async function loadAccountData(session, accountId, me) {
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
     toolkitRes, assetsRes, proposalUvpsRes, proposalsRes, proposalEventsRes,
-    newsletterRes,
+    newsletterRes, guidesRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -115,7 +115,7 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('profiles').select('id, name, initials, avatar_url, role, is_staff').eq('account_id', accountId),
     supabase.from('quickbooks_payment_methods').select('*').eq('account_id', accountId).order('created_at', { ascending: false }),
     supabase.from('autopay_schedules').select('*').eq('account_id', accountId).maybeSingle(),
-    supabase.from('ticket_links').select('zendesk_id, link, pct').eq('account_id', accountId),
+    supabase.from('ticket_links').select('zendesk_id, link, pct, label').eq('account_id', accountId),
     supabase.from('ticket_summaries').select('zendesk_id, summary, comment_count').eq('account_id', accountId),
     supabase.from('locations').select('*, location_milestones(*)').eq('account_id', accountId).order('sort'),
     supabase.from('program_quarters').select('*').eq('account_id', accountId).order('sort'),
@@ -136,6 +136,10 @@ export async function loadAccountData(session, accountId, me) {
     // accounts with no round open. Once submitted/closed it's no longer 'open',
     // so the banner clears automatically.
     supabase.from('newsletter_requests').select('*').eq('account_id', accountId).eq('status', 'open').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    // Guides · metadata only (the large `html` is lazy-fetched when a guide is
+    // opened). Scoped to global (account_id null) + this account, explicitly —
+    // so staff viewing a client see that client's guides, not every account's.
+    supabase.from('guides').select('id, account_id, title, description, category, tag, sort').or(`account_id.is.null,account_id.eq.${accountId}`).order('sort'),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -244,6 +248,7 @@ export async function loadAccountData(session, accountId, me) {
     // Zendesk ticket id → Monday "Link" (Pastel/review URL) for the "Review Now"
     // button, and → subtask-% (stage progress) for the ticket card bar.
     ticketLinks: Object.fromEntries((ticketLinksRes.data || []).filter((t) => t.link).map((t) => [t.zendesk_id, t.link])),
+    ticketLinkLabels: Object.fromEntries((ticketLinksRes.data || []).filter((t) => t.label).map((t) => [t.zendesk_id, t.label])),
     ticketProgress: Object.fromEntries((ticketLinksRes.data || []).filter((t) => t.pct != null).map((t) => [t.zendesk_id, t.pct])),
     // Cached AI one-line summaries (Zone 1 "Waiting on you" cards). Seeded here
     // so cards show last-known text instantly; ProjectsScreen calls
@@ -405,5 +410,10 @@ export async function loadAccountData(session, accountId, me) {
       dueDate: newsletterRes.data.due_date || null,
       submission: newsletterRes.data.submission || null,
     } : null,
+    // Guides · metadata for the Guides page (html lazy-fetched on open).
+    guides: (guidesRes && guidesRes.data || []).map((g) => ({
+      id: g.id, title: g.title, description: g.description, category: g.category || 'Guides',
+      tag: g.tag || null, scope: g.account_id ? 'client' : 'global',
+    })),
   };
 }

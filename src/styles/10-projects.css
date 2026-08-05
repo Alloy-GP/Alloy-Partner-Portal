@@ -161,34 +161,39 @@
 .pj-req-count { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: #a8a0b5; flex-shrink: 0; }
 /* Proactive ticket — Alloy created it (submitter) even though the client is the requester. */
 .pj-req-tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 6px; background: #e6eef5; color: #2a6391; flex-shrink: 0; }
-.pj-cta { margin-top: auto; display: flex; gap: 8px; }
+.pj-cta { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 
 /* Whole card/row is the click target → open the thread. */
 .pj-clickable { cursor: pointer; }
 .pj-card.pj-clickable { transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
 .pj-card.pj-clickable:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(56,28,79,0.14); border-color: #d8cfe6; }
 .pj-card.pj-clickable:focus-visible { outline: 2px solid var(--alloy-pink); outline-offset: 2px; }
-/* "Open message" / "Qualify leads" — a button-styled cue; the card carries the click. */
-.pj-card-msg { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 11px 8px; border-radius: 10px; background: #fff; color: var(--alloy-purple); border: 1px solid #e0d8ea; font-family: var(--font-display); font-weight: 800; font-size: 11.5px; white-space: nowrap; }
+/* Card CTAs are real buttons; the card itself is inert (only buttons act). */
+.pj-card-msg { width: 100%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 11px 8px; border-radius: 10px; background: #fff; color: var(--alloy-purple); border: 1px solid #e0d8ea; font-family: var(--font-display); font-weight: 800; font-size: 11.5px; white-space: nowrap; transition: border-color .13s ease, background .13s ease; }
+.pj-card-msg:hover { border-color: var(--alloy-purple); background: var(--alloy-off-white); }
 .pj-card-msg.lead { background: var(--alloy-purple); color: #fff; border: none; font-size: 12.5px; }
+.pj-card-msg.lead:hover { background: var(--alloy-purple-deep, #290d41); }
 /* Leads card hero — big centered count that fills the card body. */
 .pj-lead-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 3px; padding: 6px 0 16px; position: relative; }
 .pj-lead-hero::before { content: ""; position: absolute; width: 130px; height: 130px; border-radius: 50%; background: radial-gradient(circle, rgba(227,189,68,0.22) 0%, rgba(227,189,68,0) 70%); pointer-events: none; }
 .pj-lead-num { position: relative; font-family: var(--font-display); font-weight: 800; font-size: 56px; line-height: 0.92; letter-spacing: -0.03em; background: linear-gradient(135deg, #e7b53f 0%, #b07d12 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
 .pj-lead-sub { position: relative; font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--alloy-purple); letter-spacing: -0.01em; }
-.pj-card.pj-clickable:hover .pj-card-msg { border-color: var(--alloy-purple); }
-.pj-btn-primary, .pj-btn-secondary, .pj-btn-leads {
-  flex: 1; cursor: pointer; font-family: var(--font-display); font-weight: 800; font-size: 11.5px;
-  padding: 11px 8px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  text-decoration: none; transition: all 0.13s ease; border: none; white-space: nowrap;
+.pj-btn-primary, .pj-btn-secondary, .pj-btn-leads, .pj-btn-guide {
+  width: 100%; cursor: pointer; font-family: var(--font-display); font-weight: 800; font-size: 11.5px;
+  padding: 11px 8px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  text-decoration: none; transition: background .13s ease, border-color .13s ease, box-shadow .13s ease; border: none; white-space: nowrap;
 }
 .pj-btn-primary { background: var(--alloy-pink); color: #fff; box-shadow: 0 5px 14px rgba(217,53,110,0.28); }
 .pj-btn-primary:hover { background: #c12a60; text-decoration: none; }
 .pj-btn-secondary { background: #fff; color: var(--alloy-purple); border: 1px solid #e0d8ea; }
 .pj-btn-secondary:hover { border-color: var(--alloy-purple); }
-.pj-btn-secondary.solo { flex: 1; }
+.pj-btn-secondary.solo { width: 100%; }
 .pj-btn-leads { background: var(--alloy-purple); color: #fff; font-size: 12.5px; }
 .pj-btn-leads:hover { background: var(--alloy-purple-deep, #290d41); }
+/* Guide button — distinct (it opens a how-to), same family. Soft pink, book icon. */
+.pj-btn-guide { background: var(--alloy-pink-tint); color: var(--alloy-pink); border: 1px solid rgba(217,53,110,0.32); }
+.pj-btn-guide:hover { border-color: var(--alloy-pink); background: #fbe1ea; }
+.pj-btn-guide .pj-btn-guide-label { overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- Zone 2: In progress (flat list) ---- */
 .pj-list { background: #fff; border: 1px solid #ece8f1; border-radius: 14px; overflow: hidden; margin-bottom: 46px; box-shadow: 0 2px 8px rgba(56,28,79,0.04); }

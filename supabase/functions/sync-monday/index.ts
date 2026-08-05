@@ -112,6 +112,21 @@ function linkUrl(item: any, colId: string | null): string | null {
   return idx >= 0 ? t.slice(idx).split(" ")[0] : null;
 }
 
+// The link column's "text to display" ({ url, text }). Used as the ticket card's
+// review-button label. Falls back to the label half of "Label - https://…".
+function linkText(item: any, colId: string | null): string | null {
+  if (!colId) return null;
+  const c = item.column_values.find((x: any) => x.id === colId);
+  if (!c) return null;
+  if (c.value) {
+    try { const v = JSON.parse(c.value); if (v && v.text) return String(v.text).trim() || null; } catch { /* ignore */ }
+  }
+  const t = (c.text || "").trim();
+  const idx = t.lastIndexOf("http");
+  if (idx > 0) { const lbl = t.slice(0, idx).replace(/[-–—\s]+$/, "").trim(); return lbl || null; }
+  return null;
+}
+
 // Stage progress = subtasks marked done / total subtasks. Returns null when the
 // item has no subtasks (caller falls back to the status-derived pct). The
 // subitem board's Status column id varies per board, so detect it by type.
@@ -371,7 +386,7 @@ Deno.serve(async (req) => {
             const reviewLink = linkUrl(it, C.link);
             const tPct = subtaskPct(it); // stage progress for the ticket card bar
             if (zdRef.id && (reviewLink || tPct !== null)) {
-              ticketLinks.push({ account_id: acct.id, zendesk_id: zdRef.id, link: reviewLink, pct: tPct });
+              ticketLinks.push({ account_id: acct.id, zendesk_id: zdRef.id, link: reviewLink, pct: tPct, label: linkText(it, C.link) });
             }
             if (ACTION_STATUSES.has(statusText)) {
               // Waiting on you (action queue)
