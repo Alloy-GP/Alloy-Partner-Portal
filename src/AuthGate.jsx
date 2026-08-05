@@ -7,36 +7,10 @@ import { applyData } from './data.js';
 import { track } from './lib/track.js';
 import Login from './components/Login.jsx';
 import NoAccess from './components/NoAccess.jsx';
-import AlloyHome from './components/AlloyHome.jsx';
-import AdminScreen from './components/AdminScreen.jsx';
+import AdminShell from './components/AdminShell.jsx';
 import { BoardProposalPage } from './components/board-proposal.jsx';
 import QuarterGoalsForm from './components/quarter-goals.jsx';
 import App from './App.jsx';
-
-// Staff-level Admin page — global client management, lives above any single
-// client (reached from the Alloy Home portfolio, not a client's sidebar).
-function AdminPage({ onBack, onSignOut, startNew, selectId }) {
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--alloy-off-white)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 28px', background: 'var(--alloy-purple-deep)', color: '#fff' }}>
-        <img src="/alloy-icon.png" alt="Alloy" style={{ width: 30, height: 30, borderRadius: 7 }} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, lineHeight: 1.1 }}>Alloy — Admin</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Clients, goals, access &amp; analytics</div>
-        </div>
-        <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 12.5 }}>
-          ⌂ Portfolio
-        </button>
-        <button onClick={onSignOut} style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 12.5 }}>
-          Sign out
-        </button>
-      </div>
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '8px 16px 32px' }}>
-        <AdminScreen startNew={startNew} selectId={selectId} />
-      </div>
-    </div>
-  );
-}
 
 let loginLogged = false; // once per page load
 
@@ -159,30 +133,11 @@ function AuthGate() {
   if (me === undefined) return splash;
   if (me === null) return <NoAccess email={session.user?.email} onSignOut={signOut} />;
 
-  // Staff surfaces that live above any single client: the Admin console and
-  // the portfolio. Both are reached without a /c/:id prefix.
+  // Staff surfaces that live above any single client — the whole Admin
+  // dashboard (Overview, Portfolio, Newsletter Room, Monthly Updates, …). One
+  // shell, sidebar sections routed under /admin/* (and bare "/" = Overview).
   if (me.isStaff && !urlClientId) {
-    if (location.pathname.startsWith('/admin')) {
-      const sp = new URLSearchParams(location.search);
-      return (
-        <AdminPage
-          startNew={sp.get('new') === '1'}
-          selectId={sp.get('client')}
-          onBack={() => navigate('/')}
-          onSignOut={signOut}
-        />
-      );
-    }
-    return (
-      <AlloyHome
-        onEnter={(id) => navigate(`/c/${id}`)}
-        onAdmin={() => navigate('/admin')}
-        onAddClient={() => navigate('/admin?new=1')}
-        onEditClient={(id) => navigate(`/admin?client=${id}`)}
-        onReviewSnapshot={(id) => navigate(`/c/${id}/snapshot`)}
-        onSignOut={signOut}
-      />
-    );
+    return <AdminShell onSignOut={signOut} />;
   }
 
   // Only render the portal once DATA actually holds the account we're viewing —
@@ -190,7 +145,7 @@ function AuthGate() {
   if (loadedAccountId !== viewAccountId) return appLoader;
 
   const staffNav = me.isStaff
-    ? { onHome: () => navigate('/'), onAdmin: () => navigate('/admin') }
+    ? { onHome: () => navigate('/admin/portfolio'), onAdmin: () => navigate('/admin') }
     : null;
   return <App session={session} onSignOut={signOut} staffNav={staffNav} />;
 }
