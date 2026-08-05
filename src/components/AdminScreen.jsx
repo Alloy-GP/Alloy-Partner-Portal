@@ -33,7 +33,10 @@ function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
   );
 }
 
-function AdminScreen({ startNew, selectId }) {
+// `embed` → rendered inside the Admin dashboard shell as the "Manage Clients"
+// section: hide the internal tab bar (analytics/newsletter/health are their own
+// sidebar sections now) and show only the client CRUD.
+function AdminScreen({ startNew, selectId, embed }) {
   const [accounts, setAccounts] = useState(null);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState(null); // account id, or 'new'
@@ -147,16 +150,18 @@ function AdminScreen({ startNew, selectId }) {
 
   return (
     <div className="content" data-screen-label="Admin">
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {['clients', 'analytics', 'newsletter', 'health'].map((id) => (
-          <button key={id} onClick={() => setTab(id)} className="btn btn-sm"
-            style={{ background: tab === id ? 'var(--alloy-purple)' : 'transparent', color: tab === id ? '#fff' : 'var(--alloy-purple)', padding: '6px 14px', textTransform: 'capitalize' }}>
-            {id}
-          </button>
-        ))}
-      </div>
+      {!embed ? (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {['clients', 'analytics', 'newsletter', 'health'].map((id) => (
+            <button key={id} onClick={() => setTab(id)} className="btn btn-sm"
+              style={{ background: tab === id ? 'var(--alloy-purple)' : 'transparent', color: tab === id ? '#fff' : 'var(--alloy-purple)', padding: '6px 14px', textTransform: 'capitalize' }}>
+              {id}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
-      {tab === 'health' ? <SyncHealth /> : tab === 'analytics' ? <AdminAnalytics /> : tab === 'newsletter' ? <AdminNewsletter /> : (
+      {(!embed && tab === 'health') ? <SyncHealth /> : (!embed && tab === 'analytics') ? <AdminAnalytics /> : (!embed && tab === 'newsletter') ? <AdminNewsletter /> : (
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
         {/* Accounts list */}
         <div className="card" style={{ padding: 0, alignSelf: 'start' }}>

@@ -36,7 +36,7 @@ function Pill({ n, label, tone }) {
   );
 }
 
-function SnapshotQueue({ onReview, excludeIds }) {
+export function SnapshotQueue({ onReview, excludeIds }) {
   const [q, setQ] = useState(null);
   const [busy, setBusy] = useState('');
 
@@ -95,6 +95,111 @@ function SnapshotQueue({ onReview, excludeIds }) {
         })}
       </div>
     </div>
+  );
+}
+
+// The portfolio content (summary stats + client cards), chrome-free, for use
+// inside the Admin dashboard shell's Portfolio section.
+export function PortfolioGrid({ onEnter, onEditClient, onAddClient, showInternal = true }) {
+  const [clients, setClients] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    getPortfolio().then((r) => setClients(r.clients || [])).catch((e) => setError(String(e.message || e)));
+  }, []);
+
+  const real = (clients || []).filter((c) => c.tier !== 'internal');
+  const internal = showInternal ? (clients || []).filter((c) => c.tier === 'internal') : [];
+  const totals = real.reduce((t, c) => ({
+    open: t.open + c.openActions, past: t.past + c.pastDue, users: t.users + c.activeUsers,
+  }), { open: 0, past: 0, users: 0 });
+
+  if (error) return <div style={{ color: 'var(--alloy-pink)', fontSize: 13 }}>Couldn’t load the portfolio. {error}</div>;
+  if (clients === null) return <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>Loading clients…</div>;
+  if (clients.length === 0) return (
+    <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>
+      No clients yet.{' '}
+      {onAddClient ? <button onClick={onAddClient} className="btn btn-primary btn-sm" style={{ marginLeft: 6 }}><I.Plus width={12} height={12} /> Add client</button> : null}
+    </div>
+  );
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+        {[
+          { label: 'Clients', value: real.length },
+          { label: 'Open tickets', value: totals.open },
+          { label: 'Past-due', value: totals.past },
+          { label: 'Active users (30d)', value: totals.users },
+        ].map((s) => (
+          <div key={s.label} className="card card-pad" style={{ flex: 1, minWidth: 130 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)' }}>{s.label}</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: 'var(--alloy-purple)', marginTop: 4 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+        {internal.map((c) => (
+          <button key={c.id} onClick={() => onEnter(c.id)} className="card card-pad"
+            style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--alloy-purple)', background: 'var(--alloy-purple-tint)', display: 'block' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Mark c={c} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)' }}>{c.short_name || c.company}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>Your team · internal</div>
+              </div>
+              <span aria-hidden="true" style={{ color: 'var(--fg-muted)' }}>→</span>
+            </div>
+          </button>
+        ))}
+        {real.map((c) => {
+          const needs = c.openActions + c.pastDue > 0;
+          const pct = c.goal_target ? Math.round((c.goal_current / c.goal_target) * 100) : 0;
+          return (
+            <button key={c.id} onClick={() => onEnter(c.id)} className="card card-pad"
+              style={{ textAlign: 'left', cursor: 'pointer', border: needs ? '1px solid var(--alloy-pink)' : '1px solid var(--border-subtle)', display: 'block' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <Mark c={c} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)' }}>{c.short_name || c.company}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>{c.tier || '—'} · active {relTime(c.lastActive)}</div>
+                </div>
+                {onEditClient ? (
+                  <span role="button" tabIndex={0} title="Edit client" aria-label="Edit client"
+                    onClick={(e) => { e.stopPropagation(); onEditClient(c.id); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onEditClient(c.id); } }}
+                    style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 7, color: 'var(--fg-muted)', cursor: 'pointer' }}>
+                    <I.Edit width={15} height={15} />
+                  </span>
+                ) : null}
+                <span aria-hidden="true" style={{ color: 'var(--fg-muted)' }}>→</span>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10, minHeight: 22 }}>
+                <Pill n={c.openActions} label={c.openActions === 1 ? 'open ticket' : 'open tickets'} tone="pink" />
+                <Pill n={c.pastDue} label="past-due" tone="yellow" />
+                {!needs ? <span style={{ fontSize: 11, fontWeight: 600, color: '#2c8a6e' }}>On track</span> : null}
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span>{c.goal_current} / {c.goal_target} {c.goal_label}</span>
+                <span>{c.activeUsers} / {c.invited} users</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 999, background: 'var(--alloy-off-white)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: 'var(--alloy-purple)' }} />
+              </div>
+            </button>
+          );
+        })}
+        {onAddClient ? (
+          <button onClick={onAddClient} className="card card-pad"
+            style={{ cursor: 'pointer', border: '1.5px dashed var(--border-subtle)', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 150, color: 'var(--alloy-purple)' }}>
+            <span style={{ width: 38, height: 38, borderRadius: '22%', display: 'grid', placeItems: 'center', background: 'var(--alloy-purple-tint)' }}>
+              <I.Plus width={18} height={18} />
+            </span>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14 }}>Add client</span>
+          </button>
+        ) : null}
+      </div>
+    </>
   );
 }
 

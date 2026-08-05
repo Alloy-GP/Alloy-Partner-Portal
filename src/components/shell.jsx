@@ -129,19 +129,15 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
             top banner). */}
         {staffNav && !viewAsClient ? (
           <>
-            <div className="nav-section-label has-divider">Client Center</div>
-            <div className="nav-item" data-active={false} onClick={staffNav.onHome} title="All clients">
-              <span className="icon"><I.Home /></span>
-              <span>All clients</span>
-            </div>
-            <div className="nav-item" data-active={false} onClick={staffNav.onAdmin} title="Admin">
+            <div className="nav-section-label has-divider">Staff</div>
+            <div className="nav-item" data-active={false} onClick={staffNav.onAdmin} title="Back to the Admin dashboard">
               <span className="icon"><I.Bolt /></span>
-              <span>Admin</span>
+              <span>Back to Admin</span>
             </div>
             {onToggleViewAsClient && (
               <div className="nav-item" data-active={false} onClick={onToggleViewAsClient} title="See exactly what this client sees — staff tools hidden">
                 <span className="icon"><I.Eye /></span>
-                <span>View as client</span>
+                <span>View as Client</span>
               </div>
             )}
           </>
