@@ -13,6 +13,7 @@ const TYPES = [
   { v: 'marketing', label: 'Marketing / content' },
   { v: 'seo', label: 'SEO / Google listing' },
   { v: 'design', label: 'Design / creative asset' },
+  { v: 'video', label: 'Video recording upload' },
   { v: 'billing', label: 'Billing / account' },
   { v: 'other', label: 'Something else' },
 ];
@@ -31,11 +32,21 @@ export default function NewRequestModal({ onClose, onCreated, onNav }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const fileRef = useRef(null);
+  // Video-recording sub-form: the file goes to Dash (not Zendesk), so we collect
+  // the details here + a self-reported upload confirmation for the ticket.
+  const [vWhat, setVWhat] = useState('');
+  const [vName, setVName] = useState('');
+  const [vRole, setVRole] = useState('');
+  const [vNotes, setVNotes] = useState('');
+  const [vOpened, setVOpened] = useState(false);   // clicked "Open Dash uploader"
+  const [vUploaded, setVUploaded] = useState(false); // confirmed the upload
 
   const pastelUrl = DATA.account && DATA.account.pastelUrl;
+  const dashUrl = (DATA.account && DATA.account.dashUploadUrl) || 'https://dam.alloygp.co';
   const typeLabel = (TYPES.find((t) => t.v === type) || {}).label || '';
   const showPastel = mode === 'new' && type === 'website' && !!pastelUrl;
-  const showForm = mode === 'new' && !!type && !showPastel;
+  const showVideo = mode === 'new' && type === 'video';
+  const showForm = mode === 'new' && !!type && !showPastel && !showVideo;
 
   const addFiles = (e) => {
     const picked = Array.from(e.target.files || []);
@@ -60,6 +71,31 @@ export default function NewRequestModal({ onClose, onCreated, onNav }) {
       if (files.length) uploads = (await Promise.all(files.map((f) => zdUpload(f)))).filter(Boolean);
       const body = typeLabel ? `Request type: ${typeLabel}\n\n${message.trim()}` : message.trim();
       const res = await zdCreate({ subject: subject.trim(), body, priority, uploads });
+      setBusy(false);
+      if (res && res.id) onCreated(res.id); else onClose();
+    } catch (e) { setBusy(false); setErr(String((e && e.message) || e || 'Something went wrong.')); }
+  };
+
+  // Video recording → a Zendesk ticket (tagged `video-recording`), NOT a Zendesk
+  // file upload. The video lives in the client's Dash library; the ticket records
+  // the details + the Dash folder link + whether they confirmed the upload.
+  const submitVideo = async () => {
+    if (!vWhat.trim()) { setErr('Tell us what the recording is.'); return; }
+    if (!vName.trim()) { setErr('Add the presenter’s name.'); return; }
+    if (!vUploaded) { setErr('Upload your video to Dash, then check the box to confirm.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const subject = `Video recording: ${vWhat.trim().slice(0, 70)}`;
+      const lines = [
+        'Request type: Video recording upload',
+        '',
+        `What it is:\n${vWhat.trim()}`,
+        `\nPresenter: ${vName.trim()}${vRole.trim() ? ` — ${vRole.trim()}` : ''}`,
+        '\nVideo file: uploaded to Dash by the client ✓',
+        `Dash library: ${dashUrl}`,
+      ];
+      if (vNotes.trim()) lines.push(`\nNotes:\n${vNotes.trim()}`);
+      const res = await zdCreate({ subject, body: lines.join('\n'), priority: 'normal', tags: ['video-recording'] });
       setBusy(false);
       if (res && res.id) onCreated(res.id); else onClose();
     } catch (e) { setBusy(false); setErr(String((e && e.message) || e || 'Something went wrong.')); }
@@ -180,11 +216,53 @@ export default function NewRequestModal({ onClose, onCreated, onNav }) {
               </>
             ) : null}
 
+            {showVideo ? (
+              <>
+                <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', margin: '-4px 0 12px' }}>
+                  Recordings are large, so the file goes to your <strong>Dash library</strong>, not the ticket. Fill this in, upload the video, and we’ll take it from there.
+                </p>
+                <label className="nr-field">
+                  <span className="nr-label">What is the recording?</span>
+                  <input className="input" value={vWhat} onChange={(e) => { setVWhat(e.target.value); setErr(''); }} placeholder="e.g. Annual meeting walkthrough, welcome video" autoFocus />
+                </label>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <label className="nr-field" style={{ flex: 1 }}>
+                    <span className="nr-label">Presenter name</span>
+                    <input className="input" value={vName} onChange={(e) => { setVName(e.target.value); setErr(''); }} placeholder="Who’s on camera" />
+                  </label>
+                  <label className="nr-field" style={{ flex: 1 }}>
+                    <span className="nr-label">Presenter role</span>
+                    <input className="input" value={vRole} onChange={(e) => setVRole(e.target.value)} placeholder="Optional" />
+                  </label>
+                </div>
+                <label className="nr-field">
+                  <span className="nr-label">Notes <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· optional</span></span>
+                  <textarea className="input" rows={3} value={vNotes} onChange={(e) => setVNotes(e.target.value)} placeholder="Anything we should know — timestamps, edits, where it should go…" style={{ resize: 'vertical' }} />
+                </label>
+                <div className="nr-field">
+                  <span className="nr-label">Video file</span>
+                  <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 14, background: 'var(--alloy-off-white)' }}>
+                    <a className="btn btn-primary btn-sm" href={dashUrl} target="_blank" rel="noopener noreferrer" onClick={() => setVOpened(true)} style={{ textDecoration: 'none' }}>
+                      <I.Upload width={13} height={13} /> Open Dash uploader <I.External width={12} height={12} />
+                    </a>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, cursor: vOpened ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 600, color: vUploaded ? 'var(--alloy-purple)' : 'var(--fg-2)', opacity: vOpened ? 1 : 0.55 }}
+                      title={vOpened ? '' : 'Open the Dash uploader first'}>
+                      <input type="checkbox" checked={vUploaded} disabled={!vOpened} onChange={(e) => { setVUploaded(e.target.checked); setErr(''); }} />
+                      I’ve uploaded the video to Dash
+                    </label>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
             {err ? <div className="nr-err">{err}</div> : null}
             <div className="nr-foot">
               <button className="btn btn-secondary" onClick={() => { setMode('intent'); setType(''); setErr(''); }} disabled={busy}>← Back</button>
               {showForm ? (
                 <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? 'Sending…' : 'Send request'}</button>
+              ) : null}
+              {showVideo ? (
+                <button className="btn btn-primary" onClick={submitVideo} disabled={busy}>{busy ? 'Sending…' : 'Send request'}</button>
               ) : null}
             </div>
           </>
