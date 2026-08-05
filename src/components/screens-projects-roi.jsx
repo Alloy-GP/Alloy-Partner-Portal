@@ -2,6 +2,8 @@ import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { zdList } from '../lib/zendesk.js';
+import { guideForTags } from '../lib/guides.js';
+import GuideModal from './GuideModal.jsx';
 import { summarizeTickets } from '../lib/summaries.js';
 import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
 import { quarterStats, inMotionNow, inMotionByEngine, currentQuarter } from '../lib/quarterStats.js';
@@ -197,6 +199,7 @@ function ProjRow({ p, isOverdue }) {
 function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
   // Zones 1 & 2 are Zendesk tickets: pending = waiting on you, open = we're on it.
   const [tickets, setTickets] = React.useState(null);
+  const [guideModal, setGuideModal] = React.useState(null); // guide reader popup
   React.useEffect(() => {
     let cancelled = false;
     zdList().then((r) => { if (!cancelled) setTickets((r && r.tickets) || []); }).catch(() => { if (!cancelled) setTickets([]); });
@@ -227,6 +230,7 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
     return () => { cancelled = true; };
   }, [pendingIdsKey]);
   const links = DATA.ticketLinks || {};
+  const linkLabels = DATA.ticketLinkLabels || {}; // Monday link "text to display" → button label
   const progress = DATA.ticketProgress || {}; // zendesk id → subtask-% (stages)
   const stageColor = () => "#2c7d68"; // green for all stage-progress bars
 
@@ -323,7 +327,7 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
             <div className="pj-skel-btns"><span /><span /></div>
           </div>
         )) : pending.map((t) => (
-          <div key={t.id} className="pj-card pj-clickable" role="button" tabIndex={0} onClick={() => onNav("tickets", t.id)}>
+          <div key={t.id} className="pj-card">
             <div className="pj-card-head2">
               <span className="pj-req-av" style={{ background: catColor(t.requester || t.id) }}>{(t.requester || "?").split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"}</span>
               <div className="pj-head2-main">
@@ -346,10 +350,24 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
             {progress[t.id] != null ? (
               <div className="pj-card-prog"><PjBar value={progress[t.id]} color={stageColor(progress[t.id])} /><span className="pj-pct">{progress[t.id]}%</span></div>
             ) : null}
-            <div className="pj-cta">
-              {links[t.id] ? <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Review Now <I.External width={12} height={12} /></a> : null}
-              <span className={`pj-card-msg${links[t.id] ? "" : " solo"}`}>Open message <I.Arrow width={13} height={13} /></span>
-            </div>
+            {(() => {
+              const g = guideForTags(t.tags);
+              return (
+                <div className="pj-cta">
+                  {links[t.id] ? (
+                    <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{linkLabels[t.id] || "Review Now"}</span> <I.External width={12} height={12} style={{ flexShrink: 0 }} />
+                    </a>
+                  ) : null}
+                  {g ? (
+                    <button type="button" className="pj-btn-guide" title={g.title} onClick={() => setGuideModal(g)}>
+                      <I.Book width={13} height={13} style={{ flexShrink: 0 }} /> <span className="pj-btn-guide-label">{g.title}</span>
+                    </button>
+                  ) : null}
+                  <button type="button" className="pj-card-msg" onClick={() => onNav("tickets", t.id)}>Open message <I.Arrow width={13} height={13} /></button>
+                </div>
+              );
+            })()}
           </div>
         ))}
         {!loading && leadsToQualify > 0 ? (
@@ -581,6 +599,7 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
       </div>
 
       <button className="pj-footer-cta" onClick={reqProject}><I.Plus width={15} height={15} /> Request a new project</button>
+      {guideModal ? <GuideModal guide={guideModal} onClose={() => setGuideModal(null)} /> : null}
     </div>
   );
 }

@@ -2,6 +2,8 @@ import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { zdThread, zdReply, zdResolve, zdUpload, zdAddCc } from '../lib/zendesk.js';
+import { guideForTags } from '../lib/guides.js';
+import GuideModal from './GuideModal.jsx';
 
 const { useState, useEffect, useRef } = React;
 
@@ -112,6 +114,7 @@ function TicketThread({ id, onChanged }) {
   const scrollRef = useRef(null);   // messages scroll area — auto-scrolled to newest
   const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [replyStatus, setReplyStatus] = useState('pending'); // staff-only: status after reply
+  const [guideModal, setGuideModal] = useState(null);        // guide reader popup
 
   const load = async () => {
     setLoading(true); setError('');
@@ -194,6 +197,11 @@ function TicketThread({ id, onChanged }) {
 
   const t = data.ticket;
   const ccs = data.ccs || [];
+  // Contextual actions for this ticket — the same ones that show on the Playbook
+  // card, surfaced here so they're available however you opened the ticket.
+  const reviewLink = (DATA.ticketLinks || {})[t.id];
+  const reviewLabel = (DATA.ticketLinkLabels || {})[t.id] || 'Review Now';
+  const guide = guideForTags(t.tags);
 
   return (
     <>
@@ -218,6 +226,24 @@ function TicketThread({ id, onChanged }) {
           </button>
         ) : null}
       </div>
+
+      {/* Contextual actions — review link + guide, wherever you opened this from */}
+      {(reviewLink || guide) ? (
+        <div style={{ padding: '14px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {reviewLink ? (
+            <a className="btn btn-primary" href={reviewLink} target="_blank" rel="noopener noreferrer"
+              style={{ textDecoration: 'none', fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8 }}>
+              {reviewLabel} <I.External width={15} height={15} />
+            </a>
+          ) : null}
+          {guide ? (
+            <button className="btn btn-secondary" onClick={() => setGuideModal(guide)}
+              style={{ fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8 }}>
+              <I.Book width={16} height={16} /> {guide.title}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* CC row — current collaborators + add a CC */}
       <div style={{ padding: '8px 22px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--alloy-off-white)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -295,6 +321,7 @@ function TicketThread({ id, onChanged }) {
           </div>
         </div>
       </div>
+      {guideModal ? <GuideModal guide={guideModal} onClose={() => setGuideModal(null)} /> : null}
     </>
   );
 }

@@ -4,6 +4,8 @@ import { DATA } from '../data.js';
 import { BadgeMedalSmall } from './screen-dashboard.jsx';
 import TicketThread from './TicketThread.jsx';
 import { zdList } from '../lib/zendesk.js';
+import { guideForTags } from '../lib/guides.js';
+import GuideModal from './GuideModal.jsx';
 import { qualifyLead } from '../lib/leads.js';
 import { supabase } from '../lib/supabase.js';
 
@@ -18,6 +20,7 @@ function TicketsScreen() {
   const [activeId, setActiveId] = useState(null);
   const [filter, setFilter] = useState("mytasks");
   const [query, setQuery] = useState("");
+  const [guideModal, setGuideModal] = useState(null); // guide reader popup
 
   const loadList = () => {
     zdList()
@@ -101,6 +104,17 @@ function TicketsScreen() {
                     {t.requester}
                   </div>
                 ) : null}
+                {(() => {
+                  const g = guideForTags(t.tags);
+                  return g ? (
+                    <span role="button" tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); setGuideModal(g); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setGuideModal(g); } }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 9, padding: "4px 9px", borderRadius: 8, background: "var(--alloy-pink-tint)", color: "var(--alloy-pink)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                      <I.Book width={12} height={12} /> {g.title}
+                    </span>
+                  ) : null;
+                })()}
               </button>
             ))}
           </div>
@@ -116,6 +130,7 @@ function TicketsScreen() {
           )}
         </div>
       </div>
+      {guideModal ? <GuideModal guide={guideModal} onClose={() => setGuideModal(null)} /> : null}
     </div>
   );
 }

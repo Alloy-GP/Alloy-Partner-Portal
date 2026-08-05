@@ -8,7 +8,7 @@ const h = vi.hoisted(() => {
   const builder = (table) => {
     const result = Promise.resolve(tables[table] ?? { data: [], error: null });
     const b = {
-      select: () => b, eq: () => b, order: () => b, limit: () => b,
+      select: () => b, eq: () => b, or: () => b, order: () => b, limit: () => b,
       maybeSingle: () => result,
       then: (res, rej) => result.then(res, rej),
     };

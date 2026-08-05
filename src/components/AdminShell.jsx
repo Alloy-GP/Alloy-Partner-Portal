@@ -5,6 +5,7 @@ import { PortfolioGrid, SnapshotQueue } from './AlloyHome.jsx';
 import AdminScreen from './AdminScreen.jsx';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
+import AdminGuides from './AdminGuides.jsx';
 import SyncHealth from './SyncHealth.jsx';
 import { getPortfolio, snapshotQueue, listNewsletterRequests, listAccounts, listInvites } from '../lib/admin.js';
 
@@ -25,6 +26,7 @@ const NAV = [
   { group: 'Programs', items: [
     { id: 'newsletter', label: 'Newsletter Room', icon: I.Send, path: '/admin/newsletter' },
     { id: 'updates', label: 'Monthly Updates', icon: I.Calendar, path: '/admin/updates' },
+    { id: 'guides', label: 'Guides', icon: I.Book, path: '/admin/guides' },
     { id: 'proposals', label: 'Proposals', icon: I.Doc, path: '/admin/proposals', soon: true },
   ] },
   { group: 'Insights', items: [
@@ -40,6 +42,7 @@ const TITLES = {
   team: { t: 'Team & Access', s: 'Who’s on each client’s team' },
   newsletter: { t: 'Newsletter Room', s: 'Open rounds, collect content, track engagement' },
   updates: { t: 'Monthly Updates', s: 'Review and publish client snapshots' },
+  guides: { t: 'Guides', s: 'Author how-tos and shoot sheets (global or per client)' },
   proposals: { t: 'Proposals', s: 'Proposal system — management view' },
   analytics: { t: 'Engagement', s: 'How clients are using the portal' },
   health: { t: 'Sync Health', s: 'Integration status across every client' },
@@ -187,6 +190,7 @@ function AdminShell({ onSignOut }) {
           <div style={{ fontSize: 12.5, color: 'var(--fg-muted)' }}>“Review” opens a client’s snapshot to edit the headline/note before publishing.</div>
         </div>
       );
+      case 'guides': return <AdminGuides />;
       case 'proposals': return <AdminProposals go={go} />;
       case 'analytics': return <AdminAnalytics />;
       case 'health': return <SyncHealth />;

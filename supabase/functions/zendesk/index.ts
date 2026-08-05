@@ -104,6 +104,7 @@ function mapTicket(t: any) {
     updated_at: t.updated_at,
     created_at: t.created_at,
     requester_id: t.requester_id ? String(t.requester_id) : null,
+    tags: Array.isArray(t.tags) ? t.tags : [],   // surfaces guide buttons on the card
   };
 }
 
