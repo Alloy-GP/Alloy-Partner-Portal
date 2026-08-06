@@ -21,6 +21,7 @@ import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
 import { can } from './lib/perms.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
+import QuarterGoalsModal from './components/QuarterGoalsModal.jsx';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 // NOTE: the KEYS are historical screen-ids (kept stable so analytics + onNav
@@ -84,6 +85,10 @@ function App({ session, onSignOut, staffNav } = {}) {
   // Each "Open Form" click logs a newsletter_open event (client-only; track()
   // skips staff) → powers the admin "opened by / clicks" analytics.
   const openNewsletter = nlReq ? () => { track('newsletter_open', { requestId: nlReq.id }); setNlModalOpen(true); } : null;
+  // Quarterly-goals intake — surfaces on any `goals`-tagged ticket (no round
+  // gating), opens the prefilled in-portal form. Each open logs a goals_open.
+  const [goalsModalOpen, setGoalsModalOpen] = useState(false);
+  const openGoals = () => { track('goals_open', {}); setGoalsModalOpen(true); };
   // Mobile top bar hides on scroll-down, returns on scroll-up.
   const [barHidden, setBarHidden] = useState(false);
   // Sidebar control: expanded | collapsed | hover (expand on hover).
@@ -178,12 +183,12 @@ function App({ session, onSignOut, staffNav } = {}) {
   const handleCommand = (cmd) => { if (cmd === "new-ticket") setComposeOpen(true); };
 
   const screen = (() => {
-    if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav} onNewsletter={openNewsletter}/>;
+    if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav} onNewsletter={openNewsletter} onGoals={openGoals}/>;
     switch (active) {
       case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
       case "roi": return <ROIScreen/>;
-      case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter}/>;
-      case "tickets": return <TicketsScreen onNewsletter={openNewsletter}/>;
+      case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter} onGoals={openGoals}/>;
+      case "tickets": return <TicketsScreen onNewsletter={openNewsletter} onGoals={openGoals}/>;
       case "leads": return <LeadsScreen/>;
       case "playbook": return <RoadmapScreen onNav={handleNav}/>;
       case "library": return <LibraryScreen/>;
@@ -267,6 +272,10 @@ function App({ session, onSignOut, staffNav } = {}) {
           onClose={() => setNlModalOpen(false)}
           onSubmitted={(ticketId) => { setNlModalOpen(false); if (ticketId) handleNav('tickets', ticketId); }}
         />
+      ) : null}
+
+      {goalsModalOpen ? (
+        <QuarterGoalsModal onClose={() => setGoalsModalOpen(false)} />
       ) : null}
     </div>
     </>

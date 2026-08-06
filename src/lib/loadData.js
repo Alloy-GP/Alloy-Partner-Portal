@@ -172,6 +172,7 @@ export async function loadAccountData(session, accountId, me) {
     user: {
       id: session.user.id,
       name: profile.name || '',
+      email: session.user.email || profile.email || '',
       initials: profile.initials || '',
       role: profile.role || 'owner',
       isStaff: !!profile.is_staff,

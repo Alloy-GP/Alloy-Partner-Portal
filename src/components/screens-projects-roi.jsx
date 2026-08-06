@@ -4,6 +4,7 @@ import { DATA } from '../data.js';
 import { zdList } from '../lib/zendesk.js';
 import { guideForTags } from '../lib/guides.js';
 import { newsletterForTicketTags } from '../lib/newsletter.js';
+import { goalsForTicketTags } from '../lib/goals.js';
 import GuideModal from './GuideModal.jsx';
 import { summarizeTickets } from '../lib/summaries.js';
 import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
@@ -197,7 +198,7 @@ function ProjRow({ p, isOverdue }) {
   );
 }
 
-function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
+function ProjectsScreen({ onNav, onCompose, onNewsletter, onGoals }) {
   // Zones 1 & 2 are Zendesk tickets: pending = waiting on you, open = we're on it.
   const [tickets, setTickets] = React.useState(null);
   const [guideModal, setGuideModal] = React.useState(null); // guide reader popup
@@ -350,11 +351,18 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
             {(() => {
               const g = guideForTags(t.tags);
               const nl = newsletterForTicketTags(t.tags);
+              const goals = goalsForTicketTags(t.tags);
+              const qLabel = `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
               return (
                 <div className="pj-cta">
                   {nl && onNewsletter ? (
-                    <button type="button" className="pj-btn-leads" onClick={() => onNewsletter()}>
+                    <button type="button" className="pj-btn-primary" onClick={() => onNewsletter()}>
                       <I.Send width={13} height={13} /> Open Form
+                    </button>
+                  ) : null}
+                  {goals && onGoals ? (
+                    <button type="button" className="pj-btn-primary" onClick={() => onGoals()}>
+                      <I.Edit width={13} height={13} /> Open {qLabel} Form
                     </button>
                   ) : null}
                   {links[t.id] ? (
