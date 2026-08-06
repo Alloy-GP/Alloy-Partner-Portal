@@ -10,6 +10,14 @@ import { track } from './track.js';
 
 const clean = (s) => String(s || '').trim();
 
+// The open newsletter round to surface on a ticket, or null. Like the video→
+// guide mechanism: a ticket tagged `newsletter` shows an "Open Form" button —
+// but only while there's an open round to submit to.
+export function newsletterForTicketTags(tags) {
+  const nl = DATA.newsletterRequest;
+  return (nl && nl.status === 'open' && (tags || []).includes('newsletter')) ? nl : null;
+}
+
 // Compose the human-readable ticket body from the answers.
 function buildBody(form, title) {
   const links = (form.links || []).filter((l) => clean(l.url));
