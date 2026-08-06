@@ -22,6 +22,7 @@ function QuarterGoalsForm() {
   const [company, setCompany] = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
+  const [wins, setWins] = useState('');
   const [goals, setGoals] = useState('');
   const [challenges, setChallenges] = useState('');
   const [website, setWebsite] = useState(''); // honeypot — real users leave blank
@@ -47,6 +48,7 @@ function QuarterGoalsForm() {
           contactName: contactName.trim(),
           email: email.trim(),
           quarter,
+          wins: wins.trim(),
           goals: goals.trim(),
           challenges: challenges.trim(),
           website, // honeypot
@@ -142,6 +144,20 @@ function QuarterGoalsForm() {
                     disabled={sending}
                   />
                 </div>
+              </div>
+
+              <div className="qg-field">
+                <label htmlFor="qg-wins">
+                  What worked well last quarter? <span className="qg-hint">— optional</span>
+                </label>
+                <textarea
+                  id="qg-wins"
+                  rows={3}
+                  placeholder="Wins, momentum, what you’d like to keep doing…"
+                  value={wins}
+                  onChange={(e) => setWins(e.target.value)}
+                  disabled={sending}
+                />
               </div>
 
               <div className="qg-field">
