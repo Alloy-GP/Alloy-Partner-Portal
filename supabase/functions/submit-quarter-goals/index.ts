@@ -1,8 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 // submit-quarter-goals — the PUBLIC pre-planning intake. The anonymous form at
-// /goals posts { company, contactName, email, quarter, goals, challenges } here
-// and we email the Alloy team a branded summary via Resend. No portal session,
+// /goals posts { company, contactName, email, quarter, wins, goals, challenges }
+// here and we email the Alloy team a branded summary via Resend. No portal session,
 // no DB write — this is a notify-only endpoint (same anon-key-clears-the-gateway
 // model as the other public functions).
 //
@@ -37,7 +37,7 @@ const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
 
 function renderEmail(f: {
   company: string; contactName: string; email: string;
-  quarter: string; goals: string; challenges: string;
+  quarter: string; wins: string; goals: string; challenges: string;
 }): string {
   const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
   const row = (label: string, value: string) => `
@@ -71,6 +71,7 @@ function renderEmail(f: {
       <div style="font-family:${F};font-weight:600;font-size:14px;color:#d9356e;margin-top:6px;">Planning for ${esc(f.quarter)}</div>
     </td></tr>
     ${row("Submitted by", contact)}
+    ${f.wins ? row("What worked well last quarter", nl2br(f.wins)) : ""}
     ${row("Top goals / objectives", nl2br(f.goals))}
     ${f.challenges ? row("Challenges / what's blocking them", nl2br(f.challenges)) : ""}
     <tr><td style="padding:26px 40px 30px;">
@@ -94,6 +95,7 @@ Deno.serve(async (req) => {
     const contactName = str(body?.contactName ?? body?.contact_name, 120);
     const email = str(body?.email, 200).toLowerCase();
     const quarter = str(body?.quarter, 40) || "next quarter";
+    const wins = str(body?.wins, 6000); // optional — reflection on the prior quarter
     const goals = str(body?.goals, 6000);
     const challenges = str(body?.challenges, 6000);
 
@@ -114,7 +116,7 @@ Deno.serve(async (req) => {
         to: NOTIFY,
         reply_to: email,
         subject: `New quarter goals: ${company} (${quarter})`,
-        html: renderEmail({ company, contactName, email, quarter, goals, challenges }),
+        html: renderEmail({ company, contactName, email, quarter, wins, goals, challenges }),
       }),
     });
     if (!res.ok) return json({ error: `resend ${res.status}: ${await res.text()}` }, 502);

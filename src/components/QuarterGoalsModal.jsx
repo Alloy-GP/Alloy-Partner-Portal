@@ -11,7 +11,7 @@ const { useState, useEffect } = React;
 // the way. On submit it emails the Alloy team via `submit-quarter-goals`.
 export default function QuarterGoalsModal({ onClose, onSubmitted }) {
   const quarter = currentQuarterLabel();
-  const [form, setForm] = useState({ goals: '', challenges: '' });
+  const [form, setForm] = useState({ wins: '', goals: '', challenges: '' });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
@@ -73,7 +73,7 @@ export default function QuarterGoalsModal({ onClose, onSubmitted }) {
             </div>
 
             <p style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--fg-2)', margin: '0 0 2px' }}>
-              Tell us what you want to accomplish in <strong>{quarter}</strong> and what’s getting in the way — your Alloy team will use this to build your plan before we meet.
+              Tell us what worked, what you want to accomplish in <strong>{quarter}</strong>, and what’s getting in the way — your Alloy team will use this to build your plan before we meet.
             </p>
             {who ? (
               <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', margin: '6px 0 2px' }}>
@@ -82,8 +82,14 @@ export default function QuarterGoalsModal({ onClose, onSubmitted }) {
             ) : null}
 
             <label className="nr-field">
+              <span className="nr-label">What worked well last quarter?</span>
+              <textarea className="input" rows={3} value={form.wins} onChange={set('wins')} autoFocus
+                placeholder="Wins, momentum, what you’d like to keep doing…" style={{ resize: 'vertical' }} />
+            </label>
+
+            <label className="nr-field">
               <span className="nr-label">Top goals for {quarter} *</span>
-              <textarea className="input" rows={5} value={form.goals} onChange={set('goals')} autoFocus
+              <textarea className="input" rows={5} value={form.goals} onChange={set('goals')}
                 placeholder="e.g. Grow qualified leads by 20%, launch the new service page, improve rankings in the north market…" style={{ resize: 'vertical' }} />
             </label>
 

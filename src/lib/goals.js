@@ -53,6 +53,7 @@ export async function submitQuarterGoals(form) {
       contactName,
       email,
       quarter,
+      wins: clean(form.wins), // optional — what worked well last quarter
       goals: clean(form.goals),
       challenges: clean(form.challenges),
       website: '', // honeypot — always empty from an authed client
