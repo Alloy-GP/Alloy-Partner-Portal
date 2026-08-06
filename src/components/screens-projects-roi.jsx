@@ -3,6 +3,7 @@ import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { zdList } from '../lib/zendesk.js';
 import { guideForTags } from '../lib/guides.js';
+import { newsletterForTicketTags } from '../lib/newsletter.js';
 import GuideModal from './GuideModal.jsx';
 import { summarizeTickets } from '../lib/summaries.js';
 import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
@@ -247,10 +248,6 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
   // Past-due: a due date before today on work that isn't already complete.
   const isOverdue = (p) => p.status !== "live" && p.dueDate && new Date(`${p.dueDate}T00:00:00`) < _today0;
   const leadsToQualify = (DATA.recentLeads || []).filter((l) => l.quotable !== "yes" && l.quotable !== "no").length;
-  // Open newsletter round → a "waiting on you" card (submit content).
-  const nlReq = (onNewsletter && DATA.newsletterRequest && DATA.newsletterRequest.status === "open") ? DATA.newsletterRequest : null;
-  const nlExtra = nlReq ? 1 : 0;
-  const fmtDue = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return d; } };
   // Skeleton count: the synced tickets snapshot lags live Zendesk, so remember
   // last visit's real "Waiting on you" count per account and render that many
   // placeholders — the grid keeps its shape when the live list resolves.
@@ -264,9 +261,9 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
   })();
   React.useEffect(() => {
     if (loading) return;
-    const n = pending.length + (leadsToQualify > 0 ? 1 : 0) + nlExtra;
+    const n = pending.length + (leadsToQualify > 0 ? 1 : 0);
     try { if (n >= 1) localStorage.setItem(waitCountKey, String(n)); } catch { /* ignore */ }
-  }, [loading, pending.length, leadsToQualify, nlExtra, waitCountKey]);
+  }, [loading, pending.length, leadsToQualify, waitCountKey]);
 
   // Cap the "Completed" group to THIS calendar quarter — older delivered work is
   // history and lives on the Roadmap, so the Playbook stays focused on the now.
@@ -315,7 +312,7 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
       {/* ===== 1 · Waiting on you ===== */}
       <div className="pj-wait-card">
         <div className="pj-wait-head">
-          <span className="pj-sec-ic num" style={{ background: "rgba(133,107,32,0.12)", color: "#856b20" }}>{loading ? "—" : pending.length + (leadsToQualify > 0 ? 1 : 0) + nlExtra}</span>
+          <span className="pj-sec-ic num" style={{ background: "rgba(133,107,32,0.12)", color: "#856b20" }}>{loading ? "—" : pending.length + (leadsToQualify > 0 ? 1 : 0)}</span>
           <div className="pj-sec-titles"><div className="pj-sec-title">Waiting on you</div></div>
         </div>
         <div className="pj-wait-divider" />
@@ -352,8 +349,14 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
             ) : null}
             {(() => {
               const g = guideForTags(t.tags);
+              const nl = newsletterForTicketTags(t.tags);
               return (
                 <div className="pj-cta">
+                  {nl && onNewsletter ? (
+                    <button type="button" className="pj-btn-leads" onClick={() => onNewsletter()}>
+                      <I.Send width={13} height={13} /> Open Form
+                    </button>
+                  ) : null}
                   {links[t.id] ? (
                     <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{linkLabels[t.id] || "Review Now"}</span> <I.External width={12} height={12} style={{ flexShrink: 0 }} />
@@ -383,21 +386,7 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter }) {
             <div className="pj-cta"><span className="pj-card-msg solo lead">Qualify leads <I.Arrow width={14} height={14} /></span></div>
           </div>
         ) : null}
-        {!loading && nlReq ? (
-          <div className="pj-card lead pj-clickable" role="button" tabIndex={0} onClick={onNewsletter}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNewsletter(); } }}>
-            <div className="pj-card-top">
-              <span className="pj-leadtag" style={{ background: "var(--alloy-pink-tint)", color: "var(--alloy-pink)" }}>Newsletter</span>
-              {nlReq.dueDate ? <span className="pj-due lead"><I.Clock width={11} height={11} /> due {fmtDue(nlReq.dueDate)}</span> : null}
-            </div>
-            <div className="pj-lead-hero">
-              <div aria-hidden="true" style={{ color: "var(--alloy-pink)", display: "flex", alignItems: "center" }}><I.Send width={30} height={30} /></div>
-              <div className="pj-lead-sub">{nlReq.title} — tell us what to feature</div>
-            </div>
-            <div className="pj-cta"><span className="pj-card-msg solo lead">Open Form <I.Arrow width={14} height={14} /></span></div>
-          </div>
-        ) : null}
-        {tickets !== null && pending.length === 0 && leadsToQualify === 0 && !nlReq ? (
+        {tickets !== null && pending.length === 0 && leadsToQualify === 0 ? (
           <div className="pj-empty">Nothing waiting on you — you're all caught up.</div>
         ) : null}
       </div>

@@ -178,12 +178,12 @@ function App({ session, onSignOut, staffNav } = {}) {
   const handleCommand = (cmd) => { if (cmd === "new-ticket") setComposeOpen(true); };
 
   const screen = (() => {
-    if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav}/>;
+    if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav} onNewsletter={openNewsletter}/>;
     switch (active) {
-      case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
+      case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
       case "roi": return <ROIScreen/>;
       case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter}/>;
-      case "tickets": return <TicketsScreen/>;
+      case "tickets": return <TicketsScreen onNewsletter={openNewsletter}/>;
       case "leads": return <LeadsScreen/>;
       case "playbook": return <RoadmapScreen onNav={handleNav}/>;
       case "library": return <LibraryScreen/>;
@@ -237,7 +237,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       </div>
 
       <main className="main">
-        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter}/>
+        <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
 

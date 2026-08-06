@@ -3,6 +3,7 @@ import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { zdThread, zdReply, zdResolve, zdUpload, zdAddCc } from '../lib/zendesk.js';
 import { guideForTags } from '../lib/guides.js';
+import { newsletterForTicketTags } from '../lib/newsletter.js';
 import GuideModal from './GuideModal.jsx';
 
 const { useState, useEffect, useRef } = React;
@@ -99,7 +100,7 @@ function Bubble({ m }) {
  * Renders one Zendesk ticket's public conversation, with a reply box.
  * `id` is the Zendesk ticket id. Re-fetches whenever the id changes.
  */
-function TicketThread({ id, onChanged }) {
+function TicketThread({ id, onChanged, onNewsletter }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -202,6 +203,7 @@ function TicketThread({ id, onChanged }) {
   const reviewLink = (DATA.ticketLinks || {})[t.id];
   const reviewLabel = (DATA.ticketLinkLabels || {})[t.id] || 'Review Now';
   const guide = guideForTags(t.tags);
+  const nl = newsletterForTicketTags(t.tags); // open newsletter round on a `newsletter`-tagged ticket
 
   return (
     <>
@@ -227,9 +229,15 @@ function TicketThread({ id, onChanged }) {
         ) : null}
       </div>
 
-      {/* Contextual actions — review link + guide, wherever you opened this from */}
-      {(reviewLink || guide) ? (
+      {/* Contextual actions — review link, guide, newsletter form; wherever you opened this from */}
+      {(reviewLink || guide || (nl && onNewsletter)) ? (
         <div style={{ padding: '14px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {nl && onNewsletter ? (
+            <button className="btn btn-primary" onClick={onNewsletter}
+              style={{ fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8, background: 'var(--alloy-purple)' }}>
+              <I.Send width={15} height={15} /> Open Form
+            </button>
+          ) : null}
           {reviewLink ? (
             <a className="btn btn-primary" href={reviewLink} target="_blank" rel="noopener noreferrer"
               style={{ textDecoration: 'none', fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8 }}>

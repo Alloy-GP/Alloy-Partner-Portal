@@ -6,7 +6,7 @@ import TicketThread from './TicketThread.jsx';
  * for the given ticket id. The zendesk function authorizes that the ticket
  * belongs to the signed-in user's account, so an arbitrary id just errors.
  */
-function TicketDetailPage({ id, onNav }) {
+function TicketDetailPage({ id, onNav, onNewsletter }) {
   return (
     <div className="content" data-screen-label="Ticket">
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -18,7 +18,7 @@ function TicketDetailPage({ id, onNav }) {
         </button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--border-subtle)', borderRadius: 14, overflow: 'hidden', background: '#fff', minHeight: 560 }}>
-        <TicketThread id={id} />
+        <TicketThread id={id} onNewsletter={onNewsletter} />
       </div>
     </div>
   );
