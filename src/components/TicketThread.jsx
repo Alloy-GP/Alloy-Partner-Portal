@@ -4,6 +4,7 @@ import { DATA } from '../data.js';
 import { zdThread, zdReply, zdResolve, zdUpload, zdAddCc } from '../lib/zendesk.js';
 import { guideForTags } from '../lib/guides.js';
 import { newsletterForTicketTags } from '../lib/newsletter.js';
+import { goalsForTicketTags } from '../lib/goals.js';
 import GuideModal from './GuideModal.jsx';
 
 const { useState, useEffect, useRef } = React;
@@ -100,7 +101,7 @@ function Bubble({ m }) {
  * Renders one Zendesk ticket's public conversation, with a reply box.
  * `id` is the Zendesk ticket id. Re-fetches whenever the id changes.
  */
-function TicketThread({ id, onChanged, onNewsletter }) {
+function TicketThread({ id, onChanged, onNewsletter, onGoals }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -204,6 +205,8 @@ function TicketThread({ id, onChanged, onNewsletter }) {
   const reviewLabel = (DATA.ticketLinkLabels || {})[t.id] || 'Review Now';
   const guide = guideForTags(t.tags);
   const nl = newsletterForTicketTags(t.tags); // open newsletter round on a `newsletter`-tagged ticket
+  const goals = goalsForTicketTags(t.tags); // quarterly goals form on a `goals`-tagged ticket
+  const qLabel = `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
 
   return (
     <>
@@ -229,13 +232,19 @@ function TicketThread({ id, onChanged, onNewsletter }) {
         ) : null}
       </div>
 
-      {/* Contextual actions — review link, guide, newsletter form; wherever you opened this from */}
-      {(reviewLink || guide || (nl && onNewsletter)) ? (
+      {/* Contextual actions — review link, guide, newsletter/goals form; wherever you opened this from */}
+      {(reviewLink || guide || (nl && onNewsletter) || (goals && onGoals)) ? (
         <div style={{ padding: '14px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {nl && onNewsletter ? (
             <button className="btn btn-primary" onClick={onNewsletter}
-              style={{ fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8, background: 'var(--alloy-purple)' }}>
+              style={{ fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8 }}>
               <I.Send width={15} height={15} /> Open Form
+            </button>
+          ) : null}
+          {goals && onGoals ? (
+            <button className="btn btn-primary" onClick={onGoals}
+              style={{ fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8 }}>
+              <I.Edit width={15} height={15} /> Open {qLabel} Form
             </button>
           ) : null}
           {reviewLink ? (
