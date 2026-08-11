@@ -258,7 +258,7 @@ function WinModal({ s, onClose, onWin, onLose }) {
 // A lead lives here in one of two states until it's qualified & built:
 //   new  — arrived from intake, never opened → stands out (pink accent)
 //   seen — opened by a CAM, not yet qualified → recedes (gray "Reviewed")
-function InboxLead({ s, onOpen }) {
+function InboxLead({ s, onOpen, onArchive }) {
   const seen = !!s.openedAt;
   // Age comes from the lead's real submission time, NOT the row's mint time —
   // see leadAge.js. The absolute stamp sits beside the age so "1mo ago" is
@@ -275,6 +275,11 @@ function InboxLead({ s, onOpen }) {
           ? <span className="fx-badge seen">Reviewed</span>
           : <span className="fx-badge new"><span className="d" />New</span>}
         <span className="fx-lead-pct"><b>{s.match}%</b><span>match</span></span>
+        {onArchive && (
+          <button className="fx-lead-kill" title="Remove this lead (spam, duplicate, test)"
+            aria-label={`Remove ${s.community}`}
+            onClick={(e) => { e.stopPropagation(); onArchive(s); }}><I.Trash width={14} height={14} /></button>
+        )}
       </div>
       <div className="fx-lead-meta">{s.contact} · {s.homes} homes · {s.city}</div>
       <div className="fx-lead-recv" data-age={agePriority(rms)}>
@@ -292,7 +297,7 @@ function InboxLead({ s, onOpen }) {
   );
 }
 
-function InboxGrid({ pending, onOpen, pendingMore, onSyncMore, syncing }) {
+function InboxGrid({ pending, onOpen, pendingMore, onSyncMore, syncing, onArchive }) {
   const sorted = [...pending].sort((a, b) => (b.match || 0) - (a.match || 0));
   const fresh = sorted.filter((s) => !s.openedAt);     // never opened
   const reviewed = sorted.filter((s) => s.openedAt);   // opened, not yet qualified
@@ -324,11 +329,11 @@ function InboxGrid({ pending, onOpen, pendingMore, onSyncMore, syncing }) {
             "never opened", and now that each card shows its true age a 90-day-old
             lead sitting here would contradict the header. */}
         <div className="fx-grouplbl"><span>Awaiting review</span> · <span className="ct">{nNew} new</span><span className="ln" /></div>
-        <div className="fx-grid">{fresh.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} />)}</div>
+        <div className="fx-grid">{fresh.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} onArchive={onArchive} />)}</div>
       </>)}
       {reviewed.length > 0 && (<>
         <div className="fx-grouplbl seen"><span>Reviewed · waiting to qualify</span> · <span className="ct">{reviewed.length}</span><span className="ln" /></div>
-        <div className="fx-grid">{reviewed.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} />)}</div>
+        <div className="fx-grid">{reviewed.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} onArchive={onArchive} />)}</div>
       </>)}
     </div>
   );
@@ -399,7 +404,7 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing, onArchive }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null (Layer B)
@@ -414,7 +419,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 
   // VIEW 1 — inbox grid (nothing drilled in, or the selected lead isn't a new one)
   if (inbox || !sub || stageOf(sub) !== 'pending') {
-    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} pendingMore={pendingMore} onSyncMore={onSyncMore} syncing={syncing} /></>);
+    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} pendingMore={pendingMore} onSyncMore={onSyncMore} syncing={syncing} onArchive={onArchive} /></>);
   }
 
   // VIEW 2 — match-analysis drill-in
@@ -445,6 +450,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
       )}
 
       <StageToolbar backLabel="Back to inbox" onBack={onBack} actions={[
+        { icon: <I.Trash width={14} height={14} />, label: 'Remove lead', onClick: () => onArchive(sub) },
         { icon: icoPhone(), label: 'Update from call', onClick: onRealign },
         { icon: icoEdit(), label: 'Edit details', onClick: onEditDetails },
         { label: 'Qualify & Build', onClick: () => setQualifyTarget(sub), primary: true, arrow: true },
@@ -1209,6 +1215,84 @@ function SendModal({ sub, onClose, onSend }) {
 }
 
 // Won / Lost — the closed-outcome stage (accepted vs declined/not-a-fit).
+// Remove a lead from the pipeline for good (spam / duplicate / test). Separate
+// from QualifyModal's "not quotable": that records a real prospect who didn't
+// fit, this hides junk that should never have been a proposal.
+const ARCHIVE_REASONS = ['Spam / junk submission', 'Duplicate of another lead', 'Test submission', 'Wrong form / not an HOA', 'Other'];
+
+function ArchiveModal({ s, onClose, onArchive }) {
+  const [reason, setReason] = useState(ARCHIVE_REASONS[0]);
+  return (
+    <div className="ps-scrim" onClick={onClose}>
+      <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head">
+          <span className="t">Remove {s.community}</span>
+          <button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button>
+        </div>
+        <div className="v2-qual-body">
+          <label className="v2-qual-label">Why is it being removed?</label>
+          <div className="v2-qual-reasons">
+            {ARCHIVE_REASONS.map((r) => (
+              <button key={r} className="v2-qual-reason" data-on={reason === r} onClick={() => setReason(r)}>
+                <span className="v2-qual-radio" data-on={reason === r} />{r}
+              </button>
+            ))}
+          </div>
+          <div className="v2-qual-hint">
+            Disappears from every stage — it won't sit in Won / Lost. Intake sync won't bring it back.
+            Recoverable from <b>Archive</b> if you need it.
+          </div>
+          <div className="v2-qual-actions">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn v2-btn-danger" onClick={() => { onArchive(s.id, reason); onClose(); }}>
+              <I.Trash width={14} height={14} /> Remove lead
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The bin. Not a pipeline stage, so it lives off the side rail like UVP Library.
+function ArchiveView({ archived, onRestore }) {
+  return (
+    <div>
+      <div className="fx-inbox-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="fx-eyebrow">Archive · removed from the pipeline</div>
+          <h2 className="fx-h">{archived.length} {archived.length === 1 ? 'lead' : 'leads'} removed.</h2>
+          <p className="fx-sub">Spam, duplicates and test submissions. These are hidden from every stage and <b>intake sync will not re-add them</b>. Restore one to put it back in the inbox.</p>
+        </div>
+      </div>
+      {archived.length === 0 && <div className="fx-empty">Nothing archived — removed leads will collect here.</div>}
+      {archived.length > 0 && (
+        <div className="fx-arch-list">
+          {archived.map((a) => {
+            const rms = receivedMs(a);
+            return (
+              <div className="fx-arch" key={a.id}>
+                <div className="fx-arch-main">
+                  <div className="fx-arch-t">{a.community || 'Unnamed lead'}</div>
+                  <div className="fx-arch-m">
+                    {[a.contact, a.homes ? `${a.homes} homes` : '', a.city].filter(Boolean).join(' · ') || 'No contact details'}
+                  </div>
+                  <div className="fx-arch-m2">
+                    {rms != null && <>Received {fmtReceived(rms)} · </>}
+                    removed {a.archivedAt ? ageAgo(Date.parse(a.archivedAt)) : ''}{a.archivedBy ? ` by ${a.archivedBy}` : ''}
+                  </div>
+                </div>
+                {a.archivedReason && <span className="fx-arch-why">{a.archivedReason}</span>}
+                <button className="fx-arch-restore" onClick={() => onRestore(a.id)}>Restore</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WonLostView({ subs }) {
   const won = subs.filter((s) => s.status === 'accepted');
   const lost = subs.filter((s) => s.status === 'declined' || s.disq);
@@ -1408,7 +1492,7 @@ export default function ProposalsScreen() {
   // View state mirrors the URL (?stage=&lead=) so a refresh stays put — reload
   // on Sent and you land back on Sent, not bounced to New.
   const [searchParams, setSearchParams] = useSearchParams();
-  const STAGES = ['new', 'build', 'sent', 'won', 'library'];
+  const STAGES = ['new', 'build', 'sent', 'won', 'library', 'archive'];
   const urlStage = STAGES.includes(searchParams.get('stage')) ? searchParams.get('stage') : 'new';
   const urlLead = searchParams.get('lead');
   const urlLeadOk = !!urlLead && initialLeads.some((l) => l.id === urlLead);
@@ -1426,6 +1510,9 @@ export default function ProposalsScreen() {
   // leads.last_synced_at, stamped by sync-whatconverts) so it survives reload,
   // then bumped locally after a manual sync.
   const [syncedAt, setSyncedAt] = useState(() => DATA.intakeSyncedAt || null);
+  // Archive bin — removed from the pipeline but kept as drain tombstones.
+  const [archived, setArchived] = useState(() => DATA.archivedProposals || []);
+  const [archiveTarget, setArchiveTarget] = useState(null); // lead pending the confirm modal
   const [previewNonce, setPreviewNonce] = useState(0); // bump → Build preview iframe re-fetches
   const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
@@ -1450,6 +1537,10 @@ export default function ProposalsScreen() {
   // created once and would otherwise dedupe against a mount-time snapshot.
   const subsRef = useRef(subs);
   useEffect(() => { subsRef.current = subs; }, [subs]);
+  // Archived lead keys must ALSO suppress minting, or the drain would see an
+  // archived lead as "no proposal in the pipeline" and re-create it every tick.
+  const archivedRef = useRef(archived);
+  useEffect(() => { archivedRef.current = archived; }, [archived]);
   const syncFresh = syncFreshness(syncedAt ? Date.parse(syncedAt) : null);
 
   // Persist a proposal mutation to Supabase (live only; mock dev stays
@@ -1513,6 +1604,34 @@ export default function ProposalsScreen() {
   const disqualify = (id, reason) => {
     setSubs(subs.map((s) => s.id === id ? { ...s, disq: true, disqReason: reason } : s));
     persist(id, { disq: true, disq_reason: reason || '' });
+  };
+  // Archive = remove from the pipeline entirely (spam / duplicate / test), as
+  // opposed to disqualify, which keeps a real-but-not-a-fit prospect in Won/Lost
+  // as a record. The row is KEPT as a tombstone on purpose: the intake drain
+  // decides what's new by "has no proposal yet", so a hard delete would be
+  // re-minted (and re-LLM-matched) on the next tick. See the migration comment.
+  const archiveLead = (id, reason) => {
+    const sub = subs.find((s) => s.id === id);
+    if (!sub) return;
+    const at = new Date().toISOString();
+    const by = DATA.user?.name || '';
+    setSubs((p) => p.filter((s) => s.id !== id));
+    setArchived((p) => [{ ...sub, archivedAt: at, archivedReason: reason || '', archivedBy: by }, ...p]);
+    // Leaving the focused lead: fall back to the inbox so we don't render a
+    // detail view for a lead that's no longer in `subs`.
+    if (selectedId === id) { setInbox(true); setWatchId(null); }
+    persist(id, { archived_at: at, archived_reason: reason || '', archived_by: by });
+    setToast({ msg: `${sub.community} removed — in Archive`, undo: () => restoreLead(id) });
+  };
+  const restoreLead = (id) => {
+    const a = archived.find((s) => s.id === id);
+    if (!a) return;
+    setArchived((p) => p.filter((s) => s.id !== id));
+    // Re-enrich: the bin holds a light shape (no match/sections), and every
+    // pipeline view expects the enriched view-model.
+    setSubs((p) => [enrichLead({ ...a, archivedAt: null, archivedReason: '', archivedBy: '' }, cam()), ...p]);
+    persist(id, { archived_at: null, archived_reason: '', archived_by: '' });
+    setToast({ msg: `${a.community} restored to the pipeline` });
   };
   const markWon = (id, salesValue) => {
     setSubs(subs.map((s) => s.id === id ? { ...s, status: 'accepted', salesValue } : s));
@@ -1619,6 +1738,7 @@ export default function ProposalsScreen() {
     // over `subs` would freeze at mount and re-mint (and re-LLM-match) the same
     // leads on every tick.
     if (subsRef.current.some((s) => s.id === lead.id)) return null; // already in the pipeline
+    if (archivedRef.current.some((s) => s.id === lead.id)) return null; // archived — stay gone
     const raw = leadToProposalRaw(lead);
     if (live) {
       const { error } = await supabase.from('proposals').upsert({
@@ -1696,7 +1816,11 @@ export default function ProposalsScreen() {
       // Newest first (the select is DESC) so a capped pass works the freshest
       // leads. subsRef, not subs — see mintLead.
       const { batch, remaining } = selectIntakeBatch({
-        leads, existingIds: subsRef.current.map((x) => x.id), cap: DRAIN_CAP,
+        leads,
+        // Pipeline AND archive: an archived lead has no pipeline row, so without
+        // its id here every tick would resurrect the spam you just removed.
+        existingIds: [...subsRef.current.map((x) => x.id), ...archivedRef.current.map((x) => x.id)],
+        cap: DRAIN_CAP,
       });
       setPendingMore(remaining);
       let n = 0;
@@ -1769,6 +1893,13 @@ export default function ProposalsScreen() {
           <button className="v2-lib-btn" data-on={mode === 'library'} onClick={() => setMode('library')} title="The capabilities every proposal matches against">
             <I.Bolt width={14} height={14} /> UVP Library
           </button>
+          {/* Not a pipeline stage, so it sits off the rail rather than in the
+              stepper. Shown once something's in it, or while you're viewing it. */}
+          {(archived.length > 0 || mode === 'archive') && (
+            <button className="v2-lib-btn" data-on={mode === 'archive'} onClick={() => setMode('archive')} title="Leads removed from the pipeline">
+              <I.Archive width={14} height={14} /> Archive <b>{archived.length}</b>
+            </button>
+          )}
           {isDemo && (
             <button className={'fx-demo-reset' + (resetArmed ? ' armed' : '')} onClick={resetDemo} disabled={resetting}
               title="Reset the demo pipeline to its starting state">
@@ -1796,7 +1927,7 @@ export default function ProposalsScreen() {
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
         <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} onRealign={() => setRealignOpen(true)}
-          pendingMore={pendingMore} onSyncMore={syncNow} syncing={syncing} />
+          pendingMore={pendingMore} onSyncMore={syncNow} syncing={syncing} onArchive={setArchiveTarget} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
@@ -1816,10 +1947,12 @@ export default function ProposalsScreen() {
       {mode === 'won' && <WonLostView subs={subs} />}
       {/* Client — retained book of business. */}
       {mode === 'library' && <UVPLibrary />}
+      {mode === 'archive' && <ArchiveView archived={archived} onRestore={restoreLead} />}
 
       {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
       {editOpen && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
       {realignOpen && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
+      {archiveTarget && <ArchiveModal s={archiveTarget} onClose={() => setArchiveTarget(null)} onArchive={archiveLead} />}
       {matching && (
         <div className="v2-launch">
           <div className="v2-launch-card fx-scan-card">
@@ -1832,7 +1965,13 @@ export default function ProposalsScreen() {
         </div>
       )}
       {launching && <LaunchOverlay sub={sub} />}
-      {toast && <div className="ps-toast"><span className="ic"><I.Check width={14} height={14} /></span>{toast.msg}</div>}
+      {toast && (
+        <div className="ps-toast">
+          <span className="ic"><I.Check width={14} height={14} /></span>{toast.msg}
+          {/* Removing a lead is one click, so it gets a one-click way back. */}
+          {toast.undo && <button className="ps-toast-undo" onClick={() => { const u = toast.undo; setToast(null); u(); }}>Undo</button>}
+        </div>
+      )}
     </div>
   );
 }

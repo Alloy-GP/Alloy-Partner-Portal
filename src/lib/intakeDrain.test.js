@@ -70,6 +70,39 @@ describe('selectIntakeBatch', () => {
     expect(remaining).toBe(0);
   });
 
+  // The reason archiving is a soft-delete: the drain's only notion of "new" is
+  // "no proposal row yet". Archived leads have no PIPELINE row, so their ids must
+  // be passed in existingIds or every tick re-mints the spam (and re-pays for an
+  // LLM match). Guarding it here because the failure is silent and recurring.
+  it('never re-mints an archived lead', () => {
+    const leads = [hoa('spam-1'), hoa('real-1'), hoa('spam-2')];
+    const pipeline = ['real-1'];
+    const archivedIds = ['spam-1', 'spam-2'];
+    const { batch, remaining } = selectIntakeBatch({
+      leads, existingIds: [...pipeline, ...archivedIds],
+    });
+    expect(batch).toEqual([]);
+    expect(remaining).toBe(0);
+  });
+
+  it('still mints genuinely new leads alongside archived ones', () => {
+    const { batch } = selectIntakeBatch({
+      leads: [hoa('spam-1'), hoa('brand-new')],
+      existingIds: ['spam-1'],
+    });
+    expect(batch.map((l) => l.id)).toEqual(['brand-new']);
+  });
+
+  it('archived leads do not consume the cap', () => {
+    const leads = [...Array.from({ length: 10 }, (_, i) => hoa(`spam${i}`)),
+                   ...Array.from({ length: 5 }, (_, i) => hoa(`new${i}`))];
+    const { batch, remaining } = selectIntakeBatch({
+      leads, existingIds: Array.from({ length: 10 }, (_, i) => `spam${i}`), cap: 3,
+    });
+    expect(batch.map((l) => l.id)).toEqual(['new0', 'new1', 'new2']);
+    expect(remaining).toBe(2);
+  });
+
   it('treats cap 0 as "mint nothing, everything remains"', () => {
     const { batch, remaining } = selectIntakeBatch({ leads: [hoa('a'), hoa('b')], cap: 0 });
     expect(batch).toEqual([]);

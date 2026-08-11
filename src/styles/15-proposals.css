@@ -1269,6 +1269,28 @@
 .proposal-system .fx-sync[data-fresh="lag"] .fx-sync-txt .s { color: #8a6410; }
 .proposal-system .fx-sync[data-fresh="cold"] .live { background: #c9556f; animation: none; box-shadow: none; }
 .proposal-system .fx-sync[data-fresh="cold"] .fx-sync-txt .s { color: #b3315c; font-weight: 700; }
+/* Remove-lead affordance on an inbox card. Hidden until hover so the card stays
+   calm, but always reachable by keyboard. */
+.proposal-system .fx-lead-kill { flex: none; width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; color: var(--fg-muted); display: grid; place-items: center; cursor: pointer; opacity: 0; transform: scale(0.85); transition: opacity .16s, transform .16s, background .16s, color .16s; }
+.proposal-system .fx-lead:hover .fx-lead-kill { opacity: 1; transform: scale(1); }
+.proposal-system .fx-lead-kill:focus-visible { opacity: 1; transform: scale(1); outline: 2px solid var(--alloy-pink); outline-offset: 1px; }
+.proposal-system .fx-lead-kill:hover { background: #fbeef3; color: #b3315c; }
+
+/* Archive bin */
+.proposal-system .fx-arch-list { display: flex; flex-direction: column; gap: 9px; }
+.proposal-system .fx-arch { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 13px 15px; }
+.proposal-system .fx-arch-main { min-width: 0; flex: 1; }
+.proposal-system .fx-arch-t { font-size: 14px; font-weight: 700; color: var(--fg-2); line-height: 1.25; }
+.proposal-system .fx-arch-m { font-size: 12.5px; color: var(--fg-muted); font-weight: 600; margin-top: 2px; }
+.proposal-system .fx-arch-m2 { font-size: 11px; color: var(--fg-faint, #b3a9bf); font-weight: 600; margin-top: 4px; }
+.proposal-system .fx-arch-why { flex: none; font-size: 11px; font-weight: 700; color: var(--fg-muted); background: var(--alloy-off-white, #f7f4fa); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
+.proposal-system .fx-arch-restore { flex: none; background: #fff; border: 1.5px solid var(--border-subtle); border-radius: 9px; padding: 8px 14px; font: inherit; font-size: 12px; font-weight: 700; color: var(--alloy-purple); cursor: pointer; transition: border-color .13s, background .13s; }
+.proposal-system .fx-arch-restore:hover { border-color: var(--alloy-purple); background: var(--alloy-purple-tint); }
+
+/* One-click way back out of a one-click removal. */
+.proposal-system .ps-toast-undo { margin-left: 4px; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; padding: 5px 11px; font: inherit; font-size: 12px; font-weight: 800; color: #fff; cursor: pointer; transition: background .13s; }
+.proposal-system .ps-toast-undo:hover { background: rgba(255,255,255,0.28); }
+
 /* Backlog beyond one drain pass — a capped run must not look complete. */
 .proposal-system .fx-more { display: flex; align-items: center; gap: 10px; background: #fbf6ea; border: 1px solid #eddfbe; border-radius: 12px; padding: 11px 14px; margin: 0 0 16px; font-size: 12.5px; color: #7a5a12; }
 .proposal-system .fx-more .d { width: 8px; height: 8px; border-radius: 999px; background: #d9a13a; flex: none; }
