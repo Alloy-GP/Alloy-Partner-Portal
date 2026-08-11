@@ -68,6 +68,10 @@ export function leadToProposalRaw(lead) {
     selectedPains: painsFromFrustrations(get("frustrations")),
     quote: get("in your own words - what does success look like?", "in your own words", "anything you'd like us to know? (optional)") || lead.message || "",
     received: lead.date ? new Date(lead.date).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "",
+    // The machine-readable twin of `received`. `received` is a display string
+    // formatted in the browser's locale — useless for computing a lead's age,
+    // which is why the inbox used to fall back to the row's insert time.
+    receivedAt: lead.date ? new Date(lead.date).toISOString() : null,
     status: "new",
     owner: "",
     perHome: 8.98, // default Full-Service rate; staff adjusts in Build

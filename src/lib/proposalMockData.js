@@ -16,6 +16,7 @@
 // ============================================================================
 
 import { deriveLeadMatch } from "./proposalMatch.js";
+import { receivedMs } from "./leadAge.js";
 import { LLM_MATCHES } from "./proposalLLMMatches.generated.js";
 import { DATA } from "../data.js";
 // UVPs live in ONE canonical place (the backbone). Re-export so existing
@@ -372,7 +373,14 @@ export function enrichLead(s, cam) {
   const m = s.matchSnapshot || LLM_MATCHES[s.id] || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, uvps, { prose, topCaps: 4 }), _source: "engine" };
   const tierName = "Full-Service Management";
   const quoteValue = s.quoteValue != null ? s.quoteValue : Math.round((s.perHome || 0) * (s.homes || 0) * 12);
-  const first = s.received ? s.received.split(" · ")[0] : "intake";
+  // Date the board raised these concerns. Derived from the real timestamp rather
+  // than splitting `received` on " · " — live intake rows use " at " as the
+  // separator, so the old split returned the whole string ("Jul 7, 2026 at 6:47
+  // PM") and the tagline read like a log line.
+  const firstMs = receivedMs(s);
+  const first = firstMs != null
+    ? new Date(firstMs).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "intake";
   return {
     ...s,
     tierName,

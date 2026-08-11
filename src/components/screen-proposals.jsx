@@ -4,6 +4,8 @@ import { I } from './icons.jsx';
 import { getLeads, enrichLead, PAIN_POINTS, pricing, freshWatch } from '../lib/proposalMockData.js';
 import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
+import { parseCcInput, CC_MAX } from '../lib/ccList.js';
+import { receivedMs, fmtReceived, ageAgo, agePriority } from '../lib/leadAge.js';
 import { matchLeadWithLLM, realignFromTranscript, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
 import UVPLibrary from './screen-uvp-library.jsx';
@@ -257,9 +259,13 @@ function WinModal({ s, onClose, onWin, onLose }) {
 //   seen — opened by a CAM, not yet qualified → recedes (gray "Reviewed")
 function InboxLead({ s, onOpen }) {
   const seen = !!s.openedAt;
+  // Age comes from the lead's real submission time, NOT the row's mint time —
+  // see leadAge.js. The absolute stamp sits beside the age so "1mo ago" is
+  // always backed by a date the CAM can quote on a call.
+  const rms = receivedMs(s);
   const when = seen
     ? `Opened by ${s.openedBy || 'a teammate'}${relAgo(s.openedAt) ? ' · ' + relAgo(s.openedAt) : ''}`
-    : `Arrived ${relAgo(s.arrivedAt) || 'recently'} · unopened`;
+    : 'Not yet opened';
   return (
     <div className="fx-lead" data-state={seen ? 'seen' : 'new'} onClick={() => onOpen(s.id)} role="button" tabIndex={0}>
       <div className="fx-lead-top">
@@ -270,6 +276,12 @@ function InboxLead({ s, onOpen }) {
         <span className="fx-lead-pct"><b>{s.match}%</b><span>match</span></span>
       </div>
       <div className="fx-lead-meta">{s.contact} · {s.homes} homes · {s.city}</div>
+      <div className="fx-lead-recv" data-age={agePriority(rms)}>
+        <I.Clock width={12} height={12} />
+        {rms != null
+          ? <>Received {fmtReceived(rms)}<b>{ageAgo(rms)}</b></>
+          : <>Received date unknown</>}
+      </div>
       {s.quote && <div className="fx-lead-quote">"{s.quote}"</div>}
       <div className="fx-lead-foot">
         <span className={'fx-lead-when' + (seen ? ' seen' : '')}><span className="arr" /> {when}</span>
@@ -298,7 +310,10 @@ function InboxGrid({ pending, onOpen }) {
       </div>
       {total === 0 && <div className="fx-empty">You're all caught up — new intake submissions will appear here automatically.</div>}
       {nNew > 0 && (<>
-        <div className="fx-grouplbl"><span>Just arrived</span> · <span className="ct">{nNew} new</span><span className="ln" /></div>
+        {/* "Just arrived" was a lie for anything but a fresh sync — this bucket is
+            "never opened", and now that each card shows its true age a 90-day-old
+            lead sitting here would contradict the header. */}
+        <div className="fx-grouplbl"><span>Awaiting review</span> · <span className="ct">{nNew} new</span><span className="ln" /></div>
         <div className="fx-grid">{fresh.map((s) => <InboxLead key={s.id} s={s} onOpen={onOpen} />)}</div>
       </>)}
       {reviewed.length > 0 && (<>
@@ -865,9 +880,15 @@ function expState(w) {
 function HeatPill({ heat, big }) { const h = HEAT[heat] || HEAT.cold; return <span className={'v2-w-heat v2-w-heat--' + h.cls + (big ? ' big' : '')}><span className="d" />{h.label}</span>; }
 function ExpBar({ w }) { const e = expState(w); return <span className="v2-w-mini"><span className={'v2-w-mini-fill exp-' + e.cls} style={{ width: e.frac * 100 + '%' }} /></span>; }
 
+// A nudge is the CAM's own words, not a template: `msg` is what actually
+// renders as the email body (proposal-send nudge mode), so it must be threaded
+// through onSend — dropping it is how the typed message used to vanish.
 function NudgeModal({ s, onClose, onSend }) {
   const w = getWatch(s);
   const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— ${cam().ownerFirst[s.owner] || cam().shortName}`);
+  const [ccRaw, setCcRaw] = useState('');
+  const cc = parseCcInput(ccRaw);
+  const canSend = !!msg.trim() && cc.ok && !cc.overflow;
   return (
     <div className="ps-scrim" onClick={onClose}>
       <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
@@ -879,10 +900,20 @@ function NudgeModal({ s, onClose, onSend }) {
         <div className="v2-qual-body">
           <label className="v2-qual-label">Follow-up message <span>· to {s.contact}</span></label>
           <textarea className="v2-edit-area" style={{ minHeight: 150 }} value={msg} onChange={(e) => setMsg(e.target.value)} autoFocus />
-          <div className="v2-qual-hint">Sends as a reply on the original thread, with the same secure link.</div>
+          <label className="v2-qual-label">CC <span>· optional — other board members</span></label>
+          <input className="v2-qual-input" type="text" value={ccRaw} placeholder="treasurer@oakgrovehoa.org, president@…"
+            onChange={(e) => setCcRaw(e.target.value)} data-bad={!cc.ok || cc.overflow} />
+          <div className="v2-qual-hint">
+            {!cc.ok
+              ? <span className="v2-qual-bad">Not a valid email: {cc.invalid.join(', ')}</span>
+              : cc.overflow
+                ? <span className="v2-qual-bad">{cc.list.length} addresses — CC is capped at {CC_MAX}.</span>
+                : <>Sends as a reply on the original thread, with the same secure link.{cc.list.length ? ` Copying ${cc.list.length} other ${cc.list.length === 1 ? 'person' : 'people'}.` : ''}</>}
+          </div>
           <div className="v2-qual-actions">
             <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => { onSend(s); onClose(); }}><I.Send width={14} height={14} /> Send nudge</button>
+            <button className="btn btn-primary" disabled={!canSend}
+              onClick={() => { onSend(s, { message: msg, cc: cc.list }); onClose(); }}><I.Send width={14} height={14} /> Send nudge</button>
           </div>
         </div>
       </div>
@@ -1534,17 +1565,25 @@ export default function ProposalsScreen() {
   // Resend / nudge — re-email the magic link to the address the proposal was
   // sent to (persisted on the row, so a custom recipient is honored, not the
   // original intake email). proposal-send with no `to` uses proposals.email.
-  const resendProposal = async (s, label) => {
+  // `message` (nudge only) becomes the email body server-side; `cc` copies other
+  // board members. Plain resend passes neither and re-sends the full proposal.
+  const resendProposal = async (s, label, { message, cc } = {}) => {
+    const ccList = (cc || []).filter(Boolean);
     if (live) {
       const { data, error } = await supabase.functions.invoke('proposal-send', {
-        body: { leadKey: s.id, accountId: DATA.account.id, baseUrl: window.location.origin },
+        body: {
+          leadKey: s.id, accountId: DATA.account.id, baseUrl: window.location.origin,
+          ...(message ? { message } : {}),
+          ...(ccList.length ? { cc: ccList } : {}),
+        },
       });
       let detail = data?.error || '';
       if (error && !detail) { try { detail = (await error.context.json())?.error || error.message; } catch { detail = error.message; } }
       if (detail) { setToast({ msg: `${label} failed: ` + detail }); return; }
-      setToast({ msg: `${label} to ${data.to}` });
+      const nCc = (data.cc || []).length;
+      setToast({ msg: `${label} to ${data.to}${nCc ? ` (cc ${nCc})` : ''}` });
     } else {
-      setToast({ msg: `${label} to ${s.email || s.firstName}` });
+      setToast({ msg: `${label} to ${s.email || s.firstName}${ccList.length ? ` (cc ${ccList.length})` : ''}` });
     }
   };
   // Mint a proposal from a WhatConverts intake lead (idempotent on lead_key) and
@@ -1560,6 +1599,9 @@ export default function ProposalsScreen() {
         city: raw.city, homes: raw.homes, email: raw.email, phone: raw.phone,
         meta_type: raw.metaType, meta_status: raw.metaStatus, dues: raw.dues,
         engage_timeline: raw.engageTimeline, budget: raw.budget, quote: raw.quote, received: raw.received,
+        // The lead's REAL submission time. Without this the inbox would date the
+        // lead from this insert, which on a backlog sync is weeks off.
+        received_at: raw.receivedAt,
         status: 'new', selected_pains: raw.selectedPains, tier_id: 'full', per_home: raw.perHome,
       }, { onConflict: 'account_id,lead_key' });
       if (error) { setToast({ msg: 'Sync insert failed: ' + error.message }); return null; }
@@ -1658,7 +1700,7 @@ export default function ProposalsScreen() {
       {mode === 'sent' && (
         <CloseView subs={subs} watchId={watchId} setWatchId={setWatchId} onPick={pickSent}
           onResend={(s) => resendProposal(s, 'Magic link resent')}
-          onNudge={(s) => resendProposal(s, 'Nudge sent')}
+          onNudge={(s, opts) => resendProposal(s, 'Nudge sent', opts)}
           onMarkWon={markWon} onMarkLost={markLost} notesMap={notesMap} addNote={addNote}
           onEditDetails={() => setEditOpen(true)} onRealign={() => setRealignOpen(true)} onOpenFull={(s) => window.open(BOARD_URL(s), '_blank', 'noopener')} />
       )}
