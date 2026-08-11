@@ -108,7 +108,7 @@ export async function loadAccountData(session, accountId, me) {
     // last_synced_at is stamped on every row by sync-whatconverts, so the max
     // across leads = when intake last pulled. The proposals cockpit shows it, so
     // "Sync intake" can report real freshness instead of implying it.
-    supabase.from('leads').select('wc_lead_id, name, email, phone, company, source, quality, quotable, lead_status, value, quote_value, sales_value, type, time_label, created_at, last_synced_at, page, fields, context, sort').eq('account_id', accountId).order('sort'),
+    supabase.from('leads').select('wc_lead_id, name, email, phone, company, source, quality, quotable, lead_status, value, quote_value, sales_value, type, time_label, created_at, last_synced_at, wc_account_id, page, fields, context, sort').eq('account_id', accountId).order('sort'),
     supabase.from('activity').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('tickets').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('kpis').select('*').eq('account_id', accountId).order('sort'),
@@ -209,6 +209,7 @@ export async function loadAccountData(session, accountId, me) {
       mondayBoardId: account.monday_board_id || null,
       zendeskOrgId: account.zendesk_org_id || null,
       whatconvertsProfileId: account.whatconverts_profile_id || null,
+      wcProfileNames: account.wc_profile_names || {}, // WC account_id -> display name
       // Lifetime WhatConverts tenure (weekly rollup).
       wcQualifiedTotal: account.wc_qualified_total || 0,
       wcQualifiedBySource: account.wc_qualified_by_source || {},
@@ -271,6 +272,7 @@ export async function loadAccountData(session, accountId, me) {
       value: l.value, quoteValue: l.quote_value, salesValue: l.sales_value,
       type: l.type, time: l.time_label, date: l.created_at, fields: l.fields, context: l.context, page: l.page,
       lastSyncedAt: l.last_synced_at || null,
+      wcAccountId: l.wc_account_id || null, // which WhatConverts profile it came from
       // message + journey lazy-loaded in the lead detail panel (see LeadsScreen)
     })),
     // When intake last pulled from WhatConverts (max stamp across leads). Null

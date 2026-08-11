@@ -10,6 +10,11 @@
 const HOA_FIELD = /frustration|community|association|units/i;
 export const isHoaIntake = (lead) => (lead?.fields || []).some((f) => HOA_FIELD.test(f?.name || ''));
 
+// A lead the portal has marked spam or duplicate (leads.lead_status, set by the
+// qualify-lead function) should never become a proposal. sync-whatconverts also
+// archives any proposal already minted from one — this stops it happening again.
+export const isJunk = (lead) => ['spam', 'duplicate'].includes(String(lead?.leadStatus || '').toLowerCase());
+
 // leads MUST arrive newest-first (the query orders created_at desc) so a capped
 // pass works the freshest leads rather than an arbitrary slice of the archive.
 //
@@ -24,6 +29,7 @@ export function selectIntakeBatch({ leads = [], existingIds = [], cap = 25 } = {
   for (const l of leads) {
     if (!l || l.id == null) continue;
     if (!isHoaIntake(l)) continue;
+    if (isJunk(l)) continue;           // spam/duplicate — don't mint it in the first place
     if (have.has(l.id)) continue;      // already in the pipeline
     if (seen.has(l.id)) continue;      // duplicate id within the fetched window
     seen.add(l.id);

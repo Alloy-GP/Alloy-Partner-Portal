@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectIntakeBatch, isHoaIntake } from './intakeDrain.js';
+import { selectIntakeBatch, isHoaIntake, isJunk } from './intakeDrain.js';
 
 const hoa = (id) => ({ id, fields: [{ name: 'Biggest frustrations', value: 'x' }] });
 const other = (id) => ({ id, fields: [{ name: 'How did you hear about us?', value: 'x' }] });
@@ -21,7 +21,32 @@ describe('isHoaIntake', () => {
   });
 });
 
+describe('isJunk', () => {
+  it('flags spam and duplicate, case-insensitively', () => {
+    expect(isJunk({ leadStatus: 'spam' })).toBe(true);
+    expect(isJunk({ leadStatus: 'Spam' })).toBe(true);
+    expect(isJunk({ leadStatus: 'duplicate' })).toBe(true);
+    expect(isJunk({ leadStatus: 'DUPLICATE' })).toBe(true);
+  });
+  it('leaves everything else alone', () => {
+    for (const v of [null, undefined, '', 'unique', 'qualified', 'review']) {
+      expect(isJunk({ leadStatus: v })).toBe(false);
+    }
+    expect(isJunk({})).toBe(false);
+    expect(isJunk(null)).toBe(false);
+  });
+});
+
 describe('selectIntakeBatch', () => {
+  it('never mints a lead marked spam or duplicate', () => {
+    const spam = { id: 'sp', leadStatus: 'spam', fields: [{ name: 'Biggest frustrations' }] };
+    const dup = { id: 'dp', leadStatus: 'duplicate', fields: [{ name: 'Association name' }] };
+    const good = hoa('ok');
+    const { batch, remaining } = selectIntakeBatch({ leads: [spam, dup, good] });
+    expect(batch.map((l) => l.id)).toEqual(['ok']);
+    expect(remaining).toBe(0); // junk isn't "waiting", it's excluded
+  });
+
   it('mints only un-minted HOA intake', () => {
     const { batch, remaining } = selectIntakeBatch({
       leads: [hoa('a'), other('b'), hoa('c')],
