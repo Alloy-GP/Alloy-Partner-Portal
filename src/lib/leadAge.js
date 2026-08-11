@@ -84,6 +84,22 @@ export function ageAgo(ms, now = Date.now()) {
   return `${years}y ago`;
 }
 
+// How fresh is the intake pull itself? Judged against the server cadence:
+// whatconverts-daily cron runs every 30 min (plus whatconverts-webhook for
+// near-instant), so one missed cycle is normal jitter and several means the
+// pipe is broken and the inbox is quietly out of date.
+//   live  — within ~1.5 cron cycles (45 min)
+//   lag   — 45 min to 3 h; a cycle or two missed
+//   cold  — over 3 h, or never synced
+export function syncFreshness(ms, now = Date.now()) {
+  if (ms == null) return 'cold';
+  const mins = (now - ms) / 60000;
+  if (Number.isNaN(mins)) return 'cold';
+  if (mins <= 45) return 'live';
+  if (mins <= 180) return 'lag';
+  return 'cold';
+}
+
 // How stale is this unworked lead? Drives the card's emphasis so an aging lead
 // reads as aging without the CAM doing date math.
 //   fresh  — under a day

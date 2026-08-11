@@ -5,7 +5,8 @@ import { getLeads, enrichLead, PAIN_POINTS, pricing, freshWatch } from '../lib/p
 import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { parseCcInput, CC_MAX } from '../lib/ccList.js';
-import { receivedMs, fmtReceived, ageAgo, agePriority } from '../lib/leadAge.js';
+import { selectIntakeBatch } from '../lib/intakeDrain.js';
+import { receivedMs, fmtReceived, ageAgo, agePriority, syncFreshness } from '../lib/leadAge.js';
 import { matchLeadWithLLM, realignFromTranscript, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
 import UVPLibrary from './screen-uvp-library.jsx';
@@ -291,7 +292,7 @@ function InboxLead({ s, onOpen }) {
   );
 }
 
-function InboxGrid({ pending, onOpen }) {
+function InboxGrid({ pending, onOpen, pendingMore, onSyncMore, syncing }) {
   const sorted = [...pending].sort((a, b) => (b.match || 0) - (a.match || 0));
   const fresh = sorted.filter((s) => !s.openedAt);     // never opened
   const reviewed = sorted.filter((s) => s.openedAt);   // opened, not yet qualified
@@ -308,7 +309,16 @@ function InboxGrid({ pending, onOpen }) {
           <p className="fx-sub">Every intake submission lands here automatically — no importing. New ones are flagged until someone opens them, and every lead stays in this list until it's <b>qualified &amp; built</b> into a proposal.</p>
         </div>
       </div>
-      {total === 0 && <div className="fx-empty">You're all caught up — new intake submissions will appear here automatically.</div>}
+      {/* A capped drain must never look like a finished one — say what's left
+          and give the CAM the button to pull the rest. */}
+      {pendingMore > 0 && (
+        <div className="fx-more">
+          <span className="d" />
+          <span><b>{pendingMore} more</b> intake {pendingMore === 1 ? 'lead is' : 'leads are'} waiting — this pass mints the newest 25 at a time.</span>
+          <button onClick={onSyncMore} disabled={syncing}>{syncing ? 'Pulling…' : 'Pull the rest'}</button>
+        </div>
+      )}
+      {total === 0 && pendingMore === 0 && <div className="fx-empty">You're all caught up — new intake submissions will appear here automatically.</div>}
       {nNew > 0 && (<>
         {/* "Just arrived" was a lie for anything but a fresh sync — this bucket is
             "never opened", and now that each card shows its true age a 90-day-old
@@ -389,7 +399,7 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null (Layer B)
@@ -404,7 +414,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 
   // VIEW 1 — inbox grid (nothing drilled in, or the selected lead isn't a new one)
   if (inbox || !sub || stageOf(sub) !== 'pending') {
-    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} /></>);
+    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} pendingMore={pendingMore} onSyncMore={onSyncMore} syncing={syncing} /></>);
   }
 
   // VIEW 2 — match-analysis drill-in
@@ -1412,6 +1422,10 @@ export default function ProposalsScreen() {
   const [watchId, setWatchId] = useState(urlStage === 'sent' && urlLeadOk ? urlLead : null);
   const [sendOpen, setSendOpen] = useState(false); // Send is a modal off Build, not a stage
   const [syncing, setSyncing] = useState(false); // inbox "Sync now" pull in flight
+  // When intake last pulled from WhatConverts. Seeded from the DB (max
+  // leads.last_synced_at, stamped by sync-whatconverts) so it survives reload,
+  // then bumped locally after a manual sync.
+  const [syncedAt, setSyncedAt] = useState(() => DATA.intakeSyncedAt || null);
   const [previewNonce, setPreviewNonce] = useState(0); // bump → Build preview iframe re-fetches
   const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
@@ -1426,6 +1440,17 @@ export default function ProposalsScreen() {
   const perHome = sub.perHome; // single source — price edits write back into subs so every view (tier card, bucket, board) reflects them
 
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3200); return () => clearTimeout(t); }, [toast]);
+
+  // Relative labels ("synced 4m ago", lead ages) are computed at render, so the
+  // screen needs a heartbeat or they freeze at whatever they said on mount.
+  const [, setNowTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setNowTick((n) => n + 1), 60000); return () => clearInterval(id); }, []);
+
+  // Always-current view of `subs` for the auto-drain interval, whose closure is
+  // created once and would otherwise dedupe against a mount-time snapshot.
+  const subsRef = useRef(subs);
+  useEffect(() => { subsRef.current = subs; }, [subs]);
+  const syncFresh = syncFreshness(syncedAt ? Date.parse(syncedAt) : null);
 
   // Persist a proposal mutation to Supabase (live only; mock dev stays
   // session-local). RLS-scoped to the viewed account; keyed by lead_key.
@@ -1590,7 +1615,10 @@ export default function ProposalsScreen() {
   // run the LLM match once. No popup, no per-lead navigation — used by the
   // auto-sync below. Returns the enriched proposal, or null if it already exists.
   const mintLead = async (lead) => {
-    if (subs.some((s) => s.id === lead.id)) return null; // already in the pipeline
+    // subsRef, not subs: the auto-drain interval is set up once, so a closure
+    // over `subs` would freeze at mount and re-mint (and re-LLM-match) the same
+    // leads on every tick.
+    if (subsRef.current.some((s) => s.id === lead.id)) return null; // already in the pipeline
     const raw = leadToProposalRaw(lead);
     if (live) {
       const { error } = await supabase.from('proposals').upsert({
@@ -1622,25 +1650,72 @@ export default function ProposalsScreen() {
     return enriched;
   };
 
-  // "Sync now" (inbox): pull the latest WhatConverts intake, then mint a proposal
-  // for any new HOA submission not already in the pipeline — so leads show up on
-  // their own, no popup. HOA filter mirrors the old intake picker.
-  const isHoaIntake = (l) => (l.fields || []).some((f) => /frustration|community|association|units/i.test(f.name));
+  // Intake → inbox. HOA filter mirrors the old intake picker.
+  //
+  // TWO LAYERS, and only one of them used to be automatic:
+  //   WhatConverts → `leads`   — automatic (whatconverts-daily cron every 30min
+  //                              + whatconverts-webhook for near-instant).
+  //   `leads` → `proposals`    — WAS manual-only, on this button. So leads piled
+  //                              up in the DB and only became inbox cards when a
+  //                              human happened to click, dumping months of
+  //                              backlog in one burst (observed: 22 leads
+  //                              spanning May 9 → Aug 11, all minted inside 2
+  //                              minutes). The screen's own copy already
+  //                              promises "lands here automatically".
+  //
+  // Now: `drain()` mints whatever is sitting in `leads`, and runs on mount + on
+  // an interval while the cockpit is open. The button additionally FORCES a
+  // WhatConverts pull first — the expensive part (multi-page, 400-day window),
+  // which the cron already does on schedule, so the automatic path never calls it.
+  // Cap per pass. Each mint is a DB write + (when enabled) one LLM match call, so
+  // an unbounded auto-drain on a fresh account with a big archive would fire
+  // hundreds of them unattended. Leftovers are REPORTED, never silently dropped.
+  const DRAIN_CAP = 25;
+  const AUTO_POLL_MS = 180000; // 3 min while the screen is open
+  const draining = useRef(false);   // reentrancy guard across mount + interval
+  const [pendingMore, setPendingMore] = useState(0); // backlog beyond the cap
+
+  // Mint anything in `leads` that has no proposal yet. Returns how many landed.
+  // `silent` = the automatic path: no toast unless it actually found something.
+  const drain = async ({ silent = false } = {}) => {
+    if (draining.current) return 0;
+    draining.current = true;
+    try {
+      let leads = DATA.recentLeads || [];
+      if (live) {
+        // Windowed: `fields` is JSONB and some accounts hold thousands of leads,
+        // so an unbounded select on a 3-minute poll would be a big repeat
+        // payload. 200 newest is far more than one pass can mint, and repeated
+        // passes still converge on a large archive.
+        const { data, error } = await supabase.from('leads')
+          .select('wc_lead_id, name, email, phone, company, type, fields, created_at')
+          .eq('account_id', DATA.account.id).order('created_at', { ascending: false }).limit(200);
+        if (error) throw error;
+        leads = (data || []).map((l) => ({ id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, type: l.type, fields: l.fields, date: l.created_at }));
+      }
+      // Newest first (the select is DESC) so a capped pass works the freshest
+      // leads. subsRef, not subs — see mintLead.
+      const { batch, remaining } = selectIntakeBatch({
+        leads, existingIds: subsRef.current.map((x) => x.id), cap: DRAIN_CAP,
+      });
+      setPendingMore(remaining);
+      let n = 0;
+      for (const l of batch) { if (await mintLead(l)) n++; }
+      if (n && !silent) { setMode('new'); setInbox(true); }
+      return n;
+    } finally {
+      draining.current = false;
+    }
+  };
+
+  // Manual "Sync intake now": force a WhatConverts pull, then drain.
   const syncNow = async () => {
     if (syncing) return;
     setSyncing(true);
     try {
-      let leads = DATA.recentLeads || [];
-      if (live) {
-        await supabase.functions.invoke('sync-whatconverts', { body: { accountId: DATA.account.id } });
-        const { data } = await supabase.from('leads')
-          .select('wc_lead_id, name, email, phone, company, type, fields, created_at')
-          .eq('account_id', DATA.account.id).order('created_at', { ascending: false });
-        leads = (data || []).map((l) => ({ id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, type: l.type, fields: l.fields, date: l.created_at }));
-      }
-      const fresh = leads.filter((l) => isHoaIntake(l) && !subs.some((s) => s.id === l.id));
-      let n = 0;
-      for (const l of fresh) { if (await mintLead(l)) n++; }
+      if (live) await supabase.functions.invoke('sync-whatconverts', { body: { accountId: DATA.account.id } });
+      const n = await drain();
+      setSyncedAt(new Date().toISOString());
       setMode('new'); setInbox(true); // surface the inbox so new leads are visible
       setToast({ msg: n ? `${n} new lead${n === 1 ? '' : 's'} pulled in from intake` : 'Up to date — no new intake leads' });
     } catch (e) {
@@ -1651,13 +1726,45 @@ export default function ProposalsScreen() {
     }
   };
 
+  // Automatic drain: once on mount, then every AUTO_POLL_MS while open. Reads
+  // only the `leads` table (cheap) — the cron owns the WhatConverts pull. Keeps
+  // the inbox current without anyone clicking, which is what removes the dump.
+  useEffect(() => {
+    if (!live) return;
+    let alive = true;
+    const tick = async (silent) => {
+      if (!alive) return;
+      try {
+        const n = await drain({ silent });
+        if (alive && n) setToast({ msg: `${n} new lead${n === 1 ? '' : 's'} arrived from intake` });
+      } catch { /* transient — the next tick retries */ }
+    };
+    tick(true); // catch up on open, quietly
+    const id = setInterval(() => tick(false), AUTO_POLL_MS);
+    return () => { alive = false; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
+
   return (
     <div className="proposal-system">
       <div className="v2-topline">
         <Stepper mode={mode} go={go} />
         <div className="fx-side">
-          <button className="fx-sync" onClick={syncNow} disabled={syncing} title="Pull the latest intake submissions from WhatConverts into the inbox">
-            <span className={'live' + (syncing ? ' busy' : '')} aria-hidden="true" /> {syncing ? 'Syncing intake…' : <>Sync intake <b>now</b></>}
+          {/* The dot used to be decorative and the label read "Sync intake now",
+              which looked like a live/up-to-date status when it was only a
+              button. It now reports the REAL last pull (max leads.last_synced_at)
+              and colors the dot by staleness against the 30-min cron. */}
+          <button className="fx-sync" data-fresh={syncFresh} onClick={syncNow} disabled={syncing}
+            title={syncedAt
+              ? `Intake last pulled from WhatConverts ${fmtReceived(Date.parse(syncedAt))} (${ageAgo(Date.parse(syncedAt))}). Auto-checks every 3 min while this screen is open; the server pulls every 30 min. Click to force a pull now.`
+              : 'Pull the latest intake submissions from WhatConverts into the inbox'}>
+            <span className={'live' + (syncing ? ' busy' : '')} aria-hidden="true" />
+            {syncing ? 'Syncing intake…' : (
+              <span className="fx-sync-txt">
+                <span className="l">Sync intake</span>
+                <span className="s">{syncedAt ? `synced ${ageAgo(Date.parse(syncedAt))}` : 'never synced'}</span>
+              </span>
+            )}
           </button>
           <button className="v2-lib-btn" data-on={mode === 'library'} onClick={() => setMode('library')} title="The capabilities every proposal matches against">
             <I.Bolt width={14} height={14} /> UVP Library
@@ -1688,7 +1795,8 @@ export default function ProposalsScreen() {
 
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} onRealign={() => setRealignOpen(true)} />
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} onRealign={() => setRealignOpen(true)}
+          pendingMore={pendingMore} onSyncMore={syncNow} syncing={syncing} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (

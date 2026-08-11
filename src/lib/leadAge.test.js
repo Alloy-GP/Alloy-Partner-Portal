@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseReceivedText, receivedMs, fmtReceived, ageAgo, agePriority } from './leadAge.js';
+import { parseReceivedText, receivedMs, fmtReceived, ageAgo, agePriority, syncFreshness } from './leadAge.js';
 
 const NOW = Date.parse('2026-08-11T16:00:00Z');
 const ago = (ms) => NOW - ms;
@@ -98,6 +98,30 @@ describe('fmtReceived', () => {
   it('is empty for a missing or invalid timestamp', () => {
     expect(fmtReceived(null)).toBe('');
     expect(fmtReceived(Number.NaN)).toBe('');
+  });
+});
+
+describe('syncFreshness — judged against the 30-min cron', () => {
+  it('treats a completed cycle as live', () => {
+    expect(syncFreshness(ago(20 * 1000), NOW)).toBe('live');
+    expect(syncFreshness(ago(29 * MIN), NOW)).toBe('live');
+    expect(syncFreshness(ago(45 * MIN), NOW)).toBe('live'); // one cycle + jitter
+  });
+
+  it('flags a missed cycle or two as lag', () => {
+    expect(syncFreshness(ago(46 * MIN), NOW)).toBe('lag');
+    expect(syncFreshness(ago(2 * HOUR), NOW)).toBe('lag');
+    expect(syncFreshness(ago(180 * MIN), NOW)).toBe('lag');
+  });
+
+  it('flags a broken pipe as cold', () => {
+    expect(syncFreshness(ago(181 * MIN), NOW)).toBe('cold');
+    expect(syncFreshness(ago(3 * DAY), NOW)).toBe('cold');
+  });
+
+  it('is cold when never synced', () => {
+    expect(syncFreshness(null, NOW)).toBe('cold');
+    expect(syncFreshness(Number.NaN, NOW)).toBe('cold');
   });
 });
 

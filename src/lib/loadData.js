@@ -105,7 +105,10 @@ export async function loadAccountData(session, accountId, me) {
     // Trim the bulk leads load to list-view columns only. The heavy panel-only
     // columns (journey ~650kB, message ~140kB across 800+ leads) are lazy-fetched
     // per-lead when a detail panel opens — they were dominating page-load time.
-    supabase.from('leads').select('wc_lead_id, name, email, phone, company, source, quality, quotable, lead_status, value, quote_value, sales_value, type, time_label, created_at, page, fields, context, sort').eq('account_id', accountId).order('sort'),
+    // last_synced_at is stamped on every row by sync-whatconverts, so the max
+    // across leads = when intake last pulled. The proposals cockpit shows it, so
+    // "Sync intake" can report real freshness instead of implying it.
+    supabase.from('leads').select('wc_lead_id, name, email, phone, company, source, quality, quotable, lead_status, value, quote_value, sales_value, type, time_label, created_at, last_synced_at, page, fields, context, sort').eq('account_id', accountId).order('sort'),
     supabase.from('activity').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('tickets').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('kpis').select('*').eq('account_id', accountId).order('sort'),
@@ -267,8 +270,14 @@ export async function loadAccountData(session, accountId, me) {
       quality: l.quality, quotable: l.quotable, leadStatus: l.lead_status,
       value: l.value, quoteValue: l.quote_value, salesValue: l.sales_value,
       type: l.type, time: l.time_label, date: l.created_at, fields: l.fields, context: l.context, page: l.page,
+      lastSyncedAt: l.last_synced_at || null,
       // message + journey lazy-loaded in the lead detail panel (see LeadsScreen)
     })),
+    // When intake last pulled from WhatConverts (max stamp across leads). Null
+    // when the account has never synced. Drives the cockpit's freshness pill —
+    // without it "Sync intake now" reads as a status when it's just a button.
+    intakeSyncedAt: (leadsRes.data || []).reduce(
+      (max, l) => (l.last_synced_at && (!max || l.last_synced_at > max) ? l.last_synced_at : max), null),
     activity: (activityRes.data || []).map((a) => ({
       color: a.color, text: a.text, meta: a.meta,
     })),
