@@ -406,15 +406,32 @@ export async function loadAccountData(session, accountId, me) {
     // cockpit renders these identically to the mock LEADS. Real board-engagement
     // events (grouped per proposal) flow in so Close shows live data; enrichLead
     // aggregates them, falling back to mock WATCH when a proposal has none.
+    // Archived rows are split OUT of the pipeline here rather than filtered in
+    // each view — there are six views plus the stepper counts, and missing one
+    // would leak spam back into the cockpit. See archivedProposals below.
     proposals: (() => {
       const eventsByProposal = {};
       (proposalEventsRes.data || []).forEach((e) => {
         (eventsByProposal[e.proposal_id] = eventsByProposal[e.proposal_id] || []).push(e);
       });
       const cam = camFor(accountId); // white-label the matcher to this account's CAM
-      return (proposalsRes.data || []).map((p) =>
+      return (proposalsRes.data || []).filter((p) => !p.archived_at).map((p) =>
         enrichLead({ ...proposalRowToRaw(p), events: eventsByProposal[p.id] || [] }, cam));
     })(),
+    // The Archive bin. Deliberately NOT run through enrichLead — the matcher is
+    // real work and a bin only needs identity + why/when it was archived.
+    //
+    // These rows are also what stops the intake auto-drain re-minting spam: it
+    // dedupes on "already has a proposal", so the tombstone must stay visible to
+    // it. src/lib/intakeDrain.js takes these ids in existingIds.
+    archivedProposals: (proposalsRes.data || []).filter((p) => p.archived_at).map((p) => ({
+      id: p.lead_key,
+      community: p.community, contact: p.contact, city: p.city, homes: p.homes,
+      email: p.email, quote: p.quote,
+      receivedAt: p.received_at || null, received: p.received,
+      archivedAt: p.archived_at, archivedReason: p.archived_reason || '', archivedBy: p.archived_by || '',
+      wasDisq: !!p.disq, status: p.status,
+    })),
     // Newsletter intake · the current open round for this account (or null).
     // camelCased for the banner + submit form. `submission` stays null until
     // the client fills it in.
