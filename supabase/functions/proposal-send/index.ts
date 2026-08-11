@@ -7,7 +7,16 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // CALLER's session (RLS — you can only send proposals you can see), (2) build
 // the magic link <baseUrl>/proposals/board/<board_token>, (3) render the
 // board-facing email, (4) deliver via Resend, (5) only on success, mark the
-// proposal sent (status + sent_at). Returns {sent,to}.
+// proposal sent (status + sent_at). Returns {sent,to,cc}.
+//
+// TWO MODES, one function:
+//   • send (no `message`) — the full proposal email + marks the row sent.
+//   • nudge (`message` given) — a short follow-up that renders the CAM's typed
+//     message as the body, threaded as `Re: <original subject>`, same secure
+//     link. A nudge does NOT re-stamp sent_at/status or clear a board verdict:
+//     it's a follow-up, not a revised proposal, so the Sent-stage analytics
+//     window and link expiry stay anchored to the original send.
+// Both modes accept `cc` (string or string[]) for board members / co-signers.
 //
 // EMAIL = the email-safe handoff (Alloy Client Portal #21): table layout, all
 // inline styles, SOLID colors (no gradients), Arial stack (no web fonts),
@@ -32,6 +41,24 @@ const isEmail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 const NUMWORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 const numWord = (n: number) => (n >= 0 && n <= 10 ? NUMWORDS[n] : String(n));
 
+// CC list — accepts a string ("a@x.com, b@y.com") or an array. Normalizes,
+// validates, dedupes, and drops the primary recipient (Resend would otherwise
+// deliver twice). Capped so a paste-gone-wrong can't fan out a blast.
+const CC_MAX = 10;
+function parseCc(raw: unknown, primary: string): string[] {
+  const parts = Array.isArray(raw) ? raw.map(String) : String(raw ?? "").split(/[,;\s]+/);
+  const seen = new Set([primary.toLowerCase()]);
+  const out: string[] = [];
+  for (const p of parts) {
+    const e = p.trim();
+    if (!e || !isEmail(e) || seen.has(e.toLowerCase())) continue;
+    seen.add(e.toLowerCase());
+    out.push(e);
+    if (out.length >= CC_MAX) break;
+  }
+  return out;
+}
+
 // Solid brand palette (handoff #21). Theme per CAM = swap these hex strings.
 const C = {
   brand: "#2b2c6c", navy: "#1a1b4a", green: "#2f9e6f", greenTint: "#e4f3ec",
@@ -54,6 +81,21 @@ interface EmailData {
   priorities: string[]; link: string; expires: string;
   camDomain: string; camEmail: string;
   senderName: string; senderRole: string;
+  message?: string; // set → nudge mode: this IS the body (see renderEmail)
+}
+
+// The CAM's typed nudge message → email-safe paragraphs. Blank lines split
+// paragraphs; single newlines become <br/>. Escaped first, so a message can
+// never inject markup into the email.
+function messageBlocks(msg: string): string {
+  return msg
+    .replace(/\r\n/g, "\n").trim()
+    .split(/\n{2,}/)
+    .map((para) =>
+      `<p style="margin:0 0 14px; font-family:${FA}; font-size:15px; line-height:1.62; color:${C.body};">${
+        esc(para).split("\n").join("<br/>")
+      }</p>`)
+    .join("");
 }
 
 function priorityCell(label: string, rightCol: boolean): string {
@@ -75,10 +117,15 @@ function priorityGrid(items: string[]): string {
 }
 
 function renderEmail(d: EmailData): string {
+  // Nudge mode — the typed message replaces the generated body, and the recap
+  // blocks (stat strip, priorities grid, auto signature) drop out so a
+  // follow-up reads short. Everything else (header, hero, CTA, secure note,
+  // footer) is shared so it still looks like the same thread.
+  const nudge = !!(d.message && d.message.trim());
   const priLine = d.priorities.length
     ? `the <strong style="color:${C.ink};">${numWord(d.priorities.length)} priorities your board raised</strong>, point by point`
     : `the specific priorities your board raised`;
-  const priSection = d.priorities.length
+  const priSection = !nudge && d.priorities.length
     ? `<tr>
             <td class="pad-sm" style="padding:18px 34px 4px 34px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -92,6 +139,65 @@ function renderEmail(d: EmailData): string {
             </td>
           </tr>`
     : "";
+
+  const heroEyebrow = nudge ? "Following up" : "Your management proposal";
+  const heroTitle = nudge ? `A quick follow-up on ${esc(d.community)}.` : `Built around ${esc(d.community)}.`;
+  const heroSub = nudge ? `For ${esc(d.contactFull)} &amp; the board.` : `Prepared for ${esc(d.contactFull)} &amp; the board.`;
+
+  // 3 stat strip — the "here's what you told us" recap. Send only.
+  const statSection = nudge ? "" : `<tr>
+            <td class="pad-sm" style="padding:28px 34px 6px 34px;">
+              <div style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.12em; text-transform:uppercase; color:${C.green}; padding-bottom:13px;">Here's what you told us</div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${C.hairline}; border-radius:12px;">
+                <tr>
+                  <td class="col-stack col-stack-b" width="33.33%" valign="top" style="padding:16px 18px; border-right:1px solid ${C.hairline};">
+                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Community</div>
+                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(d.community)}</div>
+                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">${esc(d.city || "—")}</div>
+                  </td>
+                  <td class="col-stack col-stack-b" width="33.33%" valign="top" style="padding:16px 18px; border-right:1px solid ${C.hairline};">
+                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Homes</div>
+                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(String(d.homes || "—"))}</div>
+                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">units under management</div>
+                  </td>
+                  <td class="col-stack col-stack-b-last" width="33.33%" valign="top" style="padding:16px 18px;">
+                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Type</div>
+                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(d.type || "—")}</div>
+                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">${esc(d.status || "")}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>`;
+
+  // 4 body — nudge: the CAM's own words, verbatim (it carries its own greeting
+  // and sign-off, so no auto "Hi X," above it and no signature block below).
+  const bodySection = nudge
+    ? `<tr>
+            <td class="pad-sm" style="padding:30px 34px 0 34px;">
+              ${messageBlocks(d.message!)}
+            </td>
+          </tr>`
+    : `<tr>
+            <td class="pad-sm" style="padding:24px 34px 0 34px;">
+              <div style="font-family:${FA}; font-size:16px; font-weight:bold; color:${C.ink}; padding-bottom:10px;">Hi ${esc(d.firstName)},</div>
+              <p style="margin:0; font-family:${FA}; font-size:15px; line-height:1.62; color:${C.body};">Thank you for telling us about ${esc(d.community)}. We didn't send a generic pitch — we built this proposal around ${priLine}.</p>
+            </td>
+          </tr>`;
+
+  // 8 signature — send only; a nudge message signs itself.
+  const sigSection = nudge ? "" : `<tr>
+            <td class="pad-sm" style="padding:22px 34px 30px 34px;">
+              <div style="font-family:${FA}; font-size:14.5px; font-weight:bold; color:${C.ink};">— ${esc(d.senderName)}</div>
+              <div style="font-family:${FA}; font-size:12.5px; color:${C.muted}; padding-top:2px;">${esc(d.senderRole)} · ${esc(d.camFull)}</div>
+            </td>
+          </tr>`;
+
+  const preheader = nudge
+    ? `Following up on the proposal for ${esc(d.community)} — your secure link is still inside.`
+    : `Built around ${esc(d.community)} — we answered the priorities your board raised. One-tap secure link inside.`;
+
+  const ctaLabel = nudge ? "Reopen your proposal &#8594;" : "View your proposal &#8594;";
 
   return `<!doctype html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -119,7 +225,7 @@ function renderEmail(d: EmailData): string {
 </style>
 </head>
 <body style="margin:0; padding:0; background-color:${C.page};">
-  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:${C.page}; opacity:0;">Built around ${esc(d.community)} — we answered the priorities your board raised. One-tap secure link inside.</div>
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:${C.page}; opacity:0;">${preheader}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${C.page};">
     <tr>
       <td align="center" style="padding:32px 16px 56px 16px;">
@@ -142,48 +248,20 @@ function renderEmail(d: EmailData): string {
                 <tr><td style="padding-bottom:16px;">
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
                     <td style="padding-right:10px;" valign="middle"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="width:22px; height:3px; background-color:${C.green}; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
-                    <td valign="middle" style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.14em; text-transform:uppercase; color:${C.heroEy};">Your management proposal</td>
+                    <td valign="middle" style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.14em; text-transform:uppercase; color:${C.heroEy};">${heroEyebrow}</td>
                   </tr></table>
                 </td></tr>
-                <tr><td class="h1-sm" style="font-family:${FA}; font-size:34px; font-weight:bold; line-height:1.08; letter-spacing:-0.01em; color:#ffffff;">Built around ${esc(d.community)}.</td></tr>
-                <tr><td style="padding-top:12px; font-family:${FA}; font-size:14px; line-height:1.5; color:${C.heroSub};">Prepared for ${esc(d.contactFull)} &amp; the board.</td></tr>
+                <tr><td class="h1-sm" style="font-family:${FA}; font-size:34px; font-weight:bold; line-height:1.08; letter-spacing:-0.01em; color:#ffffff;">${heroTitle}</td></tr>
+                <tr><td style="padding-top:12px; font-family:${FA}; font-size:14px; line-height:1.5; color:${C.heroSub};">${heroSub}</td></tr>
               </table>
             </td>
           </tr>
 
-          <!-- 3 stat strip -->
-          <tr>
-            <td class="pad-sm" style="padding:28px 34px 6px 34px;">
-              <div style="font-family:${FA}; font-size:11px; font-weight:bold; letter-spacing:0.12em; text-transform:uppercase; color:${C.green}; padding-bottom:13px;">Here's what you told us</div>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${C.hairline}; border-radius:12px;">
-                <tr>
-                  <td class="col-stack col-stack-b" width="33.33%" valign="top" style="padding:16px 18px; border-right:1px solid ${C.hairline};">
-                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Community</div>
-                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(d.community)}</div>
-                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">${esc(d.city || "—")}</div>
-                  </td>
-                  <td class="col-stack col-stack-b" width="33.33%" valign="top" style="padding:16px 18px; border-right:1px solid ${C.hairline};">
-                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Homes</div>
-                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(String(d.homes || "—"))}</div>
-                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">units under management</div>
-                  </td>
-                  <td class="col-stack col-stack-b-last" width="33.33%" valign="top" style="padding:16px 18px;">
-                    <div style="font-family:${FA}; font-size:10px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:${C.muted}; padding-bottom:7px;">Type</div>
-                    <div style="font-family:${FA}; font-size:15px; font-weight:bold; color:${C.ink}; line-height:1.25;">${esc(d.type || "—")}</div>
-                    <div style="font-family:${FA}; font-size:12px; color:${C.muted}; padding-top:3px;">${esc(d.status || "")}</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          <!-- 3 stat strip (send only) -->
+          ${statSection}
 
-          <!-- 4 body -->
-          <tr>
-            <td class="pad-sm" style="padding:24px 34px 0 34px;">
-              <div style="font-family:${FA}; font-size:16px; font-weight:bold; color:${C.ink}; padding-bottom:10px;">Hi ${esc(d.firstName)},</div>
-              <p style="margin:0; font-family:${FA}; font-size:15px; line-height:1.62; color:${C.body};">Thank you for telling us about ${esc(d.community)}. We didn't send a generic pitch — we built this proposal around ${priLine}.</p>
-            </td>
-          </tr>
+          <!-- 4 body: nudge message, or the generated intro -->
+          ${bodySection}
 
           <!-- 5 priorities -->
           ${priSection}
@@ -193,22 +271,22 @@ function renderEmail(d: EmailData): string {
             <td class="pad-sm" style="padding:26px 34px 6px 34px;">
               <!--[if mso]>
               <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${esc(d.link)}" style="height:54px;v-text-anchor:middle;width:532px;" arcsize="22%" stroke="f" fillcolor="${C.green}">
-                <w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">View your proposal &#8594;</center>
+                <w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${ctaLabel}</center>
               </v:roundrect>
               <![endif]-->
               <!--[if !mso]><!-- -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
                 <td align="center" bgcolor="${C.green}" style="background-color:${C.green}; border-radius:12px;">
-                  <a class="cta-link" href="${esc(d.link)}" target="_blank" style="display:block; padding:17px 28px; font-family:${FA}; font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:12px;">View your proposal &#8594;</a>
+                  <a class="cta-link" href="${esc(d.link)}" target="_blank" style="display:block; padding:17px 28px; font-family:${FA}; font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:12px;">${ctaLabel}</a>
                 </td>
               </tr></table>
               <!--<![endif]-->
             </td>
           </tr>
 
-          <!-- 7 secure note -->
+          <!-- 7 secure note (carries the bottom gutter when no signature follows) -->
           <tr>
-            <td class="pad-sm" style="padding:18px 34px 0 34px;">
+            <td class="pad-sm" style="padding:18px 34px ${nudge ? "30px" : "0"} 34px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${C.tint}; border:1px solid ${C.hairline}; border-radius:12px;"><tr>
                 <td valign="top" width="30" style="padding:14px 0 14px 16px; font-size:15px; line-height:1.4;">&#128274;</td>
                 <td valign="top" style="padding:14px 16px 14px 9px; font-family:${FA}; font-size:12.5px; line-height:1.55; color:${C.muted};"><strong style="color:${C.body};">One-tap secure link — no password.</strong> It signs you in automatically and works only from this email.${d.expires ? ` Expires ${esc(d.expires)}.` : ""}</td>
@@ -216,13 +294,8 @@ function renderEmail(d: EmailData): string {
             </td>
           </tr>
 
-          <!-- 8 signature -->
-          <tr>
-            <td class="pad-sm" style="padding:22px 34px 30px 34px;">
-              <div style="font-family:${FA}; font-size:14.5px; font-weight:bold; color:${C.ink};">— ${esc(d.senderName)}</div>
-              <div style="font-family:${FA}; font-size:12.5px; color:${C.muted}; padding-top:2px;">${esc(d.senderRole)} · ${esc(d.camFull)}</div>
-            </td>
-          </tr>
+          <!-- 8 signature (send only) -->
+          ${sigSection}
 
           <!-- 9 footer -->
           <tr>
@@ -253,6 +326,9 @@ Deno.serve(async (req) => {
     const leadKey = String(body?.leadKey || "").trim();
     const accountId = String(body?.accountId || "").trim();
     const toOverride = String(body?.to || "").trim();
+    // A non-empty `message` switches this into nudge mode (see header note).
+    // Capped so one paste can't blow past provider limits.
+    const message = String(body?.message || "").trim().slice(0, 4000);
     let base = String(body?.baseUrl || "").trim().replace(/\/$/, "");
     if (!/^https?:\/\//.test(base)) base = PORTAL_URL; // only accept real origins; else portal default
     if (!leadKey || !accountId) return json({ error: "leadKey + accountId required" }, 400);
@@ -272,6 +348,7 @@ Deno.serve(async (req) => {
 
     const recipient = (toOverride || prop.email || "").trim();
     if (!isEmail(recipient)) return json({ error: "no valid recipient email" }, 400);
+    const cc = parseCc(body?.cc, recipient);
 
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -301,23 +378,43 @@ Deno.serve(async (req) => {
       priorities, link, expires: prop.link_expires || "",
       camDomain, camEmail: fromEmail,
       senderName: rep.name, senderRole: rep.role,
+      message,
     });
+
+    // A nudge threads under the original in Gmail/Apple Mail via the "Re: "
+    // prefix on the same subject line.
+    const baseSubject = `Built around ${prop.community} — your management proposal`;
+    const subject = message ? `Re: ${baseSubject}` : baseSubject;
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: `${cam} <${fromEmail}>`, to: [recipient], subject: `Built around ${prop.community} — your management proposal`, html }),
+      body: JSON.stringify({
+        from: `${cam} <${fromEmail}>`,
+        to: [recipient],
+        ...(cc.length ? { cc } : {}),
+        subject,
+        html,
+      }),
     });
     if (!res.ok) return json({ error: `resend ${res.status}`, detail: (await res.text()).slice(0, 300) }, 502);
 
-    // Only NOW mark it sent (don't claim sent if the email failed). Persist the
-    // address we actually emailed (may be a custom recipient, not the intake
-    // email) so resend/nudge and the cockpit "Sent to" line reuse it. Clear any
-    // prior board verdict — a (re)send is a fresh/revised proposal, so it reopens
-    // for response (this is also how the CAM recovers an accidental decline).
-    await admin.from("proposals").update({ status: "sent", sent_at: new Date().toISOString(), email: recipient, board_response: null }).eq("id", prop.id);
+    // Only NOW write to the row (don't claim sent if the email failed). Persist
+    // the address we actually emailed (may be a custom recipient, not the intake
+    // email) so resend/nudge and the cockpit "Sent to" line reuse it.
+    //
+    // A NUDGE stops there: re-stamping sent_at would slide the engagement window
+    // and the link-expiry countdown the Sent stage reports, and clearing
+    // board_response would erase a verdict the board already gave. A SEND/RESEND
+    // does both — it's a fresh/revised proposal, so it reopens for response
+    // (also how the CAM recovers an accidental decline).
+    await admin.from("proposals").update(
+      message
+        ? { email: recipient }
+        : { status: "sent", sent_at: new Date().toISOString(), email: recipient, board_response: null },
+    ).eq("id", prop.id);
 
-    return json({ sent: true, to: recipient, link });
+    return json({ sent: true, to: recipient, cc, link });
   } catch (e) {
     return json({ error: String((e as Error)?.message || e) }, 500);
   }

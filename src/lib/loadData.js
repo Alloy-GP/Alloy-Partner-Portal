@@ -21,7 +21,12 @@ export function proposalRowToRaw(p) {
     salesValue: p.sales_value != null ? p.sales_value : undefined,
     tierId: p.tier_id, notes: p.notes || [], _dbId: p.id,
     boardToken: p.board_token, sentAt: p.sent_at || null,
-    arrivedAt: p.created_at || null, // when the lead landed in the New inbox
+    // receivedAt = when the board actually submitted the intake form (the real
+    // age of the lead). arrivedAt = when a sync minted this row, which can be
+    // weeks later on a backlog pull — kept only as leadAge.js's last-resort
+    // fallback, never as the displayed age.
+    receivedAt: p.received_at || null,
+    arrivedAt: p.created_at || null,
     openedAt: p.opened_at || null, openedBy: p.opened_by || null, // null → "new"; set → "reviewed"
     matchSnapshot: p.match_snapshot || null, // persisted LLM match (preferred by enrichLead)
     boardResponse: p.board_response || null, // the board's verdict {action, by, at} (forward-only)

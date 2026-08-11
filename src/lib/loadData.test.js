@@ -19,7 +19,33 @@ const h = vi.hoisted(() => {
 
 vi.mock("./supabase.js", () => ({ supabase: h.supabase, isSupabaseConfigured: true }));
 
-import { relativeDue, monthsSinceLabel, loadAccountData } from "./loadData.js";
+import { relativeDue, monthsSinceLabel, loadAccountData, proposalRowToRaw } from "./loadData.js";
+
+// The seam that made the inbox misdate every lead: proposals.received_at is the
+// board's real submission time, proposals.created_at is when a sync minted the
+// row. Dropping received_at here silently reverts the age to mint time.
+describe("proposalRowToRaw · received_at seam", () => {
+  const row = {
+    lead_key: "wc-1", community: "Oak Grove HOA",
+    received_at: "2026-07-07T23:47:15+00:00",
+    created_at: "2026-08-11T16:11:14+00:00",
+    received: "Jul 7, 2026 at 6:47 PM",
+  };
+
+  it("threads received_at through as receivedAt", () => {
+    expect(proposalRowToRaw(row).receivedAt).toBe("2026-07-07T23:47:15+00:00");
+  });
+
+  it("keeps arrivedAt as the distinct mint time, not a duplicate of received", () => {
+    const raw = proposalRowToRaw(row);
+    expect(raw.arrivedAt).toBe("2026-08-11T16:11:14+00:00");
+    expect(raw.arrivedAt).not.toBe(raw.receivedAt);
+  });
+
+  it("nulls receivedAt when the column is empty (client falls back)", () => {
+    expect(proposalRowToRaw({ ...row, received_at: null }).receivedAt).toBeNull();
+  });
+});
 
 describe("relativeDue (computed fresh, never stale)", () => {
   beforeAll(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 5, 26)); }); // Jun 26 2026

@@ -401,6 +401,11 @@
 .proposal-system .v2-qual-money:focus-within { border-color: var(--alloy-pink); }
 .proposal-system .v2-qual-money input { border: none; outline: none; font: inherit; color: inherit; width: 100%; background: none; }
 .proposal-system .v2-qual-money .u { font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.proposal-system .v2-qual-input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 11px 14px; font-family: var(--font-body); font-size: 13px; line-height: 1.4; color: var(--fg-2); background: #fff; transition: border-color 0.13s, box-shadow 0.13s; }
+.proposal-system .v2-qual-input::placeholder { color: var(--fg-faint, #b3a9bf); }
+.proposal-system .v2-qual-input:focus { outline: none; border-color: var(--alloy-purple); box-shadow: 0 0 0 3px var(--alloy-purple-tint); }
+.proposal-system .v2-qual-input[data-bad="true"] { border-color: #e3b9c8; box-shadow: 0 0 0 3px #fbeef3; }
+.proposal-system .v2-qual-bad { color: #b3315c; font-weight: 700; }
 .proposal-system .v2-qual-hint { font-size: 11px; line-height: 1.5; color: var(--fg-muted); margin-top: 9px; }
 .proposal-system .v2-qual-warn { font-size: 12px; line-height: 1.55; color: var(--fg-3); background: var(--alloy-off-white, #f7f4fa); border-radius: 10px; padding: 12px 14px; }
 .proposal-system .v2-qual-reasons { display: flex; flex-direction: column; gap: 7px; }
@@ -1292,6 +1297,14 @@
 .proposal-system .fx-lead-pct b { font-size: 20px; }
 .proposal-system .fx-lead-pct span { font-size: 10.5px; font-weight: 700; color: #4faa5a; }
 .proposal-system .fx-lead-meta { font-size: 12.5px; color: var(--fg-muted); font-weight: 600; margin-top: -3px; }
+/* Inbox card · when the lead actually came in. The age chip escalates with
+   staleness (fresh → aging → stale) so an old unworked lead reads as old. */
+.proposal-system .fx-lead-recv { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--fg-muted); }
+.proposal-system .fx-lead-recv svg { flex: none; opacity: 0.75; }
+.proposal-system .fx-lead-recv b { font-weight: 800; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.proposal-system .fx-lead-recv[data-age="fresh"] b { color: #2c7c63; background: #e6f3ee; }
+.proposal-system .fx-lead-recv[data-age="aging"] b { color: #8a6410; background: #fbf1da; }
+.proposal-system .fx-lead-recv[data-age="stale"] b { color: #b3315c; background: #fbeef3; }
 .proposal-system .fx-lead-quote { font-size: 13px; line-height: 1.55; color: var(--fg-3); font-style: italic; border-left: 2.5px solid var(--alloy-pink); padding-left: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .proposal-system .fx-lead-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; padding-top: 13px; border-top: 1px solid var(--border-subtle); }
 .proposal-system .fx-lead-when { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: var(--fg-muted); }
