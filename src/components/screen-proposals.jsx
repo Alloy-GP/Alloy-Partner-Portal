@@ -1751,6 +1751,9 @@ export default function ProposalsScreen() {
         // lead from this insert, which on a backlog sync is weeks off.
         received_at: raw.receivedAt,
         status: 'new', selected_pains: raw.selectedPains, tier_id: 'full', per_home: raw.perHome,
+        // Origin matters: sync-whatconverts only auto-archives source='whatconverts'
+        // rows when their lead disappears upstream. Seeded rows must never match.
+        source: 'whatconverts',
       }, { onConflict: 'account_id,lead_key' });
       if (error) { setToast({ msg: 'Sync insert failed: ' + error.message }); return null; }
     }
@@ -1808,10 +1811,12 @@ export default function ProposalsScreen() {
         // payload. 200 newest is far more than one pass can mint, and repeated
         // passes still converge on a large archive.
         const { data, error } = await supabase.from('leads')
-          .select('wc_lead_id, name, email, phone, company, type, fields, created_at')
+          .select('wc_lead_id, name, email, phone, company, type, fields, created_at, lead_status')
           .eq('account_id', DATA.account.id).order('created_at', { ascending: false }).limit(200);
         if (error) throw error;
-        leads = (data || []).map((l) => ({ id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, type: l.type, fields: l.fields, date: l.created_at }));
+        // lead_status carries the spam/duplicate marking — without it selectIntakeBatch
+        // can't filter junk and would mint it anyway.
+        leads = (data || []).map((l) => ({ id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, type: l.type, fields: l.fields, date: l.created_at, leadStatus: l.lead_status }));
       }
       // Newest first (the select is DESC) so a capped pass works the freshest
       // leads. subsRef, not subs — see mintLead.

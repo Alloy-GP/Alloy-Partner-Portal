@@ -691,6 +691,7 @@ function buildLeadsPage() {
     date: l.date || "",
     status: statusOf(l),
     reason: l.quotable === "no" ? (l.leadStatus || null) : null, // spam | duplicate | null (refines "not a fit")
+    wcAccountId: l.wcAccountId || "", // which WhatConverts profile this lead came from
     note: l.message || "",
     fields: cleanFields(l),
     facts: keyFacts(l.fields),
@@ -1096,6 +1097,26 @@ function LeadsScreen() {
                 <div className="ld-panel-sec">
                   <div className="sec-lbl">{panelLead.channel === "call" ? "Call summary" : (panelNote ? "Their message" : prettyField(panelFreeText.name))}</div>
                   <div className="ld-panel-note">{panelNote || panelFreeText.value}</div>
+                </div>
+              ) : null}
+              {/* Staff-only provenance: WHICH WhatConverts account this lead was
+                  pulled from. A client can span several (CMGT has three), and the
+                  origin used to be discarded in the sync's merge. Internal ids —
+                  clients never see this. */}
+              {DATA.user?.isStaff && panelLead.wcAccountId ? (
+                <div className="ld-panel-sec">
+                  <div className="sec-lbl">Source profile · staff</div>
+                  <div className="ld-wcacct">
+                    <span className="k">WhatConverts account</span>
+                    <span className="v">{panelLead.wcAccountId}</span>
+                    {DATA.account?.whatconvertsProfileId
+                      && String(DATA.account.whatconvertsProfileId).split(/[,\s]+/).filter(Boolean).length > 1 && (
+                      <span className="n">
+                        {DATA.account.shortName || DATA.account.company} uses{' '}
+                        {String(DATA.account.whatconvertsProfileId).split(/[,\s]+/).filter(Boolean).length} profiles
+                      </span>
+                    )}
+                  </div>
                 </div>
               ) : null}
               <div className="ld-panel-sec">
