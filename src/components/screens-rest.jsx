@@ -7,7 +7,8 @@ import { zdList } from '../lib/zendesk.js';
 import { guideForTags } from '../lib/guides.js';
 import GuideModal from './GuideModal.jsx';
 import { qualifyLead } from '../lib/leads.js';
-import { supabase } from '../lib/supabase.js';
+import { wcProfileLabel, hasProfileName, profileList } from '../lib/wcProfiles.js';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 
 // Tickets, Playbook, Library, Recognition
 const { useState: _useState2, useEffect: _useEffect2 } = React;
@@ -847,7 +848,10 @@ function LeadsScreen() {
   // they're excluded from the bulk load to keep page-load fast.
   const [heavy, setHeavy] = useState({}); // wc_lead_id -> { journey, note }
   useEffect(() => {
-    if (!panelId || heavy[panelId]) return;
+    // `supabase` is null when unconfigured (mock dev), so this threw
+    // "Cannot read properties of null (reading 'from')" the moment a lead panel
+    // opened — the panel never rendered locally at all.
+    if (!panelId || heavy[panelId] || !isSupabaseConfigured) return;
     let cancelled = false;
     supabase.from("leads").select("wc_lead_id, journey, message").eq("wc_lead_id", panelId).maybeSingle()
       .then(({ data }) => {
@@ -1103,22 +1107,28 @@ function LeadsScreen() {
                   pulled from. A client can span several (CMGT has three), and the
                   origin used to be discarded in the sync's merge. Internal ids —
                   clients never see this. */}
-              {DATA.user?.isStaff && panelLead.wcAccountId ? (
-                <div className="ld-panel-sec">
-                  <div className="sec-lbl">Source profile · staff</div>
-                  <div className="ld-wcacct">
-                    <span className="k">WhatConverts account</span>
-                    <span className="v">{panelLead.wcAccountId}</span>
-                    {DATA.account?.whatconvertsProfileId
-                      && String(DATA.account.whatconvertsProfileId).split(/[,\s]+/).filter(Boolean).length > 1 && (
-                      <span className="n">
-                        {DATA.account.shortName || DATA.account.company} uses{' '}
-                        {String(DATA.account.whatconvertsProfileId).split(/[,\s]+/).filter(Boolean).length} profiles
-                      </span>
-                    )}
+              {DATA.user?.isStaff && panelLead.wcAccountId ? (() => {
+                const names = DATA.account?.wcProfileNames || {};
+                const named = hasProfileName(panelLead.wcAccountId, names);
+                const all = profileList(DATA.account?.whatconvertsProfileId, names);
+                return (
+                  <div className="ld-panel-sec">
+                    <div className="sec-lbl">Source profile · staff</div>
+                    <div className="ld-wcacct">
+                      <span className="v">{wcProfileLabel(panelLead.wcAccountId, names)}</span>
+                      {/* Only show the id alongside when we resolved a name —
+                          otherwise the label IS the id and it would print twice. */}
+                      {named && <span className="id">{panelLead.wcAccountId}</span>}
+                      {all.length > 1 && (
+                        <span className="n">
+                          {DATA.account.shortName || DATA.account.company} pulls from {all.length}:{' '}
+                          {all.map((x) => x.label).join(', ')}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                );
+              })() : null}
               <div className="ld-panel-sec">
                 <div className="sec-lbl">Customer journey</div>
                 {panelJourney && panelJourney.length ? (

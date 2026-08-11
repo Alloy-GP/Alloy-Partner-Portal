@@ -260,5 +260,6 @@
    which one each lead belonged to. Internal ids; gated to staff in the JSX. */
 .ld-wcacct { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; }
 .ld-wcacct .k { color: var(--fg-muted); font-weight: 600; }
-.ld-wcacct .v { font-weight: 800; color: var(--alloy-purple); background: var(--alloy-purple-tint, #f1eef8); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
-.ld-wcacct .n { color: var(--fg-faint, #b3a9bf); font-weight: 600; font-size: 11px; }
+.ld-wcacct .v { font-weight: 800; color: var(--alloy-purple); background: var(--alloy-purple-tint, #f1eef8); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 3px 10px; }
+.ld-wcacct .id { color: var(--fg-faint, #b3a9bf); font-weight: 600; font-size: 11px; font-variant-numeric: tabular-nums; }
+.ld-wcacct .n { color: var(--fg-faint, #b3a9bf); font-weight: 600; font-size: 11px; width: 100%; }

@@ -209,6 +209,7 @@ export async function loadAccountData(session, accountId, me) {
       mondayBoardId: account.monday_board_id || null,
       zendeskOrgId: account.zendesk_org_id || null,
       whatconvertsProfileId: account.whatconverts_profile_id || null,
+      wcProfileNames: account.wc_profile_names || {}, // WC account_id -> display name
       // Lifetime WhatConverts tenure (weekly rollup).
       wcQualifiedTotal: account.wc_qualified_total || 0,
       wcQualifiedBySource: account.wc_qualified_by_source || {},
