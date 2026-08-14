@@ -1904,10 +1904,29 @@ export default function ProposalsScreen() {
   // deleting it and having it silently return is not.
   const deleteArchived = async (rows, leadStatus) => {
     if (!live) { setToast({ msg: 'Mock dev — nothing was deleted.' }); return; }
+    // Deleting is as account-scoped as minting. Staff can open any client's
+    // cockpit, and this both destroys rows AND writes spam/duplicate to that
+    // client's real WhatConverts leads — neither belongs on a non-proposals
+    // account, whose archive should be empty anyway.
+    if (!canMintProposals(DATA.account)) {
+      throw new Error(`${DATA.account?.shortName || 'This account'} does not run the proposal system.`);
+    }
+    // Which of these still have a lead behind them. A row the SYNC archived
+    // ("Deleted in WhatConverts") has none — the same prune that archived it
+    // deleted the lead — and qualify-lead 404s on a missing lead, which would
+    // make exactly those rows permanently undeletable. No lead means nothing to
+    // flag and nothing to re-mint from, so the delete alone is sufficient.
+    const withLead = new Set();
+    {
+      const { data } = await supabase.from('leads')
+        .select('wc_lead_id').eq('account_id', DATA.account.id)
+        .in('wc_lead_id', rows.map((r) => r.id));
+      for (const l of data || []) withLead.add(String(l.wc_lead_id));
+    }
     const done = [];
     for (const r of rows) {
       try {
-        await qualifyLead(r.id, { quotable: 'no', leadStatus });
+        if (withLead.has(String(r.id))) await qualifyLead(r.id, { quotable: 'no', leadStatus });
       } catch (e) {
         if (done.length) { setArchived((p) => p.filter((x) => !done.includes(x.id))); }
         throw new Error(`could not mark "${r.community || r.id}" as ${leadStatus} in WhatConverts (${(e && e.message) || e}). ${done.length} deleted before this.`);

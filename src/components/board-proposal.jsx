@@ -809,7 +809,7 @@ function BoardActionBar({ submission, boardResp, onOpen }) {
           </div>
         ) : mobile ? (
           <React.Fragment>
-            <div style={{ fontSize: 12.5, color: c.purple, fontWeight: 500, textAlign: 'center' }}><strong>{firstName},</strong> you have until <strong>{submission.validThrough}</strong> to respond.</div>
+            <div style={{ fontSize: 12.5, color: c.purple, fontWeight: 500, textAlign: 'center' }}><strong>{firstName},</strong>{submission.validThrough ? <> you have until <strong>{submission.validThrough}</strong> to respond.</> : <> take the time you need — we'll follow up.</>}</div>
             <button onClick={() => onOpen('continue')} style={{ width: '100%', appearance: 'none', border: 'none', cursor: 'pointer', background: c.cmgtGreen, color: '#fff', fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 14, letterSpacing: '0.04em', padding: '15px', borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Icon name="arrow-right" size={15} /> Accept &amp; Continue</button>
             <div style={{ display: 'flex', gap: 10, width: '100%' }}>
               <button onClick={() => onOpen('changes')} style={{ flex: 1, appearance: 'none', cursor: 'pointer', background: '#fff', border: `1px solid ${c.lightGray}`, color: c.purple, fontFamily: 'Gotham,Poppins,sans-serif', fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 11 }}>Request changes</button>
@@ -820,7 +820,7 @@ function BoardActionBar({ submission, boardResp, onOpen }) {
         ) : (
           <React.Fragment>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 13, color: c.purple, fontWeight: 500 }}><strong>{firstName},</strong> you have until <strong>{submission.validThrough}</strong> to respond.</div>
+              <div style={{ fontSize: 13, color: c.purple, fontWeight: 500 }}><strong>{firstName},</strong>{submission.validThrough ? <> you have until <strong>{submission.validThrough}</strong> to respond.</> : <> take the time you need — we'll follow up.</>}</div>
               <AskLink />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
