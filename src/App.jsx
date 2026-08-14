@@ -19,6 +19,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
 import { can } from './lib/perms.js';
+import { canSeeProposals } from './lib/proposalAccess.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
 import QuarterGoalsModal from './components/QuarterGoalsModal.jsx';
@@ -197,10 +198,10 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "performance": return <PerformanceScreen onNav={handleNav}/>;
       case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
       case "assets": return <AssetsScreen/>;
-      // Proposals is OFF for every client by default. Visible only to Alloy
-      // staff, or to a client whose account has proposals_enabled = true. Gating
-      // the ROUTE (not just the nav) so a direct URL can't reach it either.
-      case "proposals": return (DATA.user?.isStaff || DATA.account?.proposalsEnabled)
+      // Proposals is a CMGT-only pilot: Alloy staff on any account, and among
+      // clients only CMGT. Gating the ROUTE (not just the nav) so a direct URL
+      // can't reach it either — see src/lib/proposalAccess.js for the matrix.
+      case "proposals": return canSeeProposals(DATA.user, DATA.account)
         ? <ProposalsScreen/>
         : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
       case "privacy": return <PrivacyScreen/>;

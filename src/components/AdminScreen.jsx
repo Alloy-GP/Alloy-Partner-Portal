@@ -8,6 +8,7 @@ import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
 import SyncHealth from './SyncHealth.jsx';
 import { CLIENT_ROLES } from '../lib/perms.js';
+import { parseLabelMap, formatLabelMap } from '../lib/leadFieldLabels.js';
 
 const { useState, useEffect } = React;
 
@@ -17,6 +18,7 @@ const BLANK = {
   monday_board_id: '', zendesk_org_id: '', whatconverts_profile_id: '', quickbooks_customer_id: '',
   dash_folder_id: '', dash_upload_url: '', pastel_url: '',
   locations: [],
+  lead_field_labels: {},
 };
 
 function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
@@ -27,6 +29,20 @@ function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
         className="input" type={type} value={value ?? ''} placeholder={placeholder}
         onChange={(e) => onChange(type === 'number' ? (e.target.value === '' ? 0 : Number(e.target.value)) : e.target.value)}
         style={{ width: '100%', boxSizing: 'border-box' }}
+      />
+      {hint ? <span style={{ display: 'block', fontSize: 11, color: 'var(--fg-muted)', marginTop: 3 }}>{hint}</span> : null}
+    </label>
+  );
+}
+
+function TextareaField({ label, value, onChange, placeholder, rows = 5, hint }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', marginBottom: 4 }}>{label}</span>
+      <textarea
+        className="input" value={value ?? ''} placeholder={placeholder} rows={rows}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, lineHeight: 1.6, resize: 'vertical' }}
       />
       {hint ? <span style={{ display: 'block', fontSize: 11, color: 'var(--fg-muted)', marginTop: 3 }}>{hint}</span> : null}
     </label>
@@ -47,6 +63,10 @@ function AdminScreen({ startNew, selectId, embed }) {
   const [busyInvite, setBusyInvite] = useState(false);
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('clients');
+  // lead_field_labels is JSON on the account but is edited as "raw = corrected"
+  // lines, so it lives in its own text state and is parsed back on save (parsing
+  // per keystroke would fight anyone mid-line).
+  const [labelText, setLabelText] = useState('');
 
   const loadAccounts = async (selectAfter, autoSelect = true) => {
     try {
@@ -67,11 +87,12 @@ function AdminScreen({ startNew, selectId, embed }) {
     if (!a) return;
     setSelectedId(a.id);
     setForm({ ...BLANK, ...a });
+    setLabelText(formatLabelMap(a.lead_field_labels));
     setError('');
     listInvites(a.id).then((r) => setInvites(r.invites || [])).catch(() => setInvites([]));
   };
 
-  const newClient = () => { setSelectedId('new'); setForm(BLANK); setInvites([]); setError(''); };
+  const newClient = () => { setSelectedId('new'); setForm(BLANK); setLabelText(''); setInvites([]); setError(''); };
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
   // Locations editor (HQ + every market they operate in).
   const locs = Array.isArray(form.locations) ? form.locations : [];
@@ -86,12 +107,13 @@ function AdminScreen({ startNew, selectId, embed }) {
     setSaving(true); setError('');
     try {
       const dash = { dash_folder_id: form.dash_folder_id || null, dash_upload_url: form.dash_upload_url || null };
+      const payload = { ...form, lead_field_labels: parseLabelMap(labelText) };
       if (selectedId === 'new') {
-        const r = await createAccount(form);
+        const r = await createAccount(payload);
         await setDashConfig(r.account.id, dash);
         await loadAccounts(r.account.id);
       } else {
-        await updateAccount(selectedId, form);
+        await updateAccount(selectedId, payload);
         await setDashConfig(selectedId, dash);
         await loadAccounts(selectedId);
       }
@@ -104,7 +126,7 @@ function AdminScreen({ startNew, selectId, embed }) {
     setSaving(true);
     try {
       await deleteAccount(selectedId);
-      setSelectedId(null); setForm(BLANK); setInvites([]);
+      setSelectedId(null); setForm(BLANK); setLabelText(''); setInvites([]);
       await loadAccounts();
     } catch (e) { setError(String(e.message || e)); } finally { setSaving(false); }
   };
@@ -259,6 +281,14 @@ function AdminScreen({ startNew, selectId, embed }) {
                 <Field label="Dash brand folder" value={form.dash_folder_id} onChange={set('dash_folder_id')} hint="The brand's top-level Dash folder NAME (e.g. Edison) — drives the Assets page" />
                 <Field label="Dash upload link" value={form.dash_upload_url} onChange={set('dash_upload_url')} hint="Guest-upload link — powers the Upload Assets button" />
                 <Field label="Pastel website board" value={form.pastel_url} onChange={set('pastel_url')} hint="Client's Pastel feedback URL — routes 'Website update' requests here" />
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <TextareaField
+                  label="Lead form label fixes" value={labelText} onChange={setLabelText} rows={5}
+                  placeholder={'e g Fawn Lake = Community name\ne g 240 = Number of homes'}
+                  hint="Only when their form's inputs aren't labelled — WhatConverts then sends the placeholder as the field name. One per line: what WhatConverts sends = what it should say. Applied on the next lead sync."
+                />
               </div>
 
               <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>

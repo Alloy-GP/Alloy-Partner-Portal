@@ -76,50 +76,90 @@ function quotableState(raw: unknown): string {
   return "not_set";
 }
 
+// LABEL REPAIR (accounts.lead_field_labels): a raw WhatConverts label -> the
+// label it should have had. Some client forms don't give their inputs a real
+// name/label, so WhatConverts reports the input's PLACEHOLDER as the field name
+// — Landmarc's proposal form arrives as "e g Fawn Lake" (the community),
+// "e g 240" (homes), "you@email com", "(540) 000-0000". Nothing downstream can
+// know what those mean, so the whole pipeline degrades: no community beside the
+// lead's name, no stat cards, and raw placeholder text shown as the label in
+// "What they submitted". Renaming at ingest fixes ALL of that at once, because
+// every consumer keys off the label. Matching is case/space-insensitive so a
+// stray capital in the form can't break the mapping. The right long-term fix is
+// still to label the form properly (or map the fields in WhatConverts) — this is
+// the repair for forms we don't control.
+type LabelMap = Record<string, string>;
+const labelKey = (s: string) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+function buildLabelMap(raw: unknown): LabelMap {
+  const out: LabelMap = {};
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [from, to] of Object.entries(raw as Record<string, unknown>)) {
+      const k = labelKey(from), v = String(to ?? "").trim();
+      if (k && v) out[k] = v;
+    }
+  }
+  return out;
+}
+
 // WhatConverts form data arrives as additional_fields / custom_fields, each an
-// array of { field_name, field_value } (or an object map). Flatten to pairs.
-function fieldPairs(l: any): Array<{ name: string; value: string }> {
+// array of { field_name, field_value } (or an object map). Flatten to pairs,
+// applying the account's label repairs as we go.
+function fieldPairs(l: any, labels: LabelMap = {}): Array<{ name: string; value: string }> {
   const pairs: Array<{ name: string; value: string }> = [];
+  const fix = (name: string) => labels[labelKey(name)] ?? name;
   for (const src of [l.additional_fields, l.custom_fields, l.mapped_fields]) {
     if (Array.isArray(src)) {
       for (const f of src) {
         const name = String(f?.field_name ?? f?.name ?? f?.key ?? "").trim();
         const value = String(f?.field_value ?? f?.value ?? "").trim();
-        if (value) pairs.push({ name, value });
+        if (value) pairs.push({ name: fix(name), value });
       }
     } else if (src && typeof src === "object") {
       for (const [name, value] of Object.entries(src)) {
-        if (value != null && String(value).trim()) pairs.push({ name: String(name), value: String(value).trim() });
+        if (value != null && String(value).trim()) pairs.push({ name: fix(String(name)), value: String(value).trim() });
       }
     }
   }
   return pairs;
 }
 
+// A person / company / community name is SHORT. Anything longer is an answer to
+// a prose question, not a name — across every live client the longest real value
+// is 83 chars. Without this cap a form question like "Tell us about your
+// community and what you're looking for" matches the /communit/i company pattern
+// and the lead's whole essay lands in `company`, which the portal renders as the
+// subtitle beside their name (list rows AND the detail panel).
+const MAX_NAME_LEN = 120;
+
 // Pull a contact detail out of the raw form submission by matching the field
 // LABEL. Client forms use wildly different labels ("Your name", "Contact Name",
 // "First & last") that WhatConverts never maps to its standard contact_* fields,
 // so without this every form lead reads "New lead". `res` are tried in order
 // (most specific first); `exclude` skips false positives (e.g. "Company name"
-// when we're after a person's name).
+// when we're after a person's name); `skip` drops one specific label — used to
+// keep the field already claimed as the MESSAGE from also becoming a name.
 function pickField(
-  pairs: Array<{ name: string; value: string }>, res: RegExp[], exclude?: RegExp,
+  pairs: Array<{ name: string; value: string }>, res: RegExp[], exclude?: RegExp, skip?: string | null,
 ): string | null {
   for (const re of res) {
-    const hit = pairs.find((p) => re.test(p.name) && (!exclude || !exclude.test(p.name)) && p.value);
+    const hit = pairs.find((p) =>
+      re.test(p.name) && (!exclude || !exclude.test(p.name)) &&
+      p.name !== skip && p.value && p.value.length <= MAX_NAME_LEN);
     if (hit) return hit.value;
   }
   return null;
 }
 
-// The lead's own words: ONLY a field literally named message/comments/etc. The
-// full submission is kept in `fields`, so the panel shows dropdown answers (e.g.
-// "What brings you here") under their own labels — no need to guess a "message"
-// from the longest answer (that used to grab a bare phone number).
-function leadMessage(l: any): string | null {
-  const pairs = fieldPairs(l);
+// The field holding the lead's own words: ONLY one literally named
+// message/comments/etc. The full submission is kept in `fields`, so the panel
+// shows dropdown answers (e.g. "What brings you here") under their own labels —
+// no need to guess a "message" from the longest answer (that used to grab a bare
+// phone number). Returned as the PAIR, not just the text, so mapLead can exclude
+// this label from the name/company picks — a message field is by definition the
+// lead's prose and must never double as their community name.
+function messageField(pairs: Array<{ name: string; value: string }>): { name: string; value: string } | null {
   const named = pairs.find((p) => /\b(message|comments?|your message|describe|tell us|details?|how can we help|reason)\b/i.test(p.name));
-  return named && named.value.length > 1 ? named.value.slice(0, 800) : null;
+  return named && named.value.length > 1 ? named : null;
 }
 
 // How they arrived: search keyword, else form name, else landing path.
@@ -152,7 +192,7 @@ function leadJourney(l: any): any[] | null {
   return steps.length ? steps : null;
 }
 
-function mapLead(l: any, i: number, acctId: string, wcAccountId: string) {
+function mapLead(l: any, i: number, acctId: string, wcAccountId: string, labels: LabelMap = {}) {
   const quotable = quotableState(l.quotable);
   // quality kept for back-compat: only an explicit "yes" is qualified.
   const quality = quotable === "yes" ? "qualified" : "review";
@@ -167,13 +207,16 @@ function mapLead(l: any, i: number, acctId: string, wcAccountId: string) {
   // standard WhatConverts contact_* field is empty (custom form labels never
   // map through), so leads show a real name instead of "New lead". Person name
   // preferred; fall back to the company / HOA / community name.
-  const pairs = fieldPairs(l);
+  const pairs = fieldPairs(l, labels);
+  // Whatever became the message can never also be a name (see messageField).
+  const msg = messageField(pairs);
+  const msgLabel = msg ? msg.name : null;
   const companyName = l.contact_company_name || l.contact_company ||
-    pickField(pairs, [/company name/i, /\bcompany\b/i, /associat/i, /communit/i, /\bhoa\b/i, /organi[sz]ation/i, /business name/i]);
+    pickField(pairs, [/company name/i, /\bcompany\b/i, /associat/i, /communit/i, /\bhoa\b/i, /organi[sz]ation/i, /business name/i], undefined, msgLabel);
   const personName = l.contact_name ||
     pickField(pairs,
       [/your name/i, /contact name/i, /\bfull name\b/i, /first\s*&?\s*(?:and\s*)?last/i, /^\s*name\b/i, /\bname\b/i],
-      /(compan|communit|associat|business|organi|form|file|user|screen|field|board)/i);
+      /(compan|communit|associat|business|organi|form|file|user|screen|field|board)/i, msgLabel);
   return {
     account_id: acctId,
     wc_lead_id: l.lead_id != null ? String(l.lead_id) : null,
@@ -185,7 +228,7 @@ function mapLead(l: any, i: number, acctId: string, wcAccountId: string) {
     email: l.contact_email_address || l.email_address || l.email || pickField(pairs, [/^e-?mail/i, /\bemail\b/i]) || null,
     phone: l.contact_phone_number || l.caller_number || l.phone_number || pickField(pairs, [/phone/i, /\bmobile\b/i, /\bcell\b/i, /\btel(?:ephone)?\b/i]) || null,
     company: companyName || null,
-    message: leadMessage(l),
+    message: msg ? msg.value.slice(0, 800) : null,
     fields: pairs,                               // full form submission (incl. dropdowns)
     context: leadContext(l),
     page: l.lead_url || l.landing_url || null,   // the page the form/widget was on
@@ -227,6 +270,7 @@ function parseAccountIds(v: unknown): string[] {
 
 async function syncAccount(supabase: any, acct: any, startDate: string) {
   const ids = parseAccountIds(acct.whatconverts_profile_id);
+  const labels = buildLabelMap(acct.lead_field_labels);
   const seen = new Set<string>();
   const raw: any[] = [];
   for (const id of ids) {
@@ -241,7 +285,7 @@ async function syncAccount(supabase: any, acct: any, startDate: string) {
   // Merged across sources → re-order newest-first so the `sort` index is stable.
   raw.sort((a, b) => new Date(b.date_created || 0).getTime() - new Date(a.date_created || 0).getTime());
   const stamp = new Date().toISOString();
-  const leads = raw.map((l, i) => ({ ...mapLead(l, i, acct.id, l.__wcAccountId), last_synced_at: stamp }));
+  const leads = raw.map((l, i) => ({ ...mapLead(l, i, acct.id, l.__wcAccountId, labels), last_synced_at: stamp }));
 
   // Upsert-and-prune (NOT delete-all-then-insert): write current leads keyed by
   // (account_id, wc_lead_id), then delete only rows this run did NOT touch
@@ -331,7 +375,7 @@ Deno.serve(async (req) => {
     const startDate = ytdStart();   // calendar YTD
 
     const { data: accounts, error } = await supabase
-      .from("accounts").select("id, short_name, company, whatconverts_profile_id")
+      .from("accounts").select("id, short_name, company, whatconverts_profile_id, lead_field_labels")
       .not("whatconverts_profile_id", "is", null);
     if (error) throw error;
 

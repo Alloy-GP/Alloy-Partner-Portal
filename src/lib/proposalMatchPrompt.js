@@ -9,7 +9,7 @@
 // (decision 3b), which tag matching can't do.
 //
 // Pure JS (no Deno/Node/React specifics) so it's the single source of truth for
-// BOTH the Node precompute harness (scripts/llm-precompute-matches.mjs) and the
+// BOTH the browser caller (src/lib/proposalLLM.js) and the
 // Deno edge function (supabase/functions/proposal-match) — the edge fn mirrors
 // SYSTEM/MATCH_SCHEMA verbatim; keep them in sync.
 //

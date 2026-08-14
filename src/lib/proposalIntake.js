@@ -43,7 +43,7 @@ export function painsFromFrustrations(frustrations) {
 }
 
 // A WhatConverts lead (DATA.recentLeads shape: id/name/email/phone/company +
-// fields[{name,value}]) → the raw proposal shape (proposalMockData LEADS_RAW).
+// fields[{name,value}]) → the raw proposal shape enrichLead consumes.
 export function leadToProposalRaw(lead) {
   const f = {};
   (lead.fields || []).forEach((x) => { f[norm(x.name).replace(/\*$/, "").trim()] = x.value; });
