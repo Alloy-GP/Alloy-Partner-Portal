@@ -7,6 +7,11 @@ import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { parseCcInput, CC_MAX } from '../lib/ccList.js';
 import { selectIntakeBatch } from '../lib/intakeDrain.js';
 import { canMintProposals } from '../lib/proposalAccess.js';
+import {
+  stageOf, uiStageOf, inWon, inLost, sentOutsidePortal,
+  stageMoves, stageMovePatch, stageSnapshot, stageMoveLabel, stageNeeds,
+  STAGE_LABEL,
+} from '../lib/proposalStage.js';
 import { receivedMs, fmtReceived, ageAgo, agePriority, syncFreshness } from '../lib/leadAge.js';
 import { matchLeadWithLLM, realignFromTranscript, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
@@ -61,12 +66,9 @@ const relAgo = (ts) => {
 };
 const DISQ_REASONS = ['Budget below our floor', 'Outside service area', 'Renewed with current manager', 'Self-managing for now', 'Other'];
 
-const stageOf = (s) => {
-  if (s.disq) return 'closed';
-  if (s.status === 'new') return 'pending';
-  if (s.status === 'accepted' || s.status === 'declined') return 'closed';
-  return 'qualified';
-};
+// stageOf / uiStageOf / the bucket predicates now live in src/lib/proposalStage.js
+// alongside the stage-move contract, so what decides a stage and what CHANGES it
+// are the same file. Imported at the top.
 
 // Looping scan animation (replaces the old lightning-bolt) for the "matching"
 // overlay. Cockpit-only — kept out of proposal-shared so the anonymous board
@@ -106,6 +108,7 @@ const icoOpen = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none
 const icoEdit = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>;
 const icoPhone = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>;
 const icoResend = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15" /></svg>;
+const icoMove = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></svg>;
 
 // The shared back-row toolbar used on every focused stage: back pill (left) +
 // action pills (right, same .fx-back style; one optional pink primary).
@@ -231,23 +234,106 @@ function QualifyModal({ s, onClose, onQualify, onDisqualify }) {
   );
 }
 
-function WinModal({ s, onClose, onWin, onLose }) {
-  const [val, setVal] = useState(s.salesValue != null ? s.salesValue : s.quoteValue);
+// ── Move stage ──────────────────────────────────────────────────────────────
+// One control for every stage change, replacing the old one-way buttons (and the
+// WinModal that used to be the ONLY way to record a signed value). The stage
+// stays derived from status/disq; src/lib/proposalStage.js owns which fields a
+// given move writes, so nothing here hand-maintains a patch.
+const MOVE_WARN = {
+  notEmailed: () => (
+    <>Nothing has been emailed from the portal for this proposal. It will sit in <b>Sent</b>
+      {' '}marked <b>sent outside the portal</b>, with no opens, no read depth and no link
+      countdown — because there is nothing here to track. Use <b>Send proposal</b> instead if
+      you want the portal to email it and track it.</>
+  ),
+  boardLinkLive: () => <>The board's emailed link keeps working — they can still open this and reply.</>,
+  boardVerdict: (w) => <>The board already responded (<b>{w.action}</b>). Their copy keeps showing that until you resend.</>,
+  eventsHidden: (w) => <><b>{w.n}</b> board engagement {w.n === 1 ? 'event stays' : 'events stay'} recorded, but the engagement panel only renders in Sent.</>,
+  clearsSalesValue: (w) => <>The signed value ({money(w.value)}/yr) will be cleared.</>,
+  reopensClosed: (w) => <>This reopens a closed deal — it leaves <b>{w.from}</b>.</>,
+};
+
+function MoveStageModal({ s, live, onClose, onMove, onSendInstead }) {
+  const here = uiStageOf(s);
+  const moves = stageMoves(s);
+  const [target, setTarget] = useState(null);
+  const [owner, setOwner] = useState(s.owner || 'AB');
+  const [quote, setQuote] = useState(s.quoteValue);
+  const [sales, setSales] = useState(s.salesValue != null ? s.salesValue : s.quoteValue);
+  const [reason, setReason] = useState(DISQ_REASONS[0]);
+
+  const opts = { owner, quoteValue: quote, salesValue: sales, disqReason: reason };
+  // The contract decides everything: which fields change, what's still missing,
+  // and what to warn about. The modal only renders it.
+  const preview = target ? stageMovePatch(s, target, opts) : null;
+  const needs = target ? stageNeeds(target) : null;
+  const blocked = !target || !!(preview && preview.error);
+  const tone = target === 'won' ? 'v2-btn-win' : (target === 'lost' || target === 'disq') ? 'v2-btn-danger' : 'btn-primary';
+
   return (
     <div className="ps-scrim" onClick={onClose}>
       <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
         <div className="ps-modal-head">
-          <span className="t">Close deal · {s.community}</span>
-          <span style={{ fontSize: 11, color: 'var(--fg-muted)', fontWeight: 600 }}>{s.homes} homes · quoted {money(s.quoteValue)}/yr</span>
-          <button className="x" onClick={onClose}><I.Close width={15} height={15} /></button>
+          <span className="t">Move · {s.community}</span>
+          <span style={{ fontSize: 11, color: 'var(--fg-muted)', fontWeight: 600 }}>Currently in {STAGE_LABEL[here]} · {s.homes} homes</span>
+          <button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button>
         </div>
         <div className="v2-qual-body">
-          <label className="v2-qual-label">Signed sales value <span>· annual contract</span></label>
-          <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={val} onChange={(e) => setVal(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
-          <div className="v2-qual-hint">Prefilled from the quote ({money(s.quoteValue)}/yr). Adjust to what the board actually signed.</div>
-          <div className="v2-qual-actions v2-qual-actions--split">
-            <button className="btn v2-btn-danger" onClick={() => { onLose(s.id); onClose(); }}>Lost the deal</button>
-            <button className="btn v2-btn-win" onClick={() => { onWin(s.id, val); onClose(); }}><I.Check width={14} height={14} /> Mark won</button>
+          <label className="v2-qual-label">Move to</label>
+          <div className="v2-qual-reasons">
+            {moves.map((m) => (
+              <button key={m.id} className="v2-qual-reason" data-on={target === m.id} onClick={() => setTarget(m.id)}>
+                <span className="v2-qual-radio" data-on={target === m.id} />{m.label}
+              </button>
+            ))}
+          </div>
+
+          {needs === 'ownerQuote' && (<>
+            <label className="v2-qual-label">Sales owner</label>
+            <div className="v2-qual-owners">
+              {['AB', 'JR'].map((o) => (
+                <button key={o} className="v2-qual-owner" data-on={owner === o} onClick={() => setOwner(o)}>
+                  <OwnerAvatar initials={o} size={24} /><span>{cam().ownerShort[o] || o}</span>
+                  {owner === o && <span className="v2-qual-tick"><I.Check width={12} height={12} /></span>}
+                </button>
+              ))}
+            </div>
+            <label className="v2-qual-label">Estimated quote value <span>· annual contract</span></label>
+            <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={quote} onChange={(e) => setQuote(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
+          </>)}
+
+          {needs === 'salesValue' && (<>
+            <label className="v2-qual-label">Signed sales value <span>· annual contract</span></label>
+            <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={sales} onChange={(e) => setSales(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
+            <div className="v2-qual-hint">{here === 'new'
+              ? <>Prefilled from the recommended tier ({s.tierName}) — nobody has quoted this yet.</>
+              : <>Prefilled from the quote ({money(s.quoteValue)}/yr). Adjust to what the board actually signed.</>}</div>
+          </>)}
+
+          {needs === 'disqReason' && (<>
+            <label className="v2-qual-label">Reason</label>
+            <div className="v2-qual-reasons">
+              {DISQ_REASONS.map((r) => (
+                <button key={r} className="v2-qual-reason" data-on={reason === r} onClick={() => setReason(r)}><span className="v2-qual-radio" data-on={reason === r} />{r}</button>
+              ))}
+            </div>
+          </>)}
+
+          {(preview ? preview.warnings : []).map((w) => (
+            <div key={w.code} className="v2-qual-warn">{(MOVE_WARN[w.code] || (() => w.code))(w)}</div>
+          ))}
+          {target === 'sent' && !s.sentAt && (
+            <div className="v2-qual-actions" style={{ justifyContent: 'flex-start' }}>
+              <button className="btn btn-secondary" onClick={() => { onClose(); onSendInstead(); }}>Send proposal instead</button>
+            </div>
+          )}
+          {!live && <div className="v2-qual-warn">Mock dev — this move won't be saved.</div>}
+
+          <div className="v2-qual-actions">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className={'btn ' + tone} disabled={blocked} onClick={() => { onMove(s.id, target, opts); onClose(); }}>
+              {target ? stageMoveLabel(target) : 'Move'}
+            </button>
           </div>
         </div>
       </div>
@@ -405,7 +491,7 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing, onArchive }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing, onArchive, onMove }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null (Layer B)
@@ -454,6 +540,9 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
         { icon: <I.Trash width={14} height={14} />, label: 'Remove lead', onClick: () => onArchive(sub) },
         { icon: icoPhone(), label: 'Update from call', onClick: onRealign },
         { icon: icoEdit(), label: 'Edit details', onClick: onEditDetails },
+        // Closing a deal on a phone call before anything is built or sent is a
+        // real motion; Qualify & Build stays the primary happy path.
+        { icon: icoMove(), label: 'Move / close', onClick: () => onMove(sub) },
         { label: 'Qualify & Build', onClick: () => setQualifyTarget(sub), primary: true, arrow: true },
       ]} />
 
@@ -543,7 +632,9 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
   const ownerFig = sub.owner
     ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{cam().ownerFirst[sub.owner] || sub.owner}</> }
     : { k: 'Owner', v: 'Unassigned' };
-  let figs, statusText = STATUS[stage];
+  // A row demoted out of Sent keeps its sent_at, so say so rather than letting
+  // Build/New present a previously-emailed proposal as untouched.
+  let figs, statusText = STATUS[stage] + (sub.sentAt && (stage === 'new' || stage === 'build') ? ' · previously sent' : '');
   if (stage === 'sent') {
     const w = getWatch(sub), pr = pricing(sub);
     statusText = 'Sent · ' + ((w.heat || 'cold').charAt(0).toUpperCase() + (w.heat || 'cold').slice(1));
@@ -1079,17 +1170,51 @@ function SentBucket({ open, onPick }) {
   );
 }
 
-function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMarkWon, onMarkLost, notesMap, addNote, onEditDetails, onRealign, onOpenFull }) {
-  const open = subs.filter((s) => s.status === 'sent').sort((a, b) => HEAT_RANK[getWatch(a).heat] - HEAT_RANK[getWatch(b).heat]);
-  if (open.length === 0) {
+// Sent rows the portal never emailed (marked sent by hand). Listed separately and
+// WITHOUT heat/opens/expiry, because getWatch() would fall back to freshWatch()
+// and invent "Just now - 30 days left - awaiting first open" for every one.
+function UntrackedSentBucket({ rows, onPick }) {
+  return (
+    <div className="v2-card" style={{ marginTop: 14 }}>
+      <div className="v2-block-label">Sent outside the portal · {rows.length} · not tracked here</div>
+      {rows.map((s) => (
+        <div className="fx-brow" key={s.id} onClick={() => onPick(s.id)} role="button" tabIndex={0}>
+          <div className="fx-brow-l"><div className="fx-brow-nm">{s.community}</div><div className="fx-brow-meta">{s.contact} · {s.homes} homes · {s.city}</div></div>
+          <div className="fx-brow-prog">
+            <span className="fx-brow-proglbl" style={{ marginTop: 0 }}>Marked sent by hand — no link was emailed from here, so there is nothing to track.</span>
+          </div>
+          <div className="fx-brow-fig"><div className="v">{pricing(s).monthly}/mo</div><div className="k">Value</div></div>
+          <button className="fx-brow-go" onClick={(e) => { e.stopPropagation(); onPick(s.id); }}>Open →</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMove, notesMap, addNote, onEditDetails, onRealign, onOpenFull }) {
+  const all = subs.filter((s) => s.status === 'sent');
+  // Split before sorting: heat ranking reads getWatch(), which fabricates a
+  // "fresh send" for any row with no events. Only portal-sent rows have a real
+  // send to rank by.
+  const tracked = all.filter((s) => !sentOutsidePortal(s)).sort((a, b) => HEAT_RANK[getWatch(a).heat] - HEAT_RANK[getWatch(b).heat]);
+  const untracked = all.filter(sentOutsidePortal);
+  if (all.length === 0) {
     return <div className="v2-watch"><div className="v2-w-empty"><span className="ic"><I.Send width={22} height={22} /></span><div className="t">No live proposals yet</div><div className="s">Send a proposal and it'll show up here so you can track every open.</div></div></div>;
   }
-  // Nothing focused → the bucket list (a stage holds many). Pick one → its engagement.
-  if (!watchId) return <SentBucket open={open} onPick={onPick} />;
-  const selected = open.find((s) => s.id === watchId) || open[0];
+  // Nothing focused → the bucket lists (a stage holds many). Pick one → its detail.
+  // A stale watchId (the row was just moved out of Sent) falls back to the list
+  // rather than silently rendering a DIFFERENT proposal's engagement while the
+  // toolbar still edits the moved one.
+  if (!watchId || !all.some((s) => s.id === watchId)) {
+    return (<>
+      {tracked.length > 0 && <SentBucket open={tracked} onPick={onPick} />}
+      {untracked.length > 0 && <UntrackedSentBucket rows={untracked} onPick={onPick} />}
+    </>);
+  }
+  const selected = all.find((s) => s.id === watchId);
   return (
     <SentFocus key={selected.id} selected={selected} onBack={() => setWatchId(null)} onResend={onResend} onNudge={onNudge}
-      onMarkWon={(id, v) => { onMarkWon(id, v); setWatchId(null); }} onMarkLost={(id) => { onMarkLost(id); setWatchId(null); }}
+      onMove={onMove}
       notes={notesMap[selected.id]} addNote={addNote}
       onEdit={onEditDetails} onRealign={onRealign} onOpenFull={() => onOpenFull(selected)} />
   );
@@ -1097,25 +1222,50 @@ function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMar
 
 // Sent · focused — shared pin header + back-row toolbar (nudge / resend / mark
 // won-lost as pills, matching Build), with the engagement detail below.
-function SentFocus({ selected, onBack, onResend, onNudge, onMarkWon, onMarkLost, notes, addNote, onEdit, onRealign, onOpenFull }) {
-  const [winOpen, setWinOpen] = useState(false);
+function SentFocus({ selected, onBack, onResend, onNudge, onMove, notes, addNote, onEdit, onRealign, onOpenFull }) {
   const [nudgeOpen, setNudgeOpen] = useState(false);
+  // Marked sent by hand: the portal never emailed it, so there is nothing to
+  // nudge, nothing to track, and no link to resend. Offer the real send instead.
+  const untracked = sentOutsidePortal(selected);
   return (
     <div>
       <StageToolbar backLabel="All sent" onBack={onBack} actions={[
         { icon: icoOpen(), label: 'Open full proposal', onClick: onOpenFull },
         { icon: icoEdit(), label: 'Edit details', onClick: onEdit },
         { icon: icoPhone(), label: 'Update from call', onClick: onRealign },
-        { icon: <I.Send width={14} height={14} />, label: 'Send a nudge', onClick: () => setNudgeOpen(true) },
-        { icon: icoResend(), label: 'Resend', onClick: () => onResend(selected) },
-        { icon: <I.Check width={14} height={14} />, label: 'Mark won / lost', onClick: () => setWinOpen(true), primary: true },
+        untracked ? null : { icon: <I.Send width={14} height={14} />, label: 'Send a nudge', onClick: () => setNudgeOpen(true) },
+        { icon: icoResend(), label: untracked ? 'Send from the portal' : 'Resend', onClick: () => onResend(selected) },
+        { icon: icoMove(), label: 'Move / close', onClick: () => onMove(selected), primary: true },
       ]} />
       <PinnedCard sub={selected} stage="sent" />
-      <div className="v2-watch">
-        <LeadAnalytics s={selected} notes={notes} addNote={addNote} />
-      </div>
+      {untracked ? <UntrackedSentNotice s={selected} /> : (
+        <div className="v2-watch">
+          <LeadAnalytics s={selected} notes={notes} addNote={addNote} />
+        </div>
+      )}
       {nudgeOpen && <NudgeModal s={selected} onClose={() => setNudgeOpen(false)} onSend={onNudge} />}
-      {winOpen && <WinModal s={selected} onClose={() => setWinOpen(false)} onWin={onMarkWon} onLose={onMarkLost} />}
+    </div>
+  );
+}
+
+// Sent, but not BY the portal. Deliberately not the engagement panel: getWatch()
+// would fall back to freshWatch() and render "sent Just now - 30 days left -
+// awaiting first open" for a proposal this system never emailed. Say the true
+// thing instead, and offer the one action that makes it trackable.
+function UntrackedSentNotice({ s }) {
+  return (
+    <div className="v2-watch">
+      <div className="v2-w-empty">
+        <span className="ic"><I.Send width={22} height={22} /></span>
+        <div className="t">Sent outside the portal</div>
+        <div className="s">
+          This was marked sent by hand, so the portal has nothing to track — no opens, no read
+          depth, no link countdown. {s.firstName || s.contact} never received a link from here.
+          <br /><br />
+          Use <b>Send from the portal</b> above to email it properly; engagement tracking starts
+          from that moment.
+        </div>
+      </div>
     </div>
   );
 }
@@ -1254,9 +1404,11 @@ function ArchiveView({ archived, onRestore }) {
   );
 }
 
-function WonLostView({ subs }) {
-  const won = subs.filter((s) => s.status === 'accepted');
-  const lost = subs.filter((s) => s.status === 'declined' || s.disq);
+function WonLostView({ subs, onMove }) {
+  // Single-source predicates: the old inline filters counted a disq row with
+  // status 'accepted' as BOTH won and lost.
+  const won = subs.filter(inWon);
+  const lost = subs.filter(inLost);
   const Row = ({ s, kind }) => {
     const pr = pricing(s);
     return (
@@ -1268,6 +1420,9 @@ function WonLostView({ subs }) {
         <span style={{ fontSize: 11.5, fontWeight: 800, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap', background: kind === 'won' ? 'var(--alloy-green-tint, #e8f4ec)' : '#f3f1f6', color: kind === 'won' ? '#2f8a5f' : 'var(--fg-muted)' }}>
           {kind === 'won' ? 'Won' : (s.disq ? (s.disqReason || 'Not quotable') : 'Lost')}
         </span>
+        {/* Closed used to be a dead end — no control existed on these rows at all,
+            so a deal closed by mistake could never be reopened. */}
+        <button className="fx-arch-restore" onClick={() => onMove(s)}>Reopen</button>
       </div>
     );
   };
@@ -1477,6 +1632,7 @@ export default function ProposalsScreen() {
   // Archive bin — removed from the pipeline but kept as drain tombstones.
   const [archived, setArchived] = useState(() => DATA.archivedProposals || []);
   const [archiveTarget, setArchiveTarget] = useState(null); // lead pending the confirm modal
+  const [moveTarget, setMoveTarget] = useState(null); // lead pending the stage-move modal
   const [previewNonce, setPreviewNonce] = useState(0); // bump → Build preview iframe re-fetches
   const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
@@ -1488,7 +1644,9 @@ export default function ProposalsScreen() {
   const sections = editorMap[selectedId] || [];
   const perHome = sub ? sub.perHome : null; // single source — price edits write back into subs so every view (tier card, bucket, board) reflects them
 
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3200); return () => clearTimeout(t); }, [toast]);
+  // Sticky toasts (a FAILED stage write) stay until dismissed — a 3.2s flash is
+  // not good enough for "the database did not accept that".
+  useEffect(() => { if (!toast || toast.sticky) return; const t = setTimeout(() => setToast(null), 3200); return () => clearTimeout(t); }, [toast]);
 
   // Relative labels ("synced 4m ago", lead ages) are computed at render, so the
   // screen needs a heartbeat or they freeze at whatever they said on mount.
@@ -1540,14 +1698,69 @@ export default function ProposalsScreen() {
   const pickSent = (id) => { setWatchId(id); setSelectedId(id); }; // focus a sent lead → also make it the selected proposal (so Edit/Realign target it)
   const backToInbox = () => setInbox(true);
   const resumeBuild = (id) => { setSelectedId(id); setFocusBuild(true); }; // pick a lead from the Build bucket list → its editor
-  const qualify = (id, owner, quoteValue) => {
-    setSubs(subs.map((s) => s.id === id ? { ...s, status: 'review', owner, quoteValue, disq: false, disqReason: null } : s));
-    persist(id, { status: 'review', owner: owner || '', quote_value: quoteValue ?? null, disq: false, disq_reason: '' });
+  // ── Stage moves — the ONE write path ─────────────────────────────────────
+  // Every transition (qualify, disqualify, won, lost, and now any demote) goes
+  // through this. src/lib/proposalStage.js decides which fields the move writes,
+  // so nothing here hand-maintains a camelCase and a snake_case copy of a patch.
+  const movingRef = useRef(new Set()); // per-row in-flight lock
+
+  // Unlike persist(), this VERIFIES the write. A Supabase update matching zero
+  // rows returns no error, so a wrong lead_key would "succeed" and leave the
+  // browser showing a stage the database never accepted. On failure the previous
+  // stage tuple is put back and the toast is sticky.
+  const writeStage = async (id, cols, rollbackView) => {
+    if (!live) return true;
+    const { data, error } = await supabase.from('proposals').update(cols)
+      .eq('account_id', DATA.account.id).eq('lead_key', id).select('lead_key');
+    if (error || !data || !data.length) {
+      if (rollbackView) setSubs((p) => p.map((s) => (s.id === id ? { ...s, ...rollbackView } : s)));
+      setToast({ msg: 'Stage change failed: ' + (error ? error.message : 'no matching proposal'), sticky: true });
+      return false;
+    }
+    return true;
   };
-  const disqualify = (id, reason) => {
-    setSubs(subs.map((s) => s.id === id ? { ...s, disq: true, disqReason: reason } : s));
-    persist(id, { disq: true, disq_reason: reason || '' });
+
+  // Apply a prepared patch (used by the mover and by Undo, so both take the
+  // identical path). `view` spreads into the row — never re-enrich, or the
+  // board-engagement `watch` derived in loadData would be nulled on screen.
+  const applyStagePatch = async (id, view, cols) => {
+    if (movingRef.current.has(id)) return false;
+    movingRef.current.add(id);
+    const before = (() => { const r = subsRef.current.find((x) => x.id === id); return r ? stageSnapshot(r) : null; })();
+    setSubs((p) => p.map((s) => (s.id === id ? { ...s, ...view } : s)));
+    try {
+      return await writeStage(id, cols, before ? before.view : null);
+    } finally {
+      movingRef.current.delete(id);
+    }
   };
+
+  const moveStage = async (id, target, opts = {}) => {
+    const row = subsRef.current.find((s) => s.id === id);
+    if (!row) return;
+    const before = stageSnapshot(row); // BY VALUE, so Undo can't read stale state
+    const patch = stageMovePatch(row, target, opts);
+    if (patch.error) { setToast({ msg: patch.error }); return; }
+
+    const ok = await applyStagePatch(id, patch.view, patch.cols);
+    if (!ok) return;
+
+    // Land the view where the row now lives, so no move leaves a focused stage
+    // rendering a proposal that no longer belongs to it.
+    const nav = patch.nav;
+    setMode(nav.mode); setInbox(nav.inbox); setFocusBuild(nav.focusBuild);
+    setWatchId(nav.watch ? id : null);
+    if (nav.select) setSelectedId(id);
+
+    setToast({
+      msg: `${row.community} → ${STAGE_LABEL[target]}`,
+      undo: () => applyStagePatch(id, before.view, before.cols),
+    });
+  };
+
+  // The old one-way transitions, now thin wrappers over the mover.
+  const qualify = (id, owner, quoteValue) => moveStage(id, 'build', { owner, quoteValue });
+  const disqualify = (id, reason) => moveStage(id, 'disq', { disqReason: reason });
   // Archive = remove from the pipeline entirely (spam / duplicate / test), as
   // opposed to disqualify, which keeps a real-but-not-a-fit prospect in Won/Lost
   // as a record. The row is KEPT as a tombstone on purpose: the intake drain
@@ -1567,7 +1780,10 @@ export default function ProposalsScreen() {
     setToast({ msg: `${sub.community} removed — in Archive`, undo: () => restoreLead(id) });
   };
   const restoreLead = (id) => {
-    const a = archived.find((s) => s.id === id);
+    // archivedRef, not `archived`: archiveLead's toast closes over the render it
+    // was created in, whose `archived` array does NOT yet contain this row — so
+    // the old lookup always missed and Undo silently did nothing.
+    const a = archivedRef.current.find((s) => s.id === id);
     if (!a) return;
     setArchived((p) => p.filter((s) => s.id !== id));
     // Re-enrich: the bin holds a light shape (no match/sections), and every
@@ -1575,14 +1791,6 @@ export default function ProposalsScreen() {
     setSubs((p) => [enrichLead({ ...a, archivedAt: null, archivedReason: '', archivedBy: '' }, cam()), ...p]);
     persist(id, { archived_at: null, archived_reason: '', archived_by: '' });
     setToast({ msg: `${a.community} restored to the pipeline` });
-  };
-  const markWon = (id, salesValue) => {
-    setSubs(subs.map((s) => s.id === id ? { ...s, status: 'accepted', salesValue } : s));
-    persist(id, { status: 'accepted', sales_value: salesValue ?? null });
-  };
-  const markLost = (id) => {
-    setSubs(subs.map((s) => s.id === id ? { ...s, status: 'declined' } : s));
-    persist(id, { status: 'declined' });
   };
   const addNote = (id, text) => {
     const next = [{ who: DATA.user?.name || meName || 'You', when: 'Just now', text }, ...(notesMap[id] || [])];
@@ -1863,6 +2071,7 @@ export default function ProposalsScreen() {
             { icon: icoOpen(), label: 'Open full proposal', onClick: () => window.open(BOARD_URL(sub), '_blank', 'noopener') },
             { icon: icoEdit(), label: 'Edit details', onClick: () => setEditOpen(true) },
             { icon: icoPhone(), label: 'Update from call', onClick: () => setRealignOpen(true) },
+            { icon: icoMove(), label: 'Move stage', onClick: () => setMoveTarget(sub) },
             { label: 'Send proposal', onClick: () => setSendOpen(true), primary: true, arrow: true },
           ]} />
           <PinnedCard sub={sub} stage="build" perHome={perHome} setPerHome={setPerHome} />
@@ -1871,7 +2080,7 @@ export default function ProposalsScreen() {
 
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
-        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} onRealign={() => setRealignOpen(true)}
+        <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} onRealign={() => setRealignOpen(true)} onMove={setMoveTarget}
           pendingMore={pendingMore} onSyncMore={syncNow} syncing={syncing} onArchive={setArchiveTarget} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
@@ -1885,11 +2094,11 @@ export default function ProposalsScreen() {
         <CloseView subs={subs} watchId={watchId} setWatchId={setWatchId} onPick={pickSent}
           onResend={(s) => resendProposal(s, 'Magic link resent')}
           onNudge={(s, opts) => resendProposal(s, 'Nudge sent', opts)}
-          onMarkWon={markWon} onMarkLost={markLost} notesMap={notesMap} addNote={addNote}
+          onMove={setMoveTarget} notesMap={notesMap} addNote={addNote}
           onEditDetails={() => setEditOpen(true)} onRealign={() => setRealignOpen(true)} onOpenFull={(s) => window.open(BOARD_URL(s), '_blank', 'noopener')} />
       )}
       {/* Won / Lost — closed outcomes. */}
-      {mode === 'won' && <WonLostView subs={subs} />}
+      {mode === 'won' && <WonLostView subs={subs} onMove={setMoveTarget} />}
       {/* Client — retained book of business. */}
       {mode === 'library' && <UVPLibrary />}
       {mode === 'archive' && <ArchiveView archived={archived} onRestore={restoreLead} />}
@@ -1900,6 +2109,7 @@ export default function ProposalsScreen() {
       {editOpen && sub && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
       {realignOpen && sub && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
       {archiveTarget && <ArchiveModal s={archiveTarget} onClose={() => setArchiveTarget(null)} onArchive={archiveLead} />}
+      {moveTarget && <MoveStageModal s={moveTarget} live={live} onClose={() => setMoveTarget(null)} onMove={moveStage} onSendInstead={() => { setSelectedId(moveTarget.id); setSendOpen(true); }} />}
       {matching && (
         <div className="v2-launch">
           <div className="v2-launch-card fx-scan-card">
@@ -1917,6 +2127,7 @@ export default function ProposalsScreen() {
           <span className="ic"><I.Check width={14} height={14} /></span>{toast.msg}
           {/* Removing a lead is one click, so it gets a one-click way back. */}
           {toast.undo && <button className="ps-toast-undo" onClick={() => { const u = toast.undo; setToast(null); u(); }}>Undo</button>}
+          {toast.sticky && <button className="ps-toast-undo" onClick={() => setToast(null)}>Dismiss</button>}
         </div>
       )}
     </div>
