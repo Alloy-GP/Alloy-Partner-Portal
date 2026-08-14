@@ -107,6 +107,16 @@ const fmt2 = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, 
 // the recommended-tier math reflects this lead's homes × per-home rate).
 import { monthlyFor } from "./proposalTier.js";
 
+// The board link lives 30 days from the real send — same figure aggregateWatch
+// uses for its expiry countdown, so the doc and the cockpit cannot disagree.
+export const LINK_LIFE_DAYS = 30;
+const fmtLongDate = (iso, plusDays = 0) => {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return "";
+  return new Date(t + plusDays * 86400000)
+    .toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+};
+
 export function buildSubmission(lead, cam) {
   const baseTiers = cam?.tiers || TIERS;
   const preparedBy = cam?.preparedBy || { name: "Amanda Betancourt", role: "COO" };
@@ -157,8 +167,13 @@ export function buildSubmission(lead, cam) {
     narrative: lead.quote,
     submittedAt: lead.received,
     proposalId: lead.id,
-    dateIssued: (lead.received || "").split(" · ")[0] || "May 23, 2026",
-    validThrough: "June 22, 2026",
+    // Both dates were hardcoded strings, so EVERY board document told its
+    // prospect "you have until June 22, 2026 to respond" — a date that is now
+    // ~8 weeks in the past, on a live proposal. Derived from the real send now:
+    // the link lives 30 days from sent_at (aggregateWatch uses the same 30), and
+    // an unsent draft shows no deadline rather than an invented one.
+    dateIssued: fmtLongDate(lead.sentAt) || (lead.received || "").split(" · ")[0] || "",
+    validThrough: fmtLongDate(lead.sentAt, LINK_LIFE_DAYS),
     // The board doc selects which tier card to show from THIS field
     // (board-proposal.jsx: useState(submission.recommendedTierId)). It read a
     // `recommendedTierId` that portal leads never set, so it always fell back to
