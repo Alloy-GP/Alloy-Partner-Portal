@@ -11,6 +11,7 @@
 // drift between the form labels and our canonical PAIN_POINTS labels.
 // ============================================================================
 import { PAIN_POINTS } from "./proposalMockData.js";
+import { recommendTier } from "./proposalTier.js";
 
 // pain id → distinctive matcher against the (normalized) frustrations text.
 const PAIN_KEYWORDS = {
@@ -50,6 +51,15 @@ export function leadToProposalRaw(lead) {
   const get = (...keys) => { for (const k of keys) { if (f[norm(k)]) return f[norm(k)]; } return ""; };
   const units = parseInt(String(get("number of units")).replace(/[^0-9]/g, ""), 10) || 0;
   const duesRaw = get("monthly dues / unit", "monthly dues");
+  // The form's own answers pick the tier. This used to be hardcoded to the
+  // Full-Service rate, so a board asking for "financial only" was quoted
+  // full service. Staff can still override the rate in Build.
+  const rec = recommendTier({
+    homes: units,
+    budget: get("budget range", "budget"),
+    metaStatus: get("current management status"),
+    metaType: get("community type"),
+  });
   return {
     id: lead.id, // wc_lead_id — becomes the proposal lead_key
     community: lead.company || get("association name", "community / association name") || lead.name || "New community",
@@ -74,7 +84,10 @@ export function leadToProposalRaw(lead) {
     receivedAt: lead.date ? new Date(lead.date).toISOString() : null,
     status: "new",
     owner: "",
-    perHome: 8.98, // default Full-Service rate; staff adjusts in Build
+    // Starting rate for the RECOMMENDED tier (null for on-site, which is a flat
+    // monthly fee). Staff adjusts in Build.
+    perHome: rec.perHome != null ? rec.perHome : 0,
+    tierId: rec.tierId,
     services: get("services needed"),
     amenities: get("amenities"),
   };

@@ -23,6 +23,7 @@
 
 import { deriveLeadMatch } from "./proposalMatch.js";
 import { receivedMs } from "./leadAge.js";
+import { tierName as tierNameFor, recommendTier, intakeFlags } from "./proposalTier.js";
 import { DATA } from "../data.js";
 // UVPs live in ONE canonical place (the backbone). Re-export so existing
 // `import { UVPS, UVP_TITLES, UVP_BLURBS } from proposalMockData` keep working.
@@ -128,11 +129,10 @@ export const PAIN_PROSE = {
 };
 
 // ---------- Service tiers ----------
-export const TIERS = [
-  { id: "full", name: "Full-Service Management", recommended: true, rateRange: "$4.50 – $25.00", defaultRate: 8.98, setupFee: 0 },
-  { id: "financial", name: "Financial & Administrative", rateRange: "$2.00 – $10.00", defaultRate: 4.0, setupFee: 0 },
-  { id: "onsite", name: "On-Site Management", rateRange: "≈ $2,500 / month", defaultRate: null, setupFee: 0 },
-];
+// The catalog lives in proposalTier.js alongside the logic that CHOOSES a tier
+// (re-exported here for back-compat). Nothing in proposalTier imports from this
+// file, so there is no cycle.
+export { TIERS } from "./proposalTier.js";
 
 // Zero-state for a proposal just sent in-session (no opens yet). Sections derive
 // from the lead's matched concerns.
@@ -289,7 +289,12 @@ export function enrichLead(s, cam) {
   const prose = cam?.painProse || PAIN_PROSE;
   const includesList = cam?.includes || INCLUDES;
   const m = s.matchSnapshot || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, uvps, { prose, topCaps: 4 }), _source: "engine" };
-  const tierName = "Full-Service Management";
+  // The tier the FORM points at, not a constant. perHome/tier_id are persisted at
+  // intake; `tierRec` is recomputed here so an older row (or a hand-edited one)
+  // still shows why, and `intakeFlags` surfaces what the submission contradicts.
+  const tierRec = recommendTier(s);
+  const tierId = s.tierId || tierRec.tierId;
+  const tierName = tierNameFor(tierId);
   const quoteValue = s.quoteValue != null ? s.quoteValue : Math.round((s.perHome || 0) * (s.homes || 0) * 12);
   // Date the board raised these concerns. Derived from the real timestamp rather
   // than splitting `received` on " · " — live intake rows use " at " as the
@@ -301,7 +306,10 @@ export function enrichLead(s, cam) {
     : "intake";
   return {
     ...s,
+    tierId,
     tierName,
+    tierRec,                                  // { tierId, perHome, why, budgetIntent, … }
+    intakeFlags: intakeFlags({ ...s, tierId }), // contradictions to raise before sending
     quoteValue,
     ...m, // match, concerns, scores, links, capsMatched, capsTotal
     // Close engagement: real aggregated board events, or null until a board

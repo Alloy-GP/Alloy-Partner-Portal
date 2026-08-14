@@ -491,6 +491,29 @@ function BuildBucket({ subs, editorMap, onResume }) {
 }
 
 // ── New stage shell: inbox grid (nothing drilled in) vs. the match-analysis drill-in ──
+// What the intake form contradicts or leaves unusable. Shown BEFORE the concern
+// list, because the alternative is a confident proposal built on a contradiction
+// the board itself submitted — e.g. Chappell Creek ticked "developer-controlled"
+// while answering "self-managed by board", with 12 units. The matcher was right;
+// nothing asked which was true.
+function IntakeFlags({ flags }) {
+  if (!flags || !flags.length) return null;
+  return (
+    <div className="v2-card fx-flags">
+      <div className="v2-block-label">Check with them first · {flags.length}</div>
+      {flags.map((f) => (
+        <div className="fx-flag" key={f.code}>
+          <span className="fx-flag-ic" aria-hidden="true">!</span>
+          <div>
+            <div className="fx-flag-t">{f.label}</div>
+            <div className="fx-flag-s">{f.detail}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing, onArchive, onMove }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
@@ -551,7 +574,8 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 
       <div className="fx-analysis2">
         <div>
-          <div className="v2-match-head">
+          <IntakeFlags flags={sub.intakeFlags} />
+      <div className="v2-match-head">
             <MatchRing value={sub.match} size={58} />
             <div className="v2-match-head-text">
               <h3 className="v2-match-h">Currently Matching “{sub.community}” with {cam().shortName}’s Expertise</h3>
@@ -606,6 +630,8 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
           <div className="v2-card">
             <div className="v2-tier-eyebrow">Recommended tier</div>
             <div className="v2-tier-name">{sub.tierName}</div>
+            {/* The number is never unattributable: say which answer chose it. */}
+            {sub.tierRec?.why ? <div className="v2-tier-why">{sub.tierRec.why}</div> : null}
             <div className="v2-tier-price">{pr.monthly}<small> /mo</small></div>
             <div className="v2-tier-breakdown">
               <div className="v2-tier-brow"><span className="v2-tier-bk">Per home</span><span className="v2-tier-bv">{pr.perHome}</span></div>
@@ -1920,7 +1946,7 @@ export default function ProposalsScreen() {
         // The lead's REAL submission time. Without this the inbox would date the
         // lead from this insert, which on a backlog sync is weeks off.
         received_at: raw.receivedAt,
-        status: 'new', selected_pains: raw.selectedPains, tier_id: 'full', per_home: raw.perHome,
+        status: 'new', selected_pains: raw.selectedPains, tier_id: raw.tierId || 'full', per_home: raw.perHome,
         // Origin matters: sync-whatconverts only auto-archives source='whatconverts'
         // rows when their lead disappears upstream. Seeded rows must never match.
         source: 'whatconverts',
