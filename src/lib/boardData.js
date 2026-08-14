@@ -105,7 +105,7 @@ const fmt2 = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, 
 
 // Map a portal lead → the board `submission` shape + a per-lead tiers array (so
 // the recommended-tier math reflects this lead's homes × per-home rate).
-import { monthlyFor, tierById } from "./proposalTier.js";
+import { monthlyFor } from "./proposalTier.js";
 
 export function buildSubmission(lead, cam) {
   const baseTiers = cam?.tiers || TIERS;
@@ -134,6 +134,11 @@ export function buildSubmission(lead, cam) {
     monthlyEstimate: `${fmt2(m.monthly)} / month`,
     annualEstimate: `${fmt2(m.monthly * 12)} / year`,
     minimumApplied: m.floored,
+    // Keyed off `provisional`, NOT `floored`: floored stays true once a real
+    // client minimum lands, and the badge must disappear at that point.
+    minimumProvisional: m.provisional,
+    minimum: m.minimum,
+    rawMonthly: m.raw,
   });
   return {
     association: lead.community,

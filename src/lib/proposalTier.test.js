@@ -218,11 +218,24 @@ describe('monthlyFor — the single pricing choke point', () => {
     }
   });
 
-  it('treats on-site as a flat fee that is its own floor', () => {
+  // On-site's $2,500 is just as invented as the other floors, so it must be
+  // MARKED as such — it used to short-circuit raw to the minimum, which made
+  // floored false and let it reach a prospect with no badge and no send gate.
+  it('marks the on-site flat fee as a floored, provisional figure', () => {
     const m = monthlyFor({ tierId: 'onsite', perHome: 0, homes: 600 });
     expect(m.monthly).toBe(2500);
-    expect(m.raw).toBe(2500);
-    expect(m.floored).toBe(false);       // flat, not floored
+    expect(m.raw).toBe(0);
+    expect(m.floored).toBe(true);
+    expect(m.provisional).toBe(true);
+  });
+
+  it('lets a deliberate on-site rate beat the flat placeholder', () => {
+    // A staffer setting $5.00/home on 600 homes means $3,000/mo. That used to be
+    // silently discarded in favour of the invented $2,500.
+    const m = monthlyFor({ tierId: 'onsite', perHome: 5.0, homes: 600 });
+    expect(m.monthly).toBe(3000);
+    expect(m.floored).toBe(false);
+    expect(m.provisional).toBe(false);   // a real rate, not the placeholder
   });
 
   it('is monotonic in homes — more doors never costs less', () => {
@@ -235,9 +248,11 @@ describe('monthlyFor — the single pricing choke point', () => {
   });
 
   it('is safe on junk input — real submissions include "NA" and blanks', () => {
-    expect(monthlyFor({}).monthly).toBe(TIER_MIN_MONTHLY.full);
     expect(monthlyFor({ tierId: 'full', perHome: NaN, homes: NaN }).monthly).toBe(250);
-    expect(monthlyFor({ tierId: 'nope', perHome: 8.98, homes: 100 }).tierId).toBe('full');
+    // An unrecognised tier must fall back to the CHEAPEST invented floor, never
+    // the dearest — the wrong direction would silently quote $250.
+    expect(monthlyFor({ tierId: 'nope', perHome: 8.98, homes: 100 }).tierId).toBe('financial');
+    expect(monthlyFor({}).monthly).toBe(TIER_MIN_MONTHLY.financial);
     expect(monthlyFor({ homes: 0 }).effectivePerHome).toBe(null);
   });
 
