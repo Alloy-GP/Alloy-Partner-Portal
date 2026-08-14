@@ -60,8 +60,58 @@ export function budgetIntent(budget) {
 // high-rises", and it is a flat monthly fee, not per-home.
 const ONSITE_MIN_HOMES = 500;
 // Below this, per-home pricing produces numbers no one would actually contract
-// (12 homes x $8.98 = $107.76/mo). Not a price — a prompt for staff to set one.
-const PER_HOME_IMPLAUSIBLE_BELOW = 25;
+// (12 homes x $8.98 = $107.76/mo).
+export const PER_HOME_IMPLAUSIBLE_BELOW = 25;
+
+// ---------------------------------------------------------------------------
+// MINIMUM MONTHLY FEE — ***PROVISIONAL. NOT CONFIRMED BY CMGT.***
+//
+// The real floor has to come from the client. These are placeholders so the
+// portal stops showing $48/mo, and they are DERIVED from CMGT's own published
+// rates rather than invented from nothing: the floor for a tier is what that
+// tier costs at PER_HOME_IMPLAUSIBLE_BELOW units, rounded to something a human
+// would say out loud. That gives the correct semantic for a minimum — no
+// community pays less than a 25-unit one.
+//
+//   full       25 x $8.98 = $224.50  ->  $250
+//   financial  25 x $4.00 = $100.00  ->  $100
+//   onsite     already a flat $2,500 (TIERS rateRange), so it is its own floor
+//
+// MINIMUM_IS_PROVISIONAL travels with every priced figure so no surface can show
+// one of these numbers as though it were agreed. When the real floor arrives:
+// change the values here, set MINIMUM_IS_PROVISIONAL = false, done.
+// ---------------------------------------------------------------------------
+export const MINIMUM_IS_PROVISIONAL = true;
+export const TIER_MIN_MONTHLY = { full: 250, financial: 100, onsite: 2500 };
+export const tierMinMonthly = (tierId) => TIER_MIN_MONTHLY[tierId] ?? TIER_MIN_MONTHLY.full;
+
+// The ONE place a monthly figure is computed. Returns the number to show plus
+// everything a caller needs to be honest about it:
+//   monthly     what to charge/show (floored)
+//   raw         the unfloored per-home math, for "would have been" copy
+//   floored     true when the minimum did the work
+//   minimum     which floor applied
+//   provisional true when that floor is a placeholder, not client-confirmed
+//   effectivePerHome  monthly/homes — what the floor implies per door
+export function monthlyFor({ tierId = 'full', perHome = 0, homes = 0 } = {}) {
+  const id = TIER_MIN_MONTHLY[tierId] != null ? tierId : 'full';
+  const n = Number(homes) || 0;
+  const rate = Number(perHome) || 0;
+  const minimum = tierMinMonthly(id);
+  // On-site is a flat fee, not per-home: the "minimum" IS the price.
+  const raw = id === 'onsite' ? minimum : rate * n;
+  const monthly = Math.max(raw, minimum);
+  const floored = monthly > raw + 1e-9;
+  return {
+    monthly,
+    raw,
+    floored,
+    minimum,
+    provisional: floored && MINIMUM_IS_PROVISIONAL,
+    effectivePerHome: n > 0 ? monthly / n : null,
+    tierId: id,
+  };
+}
 
 export function isHighRise(metaType) {
   return /high.?rise|tower|mid.?rise/.test(norm(metaType));
@@ -149,10 +199,13 @@ export function intakeFlags(raw = {}) {
       detail: 'The unit count is missing or not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.',
     });
   } else if (homes < PER_HOME_IMPLAUSIBLE_BELOW) {
+    const m = monthlyFor({ tierId: raw.tierId || 'full', perHome: raw.perHome, homes });
     flags.push({
       code: 'tiny-community',
-      label: `Only ${homes} ${homes === 1 ? 'unit' : 'units'}`,
-      detail: `Per-home pricing gives a monthly figure no one would contract at this size. Set a flat minimum rather than sending the per-home math.`,
+      label: `Only ${homes} ${homes === 1 ? 'unit' : 'units'} — minimum fee applied`,
+      detail: m.floored
+        ? `Per-home pricing gives $${m.raw.toFixed(2)}/mo at this size, so the $${m.minimum}/mo minimum applies instead. That minimum is a PLACEHOLDER — confirm the real one with CMGT before this goes to a board.`
+        : `Small community — check the per-home rate is right at this size.`,
     });
   }
   if ((intent === 'financial-only' || intent === 'lean') && raw.tierId === 'full') {
