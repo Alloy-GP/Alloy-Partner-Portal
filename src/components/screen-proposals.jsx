@@ -5,7 +5,8 @@ import { getLeads, enrichLead, PAIN_POINTS, pricing, freshWatch } from '../lib/p
 import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { parseCcInput, CC_MAX } from '../lib/ccList.js';
-import { selectIntakeBatch } from '../lib/intakeDrain.js';
+import { selectIntakeBatch, junkStatusForReason } from '../lib/intakeDrain.js';
+import { qualifyLead } from '../lib/leads.js';
 import { canMintProposals } from '../lib/proposalAccess.js';
 import {
   stageOf, uiStageOf, inWon, inLost, sentOutsidePortal,
@@ -1417,15 +1418,79 @@ function ArchiveModal({ s, onClose, onArchive }) {
 }
 
 // The bin. Not a pipeline stage, so it lives off the side rail like UVP Library.
-function ArchiveView({ archived, onRestore }) {
+// Permanently delete an archived lead. Irreversible, and it does TWO things —
+// the second is not optional: the drain decides what is new by "has no proposal
+// row", so deleting the row alone brings the lead straight back on the next
+// 3-minute tick. Flagging the lead junk is what actually makes it stay gone, and
+// it cleans the submission in WhatConverts instead of only hiding it here.
+function DeleteArchivedModal({ rows, onClose, onDelete }) {
+  const many = rows.length > 1;
+  const [status, setStatus] = useState(junkStatusForReason(rows[0] && rows[0].archivedReason));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const go = async () => {
+    setBusy(true); setErr('');
+    try { await onDelete(rows, status); onClose(); }
+    catch (e) { setErr(String((e && e.message) || e)); setBusy(false); }
+  };
+  return (
+    <div className="ps-scrim" onClick={busy ? undefined : onClose}>
+      <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head">
+          <span className="t">Delete {many ? `${rows.length} leads` : rows[0].community || 'this lead'} permanently</span>
+          {!busy && <button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button>}
+        </div>
+        <div className="v2-qual-body">
+          <div className="v2-qual-warn">
+            <b>This cannot be undone.</b> {many ? 'These proposals' : 'This proposal'} and any board
+            engagement recorded against {many ? 'them' : 'it'} {many ? 'are' : 'is'} deleted outright — not archived.
+          </div>
+          <div className="v2-qual-warn">
+            The {many ? 'leads' : 'lead'} will also be marked <b>{status}</b> in WhatConverts. That is what
+            keeps {many ? 'them' : 'it'} gone: intake decides what is new by “has no proposal yet”, so without
+            the flag the next sync would simply re-add {many ? 'them' : 'it'}.
+          </div>
+          <label className="v2-qual-label">Mark the {many ? 'leads' : 'lead'} as</label>
+          <div className="v2-qual-reasons">
+            {['spam', 'duplicate'].map((r) => (
+              <button key={r} className="v2-qual-reason" data-on={status === r} disabled={busy} onClick={() => setStatus(r)}>
+                <span className="v2-qual-radio" data-on={status === r} />{r === 'spam' ? 'Spam / junk' : 'Duplicate'}
+              </button>
+            ))}
+          </div>
+          {many && (
+            <div className="fx-arch-dellist">
+              {rows.map((r) => <div key={r.id}>{r.community || 'Unnamed lead'}{r.contact ? ` · ${r.contact}` : ''}</div>)}
+            </div>
+          )}
+          {err && <div className="v2-qual-warn" style={{ borderColor: 'var(--alloy-pink)' }}>Nothing was deleted — {err}</div>}
+          <div className="v2-qual-actions">
+            <button className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+            <button className="btn v2-btn-danger" onClick={go} disabled={busy}>
+              {busy ? 'Deleting…' : `Delete ${many ? rows.length + ' leads' : 'permanently'}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArchiveView({ archived, onRestore, onDelete }) {
   return (
     <div>
       <div className="fx-inbox-head">
         <div style={{ minWidth: 0 }}>
           <div className="fx-eyebrow">Archive · removed from the pipeline</div>
           <h2 className="fx-h">{archived.length} {archived.length === 1 ? 'lead' : 'leads'} removed.</h2>
-          <p className="fx-sub">Spam, duplicates and test submissions. These are hidden from every stage and <b>intake sync will not re-add them</b>. Restore one to put it back in the inbox.</p>
+          <p className="fx-sub">Spam, duplicates and test submissions. These are hidden from every stage and <b>intake sync will not re-add them</b>. Restore one to put it back in the inbox, or delete it for good.</p>
         </div>
+        {archived.filter((a) => /test/i.test(a.archivedReason || '')).length > 1 && (
+          <button className="btn v2-btn-danger" style={{ flex: 'none' }}
+            onClick={() => onDelete(archived.filter((a) => /test/i.test(a.archivedReason || '')))}>
+            Delete all {archived.filter((a) => /test/i.test(a.archivedReason || '')).length} test submissions
+          </button>
+        )}
       </div>
       {archived.length === 0 && <div className="fx-empty">Nothing archived — removed leads will collect here.</div>}
       {archived.length > 0 && (
@@ -1446,6 +1511,7 @@ function ArchiveView({ archived, onRestore }) {
                 </div>
                 {a.archivedReason && <span className="fx-arch-why">{a.archivedReason}</span>}
                 <button className="fx-arch-restore" onClick={() => onRestore(a.id)}>Restore</button>
+                <button className="fx-arch-del" onClick={() => onDelete([a])} title="Delete permanently — also marks the lead junk in WhatConverts so intake never re-adds it">Delete</button>
               </div>
             );
           })}
@@ -1684,6 +1750,7 @@ export default function ProposalsScreen() {
   const [archived, setArchived] = useState(() => DATA.archivedProposals || []);
   const [archiveTarget, setArchiveTarget] = useState(null); // lead pending the confirm modal
   const [moveTarget, setMoveTarget] = useState(null); // lead pending the stage-move modal
+  const [deleteTargets, setDeleteTargets] = useState(null); // archived rows pending permanent deletion
   const [previewNonce, setPreviewNonce] = useState(0); // bump → Build preview iframe re-fetches
   const [matching, setMatching] = useState(null); // {community} while the LLM matches a new intake
   // Internal notes seed from the DB proposal's notes (live) — so they survive reload.
@@ -1829,6 +1896,32 @@ export default function ProposalsScreen() {
     if (selectedId === id) { setInbox(true); setWatchId(null); }
     persist(id, { archived_at: at, archived_reason: reason || '', archived_by: by });
     setToast({ msg: `${sub.community} removed — in Archive`, undo: () => restoreLead(id) });
+  };
+  // Permanently delete archived leads. ORDER MATTERS: flag the lead junk FIRST.
+  // The drain mints anything in `leads` with no proposal row, so deleting the row
+  // before the flag lands would race the 3-minute tick and re-create it. If the
+  // flag fails we abort WITHOUT deleting — leaving it archived is recoverable,
+  // deleting it and having it silently return is not.
+  const deleteArchived = async (rows, leadStatus) => {
+    if (!live) { setToast({ msg: 'Mock dev — nothing was deleted.' }); return; }
+    const done = [];
+    for (const r of rows) {
+      try {
+        await qualifyLead(r.id, { quotable: 'no', leadStatus });
+      } catch (e) {
+        if (done.length) { setArchived((p) => p.filter((x) => !done.includes(x.id))); }
+        throw new Error(`could not mark "${r.community || r.id}" as ${leadStatus} in WhatConverts (${(e && e.message) || e}). ${done.length} deleted before this.`);
+      }
+      const { error } = await supabase.from('proposals').delete()
+        .eq('account_id', DATA.account.id).eq('lead_key', r.id);
+      if (error) {
+        if (done.length) { setArchived((p) => p.filter((x) => !done.includes(x.id))); }
+        throw new Error(`delete failed for "${r.community || r.id}": ${error.message}. ${done.length} deleted before this.`);
+      }
+      done.push(r.id);
+    }
+    setArchived((p) => p.filter((x) => !done.includes(x.id)));
+    setToast({ msg: done.length === 1 ? `${rows[0].community || 'Lead'} deleted for good` : `${done.length} leads deleted for good` });
   };
   const restoreLead = (id) => {
     // archivedRef, not `archived`: archiveLead's toast closes over the render it
@@ -2164,7 +2257,7 @@ export default function ProposalsScreen() {
       {mode === 'won' && <WonLostView subs={subs} onMove={setMoveTarget} />}
       {/* Client — retained book of business. */}
       {mode === 'library' && <UVPLibrary />}
-      {mode === 'archive' && <ArchiveView archived={archived} onRestore={restoreLead} />}
+      {mode === 'archive' && <ArchiveView archived={archived} onRestore={restoreLead} onDelete={setDeleteTargets} />}
 
       {/* Every one of these acts ON the focused lead, so they can't open without
           one — guarded so an empty pipeline can never deref a null `sub`. */}
@@ -2172,6 +2265,9 @@ export default function ProposalsScreen() {
       {editOpen && sub && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
       {realignOpen && sub && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
       {archiveTarget && <ArchiveModal s={archiveTarget} onClose={() => setArchiveTarget(null)} onArchive={archiveLead} />}
+      {deleteTargets && deleteTargets.length > 0 && (
+        <DeleteArchivedModal rows={deleteTargets} onClose={() => setDeleteTargets(null)} onDelete={deleteArchived} />
+      )}
       {moveTarget && <MoveStageModal s={moveTarget} live={live} onClose={() => setMoveTarget(null)} onMove={moveStage} onSendInstead={() => { setSelectedId(moveTarget.id); setSendOpen(true); }} />}
       {matching && (
         <div className="v2-launch">

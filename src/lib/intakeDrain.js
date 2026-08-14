@@ -15,6 +15,22 @@ export const isHoaIntake = (lead) => (lead?.fields || []).some((f) => HOA_FIELD.
 // archives any proposal already minted from one — this stops it happening again.
 export const isJunk = (lead) => ['spam', 'duplicate'].includes(String(lead?.leadStatus || '').toLowerCase());
 
+// Archive reason -> the lead_status that makes intake ignore it FOREVER.
+//
+// Why this exists: an archived proposal is a tombstone. The drain decides what is
+// new by "has no proposal row", so hard-deleting an archived row makes it come
+// straight back on the next 3-minute tick, re-matched and all. Permanently
+// deleting one therefore has to flag the LEAD as junk first — that is the only
+// thing isJunk() above reads, and qualify-lead also pushes quotable=no upstream
+// so the submission is cleaned in WhatConverts rather than just hidden here.
+//
+// Everything that is not explicitly a duplicate maps to 'spam': those are the
+// only two values WhatConverts write-back and lead_status accept, and a test
+// submission is junk by any other name.
+export function junkStatusForReason(reason) {
+  return /duplicate/i.test(String(reason || '')) ? 'duplicate' : 'spam';
+}
+
 // leads MUST arrive newest-first (the query orders created_at desc) so a capped
 // pass works the freshest leads rather than an arbitrary slice of the archive.
 //
