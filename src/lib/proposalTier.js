@@ -32,7 +32,28 @@
 // is never unattributable.
 // ============================================================================
 
-// The canonical tiers. rate/range figures are CMGT's published ones.
+// ---------------------------------------------------------------------------
+// The tier catalog. READ THIS BEFORE TRUSTING A NUMBER IN IT.
+//
+// WHAT IS SOURCED: the rateRange bands ($4.50-$25.00, $2.00-$10.00, and on-site
+// as a flat ~$2,500/mo). These sit in src/lib/boardData.js next to unmistakably
+// CMGT-specific material (Vantaca portal, the CAM pod, "on-site team payroll
+// billed to the HOA as a bi-weekly reimbursement"), so they came from real CMGT
+// collateral.
+//
+// WHAT IS NOT SOURCED: `defaultRate`. boardData.js — the file holding the real
+// CMGT tier content — defines NO default rate at all, only the bands. 8.98 and
+// 4.00 trace to commit 755f328, in a file headed "Proposal system — MOCK DATA
+// (no database)", where the six fabricated demo boards carried FIVE different
+// per-home rates (6.75, 7.50, 8.98, 9.00, 9.25). 8.98 was one invented value
+// among them that later got reused as "the default Full-Service rate".
+//
+// So defaultRate is a mid-band PLACEHOLDER, not a CMGT quote. It is in-band and
+// therefore plausible, which is exactly why it needs saying out loud: it prices
+// EVERY proposal, not just the small ones the minimum catches.
+// ---------------------------------------------------------------------------
+export const DEFAULT_RATE_IS_PROVISIONAL = true;
+
 export const TIERS = [
   { id: 'full', name: 'Full-Service Management', recommended: true, rateRange: '$4.50 – $25.00', defaultRate: 8.98, setupFee: 0 },
   { id: 'financial', name: 'Financial & Administrative', rateRange: '$2.00 – $10.00', defaultRate: 4.0, setupFee: 0 },
@@ -67,15 +88,23 @@ export const PER_HOME_IMPLAUSIBLE_BELOW = 25;
 // MINIMUM MONTHLY FEE — ***PROVISIONAL. NOT CONFIRMED BY CMGT.***
 //
 // The real floor has to come from the client. These are placeholders so the
-// portal stops showing $48/mo, and they are DERIVED from CMGT's own published
-// rates rather than invented from nothing: the floor for a tier is what that
-// tier costs at PER_HOME_IMPLAUSIBLE_BELOW units, rounded to something a human
-// would say out loud. That gives the correct semantic for a minimum — no
-// community pays less than a 25-unit one.
+// portal stops showing $48/mo.
+//
+// HOW THEY WERE PICKED, stated honestly: the floor for a tier is what that tier
+// costs at PER_HOME_IMPLAUSIBLE_BELOW (25) units at its defaultRate, rounded to
+// something a human would say out loud:
 //
 //   full       25 x $8.98 = $224.50  ->  $250
 //   financial  25 x $4.00 = $100.00  ->  $100
-//   onsite     already a flat $2,500 (TIERS rateRange), so it is its own floor
+//   onsite     already a flat $2,500 (a SOURCED figure), so it is its own floor
+//
+// That gives a minimum the right SEMANTIC — no community pays less than a
+// 25-unit one — but note the input: defaultRate is itself a placeholder (see the
+// catalog comment above), so the full and financial floors are a round number
+// derived from an unconfirmed rate. They are a stand-in for a client answer, not
+// a calculation of one. For reference, the same method against the LOW end of
+// the sourced bands would give full 25 x $4.50 = $112.50 and financial
+// 25 x $2.00 = $50.
 //
 // MINIMUM_IS_PROVISIONAL travels with every priced figure so no surface can show
 // one of these numbers as though it were agreed. When the real floor arrives:
