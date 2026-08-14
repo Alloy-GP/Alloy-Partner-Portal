@@ -23,7 +23,7 @@
 
 import { deriveLeadMatch } from "./proposalMatch.js";
 import { receivedMs } from "./leadAge.js";
-import { tierName as tierNameFor, recommendTier, intakeFlags } from "./proposalTier.js";
+import { tierName as tierNameFor, recommendTier, intakeFlags, monthlyFor } from "./proposalTier.js";
 import { DATA } from "../data.js";
 // UVPs live in ONE canonical place (the backbone). Re-export so existing
 // `import { UVPS, UVP_TITLES, UVP_BLURBS } from proposalMockData` keep working.
@@ -295,7 +295,11 @@ export function enrichLead(s, cam) {
   const tierRec = recommendTier(s);
   const tierId = s.tierId || tierRec.tierId;
   const tierName = tierNameFor(tierId);
-  const quoteValue = s.quoteValue != null ? s.quoteValue : Math.round((s.perHome || 0) * (s.homes || 0) * 12);
+  // ANNUAL (proposals money is annual; leads money is monthly). Derived through
+  // the same floor as the screen, or the two would disagree.
+  const quoteValue = s.quoteValue != null
+    ? s.quoteValue
+    : Math.round(monthlyFor({ tierId, perHome: s.perHome, homes: s.homes }).monthly * 12);
   // Date the board raised these concerns. Derived from the real timestamp rather
   // than splitting `received` on " · " — live intake rows use " at " as the
   // separator, so the old split returned the whole string ("Jul 7, 2026 at 6:47
@@ -330,9 +334,25 @@ export function getLeads() {
   return DATA.proposals || [];
 }
 
-// pricing helper (per lead, honoring a per-home override)
+// pricing helper (per lead, honoring a per-home override).
+// Routes through monthlyFor() so the tier's minimum monthly fee applies — a
+// 12-home community must not be quoted $48/mo. Carries the floor's provenance
+// (`floored`/`provisional`) so callers can say WHY the number is what it is.
 export function pricing(lead, perHomeOverride) {
   const perHome = perHomeOverride != null ? perHomeOverride : lead.perHome;
-  const monthly = perHome * lead.homes;
-  return { perHome: fmt(perHome), monthly: fmt(monthly), annual: fmt(monthly * 12), monthlyNum: monthly };
+  const m = monthlyFor({ tierId: lead.tierId || 'full', perHome, homes: lead.homes });
+  return {
+    // On-site is a flat monthly fee, so there is no per-home rate to show.
+    // Rendering fmt(0) here put "$0.00" per home on the board document.
+    perHome: m.tierId === 'onsite' ? '—' : fmt(perHome),
+    flat: m.tierId === 'onsite',
+    monthly: fmt(m.monthly),
+    annual: fmt(m.monthly * 12),
+    monthlyNum: m.monthly,
+    rawMonthly: fmt(m.raw),
+    floored: m.floored,
+    provisional: m.provisional,
+    minimum: m.minimum,
+    effectivePerHome: m.effectivePerHome != null ? fmt(m.effectivePerHome) : null,
+  };
 }

@@ -105,16 +105,35 @@ const fmt2 = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, 
 
 // Map a portal lead → the board `submission` shape + a per-lead tiers array (so
 // the recommended-tier math reflects this lead's homes × per-home rate).
+import { monthlyFor, tierById } from "./proposalTier.js";
+
 export function buildSubmission(lead, cam) {
   const baseTiers = cam?.tiers || TIERS;
   const preparedBy = cam?.preparedBy || { name: "Amanda Betancourt", role: "COO" };
-  const monthly = (lead.perHome || 0) * lead.homes;
-  const tiers = baseTiers.map((t) => t.id !== "full" ? t : {
+  // The board document is what a PROSPECT reads. It used to do its own
+  // `perHome * homes` here — bypassing the tier minimum entirely, so a 12-home
+  // community would have been sent "$4.00 per home x 12 homes = $48.00 / month".
+  // It also hardcoded "full" as the recommended tier, so a board that asked for
+  // financial-only was still shown Full-Service. Both now follow the lead.
+  const recId = lead.tierId || "full";
+  const m = monthlyFor({ tierId: recId, perHome: lead.perHome, homes: lead.homes });
+  const tiers = baseTiers.map((t) => t.id !== recId ? { ...t, recommended: false } : {
     ...t,
+    recommended: true,
     tagline: `Recommended for ${lead.shortName || lead.community}`,
-    quotedRate: lead.perHome, monthlyTotal: monthly, annualTotal: monthly * 12,
-    calcLine: `${fmt2(lead.perHome)} per home × ${lead.homes} homes = ${fmt2(monthly)} / month`,
-    monthlyEstimate: `${fmt2(monthly)} / month`, annualEstimate: `${fmt2(monthly * 12)} / year`,
+    quotedRate: lead.perHome,
+    monthlyTotal: m.monthly,
+    annualTotal: m.monthly * 12,
+    // When the minimum did the work, showing the per-home multiplication would be
+    // arithmetic that does not equal the total. Say what actually applies.
+    calcLine: recId === "onsite"
+      ? `Flat monthly fee · on-site management`
+      : m.floored
+        ? `Minimum monthly fee for a ${lead.homes}-home community`
+        : `${fmt2(lead.perHome)} per home × ${lead.homes} homes = ${fmt2(m.monthly)} / month`,
+    monthlyEstimate: `${fmt2(m.monthly)} / month`,
+    annualEstimate: `${fmt2(m.monthly * 12)} / year`,
+    minimumApplied: m.floored,
   });
   return {
     association: lead.community,
@@ -135,8 +154,16 @@ export function buildSubmission(lead, cam) {
     proposalId: lead.id,
     dateIssued: (lead.received || "").split(" · ")[0] || "May 23, 2026",
     validThrough: "June 22, 2026",
-    recommendedTierId: lead.recommendedTierId || "full",
-    tiersToShow: lead.tiersToShow || ["full"],
+    // The board doc selects which tier card to show from THIS field
+    // (board-proposal.jsx: useState(submission.recommendedTierId)). It read a
+    // `recommendedTierId` that portal leads never set, so it always fell back to
+    // "full" — a board asking for financial-only was still shown Full-Service.
+    recommendedTierId: lead.tierId || lead.recommendedTierId || "full",
+    // Which tier CARDS the board sees. Hardcoded to ["full"], which is why
+    // selecting a different recommendedTierId still fell back: ExpPricing does
+    // `visible.find(t => t.id === selected) || visible[0]`, and 'financial' was
+    // never in `visible`. Show the recommended tier.
+    tiersToShow: lead.tiersToShow || [recId],
     leadCAM: null,
     preparedBy,
     tiers,

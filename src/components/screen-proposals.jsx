@@ -208,7 +208,7 @@ function QualifyModal({ s, onClose, onQualify, onDisqualify }) {
             </div>
             <label className="v2-qual-label">Estimated quote value <span>· annual contract</span></label>
             <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={val} onChange={(e) => setVal(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
-            <div className="v2-qual-hint">Auto-filled from the recommended tier ({s.tierName} · {money(s.perHome * s.homes)}/mo). Adjust if you've agreed otherwise.</div>
+            <div className="v2-qual-hint">Auto-filled from the recommended tier ({s.tierName} · {pricing(s).monthly}/mo{pricing(s).floored ? ' — minimum fee applies' : ''}). Adjust if you've agreed otherwise.</div>
             <div className="v2-qual-actions">
               <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button className="btn btn-primary" onClick={() => { onQualify(s.id, owner, val); onClose(); }}><I.Check width={14} height={14} /> Qualify lead</button>
@@ -653,7 +653,9 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 // Build it replaces the old purple topper and owns price editing (Proposed fig).
 function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }) {
   const [edit, setEdit] = useState(false);
-  const monthly = ((perHome != null ? perHome : sub.perHome) || 0) * sub.homes;
+  // Through pricing() so the tier minimum applies. Raw perHome * homes here was
+  // the headline that showed "$48.00/mo" for a 12-home community.
+  const monthly = pricing(sub, perHome).monthlyNum;
   const STATUS = { new: 'New · unworked', build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
   const ownerFig = sub.owner
     ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{cam().ownerFirst[sub.owner] || sub.owner}</> }
@@ -712,7 +714,7 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
 
 function LeadCard({ sub, perHome, setPerHome }) {
   const [edit, setEdit] = useState(false);
-  const monthly = (perHome || 0) * sub.homes;
+  const monthly = pricing(sub, perHome).monthlyNum;   // floored, not perHome * homes
   return (
     <div className="v2-lead">
       <div className="v2-lead-top"><div className="v2-lead-name">{sub.community}</div><span className="v2-lead-match">{sub.match}%</span></div>
@@ -921,8 +923,33 @@ function MomentOfTruth({ sub, onSend }) {
   // Recipient is editable so you can send a test to yourself (the demo boards
   // have placeholder emails). For real leads it defaults to the board contact.
   const [to, setTo] = useState(sub.email || '');
+  // A PROVISIONAL minimum is a number nobody has agreed to. It must not reach a
+  // board on the strength of a warning nobody read, so sending is blocked until
+  // staff ticks it. Only appears when an invented floor actually set the price.
+  const pr0 = pricing(sub);
+  const needsAck = !!pr0.provisional;
+  const [ack, setAck] = useState(false);
   return (
     <div className="v2-send-step" style={{ padding: '20px 24px 24px' }}>
+      {needsAck && (
+        <div className="fx-flags" style={{ margin: '0 0 14px' }}>
+          <div className="fx-flag">
+            <span className="fx-flag-ic" aria-hidden="true">!</span>
+            <div>
+              <div className="fx-flag-t">This price uses a placeholder minimum</div>
+              <div className="fx-flag-s">
+                {sub.homes} {sub.homes === 1 ? 'home' : 'homes'} at {pr0.perHome}/home is {pr0.rawMonthly}/mo, so the{' '}
+                <b>{money(pr0.minimum)}/mo minimum</b> is used instead — and that minimum is a stand-in, not a rate CMGT
+                has confirmed. The board will see <b>{pr0.monthly}/mo</b>.
+                <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 9, fontWeight: 700, color: '#7a5a12', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ marginTop: 3 }} />
+                  <span>I've confirmed {pr0.monthly}/mo is the right number to quote.</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="v2-preview-bar">
         <span className="v2-preview-av v2-mail-av"><I.Send width={17} height={17} /></span>
         <div className="v2-preview-id">
@@ -935,7 +962,9 @@ function MomentOfTruth({ sub, onSend }) {
           <input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="board@email.com"
             style={{ padding: '9px 11px', borderRadius: 9, border: '1px solid var(--border, #d9d6e0)', fontSize: 13, minWidth: 230, fontFamily: 'inherit' }} />
         </label>
-        <button className="v2-mail-send" disabled={!to.trim()} onClick={() => onSend(to.trim())}><span className="v2-mail-send-ic"><I.Send width={18} height={18} /></span>Send proposal</button>
+        <button className="v2-mail-send" disabled={!to.trim() || (needsAck && !ack)}
+          title={needsAck && !ack ? 'Confirm the placeholder minimum price first' : undefined}
+          onClick={() => onSend(to.trim())}><span className="v2-mail-send-ic"><I.Send width={18} height={18} /></span>Send proposal</button>
       </div>
       <div className="v2-mail" style={{ maxWidth: 600, margin: '0 auto', width: '100%' }}>
         <div className="v2-mail-toolbar">

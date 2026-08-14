@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { TIERS, tierById, budgetIntent, recommendTier, intakeFlags, isHighRise } from './proposalTier.js';
+import { TIERS, tierById, budgetIntent, recommendTier, intakeFlags, isHighRise,
+  monthlyFor, tierMinMonthly, TIER_MIN_MONTHLY, MINIMUM_IS_PROVISIONAL, PER_HOME_IMPLAUSIBLE_BELOW } from './proposalTier.js';
 
 // The three budget strings the live form actually submits, verbatim (em dashes and all).
 const B_OPEN = 'Open — looking for the right fit, not the cheapest';
@@ -175,5 +176,86 @@ describe('tierById', () => {
     expect(tierById('financial').name).toBe('Financial & Administrative');
     expect(tierById('onsite').name).toBe('On-Site Management');
     expect(tierById('nope').id).toBe('full');
+  });
+});
+
+describe('monthlyFor — the single pricing choke point', () => {
+  it('uses plain per-home math when it clears the minimum', () => {
+    const m = monthlyFor({ tierId: 'full', perHome: 8.98, homes: 240 });
+    expect(m.monthly).toBeCloseTo(2155.2, 2);
+    expect(m.raw).toBeCloseTo(2155.2, 2);
+    expect(m.floored).toBe(false);
+    expect(m.provisional).toBe(false);   // nothing invented was used
+  });
+
+  // The screenshot case: 12 units x $4.00 = $48/mo, which is not contractable.
+  it('applies the minimum for a tiny community and says it is provisional', () => {
+    const m = monthlyFor({ tierId: 'financial', perHome: 4.0, homes: 12 });
+    expect(m.raw).toBeCloseTo(48, 2);
+    expect(m.monthly).toBe(100);
+    expect(m.floored).toBe(true);
+    expect(m.provisional).toBe(true);
+    expect(m.minimum).toBe(100);
+    expect(m.effectivePerHome).toBeCloseTo(100 / 12, 4);
+  });
+
+  it('floors full-service at its own higher minimum', () => {
+    const m = monthlyFor({ tierId: 'full', perHome: 8.98, homes: 12 });
+    expect(m.raw).toBeCloseTo(107.76, 2);
+    expect(m.monthly).toBe(250);
+    expect(m.floored).toBe(true);
+  });
+
+  // A minimum must mean "no one pays less than a threshold-size community".
+  it('never charges less than a community at the implausibility threshold', () => {
+    for (const tierId of ['full', 'financial']) {
+      const rate = tierById(tierId).defaultRate;
+      const atThreshold = monthlyFor({ tierId, perHome: rate, homes: PER_HOME_IMPLAUSIBLE_BELOW });
+      for (let homes = 1; homes < PER_HOME_IMPLAUSIBLE_BELOW; homes++) {
+        expect(monthlyFor({ tierId, perHome: rate, homes }).monthly).toBeLessThanOrEqual(atThreshold.monthly);
+        expect(monthlyFor({ tierId, perHome: rate, homes }).monthly).toBe(tierMinMonthly(tierId));
+      }
+    }
+  });
+
+  it('treats on-site as a flat fee that is its own floor', () => {
+    const m = monthlyFor({ tierId: 'onsite', perHome: 0, homes: 600 });
+    expect(m.monthly).toBe(2500);
+    expect(m.raw).toBe(2500);
+    expect(m.floored).toBe(false);       // flat, not floored
+  });
+
+  it('is monotonic in homes — more doors never costs less', () => {
+    let prev = 0;
+    for (const homes of [1, 5, 12, 25, 40, 62, 120, 240, 450]) {
+      const m = monthlyFor({ tierId: 'full', perHome: 8.98, homes }).monthly;
+      expect(m).toBeGreaterThanOrEqual(prev);
+      prev = m;
+    }
+  });
+
+  it('is safe on junk input — real submissions include "NA" and blanks', () => {
+    expect(monthlyFor({}).monthly).toBe(TIER_MIN_MONTHLY.full);
+    expect(monthlyFor({ tierId: 'full', perHome: NaN, homes: NaN }).monthly).toBe(250);
+    expect(monthlyFor({ tierId: 'nope', perHome: 8.98, homes: 100 }).tierId).toBe('full');
+    expect(monthlyFor({ homes: 0 }).effectivePerHome).toBe(null);
+  });
+
+  it('marks provisional ONLY when an invented floor actually did the work', () => {
+    expect(monthlyFor({ tierId: 'full', perHome: 8.98, homes: 500 }).provisional).toBe(false);
+    expect(monthlyFor({ tierId: 'full', perHome: 8.98, homes: 5 }).provisional).toBe(MINIMUM_IS_PROVISIONAL);
+  });
+});
+
+describe('the tiny-community flag reports the applied floor', () => {
+  it('states the raw figure, the minimum, and that it is a placeholder', () => {
+    const f = intakeFlags({ homes: 12, budget: 'Tight budget — financial only', metaStatus: 'Self-managed by board', selectedPains: [], tierId: 'financial', perHome: 4.0 })
+      .find((x) => x.code === 'tiny-community');
+    expect(f).toBeTruthy();
+    expect(f.label).toMatch(/minimum fee applied/i);
+    expect(f.detail).toContain('$48.00/mo');
+    expect(f.detail).toContain('$100/mo');
+    expect(f.detail).toMatch(/PLACEHOLDER/);
+    expect(f.detail).toMatch(/confirm the real one with CMGT/i);
   });
 });
