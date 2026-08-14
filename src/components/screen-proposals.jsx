@@ -1074,6 +1074,23 @@ function ResponseBanner({ r }) {
   );
 }
 
+// These numbers describe ONE send. A proposal can be sent, demoted, reworked and
+// sent again, and proposal_events keeps appending — so whenever earlier rounds
+// were excluded, say so rather than letting the figures read as all-time.
+function SendRoundTag({ w }) {
+  const r = w && w.round;
+  if (!r || !r.priorEvents) return null;
+  return (
+    <div className="v2-qual-warn" style={{ marginBottom: 12 }}>
+      <b>This send only.</b> Everything below is engagement since the proposal was last sent
+      {r.since ? <> on {fmtReceived(Date.parse(r.since))}</> : null}.
+      {' '}<b>{r.priorEvents}</b> earlier {r.priorEvents === 1 ? 'event' : 'events'}
+      {r.priorOpens ? <> (including {r.priorOpens} {r.priorOpens === 1 ? 'open' : 'opens'})</> : null}
+      {' '}from a previous send {r.priorEvents === 1 ? 'is' : 'are'} still recorded but excluded here.
+    </div>
+  );
+}
+
 function LeadAnalytics({ s, notes, addNote }) {
   const w = getWatch(s), e = expState(w);
   const [note, setNote] = useState('');
@@ -1085,6 +1102,7 @@ function LeadAnalytics({ s, notes, addNote }) {
   ];
   return (
     <div className="v2-w-detail">
+      <SendRoundTag w={w} />
       <ResponseBanner r={w.response} />
       <div className="v2-w-figs">
         {figs.map((f) => (<div className="v2-w-fig" key={f.k} data-exp={f.exp || false}><div className="v2-w-fig-v">{f.v}</div><div className="v2-w-fig-k">{f.k}</div><div className="v2-w-fig-s">{f.s}</div></div>))}
@@ -1158,6 +1176,7 @@ function SentBucket({ open, onPick }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <HeatPill heat={w.heat} />
                   <span className="fx-brow-proglbl" style={{ marginTop: 0 }}>{w.opens} {w.opens === 1 ? 'open' : 'opens'} · {w.viewers.length} {w.viewers.length === 1 ? 'viewer' : 'viewers'} · last opened {w.lastOpened}</span>
+                  {w.round && w.round.priorEvents ? <span className="ps-pill ps-pill--review" title={`Counts this send only. ${w.round.priorEvents} earlier event(s) from a previous send are excluded.`}><span className="d" />This send only</span> : null}
                 </div>
               </div>
               <div className="fx-brow-fig"><div className="v">{pr.monthly}/mo</div><div className="k">Value</div></div>

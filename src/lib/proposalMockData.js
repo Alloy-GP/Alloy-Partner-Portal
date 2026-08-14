@@ -173,7 +173,33 @@ const fmtDuration = (ms) => { const s = Math.round((ms || 0) / 1000); return `${
 
 export function aggregateWatch(events, lead) {
   if (!events || !events.length) return null;
-  const sorted = [...events].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const all = [...events].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  // CURRENT SEND ONLY. A proposal can be sent, demoted, reworked and sent again —
+  // proposal_events is append-only across all of that, so counting every event
+  // would report the FIRST send's opens as though they came from the latest one
+  // ("56 opens" on a proposal nobody has opened since it was re-sent). Anything
+  // older than the current sent_at belongs to a previous round.
+  //
+  // No sent_at (marked sent by hand) → there is no round to scope to, so keep
+  // everything; that row renders in the untracked bucket anyway.
+  const cutoff = lead.sentAt ? new Date(lead.sentAt).getTime() : null;
+  const sorted = cutoff == null ? all : all.filter((e) => new Date(e.created_at).getTime() >= cutoff);
+  const priorEvents = all.length - sorted.length;
+  const priorOpens = priorEvents ? all.filter((e) => e.event_type === "open").length - sorted.filter((e) => e.event_type === "open").length : 0;
+  // Everything from this round was superseded — report the round, not a zero
+  // state that looks like the board never engaged at all.
+  if (!sorted.length) {
+    return {
+      heat: "new", opens: 0, response: null,
+      lastOpened: "Not opened since this send", firstOpened: null,
+      sentOn: fmtDate(lead.sentAt), readTime: "—", scrollDepth: 0,
+      expires: fmtDate(new Date(new Date(lead.sentAt).getTime() + 30 * 86400000)),
+      daysLeft: Math.max(0, Math.ceil((new Date(lead.sentAt).getTime() + 30 * 86400000 - Date.now()) / 86400000)),
+      linkLife: 30, viewers: [], sections: [], feed: [],
+      round: { since: lead.sentAt, priorEvents, priorOpens },
+    };
+  }
   const opens = sorted.filter((e) => e.event_type === "open");
 
   // Viewers — distinct device, named or "Board member #N" in first-seen order.
@@ -233,6 +259,9 @@ export function aggregateWatch(events, lead) {
 
   return {
     heat, opens: opens.length, response,
+    // Which send these numbers describe, and how much was left out. The UI tags
+    // the panel whenever priorEvents > 0 so nobody reads them as all-time.
+    round: { since: sentAt, priorEvents, priorOpens },
     lastOpened: relTime(last.created_at),
     firstOpened: opens.length ? fmtDateTime(opens[0].created_at) : null,
     sentOn: sentAt ? fmtDate(sentAt) : "—",
