@@ -132,6 +132,31 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (upErr) return json({ error: `db: ${upErr.message}` }, 500);
 
+    // --- Keep the PROPOSAL in step, immediately ---
+    // Marking a lead spam/duplicate here already writes quotable=no back to
+    // WhatConverts. The proposal minted from it must follow, and waiting for the
+    // hourly sync to notice is a whole hour of the pipeline showing junk. Both
+    // directions, so un-marking restores it rather than leaving it hidden.
+    if (hasLeadStatus) {
+      const junk = leadStatus === "spam" || leadStatus === "duplicate";
+      const reason = leadStatus === "spam" ? "Marked spam" : "Marked duplicate";
+      if (junk) {
+        const { error: aErr } = await admin.from("proposals")
+          .update({ archived_at: new Date().toISOString(), archived_reason: reason, archived_by: "intake sync" })
+          .eq("account_id", targetAccountId).eq("lead_key", String(wcLeadId)).is("archived_at", null);
+        if (aErr) console.error(`archive proposal ${wcLeadId}: ${aErr.message}`);
+      } else {
+        // Un-marked: restore ONLY what this path archived. A human's own
+        // "Remove lead" (archived_by = their name) must stay archived.
+        const { error: rErr } = await admin.from("proposals")
+          .update({ archived_at: null, archived_reason: "", archived_by: "" })
+          .eq("account_id", targetAccountId).eq("lead_key", String(wcLeadId))
+          .eq("archived_by", "intake sync")
+          .in("archived_reason", ["Marked spam", "Marked duplicate"]);
+        if (rErr) console.error(`restore proposal ${wcLeadId}: ${rErr.message}`);
+      }
+    }
+
     return json({ ok: true, lead: updated });
   } catch (e) {
     return json({ error: String(e) }, 500);
