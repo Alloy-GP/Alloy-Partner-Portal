@@ -122,13 +122,20 @@ export const tierMinMonthly = (tierId) => TIER_MIN_MONTHLY[tierId] ?? TIER_MIN_M
 //   minimum     which floor applied
 //   provisional true when that floor is a placeholder, not client-confirmed
 //   effectivePerHome  monthly/homes — what the floor implies per door
-export function monthlyFor({ tierId = 'full', perHome = 0, homes = 0 } = {}) {
-  const id = TIER_MIN_MONTHLY[tierId] != null ? tierId : 'full';
+export function monthlyFor({ tierId, perHome = 0, homes = 0 } = {}) {
+  // No default here on purpose: a MISSING tier must take the same cheap fallback
+  // as an unknown one, not quietly become 'full' (the dearest invented floor).
+  // Unknown/missing tier: fall back to the CHEAPEST floor, not the dearest. These
+  // are invented numbers, so an unrecognised tier must not silently quote $250.
+  const id = TIER_MIN_MONTHLY[tierId] != null ? tierId : 'financial';
   const n = Number(homes) || 0;
   const rate = Number(perHome) || 0;
   const minimum = tierMinMonthly(id);
-  // On-site is a flat fee, not per-home: the "minimum" IS the price.
-  const raw = id === 'onsite' ? minimum : rate * n;
+  // Uniform: raw is always the per-home math and Math.max does the work. On-site
+  // used to short-circuit raw to the minimum, which made `floored` false — so its
+  // equally-invented $2,500 reached the prospect page with no badge and no send
+  // gate, AND a staffer who deliberately set a higher rate had it discarded.
+  const raw = rate * n;
   const monthly = Math.max(raw, minimum);
   const floored = monthly > raw + 1e-9;
   return {

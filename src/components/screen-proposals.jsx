@@ -667,8 +667,11 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
     const w = getWatch(sub), pr = pricing(sub);
     statusText = 'Sent · ' + ((w.heat || 'cold').charAt(0).toUpperCase() + (w.heat || 'cold').slice(1));
     figs = [{ k: 'Opens', v: w.opens, hot: w.heat === 'hot' }, { k: 'Viewers', v: w.viewers.length }, { k: 'Value', v: pr.monthly + '/mo' }];
-  } else if (stage === 'won' || stage === 'lost') {
-    figs = [{ k: stage === 'won' ? 'Sales value' : 'Quoted', v: fmtMoney(stage === 'won' ? (sub.salesValue || sub.quoteValue || monthly) : monthly) + '/mo' }, ownerFig, { k: 'Closed', v: 'Recently' }];
+  // NB: there is no won/lost branch. PinnedCard is only mounted with stage
+  // new | sent | build (see its three call sites), and the old won/lost branch
+  // labelled ANNUAL stored money (salesValue/quoteValue) as '/mo' — a wrong
+  // number in a view nobody rendered. Removed rather than fixed; if a focused
+  // Won/Lost view is ever built, price it through pricing() and label /yr.
   } else {
     figs = [{ k: 'Match', v: sub.match + '%' }, ownerFig, { k: 'Proposed', edit: true }];
   }
@@ -708,32 +711,6 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
         </div>
       )}
       {cta && <button className="fx-pin-cta" onClick={cta.onClick}>{cta.label} <span>→</span></button>}
-    </div>
-  );
-}
-
-function LeadCard({ sub, perHome, setPerHome }) {
-  const [edit, setEdit] = useState(false);
-  const monthly = pricing(sub, perHome).monthlyNum;   // floored, not perHome * homes
-  return (
-    <div className="v2-lead">
-      <div className="v2-lead-top"><div className="v2-lead-name">{sub.community}</div><span className="v2-lead-match">{sub.match}%</span></div>
-      <div className="v2-lead-meta">{sub.contact} · {sub.homes} homes · {sub.city}</div>
-      <div className="v2-lead-price">
-        <span className="v2-lead-tier">{sub.tierName}</span>
-        {edit ? (
-          <div className="v2-price-edit">
-            <span>$</span>
-            <input type="number" step="0.01" min="0" value={perHome} autoFocus onChange={(e) => setPerHome(parseFloat(e.target.value) || 0)} onBlur={() => setEdit(false)} onKeyDown={(e) => e.key === 'Enter' && setEdit(false)} />
-            <span>/home → <b>{fmtMoney(monthly)}/mo</b></span>
-          </div>
-        ) : (
-          <button className="v2-lead-moline" onClick={() => setEdit(true)}>
-            {fmtMoney(monthly)}<span className="u">/mo</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -1873,9 +1850,18 @@ export default function ProposalsScreen() {
   };
   const toggle = (id) => setEditorMap({ ...editorMap, [selectedId]: sections.map((s) => (s.id === id && !s.required ? { ...s, on: !s.on } : s)) });
   const setProse = (id, text) => setEditorMap({ ...editorMap, [selectedId]: sections.map((s) => (s.id === id ? { ...s, prose: text } : s)) });
+  // Editing the rate must re-derive the stored ANNUAL too. quote_value used to be
+  // left untouched here, so the moment anyone adjusted the price the stored annual
+  // disagreed with every figure on screen — and it is what the Qualify / Won
+  // modals prefill from and what roll-ups read.
   const setPerHome = (v) => {
     setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, perHome: v } : s));
-    if (Number.isFinite(Number(v))) persist(selectedId, { per_home: Number(v) });
+    if (!Number.isFinite(Number(v))) return;
+    const row = subsRef.current.find((s) => s.id === selectedId);
+    persist(selectedId, {
+      per_home: Number(v),
+      quote_value: Math.round(pricing({ ...row, perHome: Number(v) }).monthlyNum * 12),
+    });
   };
   // Layer A — apply edited facts to the focused lead + persist to its columns.
   const saveDetails = (f) => {
@@ -1885,6 +1871,9 @@ export default function ProposalsScreen() {
       community: f.community, contact: f.contact, contact_role: f.contactRole, email: f.email, phone: f.phone,
       city: f.city, homes, meta_type: f.metaType, meta_status: f.metaStatus, dues: f.dues,
       engage_timeline: f.engageTimeline, budget: f.budget, per_home: perHome, quote: f.quote,
+      // homes AND per_home both feed the floor, so the annual is re-derived here
+      // as well — editing the door count silently invalidated it otherwise.
+      quote_value: Math.round(pricing({ ...subsRef.current.find((s) => s.id === selectedId), homes, perHome }).monthlyNum * 12),
     });
     setToast({ msg: 'Details updated' });
   };

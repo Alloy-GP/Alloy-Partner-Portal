@@ -441,8 +441,15 @@ function ExpPricing({ submission }) {
             <React.Fragment>
               <div style={{ fontSize: 12, color: c.fgMuted, fontWeight: 600, marginTop: 10, letterSpacing: '0.02em' }}>{tier.calcLine}</div>
               <div style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 900, fontSize: 36, color: c.purple, marginTop: 8, letterSpacing: '-0.02em', lineHeight: 1.05 }}>${tier.monthlyTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              {/* Keyed off minimumProvisional, not minimumApplied: once a real
+                  client minimum lands the flag clears and this disappears. */}
+              {tier.minimumProvisional && (
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.pink, marginTop: 4 }}>Starting minimum · confirmed on the call</div>
+              )}
               <div style={{ fontSize: 12, color: c.fgMuted, fontWeight: 600 }}>per month · {submission.units} homes</div>
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.lightGray}`, fontSize: 13, color: c.bodyGray, lineHeight: 1.5 }}>Annual: <strong style={{ color: c.purple }}>${tier.annualTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><br /><span style={{ fontSize: 11, color: c.fgMuted }}>Per-home rate is custom — finalized on the discovery call once we walk your documents and amenities.</span></div>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.lightGray}`, fontSize: 13, color: c.bodyGray, lineHeight: 1.5 }}>Annual: <strong style={{ color: c.purple }}>${tier.annualTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><br /><span style={{ fontSize: 11, color: c.fgMuted }}>{tier.minimumApplied
+                ? `This is our minimum monthly fee for a community this size. Final pricing is confirmed on the discovery call once we walk your documents and amenities.`
+                : `Per-home rate is custom — finalized on the discovery call once we walk your documents and amenities.`}</span></div>
             </React.Fragment>
           ) : (
             <React.Fragment>
