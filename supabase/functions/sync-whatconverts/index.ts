@@ -295,18 +295,79 @@ async function syncAccount(supabase: any, acct: any, startDate: string) {
     const { error: upErr } = await supabase.from("leads").upsert(leads, { onConflict: "account_id,wc_lead_id" });
     if (upErr) throw new Error(`upsert: ${upErr.message}`);
   }
-  const { error: p1 } = await supabase.from("leads").delete().eq("account_id", acct.id).lt("last_synced_at", stamp);
-  if (p1) throw new Error(`prune: ${p1.message}`);
-  const { error: p2 } = await supabase.from("leads").delete().eq("account_id", acct.id).is("last_synced_at", null);
-  if (p2) throw new Error(`prune-null: ${p2.message}`);
+  //
+  // PRUNE ONLY INSIDE THE WINDOW WE ACTUALLY QUERIED. This is the correctness
+  // fix that makes "gone from WhatConverts" a real signal instead of a guess.
+  // The fetch asks for start_date=startDate (calendar YTD), so a lead created
+  // before that was never asked about — its absence from the response says
+  // nothing. The old prune deleted it anyway, which meant:
+  //   * every lead older than Jan 1 was deleted as though removed upstream, and
+  //   * on Jan 1 the window resets and the ENTIRE prior year would be wiped.
+  // Restricting the prune to created_at >= startDate is what lets the proposal
+  // archive below trust it.
+  const pruned: string[] = [];
+  for (const stale of [
+    supabase.from("leads").delete().eq("account_id", acct.id).gte("created_at", startDate).lt("last_synced_at", stamp).select("wc_lead_id"),
+    supabase.from("leads").delete().eq("account_id", acct.id).gte("created_at", startDate).is("last_synced_at", null).select("wc_lead_id"),
+  ]) {
+    const { data, error } = await stale;
+    if (error) throw new Error(`prune: ${error.message}`);
+    for (const r of data ?? []) if (r.wc_lead_id) pruned.push(String(r.wc_lead_id));
+  }
 
-  // NOTE: proposals are never auto-archived. A sync used to hide any proposal
-  // whose lead had vanished from `leads` or been flagged spam/duplicate, which
-  // silently buried 19 REAL CMGT prospects (archived_by "intake sync", reason
-  // "Deleted in WhatConverts") — a lead falling out of the sync window is not
-  // consent to hide the proposal built from it. Archiving is a human decision
-  // only, via the cockpit's Remove lead control.
+  // Mirror REAL removals into the pipeline. Archiving is driven by evidence, not
+  // by absence:
+  //   * `pruned` — the lead was inside the window WhatConverts was asked about
+  //     and was not returned, so it really is gone upstream. Deleting spam in
+  //     WhatConverts lands here on the next sync.
+  //   * lead_status spam|duplicate — a human marked it in the portal (or via the
+  //     write-back in qualify-lead), and the lead row still exists.
+  // The previous version inferred "deleted" from "no lead row on this account",
+  // which was also true for anything aged out of the window — that is how it
+  // buried 19 real prospects. Never widen this back to bare absence.
+  await archiveRemovedProposals(supabase, acct.id, pruned);
+
   return leads.length;
+}
+
+// Archive proposals whose lead was PROVABLY removed or flagged. Reversible
+// (Restore in the cockpit) and never a hard delete: the row is also the drain's
+// tombstone, so deleting it would re-mint and re-LLM-match the lead.
+async function archiveRemovedProposals(supabase: any, accountId: string, prunedLeadKeys: string[]) {
+  const { data: props, error: pErr } = await supabase
+    .from("proposals")
+    .select("id, lead_key, community")
+    .eq("account_id", accountId)
+    .eq("source", "whatconverts")
+    .is("archived_at", null);
+  if (pErr || !props?.length) return;
+
+  // spam/duplicate is read from the leads that still exist.
+  const { data: rows, error: lErr } = await supabase
+    .from("leads")
+    .select("wc_lead_id, lead_status")
+    .eq("account_id", accountId)
+    .in("wc_lead_id", props.map((p: any) => p.lead_key));
+  if (lErr) return;
+  const flag = new Map<string, string>();
+  for (const r of rows ?? []) flag.set(String(r.wc_lead_id), String(r.lead_status || "").toLowerCase());
+
+  const gone = new Set(prunedLeadKeys.map(String));
+  const stamp = new Date().toISOString();
+  for (const p of props) {
+    const key = String(p.lead_key);
+    const f = flag.get(key) || "";
+    const reason = gone.has(key) ? "Deleted in WhatConverts"
+      : f === "spam" ? "Marked spam"
+      : f === "duplicate" ? "Marked duplicate"
+      : "";
+    if (!reason) continue;
+    const { error } = await supabase.from("proposals")
+      .update({ archived_at: stamp, archived_reason: reason, archived_by: "intake sync" })
+      .eq("id", p.id);
+    if (error) console.error(`archive ${key}: ${error.message}`);
+    else console.log(`archived proposal ${key} (${p.community}): ${reason}`);
+  }
 }
 
 Deno.serve(async (req) => {
