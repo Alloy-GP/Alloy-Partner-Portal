@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectIntakeBatch, isHoaIntake, isJunk } from './intakeDrain.js';
+import { selectIntakeBatch, isHoaIntake, isJunk, junkStatusForReason } from './intakeDrain.js';
 
 const hoa = (id) => ({ id, fields: [{ name: 'Biggest frustrations', value: 'x' }] });
 const other = (id) => ({ id, fields: [{ name: 'How did you hear about us?', value: 'x' }] });
@@ -132,5 +132,24 @@ describe('selectIntakeBatch', () => {
     const { batch, remaining } = selectIntakeBatch({ leads: [hoa('a'), hoa('b')], cap: 0 });
     expect(batch).toEqual([]);
     expect(remaining).toBe(2);
+  });
+});
+
+describe('junkStatusForReason — what a permanent delete must flag the lead as', () => {
+  it('maps duplicate reasons to duplicate', () => {
+    expect(junkStatusForReason('Duplicate of another lead')).toBe('duplicate');
+    expect(junkStatusForReason('duplicate')).toBe('duplicate');
+  });
+  it('maps every other archive reason to spam', () => {
+    for (const r of ['Spam / junk submission', 'Test submission', 'Wrong form / not an HOA', 'Other', '', undefined]) {
+      expect(junkStatusForReason(r)).toBe('spam');
+    }
+  });
+  // The whole point: whatever it returns must satisfy isJunk, or the drain
+  // re-mints the row we just deleted.
+  it('always returns a value the drain treats as junk', () => {
+    for (const r of ['Duplicate of another lead', 'Test submission', 'Other', null]) {
+      expect(isJunk({ leadStatus: junkStatusForReason(r) })).toBe(true);
+    }
   });
 });

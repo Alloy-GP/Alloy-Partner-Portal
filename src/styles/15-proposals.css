@@ -1492,3 +1492,10 @@
 .proposal-system .fx-flag-s { font-size: 12.5px; color: var(--fg-2); margin-top: 2px; line-height: 1.5; }
 /* Why this tier was recommended, under the tier name. */
 .proposal-system .v2-tier-why { font-size: 12px; color: var(--fg-muted); line-height: 1.45; margin: 4px 0 8px; }
+
+/* Archive · permanent delete. Destructive, so it reads as destructive — but it
+   sits behind Restore, not in front of it. */
+.proposal-system .fx-arch-del { flex: none; margin-left: 8px; background: #fff; border: 1px solid var(--border, #e6e2ee); border-radius: 9px; padding: 7px 13px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--fg-muted); cursor: pointer; transition: color .13s, border-color .13s, background .13s; }
+.proposal-system .fx-arch-del:hover { color: var(--alloy-pink); border-color: var(--alloy-pink); background: #fff5f8; }
+/* The list of what a bulk delete is about to remove. */
+.proposal-system .fx-arch-dellist { margin: 10px 0 4px; max-height: 190px; overflow: auto; border: 1px solid var(--border-subtle); border-radius: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--fg-2); line-height: 1.75; background: var(--alloy-off-white, #faf9fc); }
