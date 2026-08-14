@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: prop, error: e1 } = await admin
-      .from("proposals").select("id, account_id, board_response").eq("board_token", token).maybeSingle();
+      .from("proposals").select("id, account_id, board_response, status").eq("board_token", token).maybeSingle();
     if (e1) return json({ error: "lookup_failed" }, 500);
     if (!prop) return json({ error: "invalid_token" }, 403);
 
@@ -80,7 +80,13 @@ Deno.serve(async (req) => {
     if (VERDICTS.has(action) && !boardResponse) {
       boardResponse = { action, by: by || "A board member", at: new Date().toISOString() };
       const upd: Record<string, unknown> = { board_response: boardResponse };
-      if (action === "decline") upd.status = "declined";
+      // Only a proposal still OUT FOR SIGNATURE can be moved by a board click.
+      // The cockpit can now set any stage by hand (won/lost/back to build), and
+      // the board's magic link keeps working after a demote — so without this
+      // check a single decline click would silently overwrite a hand-set Won, or
+      // re-close something the owner deliberately reopened. The verdict is still
+      // recorded either way; it just no longer outranks the human.
+      if (action === "decline" && prop.status === "sent") upd.status = "declined";
       await admin.from("proposals").update(upd).eq("id", prop.id);
     }
 
