@@ -6,6 +6,7 @@ import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { parseCcInput, CC_MAX } from '../lib/ccList.js';
 import { selectIntakeBatch } from '../lib/intakeDrain.js';
+import { canMintProposals } from '../lib/proposalAccess.js';
 import { receivedMs, fmtReceived, ageAgo, agePriority, syncFreshness } from '../lib/leadAge.js';
 import { matchLeadWithLLM, realignFromTranscript, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
@@ -1119,46 +1120,6 @@ function SentFocus({ selected, onBack, onResend, onNudge, onMarkWon, onMarkLost,
   );
 }
 
-// ============================ RETAIN ============================
-function RetainView({ subs }) {
-  const justWon = subs.filter((s) => s.status === 'accepted');
-  const inRetention = [
-    { name: 'Cypress Landing', contact: 'Marla Reyes', homes: 142, city: 'Tampa, FL', value: 16140, since: 'Since 2023', health: 'ok', healthLabel: 'Healthy' },
-    { name: 'Oakmont Ridge', contact: 'Daniel Voss', homes: 88, city: 'Austin, TX', value: 9900, since: 'Since 2022', health: 'ok', healthLabel: 'Healthy' },
-    { name: 'Harbor Point', contact: 'Ellen Tran', homes: 210, city: 'Mobile, AL', value: 23100, since: 'Since 2021', health: 'watch', healthLabel: 'Renewal in 60d' },
-  ];
-  const newRows = justWon.map((s) => ({ name: s.community, contact: s.contact, homes: s.homes, city: s.city, value: s.salesValue || s.quoteValue, since: 'Won this week', health: 'new', healthLabel: 'New', isNew: true }));
-  const rows = [...newRows, ...inRetention];
-  const Row = ({ r }) => (
-    <div className="v2-rt-row" data-new={!!r.isNew}>
-      <span className={'v2-rt-dot ' + r.health} />
-      <div className="v2-rt-row-id"><div className="n">{r.name}{r.isNew && <span className="v2-rt-new">New</span>}</div><div className="m">{r.contact} · {r.homes} homes · {r.city}</div></div>
-      <div className="v2-rt-row-val"><span className="n">${r.value.toLocaleString()}</span><span className="l">{r.since}</span></div>
-      <span className={'v2-rt-pill ' + r.health}>{r.healthLabel}</span>
-      <span className="v2-rt-go">Open in Retention <I.Arrow width={15} height={15} /></span>
-    </div>
-  );
-  return (
-    <div className="v2-watch">
-      <div className="v2-w-head">
-        <div>
-          <div className="v2-w-eyebrow">Retain</div>
-          <h2 className="v2-w-title">Won — now handed to Retention.</h2>
-          <p className="v2-w-sub">Proposals ends at the close. Every community you win moves into <b>Retention</b> — a portal module for onboarding, renewals, account health, and board sentiment. This is just the handoff, so the progression is always clear.</p>
-        </div>
-      </div>
-      <div className="v2-rt-bridge">
-        <div className="v2-rt-bridge-ic"><I.TrendUp width={20} height={20} /></div>
-        <div className="v2-rt-bridge-txt"><div className="t">Retention is its own module</div><div className="s">Day-to-day retention lives outside Proposals. Open it to manage the full book of business.</div></div>
-        <button className="btn btn-primary v2-rt-bridge-btn">Open Retention <I.Arrow width={15} height={15} /></button>
-        <span className="v2-rt-soon">Coming soon</span>
-      </div>
-      <div className="v2-block-label">Moved to Retention · {rows.length} communities</div>
-      <div className="v2-rt-list">{rows.map((r) => <Row key={r.name} r={r} />)}</div>
-    </div>
-  );
-}
-
 // ============================ Stepper + shell ============================
 // State-based pipeline stages (each label = WHERE the deal is, not what to do).
 // "Send" isn't a stage — it's a button on Build that opens a modal; the deal then
@@ -1487,7 +1448,10 @@ function RealignModal({ sub, onClose, onApply }) {
 }
 
 export default function ProposalsScreen() {
-  // Live proposals (Supabase) when configured + seeded, else the mock pipeline.
+  // Real proposals from Supabase — and ONLY those. There is no demo pipeline to
+  // fall back on, so this is legitimately empty on a fresh account until intake
+  // drains the first lead in. Everything below must survive `[]`: `sub` is null
+  // when nothing is selected, and each stage renders its own empty state.
   const initialLeads = getLeads();
   // View state mirrors the URL (?stage=&lead=) so a refresh stays put — reload
   // on Sent and you land back on Sent, not bounced to New.
@@ -1497,7 +1461,7 @@ export default function ProposalsScreen() {
   const urlLead = searchParams.get('lead');
   const urlLeadOk = !!urlLead && initialLeads.some((l) => l.id === urlLead);
   const [subs, setSubs] = useState(initialLeads);
-  const [selectedId, setSelectedId] = useState(urlLeadOk ? urlLead : initialLeads[0].id);
+  const [selectedId, setSelectedId] = useState(urlLeadOk ? urlLead : (initialLeads[0]?.id || null));
   const [mode, setMode] = useState(urlStage);
   const [inbox, setInbox] = useState(!(urlStage === 'new' && urlLeadOk)); // New: lead in URL → drill-in
   const [focusBuild, setFocusBuild] = useState(urlStage !== 'build' || urlLeadOk); // Build: lead in URL → editor
@@ -1519,12 +1483,10 @@ export default function ProposalsScreen() {
   const [notesMap, setNotesMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { if (s.notes && s.notes.length) m[s.id] = s.notes; }); return m; });
   const [toast, setToast] = useState(null);
   const [launching, setLaunching] = useState(false);
-  const [resetting, setResetting] = useState(false); // demo pipeline reset in flight
-  const [resetArmed, setResetArmed] = useState(false); // two-click guard on the demo reset
   const [editorMap, setEditorMap] = useState(() => { const m = {}; initialLeads.forEach((s) => { m[s.id] = (s.sections || []).map((x) => ({ ...x })); }); return m; });
-  const sub = subs.find((s) => s.id === selectedId) || subs[0];
+  const sub = subs.find((s) => s.id === selectedId) || subs[0] || null; // null = nothing in the pipeline
   const sections = editorMap[selectedId] || [];
-  const perHome = sub.perHome; // single source — price edits write back into subs so every view (tier card, bucket, board) reflects them
+  const perHome = sub ? sub.perHome : null; // single source — price edits write back into subs so every view (tier card, bucket, board) reflects them
 
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3200); return () => clearTimeout(t); }, [toast]);
 
@@ -1551,25 +1513,6 @@ export default function ProposalsScreen() {
     supabase.from('proposals').update(patch)
       .eq('account_id', DATA.account.id).eq('lead_key', leadKey)
       .then(({ error }) => { if (error) setToast({ msg: 'Save failed: ' + error.message }); });
-  };
-
-  // Demo account only (staff): a discreet reset that re-seeds the Northstar demo
-  // pipeline to its starting state via the reset-demo edge function. The function
-  // is hard-scoped server-side to the demo account id, so it can never touch a
-  // real client. Two-click confirm avoids an accidental reset mid-demo.
-  const DEMO_ACCOUNT_ID = 'de300000-0000-4000-8000-000000000001';
-  const isDemo = !!DATA.user?.isStaff && DATA.account?.id === DEMO_ACCOUNT_ID;
-  const resetDemo = async () => {
-    if (!resetArmed) { setResetArmed(true); setTimeout(() => setResetArmed(false), 4000); return; }
-    setResetArmed(false); setResetting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('reset-demo', { body: {} });
-      if (error || data?.error) throw new Error(error?.message || data?.error || 'reset failed');
-      window.location.reload(); // reload → fresh DATA (pristine pipeline)
-    } catch (e) {
-      setResetting(false);
-      setToast({ msg: 'Reset failed: ' + (e.message || e) });
-    }
   };
 
   const meName = (DATA.user?.name || '').split(/\s+/)[0] || 'a teammate';
@@ -1801,6 +1744,11 @@ export default function ProposalsScreen() {
   // Mint anything in `leads` that has no proposal yet. Returns how many landed.
   // `silent` = the automatic path: no toast unless it actually found something.
   const drain = async ({ silent = false } = {}) => {
+    // ONLY the proposals account gets a pipeline. Staff can open any client's
+    // cockpit, and this used to mint a proposal per eligible lead for whoever
+    // was open — which manufactured 90 rows on Edison and 6 on Tidewater,
+    // neither of which runs proposals. Access is staff-wide; WRITING is not.
+    if (!canMintProposals(DATA.account)) return 0;
     if (draining.current) return 0;
     draining.current = true;
     try {
@@ -1905,19 +1853,11 @@ export default function ProposalsScreen() {
               <I.Archive width={14} height={14} /> Archive <b>{archived.length}</b>
             </button>
           )}
-          {isDemo && (
-            <button className={'fx-demo-reset' + (resetArmed ? ' armed' : '')} onClick={resetDemo} disabled={resetting}
-              title="Reset the demo pipeline to its starting state">
-              {resetting ? 'Resetting…' : resetArmed ? 'Reset demo?' : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
-              )}
-            </button>
-          )}
         </div>
       </div>
 
       {/* Pinned lead card — the spine below the stepper while a lead is focused in Build. */}
-      {mode === 'build' && focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
+      {mode === 'build' && focusBuild && sub && stageOf(sub) === 'qualified' && sub.status !== 'sent' && (
         <>
           <StageToolbar backLabel="All in Build" onBack={() => setFocusBuild(false)} actions={[
             { icon: icoOpen(), label: 'Open full proposal', onClick: () => window.open(BOARD_URL(sub), '_blank', 'noopener') },
@@ -1936,7 +1876,7 @@ export default function ProposalsScreen() {
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
-        (focusBuild && stageOf(sub) === 'qualified' && sub.status !== 'sent')
+        (focusBuild && sub && stageOf(sub) === 'qualified' && sub.status !== 'sent')
           ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onApplyMatch={applyMatch} previewNonce={previewNonce} onContinue={() => setSendOpen(true)} />
           : <BuildBucket subs={subs} editorMap={editorMap} onResume={resumeBuild} />
       )}
@@ -1954,9 +1894,11 @@ export default function ProposalsScreen() {
       {mode === 'library' && <UVPLibrary />}
       {mode === 'archive' && <ArchiveView archived={archived} onRestore={restoreLead} />}
 
-      {sendOpen && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
-      {editOpen && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
-      {realignOpen && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
+      {/* Every one of these acts ON the focused lead, so they can't open without
+          one — guarded so an empty pipeline can never deref a null `sub`. */}
+      {sendOpen && sub && <SendModal sub={sub} onClose={() => setSendOpen(false)} onSend={(r) => launch(r)} />}
+      {editOpen && sub && <EditDetailsModal sub={sub} onClose={() => setEditOpen(false)} onSave={saveDetails} />}
+      {realignOpen && sub && <RealignModal sub={sub} onClose={() => setRealignOpen(false)} onApply={applyRealign} />}
       {archiveTarget && <ArchiveModal s={archiveTarget} onClose={() => setArchiveTarget(null)} onArchive={archiveLead} />}
       {matching && (
         <div className="v2-launch">
@@ -1969,7 +1911,7 @@ export default function ProposalsScreen() {
           </div>
         </div>
       )}
-      {launching && <LaunchOverlay sub={sub} />}
+      {launching && sub && <LaunchOverlay sub={sub} />}
       {toast && (
         <div className="ps-toast">
           <span className="ic"><I.Check width={14} height={14} /></span>{toast.msg}

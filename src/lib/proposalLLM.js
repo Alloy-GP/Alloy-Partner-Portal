@@ -6,9 +6,9 @@
 // should fall back to the deterministic engine on throw, so the cockpit always
 // renders even if the LLM is unavailable.
 //
-// This is the PRODUCTION-phase path (real leads, Supabase configured). The
-// mock-data demo renders pre-baked results from proposalLLMMatches.generated.js
-// instead — see scripts/llm-precompute-matches.mjs — so it needs no backend.
+// This is the only LLM path: every lead is real, so a match is either computed
+// here at intake (and persisted as proposals.match_snapshot) or falls back to the
+// deterministic engine. Nothing is pre-baked.
 //
 // Gated by VITE_PROPOSAL_LLM so it's inert until explicitly enabled.
 // ============================================================================
@@ -19,8 +19,8 @@ const ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY;
 // they only run against our edge functions — which require Supabase anyway. So
 // enable whenever the app is wired to Supabase (local, staging, prod), instead
 // of depending on a build-time flag that has to be mirrored into every deploy.
-// Opt OUT with VITE_PROPOSAL_LLM=0 (forces the deterministic engine). Mock dev
-// (no Supabase) stays on the baked demo matches.
+// Opt OUT with VITE_PROPOSAL_LLM=0 (forces the deterministic engine). Without
+// Supabase there are no leads to match at all.
 export const LLM_ENABLED = !!SUPABASE_URL && !!ANON_KEY && String(import.meta.env?.VITE_PROPOSAL_LLM || "") !== "0";
 
 export async function matchLeadWithLLM(lead, { uvps, painPoints }) {

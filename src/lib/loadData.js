@@ -4,7 +4,7 @@ import { camFor } from './camProfiles.js';
 import { isPlanningItem } from './quarterStats.js';
 
 // A proposals row (snake_case DB) → the raw lead shape enrichLead consumes
-// (camelCase, matching proposalMockData's LEADS_RAW). Shared by loadData and the
+// (camelCase) that enrichLead consumes. Shared by loadData and the
 // board route's standalone fetch so the mapping never drifts.
 export function proposalRowToRaw(p) {
   return {

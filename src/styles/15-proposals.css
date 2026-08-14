@@ -1299,12 +1299,6 @@
 .proposal-system .fx-more button:hover:not(:disabled) { background: #fdf9f0; }
 .proposal-system .fx-more button:disabled { opacity: .6; cursor: default; }
 .proposal-system .fx-sync .live.busy { background: var(--alloy-pink); animation: fx-syncp-busy 0.9s cubic-bezier(.4,0,.2,1) infinite; }
-/* Demo-only reset — deliberately discreet so a prospect's eye slides past it.
-   Faint by default; brightens on hover, and the armed (confirm) state turns pink. */
-.proposal-system .fx-demo-reset { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 34px; height: 34px; padding: 0; border-radius: 9px; background: transparent; border: 1px solid transparent; color: #c2bfce; box-shadow: none; cursor: pointer; opacity: .45; transition: opacity .13s, color .13s, border-color .13s, background .13s; align-self: center; }
-.proposal-system .fx-demo-reset:hover { opacity: 1; color: var(--fg-muted); border-color: var(--border-subtle); background: #fff; }
-.proposal-system .fx-demo-reset.armed { width: auto; padding: 0 12px; height: 34px; opacity: 1; color: var(--alloy-pink); border-color: var(--alloy-pink); background: #fff; font-family: var(--font-display); font-weight: 700; font-size: 12px; }
-.proposal-system .fx-demo-reset:disabled { opacity: .75; cursor: default; width: auto; padding: 0 12px; height: 34px; font-size: 12px; font-weight: 600; color: var(--fg-muted); }
 @keyframes fx-syncp { 0% { box-shadow: 0 0 0 0 rgba(79,170,90,.5); } 80%,100% { box-shadow: 0 0 0 8px rgba(79,170,90,0); } }
 @keyframes fx-syncp-busy { 0% { box-shadow: 0 0 0 0 rgba(217,53,110,.5); } 80%,100% { box-shadow: 0 0 0 8px rgba(217,53,110,0); } }
 

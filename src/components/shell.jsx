@@ -4,12 +4,12 @@ import { DATA } from '../data.js';
 import CompanyMark from './CompanyMark.jsx';
 import { zdList } from '../lib/zendesk.js';
 import { inMotionNow } from '../lib/quarterStats.js';
+import { canSeeProposals } from '../lib/proposalAccess.js';
 
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
 
 function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, collapsed, session, onSignOut, staffNav, viewAsClient, onToggleViewAsClient, sidebarMode, onSetMode, onHoverChange }) {
-  const isStaff = !!(DATA.user && DATA.user.isStaff);
   const [ctrlOpen, setCtrlOpen] = useState(false);
 
   // Leads badge: leads still needing triage (not yet qualified or marked no).
@@ -40,14 +40,17 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     { id: "projects", label: "Playbook", icon: I.Book, group: "work", count: openProjects },
     { id: "leads", label: "Partnership", icon: I.TrendUp, group: "work", count: leadsToReview },
     { id: "performance", label: "Visibility", icon: I.Eye, group: "work" },
-    // Proposal system — shows to a client when their account has proposals
-    // enabled (decision 1); otherwise staff-only (still reachable by URL).
-    { id: "proposals", label: "Proposals", icon: I.Doc, group: "work", staff: !DATA.account?.proposalsEnabled },
+    // Proposal system — a CMGT-only pilot. Alloy staff see it on any account;
+    // among clients, only CMGT. Every other client gets no entry here AND is
+    // turned away at the route (App.jsx), so the URL isn't a back door.
+    { id: "proposals", label: "Proposals", icon: I.Doc, group: "work", hide: !canSeeProposals(DATA.user, DATA.account) },
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Image, group: "account" },
     { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: (DATA.account && DATA.account.dashUploadUrl) || "https://dam.alloygp.co" },
     // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
-  ].filter(n => !n.staff || isStaff);
+    // `hide` is the ONE way to gate an entry — set it from the same helper the
+    // route uses, so the nav and the route can't disagree.
+  ].filter(n => !n.hide);
   const grouped = {
     main: navItems.filter(n => n.group === "main"),
     work: navItems.filter(n => n.group === "work"),

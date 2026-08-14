@@ -1,15 +1,21 @@
 // ============================================================================
-// Proposal system — MOCK DATA (no database), v2 pipeline shape.
+// Proposal system — CMGT's proposal CONTENT + the pipeline enrichment layer.
 //
-// Stands in for what will load per-CAM from Supabase. The portal runs on mock
-// data when Supabase env vars are absent, so nothing here touches the live DB.
+// There is NO demo pipeline in here any more. Every lead the cockpit and the
+// board document render is a real row from Supabase (`proposals`, drained from
+// synced WhatConverts intake); `getLeads()` returns exactly those and nothing
+// else. Nothing fabricates a lead, a board, or engagement telemetry — an empty
+// pipeline renders as empty.
 //
-// Shape mirrors the v2 design handoff (proposal/data.js + v2-data.js): a client
-// (CMGT) with its OWN unique UVP library + a pain taxonomy, and a pipeline of
-// leads (Pending → Qualified → Closed). Each lead's match (overall %, per-concern
-// fit, concern→UVP links) is computed LIVE by the engine (src/lib/proposalMatch.js)
-// from the board's intake pains — not hand-authored — so it recomputes if the
-// pains change. The per-concern prose is editorial (an LLM layer rewrites it later).
+// What DOES live here is CMGT's editorial content (the CAM company facts, team,
+// onboarding timeline, what the tier includes, the shared pain taxonomy and its
+// per-concern prose) plus `enrichLead`, the ONE path that turns a raw proposal
+// row into the shape every proposal surface renders: match → concerns → section
+// checklist → pricing → Close telemetry.
+//
+// Each lead's match (overall %, per-concern fit, concern→UVP links) comes from a
+// persisted LLM snapshot when intake matched it, else is computed live by the
+// deterministic engine (src/lib/proposalMatch.js) from the board's intake pains.
 //
 // Per the product decisions: UVPs are per-client and unique; pain points are a
 // shared canned list the board selects from (later: custom/open).
@@ -17,7 +23,6 @@
 
 import { deriveLeadMatch } from "./proposalMatch.js";
 import { receivedMs } from "./leadAge.js";
-import { LLM_MATCHES } from "./proposalLLMMatches.generated.js";
 import { DATA } from "../data.js";
 // UVPs live in ONE canonical place (the backbone). Re-export so existing
 // `import { UVPS, UVP_TITLES, UVP_BLURBS } from proposalMockData` keep working.
@@ -129,122 +134,6 @@ export const TIERS = [
   { id: "onsite", name: "On-Site Management", rateRange: "≈ $2,500 / month", defaultRate: null, setupFee: 0 },
 ];
 
-// ---------- Leads (the pipeline) ----------
-// status: new=Pending · review/draft/sent=Qualified · accepted=Won · declined=Lost · disq=Not quotable (→ Closed)
-export const LEADS_RAW = [
-  {
-    id: "HOL-2026-LA93", community: "Hollywood Hills", contact: "Harry Houdini", contactRole: "Board President", firstName: "Harry",
-    city: "Baton Rouge, LA", homes: 93, status: "new", priority: true, owner: "AB", perHome: 8.98, received: "May 21, 2026 · 9:42 AM",
-    email: "hocuspocus@gmail.com", phone: "(225) 879-0321", metaType: "Single-family (self-managed)", metaStatus: "Self-managed by board",
-    dues: "$450.00 annually", engageTimeline: "Engage within 60 days", budget: "Cost-sensitive — board is volunteer-run and managing a tight budget",
-    selectedPains: ["volunteer", "tech", "homeowner-apathy", "vendor-issues"],
-    quote: "We got CMGT's number from a friend in another community we manage. Our current board has been volunteering for a few years and is tired of handling all of it. We've never had professional management, so the budget is tight — we just need a partner who can take this off our plate.",
-  },
-  {
-    id: "CYP-2026-LA48", community: "Cypress Lakes Condominiums", contact: "Renee Thibodaux", contactRole: "Treasurer", firstName: "Renee",
-    city: "Mandeville, LA", homes: 148, status: "review", owner: "AB", perHome: 7.5, received: "May 20, 2026 · 2:10 PM",
-    email: "rthibodaux@cypresslakescondo.org", phone: "(985) 624-1180", metaType: "Condominium (switching providers)", metaStatus: "Switching providers",
-    dues: "$285.00 monthly", engageTimeline: "Decision within 30 days", budget: "Mid-range — willing to pay for responsiveness",
-    selectedPains: ["communication", "delinquency", "switching", "transparency"],
-    quote: "Our current management company stopped returning calls six months ago, delinquency is climbing, and we have no idea where our reserves actually stand. We need out, but the board is terrified of a messy transition.",
-  },
-  {
-    id: "OAK-2026-LA61", community: "Oak Grove HOA", contact: "Renata Olivier", contactRole: "Treasurer", firstName: "Renata",
-    city: "Baton Rouge, LA", homes: 61, status: "sent", owner: "JR", perHome: 9.25, received: "May 18, 2026 · 11:02 AM", linkExpires: "Jun 19",
-    email: "rolivier@oakgrovehoa.org", phone: "(225) 442-7781", metaType: "Single-family", metaStatus: "Professionally managed (unhappy)",
-    dues: "$65.00 monthly", engageTimeline: "Comparing two firms before June meeting", budget: "Open to the right fit",
-    selectedPains: ["communication", "transparency", "reactive"],
-    quote: "Our reserves are healthy but our current manager is unresponsive and the books are a mess. The board wants real financial transparency and someone who actually picks up the phone.",
-  },
-  {
-    id: "PEC-2026-LA08", community: "Pecan Trail Estates", contact: "Linette Boudreaux", contactRole: "Board President", firstName: "Linette",
-    city: "Houma, LA", homes: 210, status: "sent", owner: "AB", perHome: 6.75, received: "May 12, 2026 · 4:32 PM",
-    email: "lboudreaux@pecantrail.org", phone: "(985) 219-3340", metaType: "Single-family (master-planned)", metaStatus: "Switching providers",
-    dues: "$120.00 monthly", engageTimeline: "Signed — onboarding in July", budget: "Value-driven, no nickel-and-diming",
-    selectedPains: ["delinquency", "compliance", "vendor-issues"],
-    quote: "Large association, aging amenities, and rising delinquencies. We need a firm that can handle collections fairly and keep capital projects on track without nickel-and-diming us.",
-  },
-  {
-    id: "SEA-2026-MS22", community: "Seabrook Pointe", contact: "Marcus Whitley", contactRole: "Board Vice President", firstName: "Marcus",
-    city: "Gulfport, MS", homes: 64, status: "sent", owner: "JR", perHome: 9.0, received: "May 9, 2026 · 11:05 AM",
-    email: "mwhitley@seabrookpointe.org", phone: "(228) 555-7012", metaType: "Single-family (coastal, new board)", metaStatus: "First-time board",
-    dues: "$80.00 monthly", engageTimeline: "Went with a local competitor", budget: "Tight first-year budget",
-    selectedPains: ["switching", "tech", "manager-turnover"],
-    quote: "New coastal community, first board. We don't know what good management looks like yet — we need a partner who can set up the systems right from the start and keep owners in the loop.",
-  },
-  {
-    id: "MAG-2026-MS12", community: "Magnolia Trace", contact: "David Okonkwo", contactRole: "Developer Representative", firstName: "David",
-    city: "Gulfport, MS", homes: 310, status: "new", disq: true, disqReason: "Outside service area", owner: "JR", perHome: 8.98, received: "Jun 3, 2026 · 11:08 AM",
-    email: "dokonkwo@magnoliatracedev.com", phone: "(228) 770-4422", metaType: "Master-planned (developer-controlled)", metaStatus: "Developer-controlled, approaching turnover",
-    dues: "$95.00 monthly", engageTimeline: "First closings in ~4 months", budget: "Developer-funded through turnover",
-    selectedPains: ["developer", "gulf-south", "tech", "compliance"],
-    quote: "We're a regional builder bringing our first master-planned community to market on the coast. We need a partner who knows Gulf South codes and can run the admin side cleanly from groundbreaking through turnover.",
-  },
-];
-
-// ---------- Close — post-send engagement analytics (the "watch" data) ----------
-// Keyed by lead id; heat is stored for demo realism (production derives it from
-// recency of last open + open count + read depth — telemetry from the board page
-// on proposal.cmgt.org). Only `sent` leads surface in Close.
-const WATCH = {
-  "PEC-2026-LA08": {
-    heat: "hot", opens: 11, lastOpened: "47m ago", firstOpened: "May 18 · 7:14 PM",
-    sentOn: "May 18", readTime: "13m 20s", scrollDepth: 98, expires: "Jun 14", daysLeft: 23, linkLife: 30,
-    viewers: [
-      { initials: "LB", name: "Linette Boudreaux", role: "Board President", opens: 6, lastSeen: "47m ago" },
-      { initials: "CP", name: "Curtis Pelletier", role: "Treasurer", opens: 3, lastSeen: "Yesterday" },
-      { initials: "DW", name: "Dana Whitfield", role: "Secretary", opens: 2, lastSeen: "May 19" },
-    ],
-    sections: [
-      { name: "Cover & intro", pct: 100, status: "read" },
-      { name: "Rising delinquencies", pct: 100, status: "read" },
-      { name: "Capital projects stalling", pct: 92, status: "read" },
-      { name: "Aging amenities & vendors", pct: 80, status: "read" },
-      { name: "How this was built", pct: 45, status: "skimmed" },
-      { name: "Pricing tiers", pct: 100, status: "read", note: "6m 02s — longest dwell" },
-      { name: "Your team", pct: 88, status: "read" },
-      { name: "First 90 days", pct: 95, status: "read" },
-      { name: "Discovery call CTA", pct: 100, status: "read", note: "Clicked Schedule" },
-    ],
-    feed: [
-      { when: "47m ago", who: "Linette Boudreaux", event: "Clicked “Schedule a discovery call”", type: "cta" },
-      { when: "47m ago", who: "Linette Boudreaux", event: "Reopened the proposal · 3rd visit", type: "open" },
-      { when: "Yesterday · 4:02 PM", who: "Curtis Pelletier", event: "Opened from a forwarded link", detail: "New viewer", type: "viewer" },
-      { when: "Yesterday · 3:48 PM", who: "Linette Boudreaux", event: "Spent 6m on Pricing tiers", type: "read" },
-      { when: "May 19 · 10:11 AM", who: "Dana Whitfield", event: "Opened the proposal", type: "open" },
-      { when: "May 18 · 7:14 PM", who: "Linette Boudreaux", event: "First opened · read to 98%", type: "first" },
-    ],
-  },
-  "OAK-2026-LA61": {
-    heat: "warm", opens: 4, lastOpened: "1d ago", firstOpened: "May 20 · 9:30 AM",
-    sentOn: "May 20", readTime: "4m 05s", scrollDepth: 64, expires: "Jun 11", daysLeft: 20, linkLife: 30,
-    viewers: [
-      { initials: "RO", name: "Renata Olivier", role: "Treasurer", opens: 3, lastSeen: "1d ago" },
-      { initials: "TM", name: "Theo Marchand", role: "Board President", opens: 1, lastSeen: "2d ago" },
-    ],
-    sections: [
-      { name: "Cover & intro", pct: 100, status: "read" },
-      { name: "Unresponsive current manager", pct: 100, status: "read" },
-      { name: "Financials are opaque", pct: 90, status: "read" },
-      { name: "Reserve planning is unclear", pct: 55, status: "skimmed" },
-      { name: "How this was built", pct: 0, status: "skipped" },
-      { name: "Pricing tiers", pct: 85, status: "read", note: "Returned here twice" },
-      { name: "Your team", pct: 10, status: "skipped" },
-      { name: "First 90 days", pct: 0, status: "skipped" },
-      { name: "Discovery call CTA", pct: 30, status: "skimmed" },
-    ],
-    feed: [
-      { when: "1d ago", who: "Renata Olivier", event: "Reopened · jumped straight to Pricing tiers", type: "read" },
-      { when: "May 20 · 2:40 PM", who: "Theo Marchand", event: "Opened briefly", detail: "New viewer", type: "viewer" },
-      { when: "May 20 · 9:30 AM", who: "Renata Olivier", event: "First opened · read to 64%", type: "first" },
-    ],
-  },
-  // Seabrook Pointe (SEA-2026-MS22) intentionally has NO mock WATCH → it shows a
-  // clean ZERO state ("Not opened yet") until a real board open lands. It's the
-  // live-telemetry TEST board: open its board page, scroll, reload Close → watch
-  // it go from 0 to real engagement.
-};
-
 // Zero-state for a proposal just sent in-session (no opens yet). Sections derive
 // from the lead's matched concerns.
 export function freshWatch(lead) {
@@ -263,7 +152,8 @@ const fmt = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, m
 // The board doc emits open/section/heartbeat/cta events (board-proposal.jsx) to
 // the proposal-track edge fn → proposal_events. loadData groups them per proposal
 // and hands them here; this rolls them up into the exact shape CloseView renders,
-// so Close shows REAL engagement. Falls back to mock WATCH when there are none.
+// so Close shows REAL engagement. No events yet → null, and Close renders its
+// "not opened yet" zero state rather than inventing opens.
 const SECTION_ORDER = ["Cover & intro", "Concerns", "How this was built", "Pricing tiers", "Your team", "First 90 days", "Discovery call CTA"];
 const initialsOf = (name) => (name || "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 const relTime = (iso) => {
@@ -354,15 +244,14 @@ export function aggregateWatch(events, lead) {
 }
 
 // Enrich one raw submission into the full pipeline shape: run the matching
-// engine (or a baked LLM match) + attach Close telemetry + build the section
-// checklist + pricing-friendly fields. ONE path for both the mock pipeline and
-// DB-loaded proposals (loadData calls this), so they render identically.
+// engine (or the match persisted at intake) + attach Close telemetry + build the
+// section checklist + pricing-friendly fields. The ONE path every proposal goes
+// through (loadData for the cockpit, proposal-board for a magic link), so they
+// render identically.
 export function enrichLead(s, cam) {
-  // Prefer a baked LLM match (run scripts/llm-precompute-matches.mjs) when present;
-  // otherwise the deterministic tag engine. Either way the shape is identical, so
-  // the screen is matcher-agnostic. `_source` lets the UI show which ran.
-  // Match precedence: a persisted LLM snapshot (real lead, matched once at
-  // intake) > a baked demo LLM match > the deterministic tag engine fallback.
+  // Match precedence: the LLM snapshot persisted when intake matched this lead,
+  // else the deterministic tag engine. Either way the shape is identical, so the
+  // screen is matcher-agnostic. `_source` lets the UI show which one ran.
   //
   // `cam` (a CAM profile from camProfiles.js) white-labels the matcher per
   // account: the UVP set + per-concern prose + includes come from the account's
@@ -370,7 +259,7 @@ export function enrichLead(s, cam) {
   const uvps = cam?.uvps || UVPS;
   const prose = cam?.painProse || PAIN_PROSE;
   const includesList = cam?.includes || INCLUDES;
-  const m = s.matchSnapshot || LLM_MATCHES[s.id] || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, uvps, { prose, topCaps: 4 }), _source: "engine" };
+  const m = s.matchSnapshot || { ...deriveLeadMatch(s.selectedPains, PAIN_POINTS, uvps, { prose, topCaps: 4 }), _source: "engine" };
   const tierName = "Full-Service Management";
   const quoteValue = s.quoteValue != null ? s.quoteValue : Math.round((s.perHome || 0) * (s.homes || 0) * 12);
   // Date the board raised these concerns. Derived from the real timestamp rather
@@ -386,9 +275,9 @@ export function enrichLead(s, cam) {
     tierName,
     quoteValue,
     ...m, // match, concerns, scores, links, capsMatched, capsTotal
-    // Close engagement: real aggregated board events when present, else the mock
-    // WATCH (demo boards without live telemetry yet).
-    watch: (s.events && s.events.length) ? aggregateWatch(s.events, s) : (WATCH[s.id] || null),
+    // Close engagement: real aggregated board events, or null until a board
+    // actually opens the proposal. Never fabricated.
+    watch: (s.events && s.events.length) ? aggregateWatch(s.events, s) : null,
     includes: includesList,
     sections: buildSections(m.concerns), // Build checklist skeleton
     gapNote: "There's almost always a small gap worth aligning on — let's talk it through on the discovery call before you sign anything.",
@@ -396,13 +285,12 @@ export function enrichLead(s, cam) {
   };
 }
 
-export const LEADS = LEADS_RAW.map(enrichLead);
-
-// The pipeline the cockpit + board page render: live proposals from Supabase
-// (DATA.proposals, enriched in loadData) when configured + present, else the
-// mock pipeline above. Lets local mock dev keep working unchanged.
+// The pipeline the cockpit + board page render: REAL proposals from Supabase
+// only (DATA.proposals, enriched in loadData). No fallback — an account with
+// nothing in the pipeline renders the empty state, and mock dev without Supabase
+// renders the same thing rather than a fictional pipeline.
 export function getLeads() {
-  return (DATA.proposals && DATA.proposals.length) ? DATA.proposals : LEADS;
+  return DATA.proposals || [];
 }
 
 // pricing helper (per lead, honoring a per-home override)

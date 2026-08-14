@@ -18,7 +18,8 @@
 
 // Legacy `received` strings were formatted by whoever wrote the row, so the
 // date/time separator varies by source: " · " (mock pipeline), " at " (live
-// intake via toLocaleString), " * " (reset-demo seeder).
+// intake via toLocaleString), " * " (retired seeders — still parsed so any
+//   surviving legacy row keeps its real date).
 const SEPARATORS = [' · ', ' at ', ' * '];
 
 // "May 21, 2026 · 9:42 AM" → epoch ms, or null when unparseable.

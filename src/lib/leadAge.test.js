@@ -10,7 +10,7 @@ describe('parseReceivedText', () => {
     const expected = Date.parse('2026-05-21T09:42:00');
     expect(parseReceivedText('May 21, 2026 · 9:42 AM')).toBe(expected); // mock pipeline
     expect(parseReceivedText('May 21, 2026 at 9:42 AM')).toBe(expected); // live intake
-    expect(parseReceivedText('May 21, 2026 * 9:42 AM')).toBe(expected); // reset-demo
+    expect(parseReceivedText('May 21, 2026 * 9:42 AM')).toBe(expected); // legacy seeder format
   });
 
   it('returns null for empty or unparseable input', () => {
