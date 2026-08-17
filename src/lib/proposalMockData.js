@@ -24,6 +24,7 @@
 import { deriveLeadMatch } from "./proposalMatch.js";
 import { receivedMs } from "./leadAge.js";
 import { tierName as tierNameFor, recommendTier, intakeFlags, monthlyFor } from "./proposalTier.js";
+import { ownersFromTeam } from "./proposalOwners.js";
 import { DATA } from "../data.js";
 // UVPs live in ONE canonical place (the backbone). Re-export so existing
 // `import { UVPS, UVP_TITLES, UVP_BLURBS } from proposalMockData` keep working.
@@ -312,6 +313,10 @@ export function enrichLead(s, cam) {
     ...s,
     tierId,
     tierName,
+    // The account's real people, for the owner picker and for the name the board
+    // document shows a prospect. Prefer what the row carries (the public board
+    // gets these from proposal-board — an anonymous prospect has no DATA.team).
+    owners: s.owners && s.owners.length ? s.owners : ownersFromTeam(DATA.team),
     tierRec,                                  // { tierId, perHome, why, budgetIntent, … }
     intakeFlags: intakeFlags({ ...s, tierId }), // contradictions to raise before sending
     quoteValue,

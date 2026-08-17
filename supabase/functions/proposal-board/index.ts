@@ -49,8 +49,42 @@ Deno.serve(async (req) => {
     if (error) return json({ error: "lookup_failed" }, 500);
     if (!row) return json({ error: "invalid_token" }, 404);
 
+    // The account's REAL people, so the document names an actual human. A prospect
+    // has no session and therefore no DATA.team, which is why this has to travel
+    // in the payload — without it the doc fell back to the CAM profile, and that
+    // fallback is how a board could be told their contact was "Jordan R.", who
+    // does not work at CMGT.
+    //
+    // NAMES ONLY, and client-side people only. profiles holds no email (it lives
+    // in auth.users), and Alloy staff are excluded: the board's contact is the
+    // CAM's own person, not whoever at Alloy touched the record.
+    const { data: teamRows } = await admin
+      .from("profiles")
+      .select("id, name, initials, role, is_staff")
+      .eq("account_id", row.account_id)
+      .eq("is_staff", false);
+    const initialsOf = (name: string) => {
+      const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "";
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    };
+    const usedInitials = new Set<string>();
+    const owners = (teamRows ?? [])
+      .filter((p: any) => String(p.name || "").trim())
+      .map((p: any) => {
+        const base = (p.initials && String(p.initials).trim().toUpperCase()) || initialsOf(p.name);
+        let key = base || "XX";
+        for (let i = 0; usedInitials.has(key); i++) key = base + String.fromCharCode(66 + i);
+        usedInitials.add(key);
+        const first = String(p.name).trim().split(/\s+/)[0] || "";
+        const role = p.role === "owner" ? "Owner" : p.role === "accounting" ? "Accounting" : "Team";
+        return { initials: key, name: p.name, first, role, id: p.id };
+      });
+
     // Map to the raw lead shape the client's enrichLead consumes (camelCase).
     const proposal = {
+      owners,
       id: row.lead_key,
       accountId: row.account_id, // which CAM this belongs to → the doc's white-label identity
       boardToken: row.board_token,
