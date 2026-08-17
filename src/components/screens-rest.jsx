@@ -7,6 +7,7 @@ import { zdList } from '../lib/zendesk.js';
 import { guideForTags } from '../lib/guides.js';
 import GuideModal from './GuideModal.jsx';
 import { qualifyLead } from '../lib/leads.js';
+import { clearsJunkFlag, nextLeadStatus } from '../lib/intakeDrain.js';
 import { wcProfileLabel, hasProfileName, profileList } from '../lib/wcProfiles.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 
@@ -692,6 +693,9 @@ function buildLeadsPage() {
     date: l.date || "",
     status: statusOf(l),
     reason: l.quotable === "no" ? (l.leadStatus || null) : null, // spam | duplicate | null (refines "not a fit")
+    // The raw flag, regardless of quotable. `reason` above hides it when quotable
+    // isn't "no", and the junk guard must never be fooled by that.
+    leadStatus: l.leadStatus || null,
     wcAccountId: l.wcAccountId || "", // which WhatConverts profile this lead came from
     note: l.message || "",
     fields: cleanFields(l),
@@ -788,8 +792,21 @@ function LeadsScreen() {
     const lead = leads.find((l) => l.id === id);
     if (!lead) return;
     const nextReason = canonical === "notfit" ? (reason || null) : null;
-    const prev = { status: lead.status, reason: lead.reason || null };
-    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, status: canonical, reason: nextReason } : l));   // keep values across status
+    // Spam and duplicate are one-way here. A permanent delete removes the
+    // proposal row that was the drain's tombstone and relies on this flag to keep
+    // the lead out — clearing it would resurrect the lead on the next drain.
+    // Swapping spam <-> duplicate is still junk, so that is allowed.
+    if (clearsJunkFlag(lead.leadStatus, nextReason)) {
+      setToast({ id, prev: null, label: `${lead.person} is marked ${String(lead.leadStatus).toLowerCase()} — that can't be undone here.` });
+      clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 6000);
+      return;
+    }
+    const prev = { status: lead.status, reason: lead.leadStatus || lead.reason || null };
+    // leadStatus, not just reason: the junk guard reads the raw flag, and without
+    // updating it here a lead flagged spam in THIS session stayed clearable —
+    // the guard only protected leads that arrived already flagged from the DB.
+    setLeads((ls) => ls.map((l) => l.id === id ? { ...l, status: canonical, reason: nextReason, leadStatus: nextReason } : l));   // keep values across status
     const label = canonical === "qualified" ? `${lead.person} marked qualified`
       : canonical === "review" ? `${lead.person} moved to pending`
       : nextReason ? `${lead.person} marked ${REASON_LABEL[nextReason]}`
@@ -797,13 +814,17 @@ function LeadsScreen() {
     setToast({ id, prev, label });
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 6000);
-    try { await qualifyLead(id, { quotable: quotableOf(canonical), leadStatus: nextReason }); } catch (e) { /* optimistic; next sync reconciles */ }
+    try { await qualifyLead(id, { quotable: quotableOf(canonical), leadStatus: nextLeadStatus(lead.leadStatus, nextReason) }); } catch (e) { /* optimistic; next sync reconciles */ }
   };
   const undo = async () => {
-    if (!toast) return;
+    if (!toast || !toast.prev) return;   // refusal toasts have nothing to undo
     const t = toast;
-    setLeads((ls) => ls.map((l) => l.id === t.id ? { ...l, status: t.prev.status, reason: t.prev.reason ?? null } : l));
+    setLeads((ls) => ls.map((l) => l.id === t.id ? { ...l, status: t.prev.status, reason: t.prev.reason ?? null, leadStatus: t.prev.reason ?? null } : l));
     setToast(null);
+    // No junk guard here on purpose. An undo toast only exists for a change the
+    // guard ALLOWED, and an allowed change never started from spam/duplicate — so
+    // undoing one always lands back on a non-junk state. Guarding it instead
+    // caused divergence: the flag stayed server-side while clearing locally.
     try { await qualifyLead(t.id, { quotable: quotableOf(t.prev.status), leadStatus: t.prev.reason ?? null }); } catch (e) { /* */ }
   };
   // Free-form value edit (monthly); persists regardless of status.
@@ -1152,7 +1173,9 @@ function LeadsScreen() {
       {toast ? (
         <div className="ld-toast" role="status">
           <span>{toast.label}</span>
-          <button className="ld-undo" onClick={undo}>Undo</button>
+          {/* A refusal toast (junk flag can't be cleared here) has nothing to
+              undo — offering the button would be a dead control. */}
+          {toast.prev ? <button className="ld-undo" onClick={undo}>Undo</button> : null}
         </div>
       ) : null}
     </div>

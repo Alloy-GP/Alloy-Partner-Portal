@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectIntakeBatch, isHoaIntake, isJunk, junkStatusForReason } from './intakeDrain.js';
+import { selectIntakeBatch, isHoaIntake, isJunk, junkStatusForReason, clearsJunkFlag, nextLeadStatus, isJunkStatus } from './intakeDrain.js';
 
 const hoa = (id) => ({ id, fields: [{ name: 'Biggest frustrations', value: 'x' }] });
 const other = (id) => ({ id, fields: [{ name: 'How did you hear about us?', value: 'x' }] });
@@ -150,6 +150,41 @@ describe('junkStatusForReason — what a permanent delete must flag the lead as'
   it('always returns a value the drain treats as junk', () => {
     for (const r of ['Duplicate of another lead', 'Test submission', 'Other', null]) {
       expect(isJunk({ leadStatus: junkStatusForReason(r) })).toBe(true);
+    }
+  });
+});
+
+describe('junk flags cannot be cleared from Partnership', () => {
+  it('refuses to clear spam or duplicate', () => {
+    for (const cur of ['spam', 'duplicate']) {
+      for (const req of [null, undefined, '', 'notfit']) {
+        expect(clearsJunkFlag(cur, req)).toBe(true);
+        expect(nextLeadStatus(cur, req)).toBe(cur);   // the flag survives
+      }
+    }
+  });
+  it('allows swapping one junk flag for the other', () => {
+    expect(clearsJunkFlag('spam', 'duplicate')).toBe(false);
+    expect(nextLeadStatus('spam', 'duplicate')).toBe('duplicate');
+    expect(nextLeadStatus('duplicate', 'spam')).toBe('spam');
+  });
+  it('leaves a non-junk lead completely alone', () => {
+    expect(clearsJunkFlag(null, null)).toBe(false);
+    expect(nextLeadStatus(null, null)).toBe(null);
+    expect(nextLeadStatus('', 'spam')).toBe('spam');
+    expect(nextLeadStatus(undefined, 'duplicate')).toBe('duplicate');
+  });
+  it('is case- and whitespace-insensitive about the current flag', () => {
+    expect(clearsJunkFlag('SPAM', null)).toBe(true);
+    expect(nextLeadStatus('Duplicate', null)).toBe('duplicate');
+  });
+  // The property that matters: whatever it returns for a junk lead still reads
+  // as junk to the drain, so the deleted row cannot come back.
+  it('never lets the drain see a previously-junk lead as mintable', () => {
+    for (const cur of ['spam', 'duplicate']) {
+      for (const req of [null, 'spam', 'duplicate', 'anything']) {
+        expect(isJunk({ leadStatus: nextLeadStatus(cur, req) })).toBe(true);
+      }
     }
   });
 });
