@@ -31,6 +31,33 @@ export function junkStatusForReason(reason) {
   return /duplicate/i.test(String(reason || '')) ? 'duplicate' : 'spam';
 }
 
+// Can the Partnership screen change this lead's junk flag to `requested`?
+//
+// It must not be able to CLEAR one. A permanent delete removes the proposal row
+// (the drain's tombstone) and relies entirely on lead_status staying spam or
+// duplicate to keep the lead out. Clicking "Qualified" on a deleted lead in
+// Partnership used to send leadStatus: null, which un-junked it — and with no
+// tombstone left, the next drain re-minted it and re-ran the LLM match.
+//
+// Swapping spam <-> duplicate is fine: still junk, still skipped. Only the
+// transition OUT of junk is refused. Deliberately scoped to this screen — the
+// underlying capability stays in qualify-lead for a future explicit
+// "not actually junk" action.
+const JUNK = ['spam', 'duplicate'];
+export const isJunkStatus = (v) => JUNK.includes(String(v || '').toLowerCase());
+
+export function clearsJunkFlag(current, requested) {
+  return isJunkStatus(current) && !isJunkStatus(requested);
+}
+
+// The lead_status a caller should actually send, given what the lead has now.
+// Never returns a value that un-junks a junk lead.
+export function nextLeadStatus(current, requested) {
+  return clearsJunkFlag(current, requested)
+    ? String(current).toLowerCase()
+    : (requested == null ? null : String(requested).toLowerCase());
+}
+
 // leads MUST arrive newest-first (the query orders created_at desc) so a capped
 // pass works the freshest leads rather than an arbitrary slice of the archive.
 //
