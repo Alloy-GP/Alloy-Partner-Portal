@@ -18,7 +18,23 @@ const ACCOUNT_FIELDS = [
   "goal_label", "goal_current", "goal_target",
   "monday_board_id", "zendesk_org_id", "whatconverts_profile_id", "quickbooks_customer_id", "locations", "logo_url", "pastel_url",
   "lead_field_labels",
+  // Verified WhatConverts account names, saved alongside the ids so the mapping
+  // stays auditable after the fact (id -> "Tidewater Property").
+  "wc_profile_names",
 ];
+// ── WhatConverts account lookup ───────────────────────────────────────────────
+// Nothing verifies that the WhatConverts account id a staffer types belongs to the
+// client they are editing. The id is valid, just possibly the wrong client's, so no
+// database constraint can catch it — that is how one client's leads were once
+// ingested under another. This resolves ids to NAMES so a human sees
+// "Tidewater Property" when they meant CMGT.
+const WC_BASE = "https://app.whatconverts.com/api/v1";
+function wcAuthHeader(): string {
+  const token = (Deno.env.get("WHATCONVERTS_TOKEN") || "").trim();
+  const secret = (Deno.env.get("WHATCONVERTS_SECRET") || "").trim();
+  return "Basic " + btoa(`${token}:${secret}`);
+}
+
 function pick(obj: any, fields: string[]) {
   const out: Record<string, unknown> = {};
   for (const f of fields) if (obj[f] !== undefined) out[f] = obj[f];
@@ -337,6 +353,31 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action;
+
+    if (action === "wc_accounts") {
+      // Staff-only (checked above). Returns id -> name for every WhatConverts
+      // account this token can see, so the Admin console can show the staffer
+      // whose account a typed id actually is.
+      const res = await fetch(`${WC_BASE}/accounts`, {
+        headers: { Authorization: wcAuthHeader(), Accept: "application/json" },
+      });
+      const text = await res.text();
+      if (!res.ok) return json({ error: `WhatConverts ${res.status}`, detail: text.slice(0, 300) }, 502);
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { return json({ error: "bad WhatConverts response" }, 502); }
+      const rows: any[] = data.accounts ?? data.profiles ?? data.data ?? (Array.isArray(data) ? data : []);
+      const accounts = rows
+        .map((r: any) => ({
+          id: String(r.account_id ?? r.id ?? r.profile_id ?? ""),
+          name: String(r.account_name ?? r.name ?? r.profile_name ?? r.company_name ?? ""),
+        }))
+        .filter((x: any) => x.id);
+      // If nothing normalised, hand back the shape so this can be corrected
+      // against the real payload rather than guessed at again.
+      return json(accounts.length
+        ? { accounts }
+        : { accounts: [], shape: { top: Object.keys(data).slice(0, 12), first: rows[0] ? Object.keys(rows[0]).slice(0, 20) : null } });
+    }
 
     if (action === "list_accounts") {
       const { data, error } = await admin.from("accounts").select("*").order("company");
