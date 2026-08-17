@@ -392,6 +392,9 @@ Deno.serve(async (req) => {
         is_staff: !!body.is_staff,
         name: body.name || null,
         initials: body.initials || null,
+        // Real job title, shown on proposals and to prospects on the board doc.
+        // Separate from `role`, which is the portal permission level.
+        title: body.title || null,
       };
       // An email belongs to one account: clear any prior invite, then insert.
       await admin.from("account_invites").delete().eq("email", email);
@@ -404,7 +407,7 @@ Deno.serve(async (req) => {
         // trigger only fires for brand-new users).
         await admin.from("profiles").upsert({
           id: uid, account_id: row.account_id, role: row.role,
-          is_staff: row.is_staff, name: row.name, initials: row.initials,
+          is_staff: row.is_staff, name: row.name, initials: row.initials, title: row.title,
         }, { onConflict: "id" });
       }
       // Always email a working sign-in link &mdash; new OR existing user. (New users

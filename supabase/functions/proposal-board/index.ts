@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     // CAM's own person, not whoever at Alloy touched the record.
     const { data: teamRows } = await admin
       .from("profiles")
-      .select("id, name, initials, role, is_staff")
+      .select("id, name, initials, role, is_staff, title")
       .eq("account_id", row.account_id)
       .eq("is_staff", false);
     const initialsOf = (name: string) => {
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
         for (let i = 0; usedInitials.has(key); i++) key = base + String.fromCharCode(66 + i);
         usedInitials.add(key);
         const first = String(p.name).trim().split(/\s+/)[0] || "";
-        const role = p.role === "owner" ? "Owner" : p.role === "accounting" ? "Accounting" : "Team";
+        const role = String(p.title || "").trim() || (p.role === "owner" ? "Owner" : p.role === "accounting" ? "Accounting" : "Team");
         return { initials: key, name: p.name, first, role, id: p.id };
       });
 
