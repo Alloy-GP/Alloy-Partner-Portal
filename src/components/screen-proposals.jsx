@@ -913,6 +913,37 @@ function NewEmailPreview({ sub }) {
   );
 }
 
+// The placeholder-price acknowledgement, shared by every path that emails a
+// board: send, nudge and resend. It used to exist only on the first send, so an
+// acknowledged proposal could then be re-sent any number of times without being
+// re-asked — and nudge lets staff type free text, where someone could write
+// "$100/mo as agreed" into a message.
+function ProvisionalPriceAck({ sub, checked, onChange }) {
+  const pr = pricing(sub);
+  if (!pr.provisional) return null;
+  return (
+    <div className="fx-flags" style={{ margin: '0 0 14px' }}>
+      <div className="fx-flag">
+        <span className="fx-flag-ic" aria-hidden="true">!</span>
+        <div>
+          <div className="fx-flag-t">This price uses a placeholder minimum</div>
+          <div className="fx-flag-s">
+            {sub.homes} {sub.homes === 1 ? 'home' : 'homes'} at {pr.perHome}/home is {pr.rawMonthly}/mo, so the{' '}
+            <b>{money(pr.minimum)}/mo minimum</b> is used instead — a stand-in, not a rate CMGT has confirmed.
+            The board will see <b>{pr.monthly}/mo</b>.
+            <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 9, fontWeight: 700, color: '#7a5a12', cursor: 'pointer' }}>
+              <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>I've confirmed {pr.monthly}/mo is the right number to quote.</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// True when this proposal may not be emailed without an explicit confirmation.
+const needsPriceAck = (sub) => !!pricing(sub).provisional;
+
 function MomentOfTruth({ sub, onSend }) {
   // Recipient is editable so you can send a test to yourself (the demo boards
   // have placeholder emails). For real leads it defaults to the board contact.
@@ -920,30 +951,11 @@ function MomentOfTruth({ sub, onSend }) {
   // A PROVISIONAL minimum is a number nobody has agreed to. It must not reach a
   // board on the strength of a warning nobody read, so sending is blocked until
   // staff ticks it. Only appears when an invented floor actually set the price.
-  const pr0 = pricing(sub);
-  const needsAck = !!pr0.provisional;
+  const needsAck = needsPriceAck(sub);
   const [ack, setAck] = useState(false);
   return (
     <div className="v2-send-step" style={{ padding: '20px 24px 24px' }}>
-      {needsAck && (
-        <div className="fx-flags" style={{ margin: '0 0 14px' }}>
-          <div className="fx-flag">
-            <span className="fx-flag-ic" aria-hidden="true">!</span>
-            <div>
-              <div className="fx-flag-t">This price uses a placeholder minimum</div>
-              <div className="fx-flag-s">
-                {sub.homes} {sub.homes === 1 ? 'home' : 'homes'} at {pr0.perHome}/home is {pr0.rawMonthly}/mo, so the{' '}
-                <b>{money(pr0.minimum)}/mo minimum</b> is used instead — and that minimum is a stand-in, not a rate CMGT
-                has confirmed. The board will see <b>{pr0.monthly}/mo</b>.
-                <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 9, fontWeight: 700, color: '#7a5a12', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ marginTop: 3 }} />
-                  <span>I've confirmed {pr0.monthly}/mo is the right number to quote.</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProvisionalPriceAck sub={sub} checked={ack} onChange={setAck} />
       <div className="v2-preview-bar">
         <span className="v2-preview-av v2-mail-av"><I.Send width={17} height={17} /></span>
         <div className="v2-preview-id">
@@ -1040,12 +1052,44 @@ function ExpBar({ w }) { const e = expState(w); return <span className="v2-w-min
 // A nudge is the CAM's own words, not a template: `msg` is what actually
 // renders as the email body (proposal-send nudge mode), so it must be threaded
 // through onSend — dropping it is how the typed message used to vanish.
+// Resend re-emails the existing magic link with one click and no modal, so when
+// the price is a placeholder there is nowhere to confirm it. This is that step.
+function ResendModal({ s, onClose, onResend }) {
+  const [ack, setAck] = useState(false);
+  const needsAck = needsPriceAck(s);
+  return (
+    <div className="ps-scrim" onClick={onClose}>
+      <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ps-modal-head">
+          <span className="t">Resend to {s.firstName}</span>
+          <span style={{ fontSize: 11, color: 'var(--fg-muted)', fontWeight: 600 }}>{s.email}</span>
+          <button className="x" onClick={onClose} aria-label="Close"><I.Close width={15} height={15} /></button>
+        </div>
+        <div className="v2-qual-body">
+          <ProvisionalPriceAck sub={s} checked={ack} onChange={setAck} />
+          <div className="v2-qual-hint">Re-emails the same secure link to the address on the proposal. Engagement already
+            recorded is kept — this does not reset the tracking window.</div>
+          <div className="v2-qual-actions">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" disabled={needsAck && !ack}
+              onClick={() => { onResend(s); onClose(); }}><I.Send width={14} height={14} /> Resend</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NudgeModal({ s, onClose, onSend }) {
   const w = getWatch(s);
   const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— ${ownerFirstOf(s.owner)}`);
   const [ccRaw, setCcRaw] = useState('');
   const cc = parseCcInput(ccRaw);
-  const canSend = !!msg.trim() && cc.ok && !cc.overflow;
+  // A nudge emails free-typed text about a proposal whose price may be a
+  // placeholder, so it needs the same confirmation as the original send.
+  const needsAck = needsPriceAck(s);
+  const [ack, setAck] = useState(false);
+  const canSend = !!msg.trim() && cc.ok && !cc.overflow && (!needsAck || ack);
   return (
     <div className="ps-scrim" onClick={onClose}>
       <div className="ps-modal v2-qual-modal" onClick={(e) => e.stopPropagation()}>
@@ -1055,6 +1099,7 @@ function NudgeModal({ s, onClose, onSend }) {
           <button className="x" onClick={onClose}><I.Close width={15} height={15} /></button>
         </div>
         <div className="v2-qual-body">
+          <ProvisionalPriceAck sub={s} checked={ack} onChange={setAck} />
           <label className="v2-qual-label">Follow-up message <span>· to {s.contact}</span></label>
           <textarea className="v2-edit-area" style={{ minHeight: 150 }} value={msg} onChange={(e) => setMsg(e.target.value)} autoFocus />
           <label className="v2-qual-label">CC <span>· optional — other board members</span></label>
@@ -1292,6 +1337,7 @@ function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMov
 // won-lost as pills, matching Build), with the engagement detail below.
 function SentFocus({ selected, onBack, onResend, onNudge, onMove, notes, addNote, onEdit, onRealign, onOpenFull }) {
   const [nudgeOpen, setNudgeOpen] = useState(false);
+  const [resendOpen, setResendOpen] = useState(false);
   // Marked sent by hand: the portal never emailed it, so there is nothing to
   // nudge, nothing to track, and no link to resend. Offer the real send instead.
   const untracked = sentOutsidePortal(selected);
@@ -1302,7 +1348,7 @@ function SentFocus({ selected, onBack, onResend, onNudge, onMove, notes, addNote
         { icon: icoEdit(), label: 'Edit details', onClick: onEdit },
         { icon: icoPhone(), label: 'Update from call', onClick: onRealign },
         untracked ? null : { icon: <I.Send width={14} height={14} />, label: 'Send a nudge', onClick: () => setNudgeOpen(true) },
-        { icon: icoResend(), label: untracked ? 'Send from the portal' : 'Resend', onClick: () => onResend(selected) },
+        { icon: icoResend(), label: untracked ? 'Send from the portal' : 'Resend', onClick: () => setResendOpen(true) },
         { icon: icoMove(), label: 'Move / close', onClick: () => onMove(selected), primary: true },
       ]} />
       <PinnedCard sub={selected} stage="sent" />
@@ -1312,6 +1358,7 @@ function SentFocus({ selected, onBack, onResend, onNudge, onMove, notes, addNote
         </div>
       )}
       {nudgeOpen && <NudgeModal s={selected} onClose={() => setNudgeOpen(false)} onSend={onNudge} />}
+      {resendOpen && <ResendModal s={selected} onClose={() => setResendOpen(false)} onResend={onResend} />}
     </div>
   );
 }

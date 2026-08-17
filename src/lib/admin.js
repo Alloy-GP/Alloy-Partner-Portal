@@ -38,6 +38,9 @@ export const openNewsletterRound = (accountIds, title, dueDate) =>
 export const closeNewsletterRequest = (id) => call('newsletter_close', { id });
 export const deleteNewsletterRequest = (id) => call('newsletter_delete', { id });
 
+// Resolve WhatConverts account ids to their real names, so Admin can show a
+// staffer whose account a typed id belongs to before it starts pulling leads.
+export const wcAccounts = () => call('wc_accounts', {});
 export const addInvite = (accountId, invite) =>
   call('add_invite', { account_id: accountId, redirectTo: window.location.origin, ...invite });
 export const removeInvite = (email) => call('remove_invite', { email });

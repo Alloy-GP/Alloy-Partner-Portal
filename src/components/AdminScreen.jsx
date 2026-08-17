@@ -1,9 +1,6 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import {
-  listAccounts, createAccount, updateAccount, deleteAccount,
-  listInvites, addInvite, removeInvite, uploadLogo, setDashConfig,
-} from '../lib/admin.js';
+import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../lib/admin.js';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
 import SyncHealth from './SyncHealth.jsx';
@@ -52,6 +49,32 @@ function TextareaField({ label, value, onChange, placeholder, rows = 5, hint }) 
 // `embed` → rendered inside the Admin dashboard shell as the "Manage Clients"
 // section: hide the internal tab bar (analytics/newsletter/health are their own
 // sidebar sections now) and show only the client CRUD.
+// Resolve each entered WhatConverts id to the account name it really is. Splits on
+// comma OR whitespace, exactly as the sync and the exclusivity trigger do, so what
+// is shown here is what will actually be fetched.
+function WcIdCheck({ value, names }) {
+  const ids = String(value || '').split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+  if (!ids.length) return null;
+  if (names === null) return <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 5 }}>Checking with WhatConverts…</div>;
+  const unavailable = !Object.keys(names).length;
+  return (
+    <div style={{ marginTop: 6, display: 'grid', gap: 3 }}>
+      {unavailable && <div style={{ fontSize: 11.5, color: '#7a5a12' }}>Couldn't reach WhatConverts to verify these ids — check them by hand.</div>}
+      {!unavailable && ids.map((id) => {
+        const name = names[id];
+        return (
+          <div key={id} style={{ fontSize: 11.5, display: 'flex', gap: 6, alignItems: 'baseline' }}>
+            <span style={{ fontFamily: 'monospace', color: 'var(--fg-muted)' }}>{id}</span>
+            <span style={{ color: name ? 'var(--fg-2)' : '#b4232a', fontWeight: name ? 600 : 700 }}>
+              {name ? `\u2192 ${name}` : '\u2192 not an account this token can see \u2014 check the number'}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AdminScreen({ startNew, selectId, embed }) {
   const [accounts, setAccounts] = useState(null);
   const [error, setError] = useState('');
@@ -59,6 +82,18 @@ function AdminScreen({ startNew, selectId, embed }) {
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
   const [invites, setInvites] = useState([]);
+  // WhatConverts id -> real account name. Nothing verifies that a typed id belongs
+  // to the client being edited: the id is valid, just possibly another client's,
+  // which is how one client's leads were once ingested under another. No database
+  // constraint can catch that, so show the human the NAME.
+  const [wcNames, setWcNames] = useState(null);   // null = loading, {} = lookup failed
+  useEffect(() => {
+    let alive = true;
+    wcAccounts()
+      .then((r) => { if (alive) setWcNames(Object.fromEntries((r?.accounts || []).map((a) => [String(a.id), a.name]))); })
+      .catch(() => { if (alive) setWcNames({}); });
+    return () => { alive = false; };
+  }, []);
   const [inviteForm, setInviteForm] = useState({ email: '', name: '', title: '', role: 'owner', is_staff: false });
   const [busyInvite, setBusyInvite] = useState(false);
   const [notice, setNotice] = useState('');
@@ -276,7 +311,10 @@ function AdminScreen({ startNew, selectId, embed }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Monday board ID" value={form.monday_board_id} onChange={set('monday_board_id')} hint="Projects/services/action queue source" />
                 <Field label="Zendesk org ID" value={form.zendesk_org_id} onChange={set('zendesk_org_id')} hint="Scopes the client's tickets" />
-                <Field label="WhatConverts profile ID" value={form.whatconverts_profile_id} onChange={set('whatconverts_profile_id')} hint="Pulls the client's leads" />
+                <div>
+                  <Field label="WhatConverts profile ID" value={form.whatconverts_profile_id} onChange={set('whatconverts_profile_id')} hint="Pulls the client's leads — comma or space separated" />
+                  <WcIdCheck value={form.whatconverts_profile_id} names={wcNames} />
+                </div>
                 <Field label="QuickBooks customer ID" value={form.quickbooks_customer_id} onChange={set('quickbooks_customer_id')} hint="QBO customer — open them in QuickBooks, copy nameId from the URL" />
                 <Field label="Dash brand folder" value={form.dash_folder_id} onChange={set('dash_folder_id')} hint="The brand's top-level Dash folder NAME (e.g. Edison) — drives the Assets page" />
                 <Field label="Dash upload link" value={form.dash_upload_url} onChange={set('dash_upload_url')} hint="Guest-upload link — powers the Upload Assets button" />
