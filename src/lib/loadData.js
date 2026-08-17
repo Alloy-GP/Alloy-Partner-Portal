@@ -120,7 +120,7 @@ export async function loadAccountData(session, accountId, me) {
     supabase.from('roadmap_quarters').select('*, roadmap_focuses(*)').eq('account_id', accountId).order('sort'),
     supabase.from('action_items').select('*').eq('account_id', accountId).order('sort'),
     supabase.from('invoices').select('*').eq('account_id', accountId).order('sort'),
-    supabase.from('profiles').select('id, name, initials, avatar_url, role, is_staff').eq('account_id', accountId),
+    supabase.from('profiles').select('id, name, initials, avatar_url, role, is_staff, title').eq('account_id', accountId),
     supabase.from('quickbooks_payment_methods').select('*').eq('account_id', accountId).order('created_at', { ascending: false }),
     supabase.from('autopay_schedules').select('*').eq('account_id', accountId).maybeSingle(),
     supabase.from('ticket_links').select('zendesk_id, link, pct, label').eq('account_id', accountId),
@@ -390,6 +390,9 @@ export async function loadAccountData(session, accountId, me) {
     team: (teamRes.data || []).map((p) => ({
       id: p.id, name: p.name || '', initials: p.initials || '',
       avatarUrl: p.avatar_url || null, role: p.role || 'owner', isStaff: !!p.is_staff,
+      // Real job title, for proposals and the board document. role is a PERMISSION
+      // level and must never be shown to a prospect as a title.
+      title: p.title || '',
     })),
     // Proposal system · the CAM's UVP library, in canonical cap order. Shape
     // mirrors src/lib/proposalUVPs.js so the UVP Library + matcher consume it

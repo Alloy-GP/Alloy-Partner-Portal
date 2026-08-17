@@ -15,6 +15,21 @@ export const isHoaIntake = (lead) => (lead?.fields || []).some((f) => HOA_FIELD.
 // archives any proposal already minted from one — this stops it happening again.
 export const isJunk = (lead) => ['spam', 'duplicate'].includes(String(lead?.leadStatus || '').toLowerCase());
 
+// Has a human already said "no" to this lead in the portal?
+//
+// A disposition must be DURABLE. The drain decides what is new by "has no proposal
+// row", so a lead someone worked and rejected in Partnership would be minted again
+// as a fresh proposal — the portal handing back work that was already done. isJunk
+// above only covers spam/duplicate; "not a fit" sets quotable='no' with no
+// lead_status, so it was invisible here and would have come straight back.
+//
+// quotable is WhatConverts' own field and the portal writes it on every
+// disposition (qualify-lead): 'no' = not a fit / spam / duplicate, i.e. every
+// flavour of "I don't want this". 'yes' and 'pending' still mint — a qualified
+// lead SHOULD become a proposal, that is the point.
+export const isDispositioned = (lead) =>
+  String(lead?.quotable || '').toLowerCase() === 'no' || isJunk(lead);
+
 // Archive reason -> the lead_status that makes intake ignore it FOREVER.
 //
 // Why this exists: an archived proposal is a tombstone. The drain decides what is
@@ -72,7 +87,9 @@ export function selectIntakeBatch({ leads = [], existingIds = [], cap = 25 } = {
   for (const l of leads) {
     if (!l || l.id == null) continue;
     if (!isHoaIntake(l)) continue;
-    if (isJunk(l)) continue;           // spam/duplicate — don't mint it in the first place
+    // Anything a human already rejected in the portal — spam, duplicate, or plain
+    // "not a fit". Never re-offer work that was already done.
+    if (isDispositioned(l)) continue;
     if (have.has(l.id)) continue;      // already in the pipeline
     if (seen.has(l.id)) continue;      // duplicate id within the fetched window
     seen.add(l.id);

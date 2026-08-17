@@ -59,7 +59,7 @@ function AdminScreen({ startNew, selectId, embed }) {
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
   const [invites, setInvites] = useState([]);
-  const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'owner', is_staff: false });
+  const [inviteForm, setInviteForm] = useState({ email: '', name: '', title: '', role: 'owner', is_staff: false });
   const [busyInvite, setBusyInvite] = useState(false);
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('clients');
@@ -142,7 +142,7 @@ function AdminScreen({ startNew, selectId, embed }) {
       } else {
         setError(`${email} was added, but the invite email failed to send${res?.emailError ? ` — ${res.emailError}` : ''}. They can still sign in at ${window.location.host}.`);
       }
-      setInviteForm({ email: '', name: '', role: 'owner', is_staff: false });
+      setInviteForm({ email: '', name: '', title: '', role: 'owner', is_staff: false });
       const r = await listInvites(selectedId); setInvites(r.invites || []);
     } catch (e) { setError(String(e.message || e)); } finally { setBusyInvite(false); }
   };
@@ -318,6 +318,12 @@ function AdminScreen({ startNew, selectId, embed }) {
                     </div>
                     <div style={{ flex: 1, minWidth: 120 }}>
                       <Field label="Name" value={inviteForm.name} onChange={(v) => setInviteForm((f) => ({ ...f, name: v }))} placeholder="Optional" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 130 }}>
+                      {/* Job title, NOT the Role below. Role is portal permissions;
+                          this is what a prospect reads on a proposal. Without it a
+                          CAM's COO was shown to boards as "Team". */}
+                      <Field label="Job title" value={inviteForm.title} onChange={(v) => setInviteForm((f) => ({ ...f, title: v }))} placeholder="e.g. COO" />
                     </div>
                     <label style={{ display: 'block' }}>
                       <span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', marginBottom: 4 }}>Role</span>

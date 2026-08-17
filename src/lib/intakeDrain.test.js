@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectIntakeBatch, isHoaIntake, isJunk, junkStatusForReason, clearsJunkFlag, nextLeadStatus, isJunkStatus } from './intakeDrain.js';
+import { selectIntakeBatch, isHoaIntake, isJunk, junkStatusForReason, clearsJunkFlag, nextLeadStatus, isJunkStatus, isDispositioned } from './intakeDrain.js';
 
 const hoa = (id) => ({ id, fields: [{ name: 'Biggest frustrations', value: 'x' }] });
 const other = (id) => ({ id, fields: [{ name: 'How did you hear about us?', value: 'x' }] });
@@ -186,5 +186,42 @@ describe('junk flags cannot be cleared from Partnership', () => {
         expect(isJunk({ leadStatus: nextLeadStatus(cur, req) })).toBe(true);
       }
     }
+  });
+});
+
+describe('a portal disposition is durable — worked leads never come back', () => {
+  const hoa = { id: '1', fields: [{ name: 'Frustrations', value: 'x' }] };
+
+  it('never re-mints a lead marked not a fit (quotable=no, no lead_status)', () => {
+    // The gap this closes: "not a fit" sets quotable='no' and leaves lead_status
+    // null, so isJunk() missed it and the drain offered the lead again.
+    const lead = { ...hoa, quotable: 'no', leadStatus: null };
+    expect(isDispositioned(lead)).toBe(true);
+    expect(selectIntakeBatch({ leads: [lead] }).batch).toEqual([]);
+  });
+
+  it('never re-mints spam or duplicate', () => {
+    for (const st of ['spam', 'duplicate']) {
+      const lead = { ...hoa, quotable: 'no', leadStatus: st };
+      expect(selectIntakeBatch({ leads: [lead] }).batch).toEqual([]);
+    }
+  });
+
+  it('still mints leads nobody has judged yet', () => {
+    for (const q of ['pending', 'not_set', '', null, undefined]) {
+      const lead = { ...hoa, quotable: q, leadStatus: null };
+      expect(isDispositioned(lead)).toBe(false);
+      expect(selectIntakeBatch({ leads: [lead] }).batch).toHaveLength(1);
+    }
+  });
+
+  it('still mints a QUALIFIED lead — that is the whole point', () => {
+    const lead = { ...hoa, quotable: 'yes', leadStatus: null };
+    expect(isDispositioned(lead)).toBe(false);
+    expect(selectIntakeBatch({ leads: [lead] }).batch).toHaveLength(1);
+  });
+
+  it('is case-insensitive about quotable', () => {
+    expect(isDispositioned({ quotable: 'NO' })).toBe(true);
   });
 });

@@ -1501,10 +1501,13 @@ function ArchiveView({ archived, onRestore, onDelete }) {
           <h2 className="fx-h">{archived.length} {archived.length === 1 ? 'lead' : 'leads'} removed.</h2>
           <p className="fx-sub">Spam, duplicates and test submissions. These are hidden from every stage and <b>intake sync will not re-add them</b>. Restore one to put it back in the inbox, or delete it for good.</p>
         </div>
-        {archived.filter((a) => /test/i.test(a.archivedReason || '')).length > 1 && (
-          <button className="btn v2-btn-danger" style={{ flex: 'none' }}
-            onClick={() => onDelete(archived.filter((a) => /test/i.test(a.archivedReason || '')))}>
-            Delete all {archived.filter((a) => /test/i.test(a.archivedReason || '')).length} test submissions
+        {/* Everything in here was archived deliberately by a human — whatever the
+            reason they picked. Scoping the bulk action to "test submission" only
+            meant the rows reasoned "Other" had to be deleted one at a time. The
+            confirm lists every row before anything happens. */}
+        {archived.length > 1 && (
+          <button className="btn v2-btn-danger" style={{ flex: 'none' }} onClick={() => onDelete(archived)}>
+            Delete all {archived.length} archived
           </button>
         )}
       </div>
@@ -2158,12 +2161,12 @@ export default function ProposalsScreen() {
         // payload. 200 newest is far more than one pass can mint, and repeated
         // passes still converge on a large archive.
         const { data, error } = await supabase.from('leads')
-          .select('wc_lead_id, name, email, phone, company, type, fields, created_at, lead_status')
+          .select('wc_lead_id, name, email, phone, company, type, fields, created_at, lead_status, quotable')
           .eq('account_id', DATA.account.id).order('created_at', { ascending: false }).limit(200);
         if (error) throw error;
         // lead_status carries the spam/duplicate marking — without it selectIntakeBatch
         // can't filter junk and would mint it anyway.
-        leads = (data || []).map((l) => ({ id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, type: l.type, fields: l.fields, date: l.created_at, leadStatus: l.lead_status }));
+        leads = (data || []).map((l) => ({ id: l.wc_lead_id, name: l.name, email: l.email, phone: l.phone, company: l.company, type: l.type, fields: l.fields, date: l.created_at, leadStatus: l.lead_status, quotable: l.quotable }));
       }
       // Newest first (the select is DESC) so a capped pass works the freshest
       // leads. subsRef, not subs — see mintLead.

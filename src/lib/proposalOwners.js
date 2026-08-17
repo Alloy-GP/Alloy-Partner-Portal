@@ -52,7 +52,10 @@ export function ownersFromTeam(team = []) {
       initials: key,
       name: p.name,
       first: firstNameOf(p.name),
-      role: p.role === 'owner' ? 'Owner' : p.role === 'accounting' ? 'Accounting' : 'Team',
+      // The person's real job title when we have one. Falling back to the portal
+      // PERMISSION level is why CMGT's COO was shown to boards as "Team".
+      role: String(p.title || '').trim()
+        || (p.role === 'owner' ? 'Owner' : p.role === 'accounting' ? 'Accounting' : 'Team'),
       id: p.id || null,
     };
   });
