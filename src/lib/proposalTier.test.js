@@ -171,6 +171,54 @@ describe('intakeFlags — the contradictions the form lets a board submit', () =
   });
 });
 
+// The stored tier can disagree with the form, because tier_id is written once at
+// mint and (before saveDetails re-derived it) nothing ever recomputed it.
+describe('tier-vs-intake — the stored tier disagreeing with the submission', () => {
+  // Alloy HOA, verbatim from the live proposals row that exposed this: minted as
+  // Full-Service at $8.98 for an 834-home board that asked for financial only.
+  const alloy = {
+    homes: 834,
+    budget: 'Tight budget — financial only',
+    metaStatus: 'Looking to switch from current provider',
+    metaType: 'Mixed — townhomes & single-family',
+    selectedPains: ['delinquency', 'manager-turnover'],
+    tierId: 'full',
+    perHome: 8.98,
+  };
+
+  it('flags the real row, naming the tier the form actually points at', () => {
+    const f = intakeFlags(alloy).find((x) => x.code === 'tier-vs-intake');
+    expect(f).toBeTruthy();
+    expect(f.label).toBe('Set to Full-Service Management, but the form points at On-Site Management');
+    expect(f.detail).toContain('on-site management is the model at 500+');
+  });
+
+  it('shows the scale finding ALONGSIDE the budget one — they say different things', () => {
+    const codes = intakeFlags(alloy).map((f) => f.code);
+    expect(codes).toContain('tier-vs-budget');   // quotes the board's own answer
+    expect(codes).toContain('tier-vs-intake');   // names on-site, which scale forces
+  });
+
+  it('stays quiet when the stored tier already matches the form', () => {
+    const codes = intakeFlags({ ...alloy, tierId: 'onsite' }).map((f) => f.code);
+    expect(codes).not.toContain('tier-vs-intake');
+  });
+
+  it('does not say the same thing twice when the budget flag already named the tier', () => {
+    // 60 homes + lean budget: the form points at financial, which is exactly what
+    // tier-vs-budget already reports, so only one flag should fire.
+    const lean = { ...alloy, homes: 60, budget: 'Cost-sensitive — need a lean option' };
+    const codes = intakeFlags(lean).map((f) => f.code);
+    expect(codes).toContain('tier-vs-budget');
+    expect(codes).not.toContain('tier-vs-intake');
+  });
+
+  it('never fires on a row with no stored tier (nothing to disagree with)', () => {
+    const codes = intakeFlags({ ...alloy, tierId: undefined }).map((f) => f.code);
+    expect(codes).not.toContain('tier-vs-intake');
+  });
+});
+
 describe('tierById', () => {
   it('resolves each id and falls back to full', () => {
     expect(tierById('financial').name).toBe('Financial & Administrative');

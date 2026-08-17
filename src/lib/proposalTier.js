@@ -212,6 +212,8 @@ export function intakeFlags(raw = {}) {
   const status = norm(raw.metaStatus);
   const homes = Number(raw.homes) || 0;
   const intent = budgetIntent(raw.budget);
+  // What the form points at RIGHT NOW, to compare against what the row stores.
+  const rec = recommendTier(raw);
 
   const saysDeveloper = /developer|new construction/.test(status);
   if (pains.includes('developer') && status && !saysDeveloper) {
@@ -232,7 +234,9 @@ export function intakeFlags(raw = {}) {
     flags.push({
       code: 'no-unit-count',
       label: 'No usable unit count',
-      detail: 'The unit count is missing or not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.',
+      detail: raw.unitsRaw
+        ? `The form sent "${String(raw.unitsRaw).slice(0, 40)}" as the unit count, which is not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.`
+        : 'The unit count is missing or not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.',
     });
   } else if (homes < PER_HOME_IMPLAUSIBLE_BELOW) {
     const m = monthlyFor({ tierId: raw.tierId || 'full', perHome: raw.perHome, homes });
@@ -244,11 +248,58 @@ export function intakeFlags(raw = {}) {
         : `Small community — check the per-home rate is right at this size.`,
     });
   }
-  if ((intent === 'financial-only' || intent === 'lean') && raw.tierId === 'full') {
+  // A band is not a count. Real forms offer "50-100", "Under 50", "200+ Units"
+  // instead of a number, and the door count drives BOTH the tier (on-site at 500+)
+  // and the price, so quoting a midpoint as though it were counted is how a board
+  // gets a confident number derived from a guess.
+  if (homes && raw.unitsApprox) {
+    const band = raw.unitsBand;
+    const stated = raw.unitsRaw ? `"${String(raw.unitsRaw).slice(0, 30)}"` : 'a range';
+    flags.push({
+      code: 'unit-count-approximate',
+      label: `Unit count is approximate — ${homes.toLocaleString()} assumed`,
+      detail: band && band[1]
+        ? `They gave ${stated}, so pricing uses the midpoint of ${band[0]}–${band[1]}. Confirm the exact door count before quoting — at this size the tier itself can change.`
+        : `They gave ${stated}, which is open-ended, so pricing uses ${homes.toLocaleString()}. Confirm the exact door count before quoting.`,
+    });
+  }
+  if (raw.unitsImplausible) {
+    flags.push({
+      code: 'unit-count-implausible',
+      label: `${homes.toLocaleString()} units looks wrong`,
+      detail: `The form sent "${String(raw.unitsRaw || homes).slice(0, 40)}" as the unit count. That is larger than any single community, so it is probably a typo or a portfolio-wide figure. Confirm before quoting.`,
+    });
+  }
+  const budgetFlagged = (intent === 'financial-only' || intent === 'lean') && raw.tierId === 'full';
+  if (budgetFlagged) {
     flags.push({
       code: 'tier-vs-budget',
       label: 'Full service against a lean budget',
       detail: `They said "${raw.budget}" but this is set to Full-Service. Deliberate is fine — just make sure the price conversation happens.`,
+    });
+  }
+  // The STORED tier disagreeing with the form at all — not just on budget.
+  //
+  // tier_id is written once, at mint, from whatever fields had arrived by then, so
+  // a row minted before its unit count landed (or edited before saveDetails
+  // re-derived the tier) keeps a tier the submission no longer points at, and the
+  // price follows the stale tier. Scale is the case the budget flag above misses:
+  // an 834-home community stored as Full-Service is quoted per-home when on-site
+  // is the model at 500+.
+  //
+  // Suppressed only when the budget flag already named the SAME destination tier —
+  // otherwise a lean-budget row would say the same thing twice. When scale is what
+  // overrides (rec = on-site), both flags are true and say different things, so
+  // both are shown: the budget flag quotes the board, this one names the tier.
+  //
+  // This REPORTS rather than corrects: changing a stored price silently is worse
+  // than showing that it needs a decision. Edit details re-derives it.
+  const budgetSaidTheSame = budgetFlagged && rec.tierId === 'financial';
+  if (raw.tierId && raw.tierId !== rec.tierId && !budgetSaidTheSame) {
+    flags.push({
+      code: 'tier-vs-intake',
+      label: `Set to ${tierName(raw.tierId)}, but the form points at ${tierName(rec.tierId)}`,
+      detail: `${rec.why} The stored tier drives the price, so this is quoting as ${tierName(raw.tierId)} until it changes. Open Edit details to re-derive it, or leave it if the override is deliberate.`,
     });
   }
   if (!String(raw.budget || '').trim()) {
@@ -256,6 +307,17 @@ export function intakeFlags(raw = {}) {
       code: 'no-budget',
       label: 'No budget answer',
       detail: 'Nothing to anchor the tier recommendation to, so it defaults to Full-Service.',
+    });
+  } else if (intent === 'unstated') {
+    // They ANSWERED and we could not read it. Previously this was indistinguishable
+    // from a matching answer: budgetIntent returned 'unstated', the tier quietly
+    // defaulted to Full-Service — the dearest of the three — and no flag fired
+    // because raw.budget was non-empty. Silence on the most expensive default is
+    // the worst possible behaviour, so say it.
+    flags.push({
+      code: 'budget-unrecognized',
+      label: 'Budget answer not recognised',
+      detail: `They answered "${String(raw.budget).slice(0, 45)}", which does not map to any of the known budget options, so the tier fell back to its default rather than being derived. Read it yourself before quoting.`,
     });
   }
   return flags;

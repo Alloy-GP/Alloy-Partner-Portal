@@ -4,6 +4,7 @@ import { I } from './icons.jsx';
 import { getLeads, enrichLead, PAIN_POINTS, pricing, freshWatch } from '../lib/proposalMockData.js';
 import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
+import { recommendTier, tierById } from '../lib/proposalTier.js';
 import { parseCcInput, CC_MAX } from '../lib/ccList.js';
 import { selectIntakeBatch, junkStatusForReason } from '../lib/intakeDrain.js';
 import { qualifyLead } from '../lib/leads.js';
@@ -826,11 +827,16 @@ function BuildChecklist({ sub, sections, toggle, perHome, setPerHome, onApplyMat
   );
 }
 
-function BuildStage({ sub, sections, toggle, perHome, setPerHome, onApplyMatch, previewNonce, onContinue }) {
+function BuildStage({ sub, sections, toggle, perHome, setPerHome, onApplyMatch, previewNonce, onContinue, live }) {
   // Live preview = the real board-facing proposal page in an iframe (so its
   // fixed accept/decline bar and full styling render in isolation). It's the
   // selected lead's CMGT-branded document at /proposals/board/:id. previewNonce
   // bumps after a concern edit so the iframe re-fetches the persisted change.
+  // In live mode the board page can ONLY resolve a board_token, so a row without
+  // one has no previewable URL — rendering the iframe anyway is what produced the
+  // "invalid or has expired" page and read as a broken proposal rather than a
+  // missing token. Mock dev has no tokens at all and resolves the lead id locally.
+  const previewUrl = (!live || sub.boardToken) ? BOARD_URL(sub) : null;
   return (
     <div className="v2-build">
       <BuildChecklist sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onApplyMatch={onApplyMatch} />
@@ -841,7 +847,14 @@ function BuildStage({ sub, sections, toggle, perHome, setPerHome, onApplyMatch, 
           <span className="v2-browser-live"><span className="d" />Live preview</span>
         </div>
         <div className="v2-browser-body">
-          <iframe key={previewNonce} className="v2-board-iframe" src={`${BOARD_URL(sub)}?r=${previewNonce}`} title="Live proposal preview — what the board sees" />
+          {previewUrl ? (
+            <iframe key={previewNonce} className="v2-board-iframe" src={`${previewUrl}?r=${previewNonce}`} title="Live proposal preview — what the board sees" />
+          ) : (
+            <div className="v2-board-pending">
+              <b>Preparing the secure board link</b>
+              <span>This proposal's link hasn't come back from the database yet. Reload the page to see the preview — the document itself is fine and sending is unaffected.</span>
+            </div>
+          )}
         </div>
         <div className="v2-browser-foot">
           <span className="v2-browser-foot-note">This is the live, interactive proposal — exactly what {sub.firstName} sees. <b>Send proposal</b> and <b>Open full proposal</b> are up top on the lead card.</span>
@@ -2044,16 +2057,41 @@ export default function ProposalsScreen() {
   // Layer A — apply edited facts to the focused lead + persist to its columns.
   const saveDetails = (f) => {
     const homes = parseInt(f.homes) || 0, perHome = Number(f.perHome) || 0;
-    setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, ...f, homes, perHome } : s));
+    const current = subsRef.current.find((s) => s.id === selectedId) || {};
+    // RE-DERIVE THE TIER. tier_id was written exactly once — at mint, from whatever
+    // form fields had arrived by then — and nothing ever recomputed it. So editing
+    // the door count or the budget answer here left the tier, and therefore the
+    // price, derived from facts that no longer held. Observed live: an 834-home
+    // board that wrote "Tight budget — financial only" sat stored as Full-Service
+    // at the per-home default, quoting $7,489/mo where the form points at on-site.
+    //
+    // Nothing is clobbered by doing this: there is no tier picker anywhere in the
+    // UI, so a stored tier can only ever be a derived value, never a human choice.
+    // The RATE is different — Build lets staff set it — so it is only re-based when
+    // it is still the outgoing tier's default, i.e. demonstrably never touched.
+    const rec = recommendTier({ homes, budget: f.budget, metaStatus: f.metaStatus, metaType: f.metaType });
+    const tierChanged = rec.tierId !== current.tierId;
+    const outgoingDefault = tierById(current.tierId).defaultRate;
+    const rateUntouched = outgoingDefault == null ? perHome === 0 : Math.abs(perHome - outgoingDefault) < 1e-9;
+    const nextPerHome = tierChanged && rateUntouched ? (rec.perHome != null ? rec.perHome : 0) : perHome;
+    const patched = { ...current, ...f, homes, perHome: nextPerHome, tierId: rec.tierId };
+    // enrichLead prefers a row's existing quoteValue over deriving one, so the new
+    // annual is computed here and passed in — otherwise the edit would persist a
+    // fresh number to the database while the screen kept showing the old one.
+    const quoteValue = Math.round(pricing(patched).monthlyNum * 12);
+    // Re-enrich rather than patch: tierName, tierRec and intakeFlags are all
+    // derived from these facts, and patching left them describing the old ones.
+    setSubs((p) => p.map((s) => s.id === selectedId ? enrichLead({ ...patched, quoteValue }) : s));
     persist(selectedId, {
       community: f.community, contact: f.contact, contact_role: f.contactRole, email: f.email, phone: f.phone,
       city: f.city, homes, meta_type: f.metaType, meta_status: f.metaStatus, dues: f.dues,
-      engage_timeline: f.engageTimeline, budget: f.budget, per_home: perHome, quote: f.quote,
+      engage_timeline: f.engageTimeline, budget: f.budget, per_home: nextPerHome, quote: f.quote,
+      tier_id: rec.tierId,
       // homes AND per_home both feed the floor, so the annual is re-derived here
       // as well — editing the door count silently invalidated it otherwise.
-      quote_value: Math.round(pricing({ ...subsRef.current.find((s) => s.id === selectedId), homes, perHome }).monthlyNum * 12),
+      quote_value: quoteValue,
     });
-    setToast({ msg: 'Details updated' });
+    setToast({ msg: tierChanged ? `Details updated — tier is now ${rec.tierName}` : 'Details updated' });
   };
   // Layer B — apply hand-edited concerns to the focused lead's match + persist the
   // override to match_snapshot, so the cockpit, board doc, and reloads all use it.
@@ -2133,7 +2171,16 @@ export default function ProposalsScreen() {
     if (archivedRef.current.some((s) => s.id === lead.id)) return null; // archived — stay gone
     const raw = leadToProposalRaw(lead);
     if (live) {
-      const { error } = await supabase.from('proposals').upsert({
+      // .select() the generated board_token BACK. The magic-link secret is created
+      // by a column default, so if we don't read it here the freshly minted row
+      // carries no boardToken, BOARD_URL falls back to the lead_key, and
+      // proposal-board — which resolves board_token ONLY, deliberately, because
+      // WhatConverts lead ids are sequential and guessable — finds nothing. The
+      // Build live preview then rendered "This proposal link is invalid or has
+      // expired" for every lead qualified in-session, healing itself on the next
+      // page load (loadData supplies board_token), which is what made it look
+      // intermittent. Sending was never affected; only the in-session preview.
+      const { data: minted, error } = await supabase.from('proposals').upsert({
         account_id: DATA.account.id, lead_key: raw.id, sort: 100,
         community: raw.community, contact: raw.contact, contact_role: raw.contactRole, first_name: raw.firstName,
         city: raw.city, homes: raw.homes, email: raw.email, phone: raw.phone,
@@ -2146,8 +2193,9 @@ export default function ProposalsScreen() {
         // Origin matters: sync-whatconverts only auto-archives source='whatconverts'
         // rows when their lead disappears upstream. Seeded rows must never match.
         source: 'whatconverts',
-      }, { onConflict: 'account_id,lead_key' });
+      }, { onConflict: 'account_id,lead_key' }).select('board_token').maybeSingle();
       if (error) { setToast({ msg: 'Sync insert failed: ' + error.message }); return null; }
+      if (minted && minted.board_token) raw.boardToken = minted.board_token;
     }
     // LLM match (the smart one) when enabled — run ONCE, persist as match_snapshot
     // so it's stable + survives reload. Falls back to the tag engine on any error.
@@ -2327,7 +2375,7 @@ export default function ProposalsScreen() {
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
         (focusBuild && sub && stageOf(sub) === 'qualified' && sub.status !== 'sent')
-          ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onApplyMatch={applyMatch} previewNonce={previewNonce} onContinue={() => setSendOpen(true)} />
+          ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onApplyMatch={applyMatch} previewNonce={previewNonce} onContinue={() => setSendOpen(true)} live={live} />
           : <BuildBucket subs={subs} editorMap={editorMap} onResume={resumeBuild} />
       )}
       {/* Sent — their court: engagement tracking + board responses + follow-up. */}

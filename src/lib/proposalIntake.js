@@ -12,6 +12,7 @@
 // ============================================================================
 import { PAIN_POINTS } from "./proposalMockData.js";
 import { recommendTier } from "./proposalTier.js";
+import { indexFields, pick, resolveUnits } from "./intakeFields.js";
 
 // pain id → distinctive matcher against the (normalized) frustrations text.
 const PAIN_KEYWORDS = {
@@ -49,34 +50,50 @@ export function leadToProposalRaw(lead) {
   const f = {};
   (lead.fields || []).forEach((x) => { f[norm(x.name).replace(/\*$/, "").trim()] = x.value; });
   const get = (...keys) => { for (const k of keys) { if (f[norm(k)]) return f[norm(k)]; } return ""; };
-  const units = parseInt(String(get("number of units")).replace(/[^0-9]/g, ""), 10) || 0;
-  const duesRaw = get("monthly dues / unit", "monthly dues");
+  // Logical field resolution, because the form is NOT one fixed form. Exact-name
+  // lookup silently returned "" for every variant CMGT's own site and the other
+  // intake forms use ("HOA Size", "Type of Association", "CURRENT MANAGEMENT"),
+  // which meant homes=0 and a blank type/status feeding the tier. See
+  // intakeFields.js for the full list of real names this was measured against.
+  const idx = indexFields(lead.fields);
+  // Bands, not just integers: "50-100" used to parse as 50,100 homes.
+  const units = resolveUnits(idx);
+  const budget = pick(idx, "budget").value;
+  const metaStatus = pick(idx, "status").value;
+  const metaType = pick(idx, "type").value;
+  const duesRaw = pick(idx, "dues").value || get("monthly dues / unit", "monthly dues");
   // The form's own answers pick the tier. This used to be hardcoded to the
   // Full-Service rate, so a board asking for "financial only" was quoted
   // full service. Staff can still override the rate in Build.
-  const rec = recommendTier({
-    homes: units,
-    budget: get("budget range", "budget"),
-    metaStatus: get("current management status"),
-    metaType: get("community type"),
-  });
+  const rec = recommendTier({ homes: units.homes, budget, metaStatus, metaType });
   return {
     id: lead.id, // wc_lead_id — becomes the proposal lead_key
-    community: lead.company || get("association name", "community / association name") || lead.name || "New community",
+    community: lead.company || pick(idx, "community").value || lead.name || "New community",
     contact: lead.name || get("your name", "name") || "",
-    contactRole: get("role", "your role") || "",
+    contactRole: pick(idx, "role").value || "",
     firstName: (lead.name || get("your name", "name") || "").split(" ")[0] || "there",
     email: lead.email || get("email") || "",
     phone: lead.phone || get("phone") || "",
-    city: get("location") || "",
-    homes: units,
-    metaType: get("community type") || "",
-    metaStatus: get("current management status") || "",
+    city: pick(idx, "location").value || "",
+    homes: units.homes,
+    // How much to trust that door count. A band resolved to its midpoint must not
+    // be presented as a counted number, so this travels with it and intakeFlags
+    // turns it into something staff are told before a proposal goes out.
+    unitsApprox: units.approx,
+    unitsBand: units.band,
+    unitsRaw: units.raw || "",
+    unitsFrom: units.from || null,
+    unitsImplausible: units.implausible,
+    metaType,
+    metaStatus,
     dues: duesRaw ? `$${String(duesRaw).replace(/[^0-9.]/g, "")} / unit monthly` : "",
-    engageTimeline: get("engagement timeline") || "",
-    budget: get("budget range", "budget") || "",
-    selectedPains: painsFromFrustrations(get("frustrations")),
-    quote: get("in your own words - what does success look like?", "in your own words", "anything you'd like us to know? (optional)") || lead.message || "",
+    engageTimeline: pick(idx, "timeline").value || "",
+    budget,
+    // Deliberately from the explicit frustrations question ONLY. Mining the
+    // free-text message for pain keywords would put concerns on a board document
+    // that the board never actually ticked.
+    selectedPains: painsFromFrustrations(pick(idx, "frustrations").value),
+    quote: pick(idx, "message").value || lead.message || "",
     received: lead.date ? new Date(lead.date).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "",
     // The machine-readable twin of `received`. `received` is a display string
     // formatted in the browser's locale — useless for computing a lead's age,
@@ -88,7 +105,7 @@ export function leadToProposalRaw(lead) {
     // monthly fee). Staff adjusts in Build.
     perHome: rec.perHome != null ? rec.perHome : 0,
     tierId: rec.tierId,
-    services: get("services needed"),
+    services: pick(idx, "services").value || get("services needed"),
     amenities: get("amenities"),
   };
 }
