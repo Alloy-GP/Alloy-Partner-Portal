@@ -83,6 +83,7 @@ export function leadToProposalRaw(lead) {
     unitsBand: units.band,
     unitsRaw: units.raw || "",
     unitsFrom: units.from || null,
+    unitsSource: units.source,
     unitsImplausible: units.implausible,
     metaType,
     metaStatus,

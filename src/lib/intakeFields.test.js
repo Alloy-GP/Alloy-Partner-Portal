@@ -36,8 +36,9 @@ describe('unit field resolution — the real names', () => {
     'Number of units',          // 14x
     'Number of Units/Homes',    // 31x  <- was missed
     'HOA Size',                 // 502x <- was missed
-    'PORTFOLIO SIZE*',          // 23x  <- was missed
     'how-many-units',           // 1x   <- was missed
+    // 'PORTFOLIO SIZE*' is deliberately NOT here — see the portfolio suite below.
+    // It is a management company's whole book, not one community's door count.
     'Número de unidades*',      // 1x   <- was missed
   ];
   it.each(NAMES)('resolves %s', (name) => {
@@ -330,6 +331,44 @@ describe('a self-labelling checkbox answered "Yes"', () => {
     expect(raw({ 'HOA Location': 'Austin, TX' }).metaType).toBe('');
     expect(raw({ 'HOA Size': '240' }).metaType).toBe('');
     expect(raw({ 'HOA Size': '240' }).homes).toBe(240);
+  });
+});
+
+describe('a management company\'s portfolio is not a community', () => {
+  // Real "PORTFOLIO SIZE*" answers are "Under 1,000" and "15,000–40,000" — the whole
+  // book a management company runs. Priced as one HOA it is nonsense.
+  it('never reads portfolio size as a door count', () => {
+    expect(raw({ 'PORTFOLIO SIZE*': '15,000–40,000' }).homes).toBe(0);
+    expect(raw({ 'PORTFOLIO SIZE*': 'Under 1,000' }).homes).toBe(0);
+  });
+  it('still reads a genuine community-size field', () => {
+    expect(raw({ 'HOA Size': '240' }).homes).toBe(240);
+  });
+});
+
+describe('a pick-list band too broad to mean anything is refused', () => {
+  // "Under 1,000" is almost every community that exists. Its midpoint, 500, lands
+  // exactly on the on-site threshold, so averaging it quoted the most expensive
+  // management model off an answer carrying no information.
+  it.each([['Under 1,000', 0], ['Under 5,000', 0], ['1-1000', 0]])
+    ('%s yields no count rather than a midpoint', (input, homes) => {
+      expect(parseUnits(input).homes).toBe(homes);
+      expect(parseUnits(input).source).toBe('wide-band');
+    });
+
+  it('says WHY it cannot price it, instead of "missing"', () => {
+    const f = intakeFlags(raw({ 'NUMBER OF UNITS*': 'Under 1,000' })).find((x) => x.code === 'no-unit-count');
+    expect(f).toBeTruthy();
+    expect(f.label).toContain('too broad to price');
+    expect(f.detail).toContain('1–1000 homes');
+  });
+
+  it('keeps every band that is actually narrow enough to use', () => {
+    expect(parseUnits('50–100').homes).toBe(75);
+    expect(parseUnits('100–200').homes).toBe(150);
+    expect(parseUnits('200–500').homes).toBe(350);
+    expect(parseUnits('Under 50').homes).toBe(25);   // small enough that the floor decides anyway
+    expect(parseUnits('1-50').homes).toBe(26);
   });
 });
 

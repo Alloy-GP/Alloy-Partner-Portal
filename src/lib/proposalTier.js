@@ -231,12 +231,18 @@ export function intakeFlags(raw = {}) {
     });
   }
   if (!homes) {
+    // A pick-list band so wide it says nothing is a different problem from a blank
+    // or a typo, and it needs a different sentence: the board DID answer, the answer
+    // just cannot carry a price.
+    const wide = raw.unitsSource === 'wide-band' && Array.isArray(raw.unitsBand);
     flags.push({
       code: 'no-unit-count',
-      label: 'No usable unit count',
-      detail: raw.unitsRaw
-        ? `The form sent "${String(raw.unitsRaw).slice(0, 40)}" as the unit count, which is not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.`
-        : 'The unit count is missing or not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.',
+      label: wide ? `"${String(raw.unitsRaw).slice(0, 24)}" is too broad to price` : 'No usable unit count',
+      detail: wide
+        ? `They picked "${String(raw.unitsRaw).slice(0, 40)}" from a list, which spans ${raw.unitsBand[0]}–${raw.unitsBand[1]} homes. That covers nearly every community size, and the two ends fall under different management models, so no midpoint would be honest. Get the actual door count before quoting.`
+        : raw.unitsRaw
+          ? `The form sent "${String(raw.unitsRaw).slice(0, 40)}" as the unit count, which is not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.`
+          : 'The unit count is missing or not a number, so per-home pricing cannot be computed. Confirm the door count before quoting.',
     });
   } else if (homes < PER_HOME_IMPLAUSIBLE_BELOW) {
     const m = monthlyFor({ tierId: raw.tierId || 'full', perHome: raw.perHome, homes });

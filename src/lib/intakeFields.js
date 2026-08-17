@@ -51,11 +51,14 @@ export function normName(s) {
 // Ordered: earlier patterns win. `exclude` is checked first and vetoes the field.
 const FIELDS = {
   units: {
-    exclude: [/board member/, /attendee/, /zip|postal/, /phone|email/, /budget/, /dues/, /\bstate\b/],
+    // "PORTFOLIO SIZE" is how many doors a MANAGEMENT COMPANY runs in total, not how
+    // big one community is — its real answers are "Under 1,000" and "15,000-40,000".
+    // Reading it as a door count would price a company's entire book as one HOA.
+    exclude: [/board member/, /attendee/, /zip|postal/, /phone|email/, /budget/, /dues/, /\bstate\b/, /portfolio/],
     match: [
       /number of (units|homes|doors)/,
       /how many (units|homes|doors)/,
-      /(hoa|community|association|portfolio|property) size/,
+      /(hoa|community|association|property) size/,
       /\b(units?|doors?|unidades)\b/,
       /\bhomes?\b/,
     ],
@@ -208,6 +211,16 @@ export function pick(index, logical) {
 // "Under 50" band lands on, which is deliberate -- it trips the minimum-fee flag.
 const IMPLAUSIBLY_LARGE = 25000;
 
+// A band only earns a midpoint if it is narrow enough to mean something.
+// "Under 1,000" covers almost every community there is, and its midpoint (500)
+// would land exactly on the 500-home on-site threshold — quoting the most expensive
+// management model off an answer that carries no information. Refuse those: homes 0
+// raises no-unit-count, which asks a human for the real number instead of guessing.
+// The ratio test keeps genuinely useful bands ("50-100", "200-500"), and the
+// absolute test keeps small ones ("1-50") where the minimum fee decides the price
+// anyway, so the width cannot change the answer.
+const usableBand = (lo, hi) => hi <= lo * 4 || hi - lo <= 50;
+
 // A submitted unit count -> a number we can price, and how much to trust it.
 //
 // NEVER returns a bare integer for a band. "50-100" is 75 AND approximate; the
@@ -237,15 +250,18 @@ export function parseUnits(raw) {
   // ── the value IS a band ─────────────────────────────────────────────────────
   // ANCHORED, deliberately. An unanchored range match read the years out of
   // "48 units, built 1998-2004" as a band and priced the community as 2,001 homes.
+  const tooWide = (lo, hi) => ({ homes: 0, approx: false, band: [lo, hi], source: 'wide-band', implausible: false });
   const band = core.replace(/^between\s+/, '').match(/^(\d+)\s*(?:-|to|and)\s*(\d+)$/);
   if (band) {
     const lo = Number(band[1]), hi = Number(band[2]);
-    if (hi >= lo) return done(Math.round((lo + hi) / 2), true, [lo, hi], 'range');
+    if (hi >= lo) {
+      return usableBand(lo, hi) ? done(Math.round((lo + hi) / 2), true, [lo, hi], 'range') : tooWide(lo, hi);
+    }
   }
   const under = core.match(/^(?:under|below|up to|less than|fewer than|<)\s*(\d+)$/);
   if (under) {
     const hi = Number(under[1]);
-    return done(Math.max(1, Math.round(hi / 2)), true, [1, hi], 'under');
+    return usableBand(1, hi) ? done(Math.max(1, Math.round(hi / 2)), true, [1, hi], 'under') : tooWide(1, hi);
   }
   const open = core.match(/^(\d+)\s*\+$/)
     || core.match(/^(?:over|more than|above|at least|>)\s*(\d+)$/)
