@@ -37,9 +37,18 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const res = await fetch(`${base}/functions/v1/sync-whatconverts`, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: {
+      "Authorization": `Bearer ${key}`,
+      "Content-Type": "application/json",
+      // sync-whatconverts now fails closed on SYNC_SECRET, so forward it. The
+      // webhook is server-side, so the secret never reaches the caller.
+      "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "",
+    },
     body: JSON.stringify({ accountId: account }),
   });
   const out = await res.json().catch(() => ({}));
-  return json({ ok: res.ok, account, synced: out?.summary?.[0]?.leads ?? null });
+  // Deliberately no lead count in the response. This endpoint is verify_jwt:false
+  // so WhatConverts can POST without Supabase auth, which means an anonymous
+  // caller could otherwise learn how many leads any account id has.
+  return json({ ok: res.ok, account });
 });
