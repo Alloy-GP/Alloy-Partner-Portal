@@ -7,6 +7,7 @@ import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { parseCcInput, CC_MAX } from '../lib/ccList.js';
 import { selectIntakeBatch, junkStatusForReason } from '../lib/intakeDrain.js';
 import { qualifyLead } from '../lib/leads.js';
+import { ownersFromTeam, ownerFor, ownerShortLabel } from '../lib/proposalOwners.js';
 import { canMintProposals } from '../lib/proposalAccess.js';
 import {
   stageOf, uiStageOf, inWon, inLost, sentOutsidePortal,
@@ -27,6 +28,15 @@ import sendingMailData from '../assets/sending-mail.json';
 // singleton populated before the cockpit renders, so this resolves per render.
 // caps index into cam.uvps (the same set the matcher derived against).
 const cam = () => camFor(DATA.account?.id);
+// The account's REAL people. The picker used to be a literal ['AB','JR'], where
+// JR resolved to "Jordan R." — a person who does not exist on CMGT — while Jeff
+// Harman, the actual account owner, was not offered at all. DATA.team is loaded
+// by loadData; nothing here was using it.
+const owners = () => ownersFromTeam(DATA.team);
+// Stored owner key -> a person. Falls back to the CAM profile so a proposal filed
+// under someone since removed still shows a name rather than raw initials.
+const ownerOf = (key) => ownerFor(owners(), key, cam().reps);
+const ownerFirstOf = (key) => (ownerOf(key) || {}).first || key || cam().shortName;
 const camTitles = () => cam().uvps.map((u) => u.title);
 const camBlurbs = () => cam().uvps.map((u) => u.short);
 
@@ -181,7 +191,7 @@ function MatchConcern({ concern, uvps, blurbs, index, onEdit, onRemove }) {
 
 function QualifyModal({ s, onClose, onQualify, onDisqualify }) {
   const [tab, setTab] = useState('qualify');
-  const [owner, setOwner] = useState(s.owner || 'AB');
+  const [owner, setOwner] = useState(s.owner || (owners()[0] && owners()[0].initials) || '');
   const [val, setVal] = useState(s.quoteValue);
   const [reason, setReason] = useState(DISQ_REASONS[0]);
   return (
@@ -200,12 +210,15 @@ function QualifyModal({ s, onClose, onQualify, onDisqualify }) {
           <div className="v2-qual-body">
             <label className="v2-qual-label">Sales owner</label>
             <div className="v2-qual-owners">
-              {['AB', 'JR'].map((o) => (
-                <button key={o} className="v2-qual-owner" data-on={owner === o} onClick={() => setOwner(o)}>
-                  <OwnerAvatar initials={o} size={24} /><span>{cam().ownerShort[o] || o}</span>
-                  {owner === o && <span className="v2-qual-tick"><I.Check width={12} height={12} /></span>}
+              {owners().map((o) => (
+                <button key={o.initials} className="v2-qual-owner" data-on={owner === o.initials} onClick={() => setOwner(o.initials)}>
+                  <OwnerAvatar initials={o.initials} size={24} /><span>{ownerShortLabel(o)}</span>
+                  {owner === o.initials && <span className="v2-qual-tick"><I.Check width={12} height={12} /></span>}
                 </button>
               ))}
+              {owners().length === 0 && (
+                <div className="v2-qual-hint">Nobody on this account yet — invite the team from Account Details and they'll appear here.</div>
+              )}
             </div>
             <label className="v2-qual-label">Estimated quote value <span>· annual contract</span></label>
             <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={val} onChange={(e) => setVal(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
@@ -258,7 +271,7 @@ function MoveStageModal({ s, live, onClose, onMove, onSendInstead }) {
   const here = uiStageOf(s);
   const moves = stageMoves(s);
   const [target, setTarget] = useState(null);
-  const [owner, setOwner] = useState(s.owner || 'AB');
+  const [owner, setOwner] = useState(s.owner || (owners()[0] && owners()[0].initials) || '');
   const [quote, setQuote] = useState(s.quoteValue);
   const [sales, setSales] = useState(s.salesValue != null ? s.salesValue : s.quoteValue);
   const [reason, setReason] = useState(DISQ_REASONS[0]);
@@ -292,12 +305,15 @@ function MoveStageModal({ s, live, onClose, onMove, onSendInstead }) {
           {needs === 'ownerQuote' && (<>
             <label className="v2-qual-label">Sales owner</label>
             <div className="v2-qual-owners">
-              {['AB', 'JR'].map((o) => (
-                <button key={o} className="v2-qual-owner" data-on={owner === o} onClick={() => setOwner(o)}>
-                  <OwnerAvatar initials={o} size={24} /><span>{cam().ownerShort[o] || o}</span>
-                  {owner === o && <span className="v2-qual-tick"><I.Check width={12} height={12} /></span>}
+              {owners().map((o) => (
+                <button key={o.initials} className="v2-qual-owner" data-on={owner === o.initials} onClick={() => setOwner(o.initials)}>
+                  <OwnerAvatar initials={o.initials} size={24} /><span>{ownerShortLabel(o)}</span>
+                  {owner === o.initials && <span className="v2-qual-tick"><I.Check width={12} height={12} /></span>}
                 </button>
               ))}
+              {owners().length === 0 && (
+                <div className="v2-qual-hint">Nobody on this account yet — invite the team from Account Details and they'll appear here.</div>
+              )}
             </div>
             <label className="v2-qual-label">Estimated quote value <span>· annual contract</span></label>
             <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={quote} onChange={(e) => setQuote(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
@@ -659,7 +675,7 @@ function PinnedCard({ sub, stage, perHome, setPerHome, onEdit, onOpenFull, cta }
   const monthly = pricing(sub, perHome).monthlyNum;
   const STATUS = { new: 'New · unworked', build: 'Building', sent: 'Sent', won: 'Won', lost: 'Lost' };
   const ownerFig = sub.owner
-    ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{cam().ownerFirst[sub.owner] || sub.owner}</> }
+    ? { k: 'Owner', v: <><span className="av">{sub.owner}</span>{ownerFirstOf(sub.owner)}</> }
     : { k: 'Owner', v: 'Unassigned' };
   // A row demoted out of Sent keeps its sent_at, so say so rather than letting
   // Build/New present a previously-emailed proposal as untouched.
@@ -1026,7 +1042,7 @@ function ExpBar({ w }) { const e = expState(w); return <span className="v2-w-min
 // through onSend — dropping it is how the typed message used to vanish.
 function NudgeModal({ s, onClose, onSend }) {
   const w = getWatch(s);
-  const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— ${cam().ownerFirst[s.owner] || cam().shortName}`);
+  const [msg, setMsg] = useState(`Hi ${s.firstName},\n\nJust checking in on the proposal for ${s.community}. Happy to walk the board through any section — pricing, the 90-day onboarding, or how we mapped your concerns — on a quick call whenever works.\n\n— ${ownerFirstOf(s.owner)}`);
   const [ccRaw, setCcRaw] = useState('');
   const cc = parseCcInput(ccRaw);
   const canSend = !!msg.trim() && cc.ok && !cc.overflow;

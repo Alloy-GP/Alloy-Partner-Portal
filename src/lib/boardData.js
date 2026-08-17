@@ -119,7 +119,14 @@ const fmtLongDate = (iso, plusDays = 0) => {
 
 export function buildSubmission(lead, cam) {
   const baseTiers = cam?.tiers || TIERS;
-  const preparedBy = cam?.preparedBy || { name: "Amanda Betancourt", role: "COO" };
+  // Who the document says prepared it. Prefer the proposal's actual owner from the
+  // account's real team; only then the CAM profile default. That default is how a
+  // board could be told a name that belongs to nobody.
+  const owners = lead.owners || [];
+  const ownerPerson = owners.find((o) => o.initials === lead.owner);
+  const preparedBy = ownerPerson
+    ? { name: ownerPerson.name, role: ownerPerson.role }
+    : (cam?.preparedBy || { name: "Amanda Betancourt", role: "COO" });
   // The board document is what a PROSPECT reads. It used to do its own
   // `perHome * homes` here — bypassing the tier minimum entirely, so a 12-home
   // community would have been sent "$4.00 per home x 12 homes = $48.00 / month".
@@ -186,6 +193,7 @@ export function buildSubmission(lead, cam) {
     tiersToShow: lead.tiersToShow || [recId],
     leadCAM: null,
     preparedBy,
+    owners,   // the real team, for repOf() in the board document
     tiers,
   };
 }

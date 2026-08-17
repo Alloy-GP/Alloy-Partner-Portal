@@ -31,7 +31,15 @@ const useCam = () => useContext(CamCtx);
 
 // The proposal's assigned rep (owner initials → who reaches out to the board),
 // per the account's CAM. Falls back to a generic "Your <CAM> lead".
-const repOf = (owner, cam) => (cam && cam.reps && cam.reps[owner]) || { name: `Your ${cam?.shortName || 'team'} lead`, first: `Your ${cam?.shortName || 'team'} lead`, role: 'Client Partnerships' };
+// Who the board is told they are dealing with. Prefers the account's REAL people
+// (submission.owners, derived from DATA.team) and only then the CAM profile — that
+// fallback is how a prospect could be told their contact was "Jordan R.", who does
+// not work at CMGT. No match at all stays deliberately generic rather than naming
+// somebody who might not exist.
+const repOf = (owner, cam, owners) =>
+  (owners || []).find((o) => o.initials === owner)
+  || (cam && cam.reps && cam.reps[owner])
+  || { name: `Your ${cam?.shortName || 'team'} lead`, first: `Your ${cam?.shortName || 'team'} lead`, role: 'Client Partnerships' };
 
 // The proof-point value is sometimes a tight stat ("97%", "Day 30", "Monthly")
 // and sometimes a multi-word phrase the matcher returns ("In-house maintenance",
@@ -509,7 +517,7 @@ function ProposalExp({ lead, submission }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const active = Math.min(activeIndex, Math.max(0, concerns.length - 1));
   const mobile = useIsMobile();
-  const rep = repOf(lead.owner, cam);
+  const rep = repOf(lead.owner, cam, submission.owners);
   const firstName = (submission.contactName || '').split(' ')[0];
   return (
     <article style={{ background: c.offWhite }}>
@@ -951,8 +959,8 @@ export function BoardProposal({ lead, showActionBar }) {
         {showActionBar && <BoardActionBar submission={submission} boardResp={boardResp} onOpen={setModal} />}
         {modal === 'changes' && <RequestChangesModal onClose={close} onResolve={onResolve} />}
         {modal === 'decline' && <DeclineModal onClose={close} onResolve={onResolve} />}
-        {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} rep={repOf(lead.owner, cam)} />}
-        {modal === 'question' && <QuestionModal onClose={close} onAsk={onAskQuestion} rep={repOf(lead.owner, cam)} />}
+        {modal === 'continue' && <ContinueModal onClose={close} onResolve={onResolve} rep={repOf(lead.owner, cam, submission.owners)} />}
+        {modal === 'question' && <QuestionModal onClose={close} onAsk={onAskQuestion} rep={repOf(lead.owner, cam, submission.owners)} />}
       </div>
     </CamCtx.Provider>
   );
