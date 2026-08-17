@@ -292,6 +292,25 @@ async function syncAccount(supabase: any, acct: any, startDate: string) {
   // (removed/aged-out in WhatConverts). No window where the table is empty, and
   // upsert refreshes edits (quotable, value, contact) in place.
   if (leads.length) {
+    // CLAIM, then upsert. leads now has a GLOBAL unique on wc_lead_id (migration
+    // 20260815120000), so one WhatConverts lead can exist on exactly one portal
+    // account. When a WC account is legitimately reassigned from client A to
+    // client B, B fetches leads that still have A's row — and the upsert's
+    // conflict target (account_id, wc_lead_id) does NOT match the violated
+    // global constraint, so it would error instead of resolving.
+    //
+    // Claiming is safe because accounts_wc_account_unique guarantees the WC
+    // account these leads came from is claimed by exactly one portal account, so
+    // only the rightful owner can ever reach this line for a given lead.
+    const keys = leads.map((l: any) => l.wc_lead_id).filter(Boolean);
+    if (keys.length) {
+      const { data: stolen, error: clErr } = await supabase.from("leads")
+        .delete().neq("account_id", acct.id).in("wc_lead_id", keys).select("wc_lead_id");
+      if (clErr) throw new Error(`claim: ${clErr.message}`);
+      if (stolen?.length) {
+        console.log(`claimed ${stolen.length} lead(s) for ${acct.short_name || acct.id} from another account (WhatConverts account reassigned)`);
+      }
+    }
     const { error: upErr } = await supabase.from("leads").upsert(leads, { onConflict: "account_id,wc_lead_id" });
     if (upErr) throw new Error(`upsert: ${upErr.message}`);
   }
@@ -376,8 +395,15 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch { /* empty */ }
 
-    const secret = Deno.env.get("SYNC_SECRET");
-    if (secret && url.searchParams.get("secret") !== secret) {
+    // AUTH — FAIL CLOSED. This was `if (secret && provided !== secret)`, so with
+    // SYNC_SECRET unset (which it was) the check never ran and this endpoint was
+    // publicly callable with verify_jwt:false. An anonymous POST returned every
+    // client's account id, name and lead count — a cross-client roster leak — and
+    // could force full WhatConverts syncs against the API quota.
+    // An unset secret must mean "nobody", never "everybody".
+    const secret = Deno.env.get("SYNC_SECRET") || "";
+    const provided = req.headers.get("x-sync-secret") || url.searchParams.get("secret") || "";
+    if (!secret || provided !== secret) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!Deno.env.get("WHATCONVERTS_TOKEN") || !Deno.env.get("WHATCONVERTS_SECRET")) {

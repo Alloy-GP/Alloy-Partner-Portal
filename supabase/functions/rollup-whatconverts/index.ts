@@ -108,8 +108,17 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch { /* empty */ }
 
-    const secret = Deno.env.get("SYNC_SECRET");
-    if (secret && url.searchParams.get("secret") !== secret) return new Response("unauthorized", { status: 401 });
+    // AUTH — FAIL CLOSED. This was `if (secret && provided !== secret)`, so with
+    // SYNC_SECRET unset (which it was) the check never ran and this endpoint was
+    // publicly callable with verify_jwt:false. An anonymous POST returned every
+    // client's account id, name and lead count — a cross-client roster leak — and
+    // could force full WhatConverts syncs against the API quota.
+    // An unset secret must mean "nobody", never "everybody".
+    const secret = Deno.env.get("SYNC_SECRET") || "";
+    const provided = req.headers.get("x-sync-secret") || url.searchParams.get("secret") || "";
+    if (!secret || provided !== secret) {
+      return new Response("unauthorized", { status: 401 });
+    }
     if (!Deno.env.get("WHATCONVERTS_TOKEN") || !Deno.env.get("WHATCONVERTS_SECRET")) {
       return Response.json({ ok: false, error: "WHATCONVERTS_TOKEN/SECRET not set" }, { status: 500 });
     }
