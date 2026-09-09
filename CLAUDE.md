@@ -78,6 +78,21 @@ can't send headers). Unset secret = nobody gets in, never everybody.
   the function's CURRENT `verify_jwt` (list them via `GET …/functions`) — a wrong
   flag silently breaks cron/webhooks.
 
+## Sync watchdog — how you find out a sync failed
+`sync-monitor` (cron `sync-monitor-10min`, header-gated like every sync) harvests
+every cron job's pg_net result into `sync_runs`, classifies it (HTTP status,
+timeout, body `ok:false` / `failed>0` / per-account `error`) and keeps open
+problems in `sync_alerts`: ONE email to staff when a job starts failing or goes
+silent (no run inside ≥4 intervals / ≥2h, or a Monday board not re-stamped in
+2h), a reminder every 24h while it stays broken, one on recovery. Sync Health →
+"Watchdog" strip shows the heartbeat, open alerts and failed runs (24h).
+- **New cron job? Create it WRAPPED** so its request id is recorded:
+  `insert into public.cron_http_requests (job_name, request_id) select '<jobname>', t.request_id from (select net.http_post(...)) as t(request_id);`
+  An unwrapped active job shows up as permanently "silent" — that's the tell.
+- Recipients: `app_config.sync_alert_emails` (comma-separated) else all staff.
+  POST `{"test":"email"}` (with the header) sends a test. Pure UI logic lives in
+  `src/lib/syncMonitor.js` (tested). Migration: `20260909210000_sync_monitor.sql`.
+
 ## Editing screens-rest.jsx
 Lines contain non-ASCII (·, —, …, ✓). The Edit tool's exact-match can fail on
 these. For large/awkward edits, splice with a Python script (reads/writes UTF-8)
