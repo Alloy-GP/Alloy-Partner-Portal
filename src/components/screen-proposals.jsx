@@ -15,6 +15,7 @@ import { selectIntakeBatch, junkStatusForReason } from '../lib/intakeDrain.js';
 import { qualifyLead } from '../lib/leads.js';
 import { ownersFromTeam, ownerFor, ownerShortLabel } from '../lib/proposalOwners.js';
 import { canMintProposals } from '../lib/proposalAccess.js';
+import { overallFromConcerns } from '../lib/proposalMatch.js';
 import {
   stageOf, uiStageOf, inWon, inLost, sentOutsidePortal,
   stageMoves, stageMovePatch, stageSnapshot, stageMoveLabel, stageNeeds,
@@ -2188,6 +2189,7 @@ export default function ProposalsScreen() {
     const COL = { community: 'community', contact: 'contact', contactRole: 'contact_role', email: 'email', phone: 'phone', city: 'city', homes: 'homes', metaType: 'meta_type', metaStatus: 'meta_status', dues: 'dues', engageTimeline: 'engage_timeline', budget: 'budget' };
     const patch = { ...fieldPatch };
     if (patch.homes != null) patch.homes = parseInt(patch.homes) || sub.homes;
+    let tierMsg = '';
     if (Object.keys(patch).length) {
       // RE-DERIVE, exactly as "Edit details" does. The call is the main way a
       // board's real scope gets established — "we only want the financials", "we
@@ -2203,10 +2205,29 @@ export default function ProposalsScreen() {
         : s));
       const cols = {}; Object.entries(patch).forEach(([k, v]) => { if (COL[k]) cols[COL[k]] = v; });
       persist(selectedId, { ...cols, tier_id: d.tierId, per_home: d.perHome, quote_value: d.quoteValue });
-      if (d.tierChanged) setToast({ msg: `Realigned — tier is now ${tierById(d.tierId).name}` });
+      if (d.tierChanged) tierMsg = ` · tier is now ${tierById(d.tierId).name}`;
     }
-    if (addedConcerns && addedConcerns.length) applyMatch([...sub.concerns, ...addedConcerns], sub.match);
-    setToast({ msg: 'Proposal realigned from the call' });
+    // RE-DERIVE THE OVERALL %, which this path used to carry over untouched.
+    //
+    // recomputeMatch deliberately treats the headline number as user-controlled —
+    // right when a CAM is editing one concern's wording, since the figure must not
+    // jump around under them and "Adjust %" exists for it. But a call that adds
+    // six concerns has changed the fit, and passing `sub.match` straight through
+    // left the board's document showing a percentage that described the proposal
+    // as it was BEFORE the call. Same arithmetic as the matcher's own fallback
+    // (mean of concern fits), so the number is derived the one way everywhere.
+    //
+    // Staff can still override it afterwards with Adjust %.
+    let matchMsg = '';
+    if (addedConcerns && addedConcerns.length) {
+      const merged = [...sub.concerns, ...addedConcerns];
+      const overall = overallFromConcerns(merged);
+      applyMatch(merged, overall);
+      matchMsg = ` · match ${overall}%`;
+    }
+    // One toast, after both writes: applyMatch sets its own ("Match updated") and
+    // the tier line was being overwritten by the generic message below it.
+    setToast({ msg: `Proposal realigned from the call${tierMsg}${matchMsg}` });
   };
   // Real send: the proposal-send edge fn emails the board the magic link + marks
   // the proposal sent in the DB. Only advance to the Sent screen if it succeeds.

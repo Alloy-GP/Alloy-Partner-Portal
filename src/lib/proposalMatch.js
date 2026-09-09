@@ -98,6 +98,22 @@ export function matchPainsToUVPs(selectedPainIds, painPoints, uvps) {
 //   concerns[] — { label, fit, caps:[uvpIdx], headline, body, proof, metric }
 //   scores[]   — per-UVP relevance (# of the board's concerns it answers)
 //   links[]    — concern → [uvpIdx]  (drives the bipartite engine graph)
+// The overall fit implied by a set of concerns: the mean of their individual
+// fits, which is the rule the matcher already falls back on when the model does
+// not supply an overall (proposal-match/index.ts -> normalize) and the rule
+// deriveLeadMatch below uses. Exported so the ONE other place that changes a
+// concern set — applying a call transcript — can use the same arithmetic instead
+// of leaving a stale headline number behind.
+//
+// Concerns toggled off are excluded, matching how `scores` are computed: a
+// concern a CAM removed from the proposal should not drag the fit down.
+export function overallFromConcerns(concerns = []) {
+  const active = (concerns || []).filter((c) => c && c.on !== false);
+  if (!active.length) return 0;
+  const sum = active.reduce((a, c) => a + (Number(c.fit) || 0), 0);
+  return Math.max(0, Math.min(100, Math.round(sum / active.length)));
+}
+
 export function deriveLeadMatch(selectedPainIds, painPoints, uvps, { prose = {}, topCaps = 4 } = {}) {
   const ids = new Set(selectedPainIds || []);
   const selectedPains = (painPoints || []).filter((p) => ids.has(p.id));
@@ -133,7 +149,7 @@ export function deriveLeadMatch(selectedPainIds, painPoints, uvps, { prose = {},
   });
 
   return {
-    match: concerns.length ? Math.round(concerns.reduce((a, c) => a + c.fit, 0) / concerns.length) : 0,
+    match: overallFromConcerns(concerns),
     concerns,
     scores,
     links: concerns.map((c) => c.caps),
