@@ -52,6 +52,8 @@
 // therefore plausible, which is exactly why it needs saying out loud: it prices
 // EVERY proposal, not just the small ones the minimum catches.
 // ---------------------------------------------------------------------------
+import { tierFromServices, highestTier, promote } from './proposalServiceTiers.js';
+
 export const DEFAULT_RATE_IS_PROVISIONAL = true;
 
 export const TIERS = [
@@ -157,31 +159,91 @@ export function isHighRise(metaType) {
 // The recommendation. Returns the tier, the starting rate, and WHY — the `why`
 // is rendered next to the price so the number is always attributable.
 // ---------------------------------------------------------------------------
-export function recommendTier(raw = {}) {
+// `opts.serviceTiers` is the CAM's service->tier map (camProfiles.js). Passing it
+// makes "Services you're looking for" the PRIMARY signal and enables the CAM's
+// downsell policy. Omitting it leaves the pre-existing behaviour exactly as it
+// was — the demo/mock paths and every caller without an account in scope.
+export function recommendTier(raw = {}, { serviceTiers } = {}) {
   const homes = Number(raw.homes) || 0;
   const intent = budgetIntent(raw.budget);
   const status = norm(raw.metaStatus);
   const highRise = isHighRise(raw.metaType);
+  const rank = Array.isArray(serviceTiers?.rank) && serviceTiers.rank.length ? serviceTiers.rank : null;
+  const recommendable = rank
+    ? (serviceTiers.recommendable && serviceTiers.recommendable.length ? serviceTiers.recommendable : rank)
+    : null;
+  // What the board ticked. Null when they ticked nothing, or this CAM has no map.
+  const svc = tierFromServices(raw.services, serviceTiers);
 
   let tierId = 'full';
   let why = 'Default for a board that wants the work taken off their plate.';
 
+  // Which branch actually CONCLUDED a tier. The default ('full') is not a
+  // conclusion, and treating it as one let it outrank the board's own service
+  // answer — so a CAM whose ladder has a recommendable tier below full could
+  // never have that tier recommended. `open` and the developer branch only set a
+  // reason, never a different tier, so they are not conclusions either.
+  let concluded = null;
+
   // Scale wins: on-site is a staffing model, not a preference.
   if (homes >= ONSITE_MIN_HOMES || highRise) {
     tierId = 'onsite';
+    concluded = 'onsite';
     why = highRise && homes < ONSITE_MIN_HOMES
       ? 'High-rise / mid-rise — on-site management is the model for vertical communities.'
       : `${homes.toLocaleString()} homes — on-site management is the model at ${ONSITE_MIN_HOMES}+.`;
   } else if (intent === 'financial-only') {
     tierId = 'financial';
+    concluded = 'financial';
     why = 'They asked for financial-only management on the intake form.';
   } else if (intent === 'lean') {
     tierId = 'financial';
+    concluded = 'financial';
     why = 'They told us the budget is cost-sensitive and asked for a lean option.';
   } else if (intent === 'open') {
     why = 'They said they are open to the right fit rather than the cheapest.';
   } else if (/developer|new construction/.test(status)) {
     why = 'Developer-controlled setup — full service through homeowner turnover.';
+  }
+
+  // ── The service answer, and the CAM's downsell policy ───────────────────
+  //
+  // Highest tier wins: a board asking for three financial services AND board
+  // meeting support is asking for full service, and one asking for on-site is
+  // asking for on-site whatever else they ticked. The scale rule above already
+  // put on-site in the running, so this is a max() over both signals rather than
+  // a precedence chain.
+  let downsellFrom = null;
+  if (svc && rank) {
+    const winner = highestTier(concluded ? [concluded, svc.tierId] : [svc.tierId], rank) || tierId;
+    if (winner !== tierId || svc.tierId === tierId) {
+      // Only re-word the reason when the services are what decided it; the scale
+      // rule's explanation ("834 homes — on-site is the model at 500+") is more
+      // informative than a service list when scale is what won.
+      if (winner === svc.tierId && !(homes >= ONSITE_MIN_HOMES || highRise)) {
+        why = `They asked for ${svc.labels.join(', ')} on the intake form.`;
+      }
+      tierId = winner;
+    }
+  }
+  if (rank && recommendable) {
+    // A tier this CAM does not open with (CMGT: Financial & Administrative is a
+    // downsell) is promoted to the lowest recommendable tier at or above it —
+    // never demoted, never silently. `downsellFrom` is what staff are told they
+    // can drop to; the board is never shown it.
+    const promoted = promote(tierId, { rank, recommendable });
+    if (promoted && promoted !== tierId) {
+      downsellFrom = tierId;
+      tierId = promoted;
+      why = `${tierById(downsellFrom).name} is not offered up front, so this opens at ${tierById(promoted).name}.`;
+    } else if (svc && !recommendable.includes(svc.impliedTierId)
+               && rank.indexOf(svc.impliedTierId) >= 0
+               && rank.indexOf(svc.impliedTierId) < rank.indexOf(tierId)) {
+      // They only asked for things a lower, non-recommendable tier covers, but
+      // something else (scale, or the default) already put them higher. Still
+      // worth telling staff the lever exists.
+      downsellFrom = svc.impliedTierId;
+    }
   }
 
   const tier = tierById(tierId);
@@ -193,6 +255,11 @@ export function recommendTier(raw = {}) {
     rateRange: tier.rateRange,
     budgetIntent: intent,
     why,
+    // The tier the answers pointed at that this CAM won't lead with, or null.
+    // Staff-facing only — a sales lever, never on the board's document.
+    downsellFrom,
+    downsellName: downsellFrom ? tierById(downsellFrom).name : null,
+    servicesMatched: svc ? svc.matched : [],
   };
 }
 
@@ -206,14 +273,20 @@ export function recommendTier(raw = {}) {
 // "Self-managed by board", with 12 units. The matcher was right — it reflected
 // the form — but nothing asked which of the two was true.
 // ---------------------------------------------------------------------------
-export function intakeFlags(raw = {}) {
+export function intakeFlags(raw = {}, { serviceTiers } = {}) {
   const flags = [];
   const pains = raw.selectedPains || [];
   const status = norm(raw.metaStatus);
   const homes = Number(raw.homes) || 0;
   const intent = budgetIntent(raw.budget);
   // What the form points at RIGHT NOW, to compare against what the row stores.
-  const rec = recommendTier(raw);
+  //
+  // MUST be given the same serviceTiers the mint used. Without it this recomputes
+  // from budget/scale only, so a lead that ticked "On-site staff" — stored as
+  // On-Site, correctly — was told "Set to On-Site Management, but the form points
+  // at Full-Service": a false contradiction raised on precisely the leads the
+  // service answer exists to handle.
+  const rec = recommendTier(raw, { serviceTiers });
 
   const saysDeveloper = /developer|new construction/.test(status);
   if (pains.includes('developer') && status && !saysDeveloper) {
@@ -301,11 +374,26 @@ export function intakeFlags(raw = {}) {
   // This REPORTS rather than corrects: changing a stored price silently is worse
   // than showing that it needs a decision. Edit details re-derives it.
   const budgetSaidTheSame = budgetFlagged && rec.tierId === 'financial';
-  if (raw.tierId && raw.tierId !== rec.tierId && !budgetSaidTheSame) {
+  // tier_manual means a human chose this tier on purpose. Re-derivation already
+  // leaves it alone (proposalReprice), so calling it a contradiction would be
+  // nagging someone about a decision the system has agreed to respect.
+  if (raw.tierId && raw.tierId !== rec.tierId && !budgetSaidTheSame && !raw.tierManual) {
     flags.push({
       code: 'tier-vs-intake',
       label: `Set to ${tierName(raw.tierId)}, but the form points at ${tierName(rec.tierId)}`,
       detail: `${rec.why} The stored tier drives the price, so this is quoting as ${tierName(raw.tierId)} until it changes. Open Edit details to re-derive it, or leave it if the override is deliberate.`,
+    });
+  }
+  // The downsell candidate. Everything this board ticked is covered by a tier the
+  // CAM does not lead with, so the proposal opens at the recommended tier (never
+  // the downsell) and this tells the rep the lever exists. Staff-facing only: the
+  // board's document never mentions a cheaper tier it was not offered.
+  if (rec.downsellFrom && !raw.tierManual) {
+    const asked = (rec.servicesMatched || []).slice(0, 4).join(', ');
+    flags.push({
+      code: 'downsell-candidate',
+      label: `Good candidate for ${rec.downsellName}`,
+      detail: `${asked ? `They only asked for ${asked}, all of which ` : 'What they asked for '}sits inside ${rec.downsellName}. Quoting ${tierName(rec.tierId)} is deliberate — ${rec.downsellName} is the fallback if the call turns to price. Set it by hand in Edit details.`,
     });
   }
   if (!String(raw.budget || '').trim()) {

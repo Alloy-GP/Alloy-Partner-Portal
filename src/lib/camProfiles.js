@@ -35,6 +35,55 @@ const CMGT_PROFILE = {
   contact: { web: 'cmgt.org', email: 'proposals@cmgt.org', phone: '(225) 791-1505' },
   team: CMGT_TEAM,
   tiers: CMGT_TIERS,
+  // ── Services you're looking for -> tier ──────────────────────────────────
+  //
+  // The board's own answer decides the recommendation: highest implied tier wins
+  // (proposalServiceTiers.js). Keys are the EXACT option labels CMGT's intake form
+  // offers, because that is the string WhatConverts captures and stores.
+  //
+  // `recommendable` is CMGT's sales policy, not a capability list: Financial &
+  // Administrative is a DOWNSELL they do not open with, so nothing can recommend
+  // it automatically. A board that ticks only financial services is quoted
+  // Full-Service, and staff are told the downsell exists (rec.downsellFrom) and
+  // can set it by hand in Build.
+  //
+  // The financial/full split below follows CMGT's own tier contents in
+  // boardData.js — assessment collection, statements, insurance monitoring and the
+  // homeowner portal are all inside Financial & Administrative; anything needing
+  // someone physically present is not. Worth confirming with CMGT, but it only
+  // affects the downsell hint, never the recommendation.
+  //
+  // ADDING AN OPTION TO THE FORM: add it here too. proposalServiceTiers.test.js
+  // asserts every label CMGT's form offers has an entry, so a new option cannot
+  // silently do nothing. Old labels stay as aliases — leads already in the
+  // pipeline carry the wording they were submitted with.
+  serviceTiers: {
+    rank: ['financial', 'full', 'onsite'],
+    recommendable: ['full', 'onsite'],
+    map: {
+      // The label the form actually offers (intake-form.config.js -> services).
+      'On-site staff': 'onsite',
+      // Alias: the wording considered before 'On-site staff' shipped. Harmless to
+      // keep and it costs nothing — a lead carries whatever it was submitted with.
+      'On-site support': 'onsite',
+      'Full financial management': 'financial',
+      'Collections / delinquency': 'financial',
+      'Resident communication': 'financial',
+      'Vendor coordination': 'full',
+      'Board meeting support': 'full',
+      'After-hours emergency': 'full',
+      'Maintenance coordination': 'full',
+      // CMGT's own answers (2026-09-09): compliance work needs someone physically
+      // present, so it is full-service. Reserve planning is inside Financial &
+      // Administrative — which does NOT make it recommendable (financial never is);
+      // it means a board asking only for reserve planning is quoted Full-Service
+      // AND flagged as a downsell candidate. Erring toward full is automatic here:
+      // anything mapped to financial is promoted, so a wrong guess in this column
+      // can only change whether the note appears, never the tier.
+      'Compliance & insurance': 'full',
+      'Reserve planning': 'financial',
+    },
+  },
   onboarding: CMGT_ONBOARDING,
   includes: CMGT_INCLUDES,
   uvps: CMGT_UVPS,

@@ -293,7 +293,7 @@ export function enrichLead(s, cam) {
   // The tier the FORM points at, not a constant. perHome/tier_id are persisted at
   // intake; `tierRec` is recomputed here so an older row (or a hand-edited one)
   // still shows why, and `intakeFlags` surfaces what the submission contradicts.
-  const tierRec = recommendTier(s);
+  const tierRec = recommendTier(s, { serviceTiers: cam?.serviceTiers });
   const tierId = s.tierId || tierRec.tierId;
   const tierName = tierNameFor(tierId);
   // ANNUAL (proposals money is annual; leads money is monthly). Derived through
@@ -318,7 +318,7 @@ export function enrichLead(s, cam) {
     // gets these from proposal-board — an anonymous prospect has no DATA.team).
     owners: s.owners && s.owners.length ? s.owners : ownersFromTeam(DATA.team),
     tierRec,                                  // { tierId, perHome, why, budgetIntent, … }
-    intakeFlags: intakeFlags({ ...s, tierId }), // contradictions to raise before sending
+    intakeFlags: intakeFlags({ ...s, tierId }, { serviceTiers: cam?.serviceTiers }), // contradictions to raise before sending
     quoteValue,
     ...m, // match, concerns, scores, links, capsMatched, capsTotal
     // Close engagement: real aggregated board events, or null until a board
