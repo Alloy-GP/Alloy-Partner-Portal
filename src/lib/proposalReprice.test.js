@@ -82,6 +82,37 @@ describe('tier_manual: a human choice is not overwritten', () => {
   });
 });
 
+describe('setting the tier by hand also fixes the rate', () => {
+  const stored = { tierId: 'full', perHome: 8.98, homes: 400, services: 'Vendor coordination', tierManual: false };
+  const byHand = (tierId, from = stored) => deriveTierAndPrice(from, { ...from, tierId, tierManual: true }, opts);
+
+  it('drops the per-home default when a staffer picks On-Site', () => {
+    // The bug: the outgoing Full-Service default came across, so 400 homes x $8.98
+    // quoted $3,592/mo for a tier that is a flat $2,500 fee. The floor hid it at
+    // smaller sizes, which is exactly why it was easy to miss.
+    const out = byHand('onsite');
+    expect(out.perHome).toBe(0);
+    expect(out.quoteValue).toBe(2500 * 12);
+  });
+
+  it('re-bases to the financial default when a staffer picks the downsell', () => {
+    const out = byHand('financial');
+    expect(out.perHome).toBe(4.0);
+    expect(out.quoteValue).toBe(Math.round(4.0 * 400 * 12));
+  });
+
+  it('never touches a rate a staffer actually negotiated', () => {
+    const negotiated = { ...stored, perHome: 11.5 };
+    const out = byHand('onsite', negotiated);
+    expect(out.perHome).toBe(11.5);
+  });
+
+  it('leaves the rate alone when the hand-set tier is the one already stored', () => {
+    const already = { ...stored, tierId: 'full', tierManual: true };
+    expect(byHand('full', already).perHome).toBe(8.98);
+  });
+});
+
 describe('the downsell survives a reprice', () => {
   it('a financial-only service answer still opens at Full-Service, with the lever noted', () => {
     const out = deriveTierAndPrice(stored, { services: 'Full financial management' }, opts);
