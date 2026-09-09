@@ -73,8 +73,15 @@ const CMGT_PROFILE = {
       'Board meeting support': 'full',
       'After-hours emergency': 'full',
       'Maintenance coordination': 'full',
+      // CMGT's own answers (2026-09-09): compliance work needs someone physically
+      // present, so it is full-service. Reserve planning is inside Financial &
+      // Administrative — which does NOT make it recommendable (financial never is);
+      // it means a board asking only for reserve planning is quoted Full-Service
+      // AND flagged as a downsell candidate. Erring toward full is automatic here:
+      // anything mapped to financial is promoted, so a wrong guess in this column
+      // can only change whether the note appears, never the tier.
       'Compliance & insurance': 'full',
-      'Reserve planning': 'full',
+      'Reserve planning': 'financial',
     },
   },
   onboarding: CMGT_ONBOARDING,

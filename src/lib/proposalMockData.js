@@ -318,7 +318,7 @@ export function enrichLead(s, cam) {
     // gets these from proposal-board — an anonymous prospect has no DATA.team).
     owners: s.owners && s.owners.length ? s.owners : ownersFromTeam(DATA.team),
     tierRec,                                  // { tierId, perHome, why, budgetIntent, … }
-    intakeFlags: intakeFlags({ ...s, tierId }), // contradictions to raise before sending
+    intakeFlags: intakeFlags({ ...s, tierId }, { serviceTiers: cam?.serviceTiers }), // contradictions to raise before sending
     quoteValue,
     ...m, // match, concerns, scores, links, capsMatched, capsTotal
     // Close engagement: real aggregated board events, or null until a board

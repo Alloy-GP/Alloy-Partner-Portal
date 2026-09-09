@@ -113,6 +113,39 @@ describe("the downsell is never recommended, only offered", () => {
   });
 });
 
+describe("CMGT's answers on where each service sits (2026-09-09)", () => {
+  it('compliance & insurance is full-service — someone has to be there', () => {
+    const r = rec({ homes: 175, services: 'Compliance & insurance' });
+    expect(r.tierId).toBe('full');
+    expect(r.downsellFrom).toBeNull();      // nothing to fall back to: they asked for full
+  });
+
+  it('reserve planning alone is quoted Full-Service AND flagged as a downsell', () => {
+    // The exact case CMGT described: still send a full-service proposal, but tell
+    // the rep it is a good candidate for the fallback.
+    const r = rec({ homes: 175, services: 'Reserve planning' });
+    expect(r.tierId).toBe('full');
+    expect(r.downsellFrom).toBe('financial');
+    expect(r.downsellName).toBe('Financial & Administrative');
+  });
+
+  it('reserve planning plus anything full-service drops the downsell hint', () => {
+    const r = rec({ homes: 175, services: 'Reserve planning, Board meeting support' });
+    expect(r.tierId).toBe('full');
+    expect(r.downsellFrom).toBeNull();
+  });
+
+  it('a wrong guess in the financial/full column can never change the tier', () => {
+    // Erring toward full-service is structural, not a judgement call: anything
+    // mapped to financial is promoted, so the map only decides whether the note
+    // appears. This is what makes the two uncertain entries low-stakes.
+    Object.keys(ST.map).forEach((label) => {
+      const t = rec({ homes: 175, services: label }).tierId;
+      expect(ST.recommendable, `${label} -> ${t}`).toContain(t);
+    });
+  });
+});
+
 describe('no map, no change', () => {
   it('leaves the pre-existing behaviour alone when a CAM has no serviceTiers', () => {
     // Every caller without an account in scope, and the demo boards.

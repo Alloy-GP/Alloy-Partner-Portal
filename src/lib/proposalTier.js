@@ -273,14 +273,20 @@ export function recommendTier(raw = {}, { serviceTiers } = {}) {
 // "Self-managed by board", with 12 units. The matcher was right — it reflected
 // the form — but nothing asked which of the two was true.
 // ---------------------------------------------------------------------------
-export function intakeFlags(raw = {}) {
+export function intakeFlags(raw = {}, { serviceTiers } = {}) {
   const flags = [];
   const pains = raw.selectedPains || [];
   const status = norm(raw.metaStatus);
   const homes = Number(raw.homes) || 0;
   const intent = budgetIntent(raw.budget);
   // What the form points at RIGHT NOW, to compare against what the row stores.
-  const rec = recommendTier(raw);
+  //
+  // MUST be given the same serviceTiers the mint used. Without it this recomputes
+  // from budget/scale only, so a lead that ticked "On-site staff" — stored as
+  // On-Site, correctly — was told "Set to On-Site Management, but the form points
+  // at Full-Service": a false contradiction raised on precisely the leads the
+  // service answer exists to handle.
+  const rec = recommendTier(raw, { serviceTiers });
 
   const saysDeveloper = /developer|new construction/.test(status);
   if (pains.includes('developer') && status && !saysDeveloper) {
@@ -368,11 +374,26 @@ export function intakeFlags(raw = {}) {
   // This REPORTS rather than corrects: changing a stored price silently is worse
   // than showing that it needs a decision. Edit details re-derives it.
   const budgetSaidTheSame = budgetFlagged && rec.tierId === 'financial';
-  if (raw.tierId && raw.tierId !== rec.tierId && !budgetSaidTheSame) {
+  // tier_manual means a human chose this tier on purpose. Re-derivation already
+  // leaves it alone (proposalReprice), so calling it a contradiction would be
+  // nagging someone about a decision the system has agreed to respect.
+  if (raw.tierId && raw.tierId !== rec.tierId && !budgetSaidTheSame && !raw.tierManual) {
     flags.push({
       code: 'tier-vs-intake',
       label: `Set to ${tierName(raw.tierId)}, but the form points at ${tierName(rec.tierId)}`,
       detail: `${rec.why} The stored tier drives the price, so this is quoting as ${tierName(raw.tierId)} until it changes. Open Edit details to re-derive it, or leave it if the override is deliberate.`,
+    });
+  }
+  // The downsell candidate. Everything this board ticked is covered by a tier the
+  // CAM does not lead with, so the proposal opens at the recommended tier (never
+  // the downsell) and this tells the rep the lever exists. Staff-facing only: the
+  // board's document never mentions a cheaper tier it was not offered.
+  if (rec.downsellFrom && !raw.tierManual) {
+    const asked = (rec.servicesMatched || []).slice(0, 4).join(', ');
+    flags.push({
+      code: 'downsell-candidate',
+      label: `Good candidate for ${rec.downsellName}`,
+      detail: `${asked ? `They only asked for ${asked}, all of which ` : 'What they asked for '}sits inside ${rec.downsellName}. Quoting ${tierName(rec.tierId)} is deliberate — ${rec.downsellName} is the fallback if the call turns to price. Set it by hand in Edit details.`,
     });
   }
   if (!String(raw.budget || '').trim()) {
