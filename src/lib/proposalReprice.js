@@ -47,20 +47,34 @@ export function deriveTierAndPrice(current = {}, facts = {}, { serviceTiers } = 
   const perHome = Number(merged.perHome) || 0;
   const rec = recommendTier(tierFacts({ ...merged, homes }), { serviceTiers });
 
-  if (merged.tierManual && merged.tierId) {
-    // A human owns the tier. The rate and the annual still follow the facts —
-    // editing the door count of a manually-set tier must still reprice it.
-    const quoteValue = Math.round(pricing({ ...merged, homes, perHome }).monthlyNum * 12);
-    return { tierId: merged.tierId, perHome, quoteValue, tierChanged: false, rec, manual: true };
-  }
-
-  const tierChanged = rec.tierId !== current.tierId;
-  // The RATE is only re-based when it is still the outgoing tier's default, i.e.
+  // The RATE is only re-based when it is still the OUTGOING tier's default, i.e.
   // demonstrably never touched by a staffer. On-site has no per-home rate, so
   // "untouched" there means zero.
   const outgoingDefault = tierById(current.tierId).defaultRate;
   const rateUntouched = outgoingDefault == null ? perHome === 0 : Math.abs(perHome - outgoingDefault) < 1e-9;
-  const nextPerHome = tierChanged && rateUntouched ? (rec.perHome != null ? rec.perHome : 0) : perHome;
+  const rebase = (toTierId) => {
+    const t = tierById(toTierId).defaultRate;
+    return t != null ? t : 0;
+  };
+
+  if (merged.tierManual && merged.tierId) {
+    // A human owns the tier. The rate and the annual still follow the facts —
+    // editing the door count of a manually-set tier must still reprice it.
+    //
+    // And the rate has to follow the TIER, by the same rule as the automatic
+    // path. Picking On-Site by hand used to carry the outgoing Full-Service
+    // default across: at 226 homes the $2,500 floor hid it, but at 400 homes it
+    // quoted $3,592/mo for a flat-fee tier — a wrong number on the board's
+    // document, arrived at from a rate that tier does not have. A rate a staffer
+    // actually set is still never touched.
+    const movedByHand = merged.tierId !== current.tierId;
+    const manualPerHome = movedByHand && rateUntouched ? rebase(merged.tierId) : perHome;
+    const quoteValue = Math.round(pricing({ ...merged, homes, perHome: manualPerHome }).monthlyNum * 12);
+    return { tierId: merged.tierId, perHome: manualPerHome, quoteValue, tierChanged: false, rec, manual: true };
+  }
+
+  const tierChanged = rec.tierId !== current.tierId;
+  const nextPerHome = tierChanged && rateUntouched ? rebase(rec.tierId) : perHome;
   const quoteValue = Math.round(pricing({ ...merged, homes, perHome: nextPerHome, tierId: rec.tierId }).monthlyNum * 12);
   return { tierId: rec.tierId, perHome: nextPerHome, quoteValue, tierChanged, rec, manual: false };
 }
