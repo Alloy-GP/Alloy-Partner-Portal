@@ -13,6 +13,9 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // columns by title+type. This works for any client board following the layout.
 
 const MONDAY_API = "https://api.monday.com/v2";
+// Realtime events we register per main board. Keep in sync with admin/index.ts
+// (ensureMondayWebhooks); "reconcile" below deletes+recreates exactly this set.
+const WEBHOOK_EVENTS = ["change_column_value", "create_item", "item_deleted", "change_subitem_column_value", "create_subitem"];
 
 // Group titles (matched case-insensitively, trimmed).
 const PROJECT_GROUP_TITLES = new Set(["active projects", "strategy & reporting"]);
@@ -203,8 +206,17 @@ Deno.serve(async (req) => {
 
     if (body && body.challenge) return Response.json({ challenge: body.challenge });
 
-    const expected = Deno.env.get("SYNC_SECRET");
-    if (expected && url.searchParams.get("secret") !== expected) {
+    // AUTH — FAIL CLOSED. This was `if (expected && provided !== expected)`: dormant
+    // while SYNC_SECRET was unset, then armed the day the secret was created
+    // (2026-08-17) — and every caller that sent no secret has 401'd since.
+    // For this function that was the 30-min cron AND every Monday webhook: the
+    // portal sat on 23-day-old boards while Sync Health said so in red.
+    // Accept the secret from the x-sync-secret header (cron; stays out of URL logs)
+    // or ?secret= (Monday webhooks can't send headers). An unset secret means
+    // "nobody", never "everybody".
+    const secret = Deno.env.get("SYNC_SECRET") || "";
+    const provided = req.headers.get("x-sync-secret") || url.searchParams.get("secret") || "";
+    if (!secret || provided !== secret) {
       return new Response("unauthorized", { status: 401 });
     }
 
@@ -215,6 +227,47 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // ── Webhook maintenance (secret-gated, ops-only) ─────────────────────────
+    // Monday can't send headers, so a webhook proves itself with ?secret= in its
+    // URL. The webhooks admin registered before 2026-08-17 carry no secret and
+    // have been rejected ever since. Monday's API does not expose a webhook's
+    // URL, so "list" shows what's registered (event per board) and "reconcile"
+    // replaces THIS function's event set on each main board with fresh
+    // registrations that carry the secret. Only events in WEBHOOK_EVENTS are
+    // touched; anything else on the board is left alone. `boards` (list only)
+    // overrides the account boards, e.g. to inspect the roadmap boards.
+    if (body?.webhooks === "list" || body?.webhooks === "reconcile") {
+      const { data: accts } = await supabase
+        .from("accounts").select("id, short_name, monday_board_id").not("monday_board_id", "is", null);
+      const accountBoards = (accts ?? []).map((a: any) => String(a.monday_board_id));
+      const boards: string[] = body.webhooks === "list" && Array.isArray(body.boards) && body.boards.length
+        ? body.boards.map(String) : accountBoards;
+      const nameOf = new Map((accts ?? []).map((a: any) => [String(a.monday_board_id), a.short_name]));
+      const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday?secret=${encodeURIComponent(secret)}`;
+      const LIST = `query ($b: ID!) { webhooks(board_id: $b) { id event } }`;
+      const report: any[] = [];
+      for (const b of boards) {
+        const existing: { id: string; event: string }[] = (await monday(token, LIST, { b }))?.webhooks ?? [];
+        const row: any = { board: b, account: nameOf.get(b) ?? null, before: existing.map((w) => w.event) };
+        if (body.webhooks === "reconcile") {
+          const ours = existing.filter((w) => WEBHOOK_EVENTS.includes(w.event));
+          for (const w of ours) {
+            await monday(token, `mutation ($id: ID!) { delete_webhook(id: $id) { id } }`, { id: w.id });
+          }
+          for (const event of WEBHOOK_EVENTS) {
+            await monday(token,
+              `mutation ($b: ID!, $u: String!, $e: WebhookEventType!) { create_webhook(board_id: $b, url: $u, event: $e) { id } }`,
+              { b, u: webhookUrl, e: event });
+          }
+          row.deleted = ours.length;
+          row.created = WEBHOOK_EVENTS.length;
+          row.after = ((await monday(token, LIST, { b }))?.webhooks ?? []).map((w: any) => w.event);
+        }
+        report.push(row);
+      }
+      return Response.json({ ok: true, mode: body.webhooks, report });
+    }
 
     const eventBoardId = body?.event?.boardId ? String(body.event.boardId) : null;
 

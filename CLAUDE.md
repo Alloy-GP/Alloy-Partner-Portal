@@ -53,6 +53,30 @@ the deployed copy drifted from the type-checked on-disk source). After deploy,
 `rollup-whatconverts` are `verify_jwt: false`; `qualify-lead`/`zendesk`/`admin`
 are `verify_jwt: true`.
 
+## SYNC_SECRET — every unattended sync endpoint fails closed
+`sync-monday`, `sync-monday-roadmap`, `sync-monday-assets`, `sync-dash-assets`,
+`sync-quickbooks`, `generate-snapshot`, `auto-send-snapshots`, `wc-clear-sales`,
+`sync-whatconverts`, `rollup-whatconverts` are `verify_jwt: false` and require
+`SYNC_SECRET`: header `x-sync-secret` (preferred) or `?secret=` (Monday webhooks
+can't send headers). Unset secret = nobody gets in, never everybody.
+- **Every pg_cron job that calls one MUST send the header.** Copy the value in SQL
+  from a job that already has it (`substring(command from 'x-sync-secret"\s*:\s*"([^"]+)"')`),
+  never paste it into a migration. Pattern: `20260909200000_cron_send_sync_secret.sql`.
+- **Monday webhooks** are registered with `?secret=` in the URL (admin
+  `ensureMondayWebhooks`). Monday never exposes a webhook's URL, so to replace
+  stale ones POST `{"webhooks":"reconcile"}` to sync-monday (with the header);
+  `{"webhooks":"list"}` is the read-only preview.
+- Function-to-function calls (admin, generate-snapshot) send the header too.
+- 2026-08-17 → 09-09 outage: the secret was created for WhatConverts and armed
+  every other function's dormant `if (expected && …)` gate; five cron jobs 401'd
+  for 23 days. Sync Health red "Nd ago" on EVERY board = check
+  `net._http_response` for 401s first, then `cron.job` commands.
+- No supabase MCP available? Management API works with the MCP's access token:
+  `POST /v1/projects/{ref}/functions/deploy?slug=X` (multipart: `metadata`
+  `{entrypoint_path,name,verify_jwt}` + `file`), `POST …/database/query`. Pass
+  the function's CURRENT `verify_jwt` (list them via `GET …/functions`) — a wrong
+  flag silently breaks cron/webhooks.
+
 ## Editing screens-rest.jsx
 Lines contain non-ASCII (·, —, …, ✓). The Edit tool's exact-match can fail on
 these. For large/awkward edits, splice with a Python script (reads/writes UTF-8)
