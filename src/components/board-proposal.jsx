@@ -1,6 +1,6 @@
 import React from 'react';
 import { getLeads, enrichLead } from '../lib/proposalMockData.js';
-import { COLORS, buildSubmission } from '../lib/boardData.js';
+import { COLORS, buildSubmission, communityNoun } from '../lib/boardData.js';
 import { camFor, DEFAULT_CAM } from '../lib/camProfiles.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 
@@ -571,7 +571,7 @@ function ProposalExp({ lead, submission }) {
       <section data-section="Your team" style={{ padding: '0 36px 64px', background: c.offWhite }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <Eyebrow color={c.pink}>Your team</Eyebrow>
-          <h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 36, color: c.purple, margin: '12px 0 24px', letterSpacing: '-0.015em' }}>{cam.team.length} humans who'll know your buildings.</h2>
+          <h2 style={{ fontFamily: 'Gotham, sans-serif', fontWeight: 800, fontSize: 36, color: c.purple, margin: '12px 0 24px', letterSpacing: '-0.015em' }}>{cam.team.length} humans who'll know your {communityNoun(lead.metaType)}.</h2>
           <div className="bp-team" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(cam.team.length, 4)}, 1fr)`, gap: 12 }}>
             {cam.team.map((t) => (
               <div key={t.name} style={{ background: '#fff', borderRadius: 12, padding: 20, border: `1px solid ${c.lightGray}`, display: 'flex', flexDirection: 'column', gap: 12 }}>

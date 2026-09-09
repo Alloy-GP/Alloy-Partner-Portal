@@ -109,6 +109,29 @@ import { monthlyFor } from "./proposalTier.js";
 
 // The board link lives 30 days from the real send — same figure aggregateWatch
 // uses for its expiry countdown, so the doc and the cockpit cannot disagree.
+// What to call the place, on the board's own document.
+//
+// The team heading read "N humans who'll know your buildings" for every
+// proposal. That is right for a condominium or a high-rise and wrong for
+// everything else CMGT manages — a single-family HOA or a townhome community does
+// not have "buildings", and a board reading its own proposal notices the word
+// that does not describe it.
+//
+// Driven off the community type the board itself answered, so it self-corrects
+// rather than needing a rep to remember. Anything that reads as stacked or
+// vertical keeps "buildings"; everything else is a "community".
+//
+// FIRST PIECE OF PER-CAM COPY. The board document still hardcodes about ten
+// other lines of prose in one voice ("We don't send template proposals", "Your
+// board is moving forward"), which is fine while CMGT is the only CAM and wrong
+// the moment there are two. When that copy moves into camProfiles.js this belongs
+// with it.
+export function communityNoun(metaType) {
+  return /condo|high.?rise|mid.?rise|tower|apartment/i.test(String(metaType || ''))
+    ? 'buildings'
+    : 'community';
+}
+
 export const LINK_LIFE_DAYS = 30;
 const fmtLongDate = (iso, plusDays = 0) => {
   const t = iso ? Date.parse(iso) : NaN;
