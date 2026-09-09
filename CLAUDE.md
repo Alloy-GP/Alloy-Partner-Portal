@@ -65,7 +65,8 @@ can't send headers). Unset secret = nobody gets in, never everybody.
 - **Monday webhooks** are registered with `?secret=` in the URL (admin
   `ensureMondayWebhooks`). Monday never exposes a webhook's URL, so to replace
   stale ones POST `{"webhooks":"reconcile"}` to sync-monday (with the header);
-  `{"webhooks":"list"}` is the read-only preview.
+  `{"webhooks":"list"}` is the read-only preview. Add `"target":"roadmap"` for
+  the Growth Roadmap boards (-> sync-monday-roadmap).
 - Function-to-function calls (admin, generate-snapshot) send the header too.
 - 2026-08-17 → 09-09 outage: the secret was created for WhatConverts and armed
   every other function's dormant `if (expected && …)` gate; five cron jobs 401'd

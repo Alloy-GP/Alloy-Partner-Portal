@@ -16,6 +16,9 @@ const MONDAY_API = "https://api.monday.com/v2";
 // Realtime events we register per main board. Keep in sync with admin/index.ts
 // (ensureMondayWebhooks); "reconcile" below deletes+recreates exactly this set.
 const WEBHOOK_EVENTS = ["change_column_value", "create_item", "item_deleted", "change_subitem_column_value", "create_subitem"];
+// The set registered on every Growth Roadmap board (-> sync-monday-roadmap). No
+// create_subitem: that function creates the milestone subitems itself.
+const ROADMAP_WEBHOOK_EVENTS = ["change_column_value", "create_item", "item_deleted", "change_subitem_column_value"];
 
 // Group titles (matched case-insensitively, trimmed).
 const PROJECT_GROUP_TITLES = new Set(["active projects", "strategy & reporting"]);
@@ -234,39 +237,45 @@ Deno.serve(async (req) => {
     // have been rejected ever since. Monday's API does not expose a webhook's
     // URL, so "list" shows what's registered (event per board) and "reconcile"
     // replaces THIS function's event set on each main board with fresh
-    // registrations that carry the secret. Only events in WEBHOOK_EVENTS are
+    // registrations that carry the secret. Only the target's own event set is
     // touched; anything else on the board is left alone. `boards` (list only)
-    // overrides the account boards, e.g. to inspect the roadmap boards.
+    // overrides the account boards. `target`: "main" (default) = each account's
+    // main board -> this function; "roadmap" = each Growth Roadmap board ->
+    // sync-monday-roadmap (same outage, same fix, different URL + event set).
     if (body?.webhooks === "list" || body?.webhooks === "reconcile") {
+      const target = body.target === "roadmap" ? "roadmap" : "main";
+      const col = target === "roadmap" ? "monday_roadmap_board_id" : "monday_board_id";
+      const fn = target === "roadmap" ? "sync-monday-roadmap" : "sync-monday";
+      const events = target === "roadmap" ? ROADMAP_WEBHOOK_EVENTS : WEBHOOK_EVENTS;
       const { data: accts } = await supabase
-        .from("accounts").select("id, short_name, monday_board_id").not("monday_board_id", "is", null);
-      const accountBoards = (accts ?? []).map((a: any) => String(a.monday_board_id));
+        .from("accounts").select(`id, short_name, ${col}`).not(col, "is", null);
+      const accountBoards = (accts ?? []).map((a: any) => String(a[col]));
       const boards: string[] = body.webhooks === "list" && Array.isArray(body.boards) && body.boards.length
         ? body.boards.map(String) : accountBoards;
-      const nameOf = new Map((accts ?? []).map((a: any) => [String(a.monday_board_id), a.short_name]));
-      const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday?secret=${encodeURIComponent(secret)}`;
+      const nameOf = new Map((accts ?? []).map((a: any) => [String(a[col]), a.short_name]));
+      const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/${fn}?secret=${encodeURIComponent(secret)}`;
       const LIST = `query ($b: ID!) { webhooks(board_id: $b) { id event } }`;
       const report: any[] = [];
       for (const b of boards) {
         const existing: { id: string; event: string }[] = (await monday(token, LIST, { b }))?.webhooks ?? [];
         const row: any = { board: b, account: nameOf.get(b) ?? null, before: existing.map((w) => w.event) };
         if (body.webhooks === "reconcile") {
-          const ours = existing.filter((w) => WEBHOOK_EVENTS.includes(w.event));
+          const ours = existing.filter((w) => events.includes(w.event));
           for (const w of ours) {
             await monday(token, `mutation ($id: ID!) { delete_webhook(id: $id) { id } }`, { id: w.id });
           }
-          for (const event of WEBHOOK_EVENTS) {
+          for (const event of events) {
             await monday(token,
               `mutation ($b: ID!, $u: String!, $e: WebhookEventType!) { create_webhook(board_id: $b, url: $u, event: $e) { id } }`,
               { b, u: webhookUrl, e: event });
           }
           row.deleted = ours.length;
-          row.created = WEBHOOK_EVENTS.length;
+          row.created = events.length;
           row.after = ((await monday(token, LIST, { b }))?.webhooks ?? []).map((w: any) => w.event);
         }
         report.push(row);
       }
-      return Response.json({ ok: true, mode: body.webhooks, report });
+      return Response.json({ ok: true, mode: body.webhooks, target, report });
     }
 
     const eventBoardId = body?.event?.boardId ? String(body.event.boardId) : null;
