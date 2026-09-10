@@ -62,7 +62,13 @@ async function mondayApi(query: string, variables: Record<string, unknown>) {
 }
 
 async function ensureMondayWebhooks(boardId: string) {
-  const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
+  // Monday can't send headers, so the webhook proves itself with ?secret= in its
+  // URL — sync-monday fails closed without it (the bare-URL webhooks registered
+  // before 2026-08-17 were all rejected once SYNC_SECRET existed). Monday never
+  // exposes a webhook's URL, so this can only ADD missing events; replacing the
+  // old bare ones is sync-monday's {"webhooks":"reconcile"} job.
+  const secret = Deno.env.get("SYNC_SECRET") || "";
+  const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday?secret=${encodeURIComponent(secret)}`;
   const data = await mondayApi(`query ($b: ID!) { webhooks(board_id: $b) { id event } }`, { b: boardId });
   const existing = new Set((data?.webhooks || []).map((w: any) => w.event));
   for (const event of WEBHOOK_EVENTS) {
@@ -75,9 +81,8 @@ async function ensureMondayWebhooks(boardId: string) {
 }
 
 async function triggerSync(boardId: string) {
-  const secret = Deno.env.get("SYNC_SECRET");
-  const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
-  await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: { boardId } }) });
+  const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
+  await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" }, body: JSON.stringify({ event: { boardId } }) });
 }
 
 // Wire up Monday for an account if it has a board id. Returns a status string
@@ -96,9 +101,8 @@ async function onboardMonday(boardId: unknown): Promise<string | null> {
 // Pull this account's WhatConverts leads now (best-effort).
 async function syncWhatConverts(accountId: string): Promise<string | null> {
   try {
-    const secret = Deno.env.get("SYNC_SECRET");
-    const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
-    const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId }) });
+    const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts`;
+    const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" }, body: JSON.stringify({ accountId }) });
     const j = await r.json().catch(() => ({}));
     return j && j.ok ? "synced" : ("error: " + JSON.stringify(j));
   } catch (e) {
@@ -680,10 +684,9 @@ Deno.serve(async (req) => {
       // Staff "refresh from latest": re-pull this client's Monday board and
       // rebuild the draft, keeping the edited headline + note.
       if (!body.account_id) return json({ error: "account_id required" }, 400);
-      const secret = Deno.env.get("SYNC_SECRET");
-      const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-snapshot${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+      const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-snapshot`;
       const r = await fetch(u, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" },
         body: JSON.stringify({ accountId: body.account_id, preserve: true }),
       });
       const result = await r.json().catch(() => ({}));

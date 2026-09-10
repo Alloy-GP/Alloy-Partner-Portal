@@ -112,8 +112,15 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch { /* empty */ }
 
-    const secret = Deno.env.get("SYNC_SECRET");
-    if (secret && url.searchParams.get("secret") !== secret) {
+    // AUTH — FAIL CLOSED. This was `if (expected && provided !== expected)`: dormant
+    // while SYNC_SECRET was unset, then armed the day the secret was created
+    // (2026-08-17) — and every caller that sent no secret has 401'd since.
+    // Accept the secret from the x-sync-secret header (cron; stays out of URL logs)
+    // or ?secret= (Monday webhooks can't send headers). An unset secret means
+    // "nobody", never "everybody".
+    const secret = Deno.env.get("SYNC_SECRET") || "";
+    const provided = req.headers.get("x-sync-secret") || url.searchParams.get("secret") || "";
+    if (!secret || provided !== secret) {
       return new Response("unauthorized", { status: 401 });
     }
 
@@ -131,13 +138,13 @@ Deno.serve(async (req) => {
     // of every client.
     if (!body.skipSync) {
       try {
-        const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+        const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
         let syncBody = "{}";
         if (onlyAccount) {
           const { data: a } = await supabase.from("accounts").select("monday_board_id").eq("id", onlyAccount).maybeSingle();
           if (a?.monday_board_id) syncBody = JSON.stringify({ event: { boardId: a.monday_board_id } });
         }
-        await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: syncBody });
+        await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": secret }, body: syncBody });
         // Also refresh WhatConverts leads so "new leads" is current.
         const wc = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
         await fetch(wc, { method: "POST", headers: { "Content-Type": "application/json" }, body: onlyAccount ? JSON.stringify({ accountId: onlyAccount }) : "{}" });

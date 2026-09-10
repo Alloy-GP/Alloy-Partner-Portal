@@ -99,8 +99,15 @@ async function emailSnapshot(supabase: any, snap: any): Promise<number> {
 Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
-    const secret = Deno.env.get("SYNC_SECRET");
-    if (secret && url.searchParams.get("secret") !== secret) {
+    // AUTH — FAIL CLOSED. This was `if (expected && provided !== expected)`: dormant
+    // while SYNC_SECRET was unset, then armed the day the secret was created
+    // (2026-08-17) — and every caller that sent no secret has 401'd since.
+    // Accept the secret from the x-sync-secret header (cron; stays out of URL logs)
+    // or ?secret= (Monday webhooks can't send headers). An unset secret means
+    // "nobody", never "everybody".
+    const secret = Deno.env.get("SYNC_SECRET") || "";
+    const provided = req.headers.get("x-sync-secret") || url.searchParams.get("secret") || "";
+    if (!secret || provided !== secret) {
       return new Response("unauthorized", { status: 401 });
     }
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
