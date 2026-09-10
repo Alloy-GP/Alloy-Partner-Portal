@@ -44,9 +44,15 @@ export function summarizeWatchdog({ runs = [], alerts = [], now = Date.now() } =
 }
 
 // One-line, human label for an alert row: "monday-daily failing since 3h ago".
+// A flaky job (fails some ticks, passes others) says so with the ratio, and
+// an alert that is currently clear but inside its recovery hold says that too.
 export function describeAlert(a, now = Date.now()) {
+  const d = a.detail || {};
   const verb = a.kind === 'stale' ? 'silent' : 'failing';
   const since = rel(a.first_seen, now);
-  const err = a.detail && (a.detail.error || (Array.isArray(a.detail.boards) ? a.detail.boards.join(', ') : ''));
-  return `${a.source} ${verb} since ${since}${err ? ` - ${err}` : ''}`;
+  const err = d.error || (Array.isArray(d.boards) ? d.boards.join(', ') : '');
+  const flaky = d.fails_recent != null && d.runs_recent != null && d.fails_recent < d.runs_recent
+    ? ` (flaky: ${d.fails_recent} of ${d.runs_recent} runs failed in ${d.recent_hours || 6}h)` : '';
+  const holding = a.clear_since ? `; clear since ${rel(a.clear_since, now)}, resolving if it holds` : '';
+  return `${a.source} ${verb} since ${since}${flaky}${err ? ` - ${err}` : ''}${holding}`;
 }

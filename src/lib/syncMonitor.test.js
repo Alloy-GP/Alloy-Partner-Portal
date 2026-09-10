@@ -61,6 +61,19 @@ describe('describeAlert', () => {
     const a = { kind: 'stale', source: 'monday-boards', first_seen: ago(3 * H), detail: { boards: ['RISE (3h)', 'KC (3h)'] } };
     expect(describeAlert(a, NOW)).toBe('monday-boards silent since 3h ago - RISE (3h), KC (3h)');
   });
+  it('calls out a flaky job with its failure ratio', () => {
+    const a = { kind: 'fail', source: 'whatconverts-daily', first_seen: ago(5 * H),
+      detail: { error: 'RISE: statement timeout', fails_recent: 5, runs_recent: 12, recent_hours: 6 } };
+    expect(describeAlert(a, NOW)).toBe('whatconverts-daily failing since 5h ago (flaky: 5 of 12 runs failed in 6h) - RISE: statement timeout');
+  });
+  it('says when the problem is clear but the recovery hold is still running', () => {
+    const a = { kind: 'fail', source: 'monday-daily', first_seen: ago(4 * H), clear_since: ago(40 * MIN), detail: { error: 'HTTP 504' } };
+    expect(describeAlert(a, NOW)).toBe('monday-daily failing since 4h ago - HTTP 504; clear since 40m ago, resolving if it holds');
+  });
+  it('does not call a job flaky when every recent run failed', () => {
+    const a = { kind: 'fail', source: 'x', first_seen: ago(H), detail: { error: 'HTTP 401', fails_recent: 4, runs_recent: 4 } };
+    expect(describeAlert(a, NOW)).toBe('x failing since 1h ago - HTTP 401');
+  });
 });
 
 describe('rel', () => {

@@ -14,8 +14,15 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //             expression; never under 2h). Plus the data-level check that would
 //             have caught the 2026-08-17 outage on day one: every Monday board
 //             must re-stamp monday_sync_status within 2h.
-// 3. ALERT    sync_alerts holds open problems. New -> email staff now. Still
-//             open after 24h -> reminder. Gone -> "recovered" email + resolve.
+// 3. ALERT    sync_alerts holds open problems, with HYSTERESIS so a flapping
+//             job is one incident, not one email per flip (first night: 19 of
+//             41 WhatConverts runs failed, never twice in a row, 22 emails):
+//               - a frequent job (window <= 6h) gets one bad tick free: alert
+//                 on two failures in a row or >= 3 in 6h; daily+ jobs alert on
+//                 any failure. Once open, it stays open while either holds.
+//               - recovery must HOLD 2h (frequent jobs) before "recovered";
+//                 a failure inside the hold is a flap, counted, not emailed.
+//               - new -> email now; still open after 24h -> reminder.
 //             One email per run, however many problems changed. The email goes
 //             out BEFORE state is written, so a Resend failure retries next run.
 //
@@ -29,6 +36,10 @@ const HEALTH_URL = `${PORTAL_URL}/admin/health`;
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
 const REMIND_MS = 24 * 3600_000;
 const BOARD_STALE_MS = 2 * 3600_000; // matches SyncHealth.jsx STALE_MS
+const FREQUENT_MS = 6 * 3600_000;      // a job whose silence window is <= this runs often enough to flap
+const FLAP_WINDOW_MS = 6 * 3600_000;   // count a frequent job's failures over this window...
+const FLAP_THRESHOLD = 3;              // ...and this many = flaky = alert, even if never two in a row
+const RECOVERY_HOLD_MS = 2 * 3600_000; // a frequent job must stay clean this long before "recovered"
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 type Pending = {
@@ -124,7 +135,9 @@ function describe(p: Problem): { title: string; what: string } {
       : `no run in ${d.window_hours}h (schedule "${d.schedule}"; last ${d.last_run ? new Date(d.last_run).toUTCString() : "never"})`;
     return { title: `${p.source} is silent`, what };
   }
-  return { title: `${p.source} is failing`, what: `${d.status_code != null ? `HTTP ${d.status_code} - ` : ""}${d.error ?? "failed"}` };
+  const flaky = d.fails_recent != null && d.runs_recent != null && d.fails_recent < d.runs_recent
+    ? ` (flaky: ${d.fails_recent} of ${d.runs_recent} runs failed in the last ${d.recent_hours}h)` : "";
+  return { title: `${p.source} is failing`, what: `${d.status_code != null ? `HTTP ${d.status_code} - ` : ""}${d.error ?? "failed"}${flaky}` };
 }
 
 function renderEmail(fresh: Problem[], reminders: Problem[], recovered: any[]): { subject: string; html: string; text: string } {
@@ -146,7 +159,8 @@ function renderEmail(fresh: Problem[], reminders: Problem[], recovered: any[]): 
   block("New", fresh.map(describe), "#b03a3a");
   block("Still broken (daily reminder)", reminders.map(describe), "#b03a3a");
   block("Recovered", recovered.map((a) => ({
-    title: a.source, what: `was ${a.kind === "stale" ? "silent" : "failing"} since ${new Date(a.first_seen).toUTCString()}`,
+    title: a.source,
+    what: `was ${a.kind === "stale" ? "silent" : "failing"} since ${new Date(a.first_seen).toUTCString()}${a.flap_count ? `, came back ${a.flap_count}x before staying clear` : ""}`,
   })), "#2c8a6e");
   const html = `<div style="max-width:640px;margin:0 auto;padding:20px;font:14px/1.5 Inter,Arial,sans-serif;color:#222">
     <div style="font:800 18px/1.2 Poppins,Inter,Arial,sans-serif;color:#3b1e6e">Sync watchdog</div>
@@ -210,18 +224,40 @@ Deno.serve(async (req) => {
       .gte("started_at", new Date(now - 9 * 86400_000).toISOString())
       .order("started_at", { ascending: false }).limit(3000);
     if (rErr) throw rErr;
-    const latest = new Map<string, Run>();
-    for (const r of (recent ?? []) as Run[]) if (!latest.has(r.source)) latest.set(r.source, r);
+    const bySource = new Map<string, Run[]>(); // newest first (query is ordered desc)
+    for (const r of (recent ?? []) as Run[]) { const l = bySource.get(r.source) ?? []; l.push(r); bySource.set(r.source, l); }
+    const { data: openRows, error: oErr } = await db.from("sync_alerts").select("*").is("resolved_at", null);
+    if (oErr) throw oErr;
+    const open = new Map<string, any>((openRows ?? []).map((a: any) => [a.key, a]));
+    const holdMs = new Map<string, number>(); // per source: how long a recovery must hold before it counts
 
     const problems: Problem[] = [];
     for (const j of (jobs ?? []) as { jobname: string; schedule: string; active: boolean }[]) {
       if (!j.active) continue;
-      const last = latest.get(j.jobname);
-      if (last && !last.ok) {
-        problems.push({ key: `fail:${j.jobname}`, kind: "fail", source: j.jobname,
-          detail: { error: last.error, status_code: last.status_code, at: last.started_at, schedule: j.schedule } });
-      }
+      const runs = bySource.get(j.jobname) ?? [];
+      const last = runs[0];
       const win = maxSilenceMs(j.schedule);
+      const frequent = win != null && win <= FREQUENT_MS;
+      holdMs.set(j.jobname, frequent ? RECOVERY_HOLD_MS : 0);
+      const recentRuns = runs.filter((r) => now - Date.parse(r.started_at) <= FLAP_WINDOW_MS);
+      const failsRecent = recentRuns.filter((r) => !r.ok).length;
+      const failingNow = !!last && !last.ok;
+      const prevFailed = !!runs[1] && !runs[1].ok;
+      const alreadyOpen = open.has(`fail:${j.jobname}`);
+      // A frequent job gets one bad tick free: alert on two in a row, or on
+      // FLAP_THRESHOLD failures inside the window (flaky); once open, stay open
+      // while either holds. Infrequent jobs (daily+) alert on any failure —
+      // one miss there is a day of missing data.
+      const present = frequent
+        ? (failingNow && (prevFailed || failsRecent >= FLAP_THRESHOLD)) || (alreadyOpen && (failingNow || failsRecent >= FLAP_THRESHOLD))
+        : failingNow;
+      if (present) {
+        const lastFail = runs.find((r) => !r.ok) ?? last;
+        problems.push({ key: `fail:${j.jobname}`, kind: "fail", source: j.jobname, detail: {
+          error: lastFail.error, status_code: lastFail.status_code, at: lastFail.started_at, schedule: j.schedule,
+          fails_recent: failsRecent, runs_recent: recentRuns.length, recent_hours: FLAP_WINDOW_MS / 3600_000,
+        } });
+      }
       if (win != null) {
         const lastAt = last ? Date.parse(last.started_at) : trackingSince;
         if (now - lastAt > win) {
@@ -238,19 +274,31 @@ Deno.serve(async (req) => {
     if (staleBoards.length) {
       problems.push({ key: "stale:monday-boards", kind: "stale", source: "monday-boards", detail: { boards: staleBoards } });
     }
+    holdMs.set("monday-boards", RECOVERY_HOLD_MS);
 
-    // 3) ALERT — diff against open alerts; email first, then persist.
-    const { data: openRows, error: oErr } = await db.from("sync_alerts").select("*").is("resolved_at", null);
-    if (oErr) throw oErr;
-    const open = new Map<string, any>((openRows ?? []).map((a: any) => [a.key, a]));
+    // 3) ALERT — diff against open alerts, with hysteresis; email first, then persist.
+    //   new problem          -> insert + "New"
+    //   open, still present  -> a running recovery hold means it came BACK: flap, cleared, no email;
+    //                           remind every 24h
+    //   open, absent         -> start (or continue) the recovery hold; "Recovered" only once it has held
+    const problemByKey = new Map(problems.map((p) => [p.key, p]));
     const fresh: Problem[] = [], reminders: Problem[] = [], recovered: any[] = [];
-    for (const p of problems) {
-      const a = open.get(p.key);
-      if (!a) fresh.push(p);
-      else if (!a.last_notified_at || now - Date.parse(a.last_notified_at) > REMIND_MS) reminders.push(p);
+    const patches = new Map<number, any>();
+    for (const p of problems) if (!open.has(p.key)) fresh.push(p);
+    for (const a of openRows ?? []) {
+      const p = problemByKey.get(a.key);
+      if (p) {
+        const patch: any = { last_seen: nowIso, detail: p.detail };
+        if (a.clear_since) { patch.clear_since = null; patch.flap_count = (a.flap_count ?? 0) + 1; }
+        if (!a.last_notified_at || now - Date.parse(a.last_notified_at) > REMIND_MS) reminders.push(p);
+        patches.set(a.id, patch);
+      } else {
+        const hold = holdMs.get(a.source) ?? 0;
+        const clearSince = a.clear_since ? Date.parse(a.clear_since) : now;
+        if (now - clearSince >= hold) recovered.push(a);
+        else if (!a.clear_since) patches.set(a.id, { clear_since: nowIso });
+      }
     }
-    const keys = new Set(problems.map((p) => p.key));
-    for (const a of openRows ?? []) if (!keys.has(a.key)) recovered.push(a);
 
     let emailed = false;
     const changed = fresh.length + reminders.length + recovered.length > 0;
@@ -258,20 +306,24 @@ Deno.serve(async (req) => {
       const mail = renderEmail(fresh, reminders, recovered);
       emailed = await sendEmail(await recipients(db), mail.subject, mail.html, mail.text);
     }
-    for (const p of problems) {
-      const a = open.get(p.key);
-      if (!a) {
-        const { error } = await db.from("sync_alerts").insert({
-          key: p.key, kind: p.kind, source: p.source, detail: p.detail,
-          first_seen: nowIso, last_seen: nowIso, last_notified_at: emailed ? nowIso : null, notify_count: emailed ? 1 : 0,
-        });
-        if (error) throw error;
-      } else {
-        const patch: any = { last_seen: nowIso, detail: p.detail };
-        if (reminders.includes(p) && emailed) { patch.last_notified_at = nowIso; patch.notify_count = (a.notify_count ?? 0) + 1; }
-        const { error } = await db.from("sync_alerts").update(patch).eq("id", a.id);
-        if (error) throw error;
+    for (const p of fresh) {
+      const { error } = await db.from("sync_alerts").insert({
+        key: p.key, kind: p.kind, source: p.source, detail: p.detail,
+        first_seen: nowIso, last_seen: nowIso, last_notified_at: emailed ? nowIso : null, notify_count: emailed ? 1 : 0,
+      });
+      if (error) throw error;
+    }
+    if (emailed) {
+      for (const p of reminders) {
+        const a = open.get(p.key);
+        const patch = patches.get(a.id) ?? {};
+        patch.last_notified_at = nowIso; patch.notify_count = (a.notify_count ?? 0) + 1;
+        patches.set(a.id, patch);
       }
+    }
+    for (const [id, patch] of patches) {
+      const { error } = await db.from("sync_alerts").update(patch).eq("id", id);
+      if (error) throw error;
     }
     for (const a of recovered) {
       const { error } = await db.from("sync_alerts").update({ resolved_at: nowIso }).eq("id", a.id);

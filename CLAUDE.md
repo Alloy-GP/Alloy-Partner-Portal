@@ -84,8 +84,11 @@ every cron job's pg_net result into `sync_runs`, classifies it (HTTP status,
 timeout, body `ok:false` / `failed>0` / per-account `error`) and keeps open
 problems in `sync_alerts`: ONE email to staff when a job starts failing or goes
 silent (no run inside ≥4 intervals / ≥2h, or a Monday board not re-stamped in
-2h), a reminder every 24h while it stays broken, one on recovery. Sync Health →
-"Watchdog" strip shows the heartbeat, open alerts and failed runs (24h).
+2h), a reminder every 24h while it stays broken, one on recovery. Hysteresis:
+a frequent job (≤6h window) alerts only on 2 failures in a row or ≥3 in 6h
+(flaky), and a recovery must hold 2h before it is emailed — a flapping job is
+one incident, not one email per flip. Sync Health → "Watchdog" strip shows the
+heartbeat, open alerts (with flaky ratio / hold state) and failed runs (24h).
 - **New cron job? Create it WRAPPED** so its request id is recorded:
   `insert into public.cron_http_requests (job_name, request_id) select '<jobname>', t.request_id from (select net.http_post(...)) as t(request_id);`
   An unwrapped active job shows up as permanently "silent" — that's the tell.

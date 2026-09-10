@@ -311,8 +311,20 @@ async function syncAccount(supabase: any, acct: any, startDate: string) {
         console.log(`claimed ${stolen.length} lead(s) for ${acct.short_name || acct.id} from another account (WhatConverts account reassigned)`);
       }
     }
-    const { error: upErr } = await supabase.from("leads").upsert(leads, { onConflict: "account_id,wc_lead_id" });
-    if (upErr) throw new Error(`upsert: ${upErr.message}`);
+    // In CHUNKS. PostgREST logs in as `authenticator` (statement_timeout=8s) and
+    // SET ROLE service_role does not lift that, so RISE's ~1,260 leads (~2.6 MB
+    // with journeys, 6 indexes, a per-row trigger) in ONE upsert crossed the
+    // line on 19 of 41 runs in a night: "upsert: canceling statement due to
+    // statement timeout", RISE a tick stale, staff paged 22 times. 200 rows per
+    // statement keeps each far under the limit. A mid-way failure throws, so
+    // the prune below is skipped for this account: earlier chunks are written,
+    // later ones keep last run's data, nothing is deleted.
+    const UPSERT_CHUNK = 200;
+    for (let i = 0; i < leads.length; i += UPSERT_CHUNK) {
+      const chunk = leads.slice(i, i + UPSERT_CHUNK);
+      const { error: upErr } = await supabase.from("leads").upsert(chunk, { onConflict: "account_id,wc_lead_id" });
+      if (upErr) throw new Error(`upsert (rows ${i + 1}-${i + chunk.length} of ${leads.length}): ${upErr.message}`);
+    }
   }
   //
   // PRUNE ONLY INSIDE THE WINDOW WE ACTUALLY QUERIED. This is the correctness
