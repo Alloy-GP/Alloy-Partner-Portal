@@ -25,6 +25,7 @@ import { receivedMs, fmtReceived, ageAgo, agePriority, syncFreshness } from '../
 import { matchLeadWithLLM, realignFromTranscript, LLM_ENABLED } from '../lib/proposalLLM.js';
 import { MatchRing, MatchingEngine } from './proposal-shared.jsx';
 import UVPLibrary from './screen-uvp-library.jsx';
+import ProposalStats from './proposal-stats.jsx';
 import { DATA } from '../data.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import lottie from 'lottie-web/build/player/lottie_light';
@@ -502,10 +503,11 @@ function BuildRow({ s, secs, onResume }) {
   );
 }
 
-function BuildBucket({ subs, editorMap, onResume }) {
+function BuildBucket({ subs, editorMap, onResume, stats }) {
   const inBuild = subs.filter((s) => stageOf(s) === 'qualified' && s.status !== 'sent');
   return (
     <div>
+      {stats}
       <div className="fx-inbox-head">
         <div style={{ minWidth: 0 }}>
           <div className="fx-eyebrow">In progress · being built</div>
@@ -544,7 +546,7 @@ function IntakeFlags({ flags }) {
   );
 }
 
-function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing, onArchive, onMove }) {
+function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSelectRail, onQualify, onDisqualify, onBuild, onEditDetails, onApplyMatch, perHome, setPerHome, onRealign, pendingMore, onSyncMore, syncing, onArchive, onMove, stats }) {
   const [qualifyTarget, setQualifyTarget] = useState(null);
   const [showEngine, setShowEngine] = useState(false);
   const [concernEdit, setConcernEdit] = useState(null); // index | 'new' | null (Layer B)
@@ -559,7 +561,7 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
 
   // VIEW 1 — inbox grid (nothing drilled in, or the selected lead isn't a new one)
   if (inbox || !sub || stageOf(sub) !== 'pending') {
-    return (<>{modal}<InboxGrid pending={pending} onOpen={onOpenLead} pendingMore={pendingMore} onSyncMore={onSyncMore} syncing={syncing} onArchive={onArchive} /></>);
+    return (<>{modal}{stats}<InboxGrid pending={pending} onOpen={onOpenLead} pendingMore={pendingMore} onSyncMore={onSyncMore} syncing={syncing} onArchive={onArchive} /></>);
   }
 
   // VIEW 2 — match-analysis drill-in
@@ -1338,7 +1340,7 @@ function UntrackedSentBucket({ rows, onPick }) {
   );
 }
 
-function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMove, notesMap, addNote, onEditDetails, onRealign, onOpenFull }) {
+function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMove, notesMap, addNote, onEditDetails, onRealign, onOpenFull, stats }) {
   const all = subs.filter((s) => s.status === 'sent');
   // Split before sorting: heat ranking reads getWatch(), which fabricates a
   // "fresh send" for any row with no events. Only portal-sent rows have a real
@@ -1346,7 +1348,7 @@ function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMov
   const tracked = all.filter((s) => !sentOutsidePortal(s)).sort((a, b) => HEAT_RANK[getWatch(a).heat] - HEAT_RANK[getWatch(b).heat]);
   const untracked = all.filter(sentOutsidePortal);
   if (all.length === 0) {
-    return <div className="v2-watch"><div className="v2-w-empty"><span className="ic"><I.Send width={22} height={22} /></span><div className="t">No live proposals yet</div><div className="s">Send a proposal and it'll show up here so you can track every open.</div></div></div>;
+    return (<>{stats}<div className="v2-watch"><div className="v2-w-empty"><span className="ic"><I.Send width={22} height={22} /></span><div className="t">No live proposals yet</div><div className="s">Send a proposal and it'll show up here so you can track every open.</div></div></div></>);
   }
   // Nothing focused → the bucket lists (a stage holds many). Pick one → its detail.
   // A stale watchId (the row was just moved out of Sent) falls back to the list
@@ -1354,6 +1356,7 @@ function CloseView({ subs, watchId, setWatchId, onPick, onResend, onNudge, onMov
   // toolbar still edits the moved one.
   if (!watchId || !all.some((s) => s.id === watchId)) {
     return (<>
+      {stats}
       {tracked.length > 0 && <SentBucket open={tracked} onPick={onPick} />}
       {untracked.length > 0 && <UntrackedSentBucket rows={untracked} onPick={onPick} />}
     </>);
@@ -1621,7 +1624,7 @@ function ArchiveView({ archived, onRestore, onDelete }) {
   );
 }
 
-function WonLostView({ subs, onMove }) {
+function WonLostView({ subs, onMove, stats }) {
   // Single-source predicates: the old inline filters counted a disq row with
   // status 'accepted' as BOTH won and lost.
   const won = subs.filter(inWon);
@@ -1643,7 +1646,8 @@ function WonLostView({ subs, onMove }) {
       </div>
     );
   };
-  return (
+  return (<>
+    {stats}
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 14 }}>
       <div className="v2-card">
         <div className="v2-block-label">Won · {won.length}</div>
@@ -1654,7 +1658,7 @@ function WonLostView({ subs, onMove }) {
         {lost.length ? lost.map((s) => <Row key={s.id} s={s} kind="lost" />) : <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '8px 2px' }}>None.</div>}
       </div>
     </div>
-  );
+  </>);
 }
 
 // Layer B — after hand-editing concerns, recompute the caps-derived fields so
@@ -1937,6 +1941,12 @@ export default function ProposalsScreen() {
   // Persist a proposal mutation to Supabase (live only; mock dev stays
   // session-local). RLS-scoped to the viewed account; keyed by lead_key.
   const live = isSupabaseConfigured && !!DATA.account?.id;
+  // The pipeline stats strip. Computed from `subs` — the SAME account-scoped rows
+  // every stage renders (loadData filters by account_id and RLS enforces it) —
+  // and re-checked against the viewed account inside proposalStats, which drops
+  // any row it cannot attribute to it. Each list view decides whether to show
+  // it (never on a drilled-in lead), so nothing here duplicates that logic.
+  const statsEl = <ProposalStats rows={subs} accountId={DATA.account?.id} />;
   const persist = (leadKey, patch) => {
     if (!live) return;
     supabase.from('proposals').update(patch)
@@ -2244,7 +2254,12 @@ export default function ProposalsScreen() {
     }
     // Remember the address we actually sent to (may be a custom email, not the
     // intake one) so resend/nudge and the "Sent to" line all use it.
-    setSubs((p) => p.map((s) => (s.id === selectedId && s.status !== 'accepted' ? { ...s, status: 'sent', email: recipient || s.email } : s)));
+    // Mirror the server's sent_at stamp locally. proposal-send writes it but does
+    // not return it, and without it sentOutsidePortal() reads a proposal the
+    // portal JUST emailed as "marked sent by hand" until the next reload — in
+    // the untracked Sent bucket and on the wrong side of the stats split.
+    const sentAt = new Date().toISOString();
+    setSubs((p) => p.map((s) => (s.id === selectedId && s.status !== 'accepted' ? { ...s, status: 'sent', sentAt, email: recipient || s.email } : s)));
     setWatchId(selectedId); // land in Sent focused on this proposal's engagement
     setMode('sent');
   };
@@ -2283,6 +2298,9 @@ export default function ProposalsScreen() {
     if (subsRef.current.some((s) => s.id === lead.id)) return null; // already in the pipeline
     if (archivedRef.current.some((s) => s.id === lead.id)) return null; // archived — stay gone
     const raw = leadToProposalRaw(lead, { serviceTiers: cam().serviceTiers });
+    // Stamp the tenancy the DB row gets below, so the in-session row is the same
+    // shape as a loaded one. proposalStats drops any row without it.
+    if (DATA.account?.id) raw.accountId = DATA.account.id;
     if (live) {
       // .select() the generated board_token BACK. The magic-link secret is created
       // by a column default, so if we don't read it here the freshly minted row
@@ -2504,13 +2522,13 @@ export default function ProposalsScreen() {
       {/* New — inbox grid of un-worked leads, drill into one for the match analysis. */}
       {mode === 'new' && (
         <ReviewScreen subs={subs} selectedId={selectedId} sub={sub} inbox={inbox} onOpenLead={openLead} onBack={backToInbox} onSelectRail={selectRail} onQualify={qualify} onDisqualify={disqualify} onBuild={() => { setMode('build'); setFocusBuild(true); }} onEditDetails={() => setEditOpen(true)} onApplyMatch={applyMatch} perHome={perHome} setPerHome={setPerHome} onRealign={() => setRealignOpen(true)} onMove={setMoveTarget}
-          pendingMore={pendingMore} onSyncMore={syncNow} syncing={syncing} onArchive={setArchiveTarget} />
+          pendingMore={pendingMore} onSyncMore={syncNow} syncing={syncing} onArchive={setArchiveTarget} stats={statsEl} />
       )}
       {/* Build — write it. A focused qualified lead opens the editor; otherwise the bucket list. */}
       {mode === 'build' && (
         (focusBuild && sub && stageOf(sub) === 'qualified' && sub.status !== 'sent')
           ? <BuildStage sub={sub} sections={sections} toggle={toggle} perHome={perHome} setPerHome={setPerHome} onApplyMatch={applyMatch} previewNonce={previewNonce} onContinue={() => setSendOpen(true)} live={live} />
-          : <BuildBucket subs={subs} editorMap={editorMap} onResume={resumeBuild} />
+          : <BuildBucket subs={subs} editorMap={editorMap} onResume={resumeBuild} stats={statsEl} />
       )}
       {/* Sent — their court: engagement tracking + board responses + follow-up. */}
       {mode === 'sent' && (
@@ -2518,10 +2536,10 @@ export default function ProposalsScreen() {
           onResend={(s) => resendProposal(s, 'Magic link resent')}
           onNudge={(s, opts) => resendProposal(s, 'Nudge sent', opts)}
           onMove={setMoveTarget} notesMap={notesMap} addNote={addNote}
-          onEditDetails={() => setEditOpen(true)} onRealign={() => setRealignOpen(true)} onOpenFull={(s) => window.open(BOARD_URL(s), '_blank', 'noopener')} />
+          onEditDetails={() => setEditOpen(true)} onRealign={() => setRealignOpen(true)} onOpenFull={(s) => window.open(BOARD_URL(s), '_blank', 'noopener')} stats={statsEl} />
       )}
       {/* Won / Lost — closed outcomes. */}
-      {mode === 'won' && <WonLostView subs={subs} onMove={setMoveTarget} />}
+      {mode === 'won' && <WonLostView subs={subs} onMove={setMoveTarget} stats={statsEl} />}
       {/* Client — retained book of business. */}
       {mode === 'library' && <UVPLibrary />}
       {mode === 'archive' && <ArchiveView archived={archived} onRestore={restoreLead} onDelete={setDeleteTargets} />}

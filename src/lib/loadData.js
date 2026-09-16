@@ -435,6 +435,10 @@ export async function loadAccountData(session, accountId, me) {
     // it. src/lib/intakeDrain.js takes these ids in existingIds.
     archivedProposals: (proposalsRes.data || []).filter((p) => p.archived_at).map((p) => ({
       id: p.lead_key,
+      // Same tenancy stamp as the live rows: a Restore re-enriches this shape
+      // straight into the pipeline, and the stats strip drops any row it cannot
+      // attribute to the viewed account.
+      accountId: p.account_id,
       community: p.community, contact: p.contact, city: p.city, homes: p.homes,
       email: p.email, quote: p.quote,
       receivedAt: p.received_at || null, received: p.received,
