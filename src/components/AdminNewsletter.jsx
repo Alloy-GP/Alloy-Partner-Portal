@@ -41,7 +41,14 @@ function Submission({ sub }) {
   const atts = sub.attachments || [];
   return (
     <div style={{ background: 'var(--alloy-off-white)', borderRadius: 10, padding: '12px 14px', marginTop: 10 }}>
-      {row("What's happening", sub.highlights)}
+      {row('This past month', sub.highlights)}
+      {row('Coming months', sub.focus)}
+      {row('Events', sub.events)}
+      {row('New to the team', sub.people)}
+      {row('Excited about', sub.excited)}
+      {/* Retired from the form in Sept 2026. Kept so earlier submissions still
+          render in full; row() returns null when empty, so newer ones show
+          nothing here rather than two blank labels. */}
       {row('To feature', sub.feature)}
       {row('Call to action', sub.cta)}
       {links.length ? (

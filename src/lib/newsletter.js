@@ -19,20 +19,22 @@ export function newsletterForTicketTags(tags) {
 }
 
 // Compose the human-readable ticket body from the answers.
+// Every section is conditional, because no single question is required — one
+// answer anywhere is a valid submission, and a ticket full of empty headings
+// reads like the client ignored us when they did not.
+const SECTIONS = [
+  ['highlights', 'This past month'],
+  ['focus', 'Coming months'],
+  ['events', 'Events'],
+  ['people', 'New to the team'],
+  ['excited', 'Excited about'],
+];
 function buildBody(form, title) {
-  const links = (form.links || []).filter((l) => clean(l.url));
-  const parts = [];
-  parts.push(`Newsletter content — ${title}`);
-  parts.push('');
-  parts.push(`What's happening this month:\n${clean(form.highlights) || '—'}`);
-  if (clean(form.feature)) parts.push(`\nTo feature / spotlight:\n${clean(form.feature)}`);
-  if (clean(form.cta)) parts.push(`\nCall to action:\n${clean(form.cta)}`);
-  if (links.length) {
-    parts.push('\nLinks:');
-    links.forEach((l) => parts.push(`- ${clean(l.label) ? clean(l.label) + ': ' : ''}${clean(l.url)}`));
-  }
-  if (clean(form.notes)) parts.push(`\nAnything else:\n${clean(form.notes)}`);
-  return parts.join('\n');
+  const parts = [`Newsletter content — ${title}`, ''];
+  SECTIONS.forEach(([key, heading]) => {
+    if (clean(form[key])) parts.push(`${heading}:\n${clean(form[key])}\n`);
+  });
+  return parts.join('\n').trimEnd();
 }
 
 // Submit a newsletter intake. `requestId` is the newsletter_requests row id
@@ -53,11 +55,15 @@ export async function submitNewsletter(requestId, form, files) {
   // 3) Record the submission on the request row (RLS: the client owns their row).
   if (isSupabaseConfigured && requestId) {
     const submission = {
+      // `feature`, `cta`, `links` and `notes` were dropped from the form in
+      // Sept 2026 to cut the number of decisions a client has to make. Earlier
+      // submissions still carry them and the Newsletter Room still renders them,
+      // so nothing already collected loses detail.
       highlights: clean(form.highlights),
-      feature: clean(form.feature),
-      cta: clean(form.cta),
-      links: (form.links || []).filter((l) => clean(l.url)).map((l) => ({ label: clean(l.label), url: clean(l.url) })),
-      notes: clean(form.notes),
+      focus: clean(form.focus),
+      events: clean(form.events),
+      people: clean(form.people),
+      excited: clean(form.excited),
       attachments: (files || []).map((f) => f.name),
     };
     const { error } = await supabase.from('newsletter_requests').update({
