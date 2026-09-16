@@ -7,6 +7,13 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // and breaking them down by source. Stores the aggregates on the account for
 // the dashboard's tenure banner. Runs weekly (lifetime totals move slowly).
 //
+// accounts.whatconverts_profile_id holds one or MORE WhatConverts account_ids,
+// comma/space-separated (CMGT spans three: main site + landing pages). Each id
+// is queried separately and the results merged — WhatConverts rejects the raw
+// joined string with `410 Invalid account_id parameter, please use a numeric
+// value`, which is exactly how this job failed for CMGT every Monday until it
+// was taught to split like sync-whatconverts does.
+//
 // Filtering to quotable=yes keeps the volume tiny — we only pull qualified
 // leads, not the full firehose. Optional { dry: true } returns the computed
 // stats without writing. Optional { accountId } limits to one account.
@@ -43,6 +50,11 @@ function parseSince(s: unknown): Date {
   return new Date(FLOOR);
 }
 
+// Same tokenizer as sync-whatconverts / src/lib/wcProfiles.js. Keep in step.
+function parseAccountIds(v: unknown): string[] {
+  return String(v ?? "").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+}
+
 async function fetchQualified(acctId: string, start: string, end: string): Promise<any[]> {
   const all: any[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
@@ -66,17 +78,27 @@ async function rollupAccount(acct: any) {
   const floor = new Date(FLOOR);
   if (cursor < floor) cursor = floor;
 
+  const wcIds = parseAccountIds(acct.whatconverts_profile_id);
+  if (!wcIds.length) throw new Error("no WhatConverts account id configured");
+
   const bySource: Record<string, number> = {};
   const byYear: Record<string, number> = {};   // qualified per calendar year
   let total = 0;
   let firstLead: string | null = null;
+  const seen = new Set<string>();              // WC lead_ids are global; dedup across accounts defensively
 
   // Walk forward in <=WINDOW_DAYS chunks from the start to today.
   for (let i = 0; i < 40; i++) {                 // 40 windows * 390d ~= 42 years cap
     if (cursor > today) break;
     const winEnd = new Date(Math.min(cursor.getTime() + WINDOW_DAYS * 864e5, today.getTime()));
-    const leads = await fetchQualified(acct.whatconverts_profile_id, ymd(cursor), ymd(winEnd));
+    const leads: any[] = [];
+    for (const id of wcIds) leads.push(...await fetchQualified(id, ymd(cursor), ymd(winEnd)));
     for (const l of leads) {
+      if (l.lead_id != null) {
+        const k = String(l.lead_id);
+        if (seen.has(k)) continue;
+        seen.add(k);
+      }
       total++;
       const src = String(l.lead_source || l.lead_medium || "Direct").trim() || "Direct";
       bySource[src] = (bySource[src] || 0) + 1;
