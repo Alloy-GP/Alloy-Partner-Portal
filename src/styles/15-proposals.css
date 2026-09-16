@@ -1522,3 +1522,34 @@
 .proposal-system .fx-arch-del:hover { color: var(--alloy-pink); border-color: var(--alloy-pink); background: #fff5f8; }
 /* The list of what a bulk delete is about to remove. */
 .proposal-system .fx-arch-dellist { margin: 10px 0 4px; max-height: 190px; overflow: auto; border: 1px solid var(--border-subtle); border-radius: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--fg-2); line-height: 1.75; background: var(--alloy-off-white, #faf9fc); }
+
+/* ===================== PIPELINE STATS STRIP ===================== */
+/* Two cards under the stepper on every stage LIST view (proposal-stats.jsx).
+   Ported from the "Proposal Stats" handoff; its tokens swapped for the portal's
+   own vars of the same names. The topline above already carries 20px of bottom
+   margin, so 2px here makes the handoff's 22px gap. */
+.proposal-system .fx-stats { margin: 2px 0 6px; display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+.proposal-system .fx-stat { background: #fff; border: 1px solid var(--border-subtle); border-radius: 16px; box-shadow: var(--shadow-sm); padding: 20px 20px 16px; display: grid; grid-template-rows: auto auto 1fr; row-gap: 16px; min-width: 0; }
+.proposal-system .fx-stat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.proposal-system .fx-stat-l { font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-muted); }
+.proposal-system .fx-stat-note { font-size: 11.5px; font-weight: 600; color: var(--fg-muted); text-align: right; }
+.proposal-system .fx-stat-v { font-family: var(--font-display); font-size: 40px; font-weight: 800; color: var(--alloy-purple); letter-spacing: -0.03em; line-height: 1; }
+.proposal-system .fx-stat-v small { font-size: 16px; font-weight: 700; color: var(--fg-muted); letter-spacing: -0.01em; margin-left: 2px; }
+/* Body pinned to the bottom so the hero numbers align across both cards. */
+.proposal-system .fx-stat-body { display: grid; gap: 10px; align-self: end; }
+.proposal-system .fx-stat-empty { font-size: 12.5px; font-weight: 600; color: var(--fg-muted); line-height: 1.4; }
+.proposal-system .fx-split { display: flex; height: 6px; border-radius: 999px; overflow: hidden; gap: 3px; }
+.proposal-system .fx-split span { display: block; height: 100%; border-radius: 999px; }
+.proposal-system .fx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.proposal-system .fx-tile { background: var(--alloy-purple-tint); border-radius: 12px; padding: 12px 14px; display: grid; gap: 3px; min-width: 0; }
+.proposal-system .fx-tile .n { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: var(--alloy-purple); line-height: 1.2; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.proposal-system .fx-tile .n small { font-size: 12px; color: var(--fg-muted); font-weight: 700; }
+.proposal-system .fx-tile .n .dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.proposal-system .fx-tile .t { font-size: 11.5px; font-weight: 600; color: var(--fg-muted); line-height: 1.35; }
+/* Stage colours — the bar segment and the tile dot share one rule per bucket. */
+.proposal-system .fx-split [data-bucket="new"],      .proposal-system .fx-tile .dot[data-bucket="new"]      { background: var(--alloy-yellow); }
+.proposal-system .fx-split [data-bucket="reviewed"], .proposal-system .fx-tile .dot[data-bucket="reviewed"] { background: #b9b0c9; }
+.proposal-system .fx-split [data-bucket="build"],    .proposal-system .fx-tile .dot[data-bucket="build"]    { background: var(--alloy-purple); }
+.proposal-system .fx-split [data-bucket="sent"],     .proposal-system .fx-tile .dot[data-bucket="sent"]     { background: var(--alloy-pink); }
+@media (max-width: 1240px) { .proposal-system .fx-stats { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .proposal-system .fx-stat-note { display: none; } }
