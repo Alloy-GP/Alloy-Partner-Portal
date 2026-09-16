@@ -10,8 +10,7 @@ const { useState, useEffect, useRef } = React;
 // creates a Zendesk ticket (like a New Request) AND stamps the account's open
 // newsletter round as submitted, which clears the banner.
 export default function NewsletterModal({ request, onClose, onSubmitted }) {
-  const [form, setForm] = useState({ highlights: '', feature: '', cta: '', notes: '' });
-  const [links, setLinks] = useState([{ label: '', url: '' }]);
+  const [form, setForm] = useState({ highlights: '', focus: '', events: '', people: '', excited: '' });
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -27,11 +26,6 @@ export default function NewsletterModal({ request, onClose, onSubmitted }) {
   };
   const removeFile = (i) => setFiles((f) => f.filter((_, k) => k !== i));
 
-  const setLink = (i, key) => (e) =>
-    setLinks((ls) => ls.map((l, k) => (k === i ? { ...l, [key]: e.target.value } : l)));
-  const addLink = () => setLinks((ls) => [...ls, { label: '', url: '' }]);
-  const removeLink = (i) => setLinks((ls) => (ls.length <= 1 ? ls : ls.filter((_, k) => k !== i)));
-
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !busy) onClose(); };
     document.addEventListener('keydown', onKey);
@@ -39,10 +33,15 @@ export default function NewsletterModal({ request, onClose, onSubmitted }) {
   }, [busy, onClose]);
 
   const submit = async () => {
-    if (!form.highlights.trim()) { setErr('Tell us at least a line about what’s happening this month.'); return; }
+    // No single field is required — the point is that one sentence anywhere is a
+    // valid submission. Requiring the first question would force someone with
+    // nothing from last month but an event coming up to leave it blank or invent
+    // something, which is exactly the pause this rewrite is trying to remove.
+    const answered = ['highlights', 'focus', 'events', 'people', 'excited'].some((k) => (form[k] || '').trim());
+    if (!answered) { setErr('Add at least one thing and we’ll take it from there.'); return; }
     setBusy(true); setErr('');
     try {
-      const res = await submitNewsletter(request && request.id, { ...form, links }, files);
+      const res = await submitNewsletter(request && request.id, form, files);
       setBusy(false);
       onSubmitted(res && res.ticketId);
     } catch (e) {
@@ -64,41 +63,49 @@ export default function NewsletterModal({ request, onClose, onSubmitted }) {
         </div>
 
         <p style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--fg-2)', margin: '0 0 2px' }}>
-          A quick brain-dump is all we need — tell us what’s going on and what you’d like to feature, and we’ll shape it into your newsletter.
+          Five quick questions — answer whichever you have something for and skip the rest. One sentence each is plenty.
         </p>
 
+        {/* Five prompts, deliberately conversational and deliberately SINGULAR:
+            "something worth mentioning" asks for one thing, where the previous
+            "what should we cover" read as a request for a report. The specific
+            ones (events, new people, excited about) are recall triggers — people
+            answer a category far more easily than a blank brief.
+
+            "this past month" rather than a fixed window: most clients are monthly
+            but some are quarterly, and the ticket copy can say so for those.
+
+            Nothing here is individually required (see submit): one answer anywhere
+            is a complete submission. */}
         <label className="nr-field">
-          <span className="nr-label">What’s happening this month? *</span>
-          <textarea className="input" rows={4} value={form.highlights} onChange={set('highlights')} autoFocus
-            placeholder="News, updates, events, milestones — as much or as little as you like." style={{ resize: 'vertical' }} />
+          <span className="nr-label">What’s something worth mentioning that happened this past month?</span>
+          <textarea className="input" rows={3} value={form.highlights} onChange={set('highlights')} autoFocus
+            placeholder="A new community, a project wrapped, an award, a milestone — one thing is plenty." style={{ resize: 'vertical' }} />
         </label>
 
         <label className="nr-field">
-          <span className="nr-label">Anything to feature or spotlight?</span>
-          <textarea className="input" rows={3} value={form.feature} onChange={set('feature')}
-            placeholder="A promotion, a new hire, a case study, an event…" style={{ resize: 'vertical' }} />
+          <span className="nr-label">What’s something worth mentioning in the coming months?</span>
+          <textarea className="input" rows={3} value={form.focus} onChange={set('focus')}
+            placeholder="Budget season, hurricane prep, insurance renewals — anything board members should have on their radar." style={{ resize: 'vertical' }} />
         </label>
 
         <label className="nr-field">
-          <span className="nr-label">Call to action</span>
-          <input className="input" value={form.cta} onChange={set('cta')}
-            placeholder="What should readers do? (book a call, visit a page, RSVP…)" />
+          <span className="nr-label">Any events happening?</span>
+          <textarea className="input" rows={2} value={form.events} onChange={set('events')}
+            placeholder="Webinars, annual meetings, office closures or holiday hours — with dates if you have them." style={{ resize: 'vertical' }} />
         </label>
 
-        <div className="nr-field">
-          <span className="nr-label">Links</span>
-          {links.map((l, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-              <input className="input" value={l.label} onChange={setLink(i, 'label')} placeholder="Label (optional)" style={{ flex: '0 0 34%' }} />
-              <input className="input" value={l.url} onChange={setLink(i, 'url')} placeholder="https://…" style={{ flex: 1 }} />
-              <button type="button" className="nr-file-x" onClick={() => removeLink(i)} aria-label="Remove link"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg-muted)' }}>
-                <I.Close width={12} height={12} />
-              </button>
-            </div>
-          ))}
-          <button type="button" className="nr-attach" onClick={addLink} style={{ alignSelf: 'flex-start' }}>+ Add another link</button>
-        </div>
+        <label className="nr-field">
+          <span className="nr-label">Anybody new joining the team?</span>
+          <textarea className="input" rows={2} value={form.people} onChange={set('people')}
+            placeholder="New hires, promotions, someone stepping into a new role." style={{ resize: 'vertical' }} />
+        </label>
+
+        <label className="nr-field">
+          <span className="nr-label">Anything you’re excited about?</span>
+          <textarea className="input" rows={2} value={form.excited} onChange={set('excited')}
+            placeholder="Doesn’t have to be polished — if it’s got you fired up, your boards will probably feel the same." style={{ resize: 'vertical' }} />
+        </label>
 
         <div className="nr-field">
           <span className="nr-label">Attachments</span>
@@ -116,12 +123,6 @@ export default function NewsletterModal({ request, onClose, onSubmitted }) {
             <input ref={fileRef} type="file" multiple style={{ display: 'none' }} onChange={addFiles} />
           </div>
         </div>
-
-        <label className="nr-field">
-          <span className="nr-label">Anything else?</span>
-          <textarea className="input" rows={2} value={form.notes} onChange={set('notes')}
-            placeholder="Tone, timing, must-includes — anything on your mind." style={{ resize: 'vertical' }} />
-        </label>
 
         {err ? <div className="nr-err">{err}</div> : null}
         <div className="nr-foot">
