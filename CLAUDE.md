@@ -53,6 +53,49 @@ the deployed copy drifted from the type-checked on-disk source). After deploy,
 `rollup-whatconverts` are `verify_jwt: false`; `qualify-lead`/`zendesk`/`admin`
 are `verify_jwt: true`.
 
+## SYNC_SECRET — every unattended sync endpoint fails closed
+`sync-monday`, `sync-monday-roadmap`, `sync-monday-assets`, `sync-dash-assets`,
+`sync-quickbooks`, `generate-snapshot`, `auto-send-snapshots`, `wc-clear-sales`,
+`sync-whatconverts`, `rollup-whatconverts` are `verify_jwt: false` and require
+`SYNC_SECRET`: header `x-sync-secret` (preferred) or `?secret=` (Monday webhooks
+can't send headers). Unset secret = nobody gets in, never everybody.
+- **Every pg_cron job that calls one MUST send the header.** Copy the value in SQL
+  from a job that already has it (`substring(command from 'x-sync-secret"\s*:\s*"([^"]+)"')`),
+  never paste it into a migration. Pattern: `20260909200000_cron_send_sync_secret.sql`.
+- **Monday webhooks** are registered with `?secret=` in the URL (admin
+  `ensureMondayWebhooks`). Monday never exposes a webhook's URL, so to replace
+  stale ones POST `{"webhooks":"reconcile"}` to sync-monday (with the header);
+  `{"webhooks":"list"}` is the read-only preview. Add `"target":"roadmap"` for
+  the Growth Roadmap boards (-> sync-monday-roadmap).
+- Function-to-function calls (admin, generate-snapshot) send the header too.
+- 2026-08-17 → 09-09 outage: the secret was created for WhatConverts and armed
+  every other function's dormant `if (expected && …)` gate; five cron jobs 401'd
+  for 23 days. Sync Health red "Nd ago" on EVERY board = check
+  `net._http_response` for 401s first, then `cron.job` commands.
+- No supabase MCP available? Management API works with the MCP's access token:
+  `POST /v1/projects/{ref}/functions/deploy?slug=X` (multipart: `metadata`
+  `{entrypoint_path,name,verify_jwt}` + `file`), `POST …/database/query`. Pass
+  the function's CURRENT `verify_jwt` (list them via `GET …/functions`) — a wrong
+  flag silently breaks cron/webhooks.
+
+## Sync watchdog — how you find out a sync failed
+`sync-monitor` (cron `sync-monitor-10min`, header-gated like every sync) harvests
+every cron job's pg_net result into `sync_runs`, classifies it (HTTP status,
+timeout, body `ok:false` / `failed>0` / per-account `error`) and keeps open
+problems in `sync_alerts`: ONE email to staff when a job starts failing or goes
+silent (no run inside ≥4 intervals / ≥2h, or a Monday board not re-stamped in
+2h), a reminder every 24h while it stays broken, one on recovery. Hysteresis:
+a frequent job (≤6h window) alerts only on 2 failures in a row or ≥3 in 6h
+(flaky), and a recovery must hold 2h before it is emailed — a flapping job is
+one incident, not one email per flip. Sync Health → "Watchdog" strip shows the
+heartbeat, open alerts (with flaky ratio / hold state) and failed runs (24h).
+- **New cron job? Create it WRAPPED** so its request id is recorded:
+  `insert into public.cron_http_requests (job_name, request_id) select '<jobname>', t.request_id from (select net.http_post(...)) as t(request_id);`
+  An unwrapped active job shows up as permanently "silent" — that's the tell.
+- Recipients: `app_config.sync_alert_emails` (comma-separated) else all staff.
+  POST `{"test":"email"}` (with the header) sends a test. Pure UI logic lives in
+  `src/lib/syncMonitor.js` (tested). Migration: `20260909210000_sync_monitor.sql`.
+
 ## Editing screens-rest.jsx
 Lines contain non-ASCII (·, —, …, ✓). The Edit tool's exact-match can fail on
 these. For large/awkward edits, splice with a Python script (reads/writes UTF-8)
