@@ -20,8 +20,15 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch { /* empty */ }
 
-    const expected = Deno.env.get("SYNC_SECRET");
-    if (expected && url.searchParams.get("secret") !== expected) {
+    // AUTH — FAIL CLOSED. This was `if (expected && provided !== expected)`: dormant
+    // while SYNC_SECRET was unset, then armed the day the secret was created
+    // (2026-08-17) — and every caller that sent no secret has 401'd since.
+    // Accept the secret from the x-sync-secret header (cron; stays out of URL logs)
+    // or ?secret= (Monday webhooks can't send headers). An unset secret means
+    // "nobody", never "everybody".
+    const secret = Deno.env.get("SYNC_SECRET") || "";
+    const provided = req.headers.get("x-sync-secret") || url.searchParams.get("secret") || "";
+    if (!secret || provided !== secret) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!Deno.env.get("WHATCONVERTS_TOKEN") || !Deno.env.get("WHATCONVERTS_SECRET")) {
