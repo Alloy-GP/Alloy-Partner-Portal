@@ -95,6 +95,36 @@ heartbeat, open alerts (with flaky ratio / hold state) and failed runs (24h).
 - Recipients: `app_config.sync_alert_emails` (comma-separated) else all staff.
   POST `{"test":"email"}` (with the header) sends a test. Pure UI logic lives in
   `src/lib/syncMonitor.js` (tested). Migration: `20260909210000_sync_monitor.sql`.
+- **"X is failing" then "Recovered" for `monday-daily`** = the sync itself flapped
+  (2+ failures in a row, then 2h clean); the watchdog is working. Read the reason
+  in `sync_runs` (`select started_at, status_code, error from sync_runs where
+  source='monday-daily' and not ok order by started_at desc`) before touching
+  the monitor. Known causes: 150s gateway timeout on a slow full sync, Monday
+  complexity limits, PostgREST 8s statement timeout on a big write.
+
+## Sync dependability — how the Monday sync is built to not flap
+`sync-monday` (cron `monday-daily`, */30) runs every board in ONE request, so it
+is engineered so no single board can sink the run:
+- **Stalest board first, inside a time budget** (`RUN_BUDGET_MS` = 110s; the
+  gateway drops a request silent for 150s). Boards that don't fit are returned
+  as `skipped` and lead the next tick. A board that keeps missing its turn trips
+  the watchdog's 2h board check.
+- **Per-board try/catch**: a failing board lands in `summary` with `ok:false`,
+  the rest still sync; the response is `ok:false, failed:N` (same contract as
+  `sync-whatconverts`, which the watchdog classifies).
+- **Atomic swap per board**: rows for all five mirror tables + the
+  `monday_sync_status` stamp go through the `monday_replace_account_rows` RPC in
+  one transaction (`20260919210000_monday_replace_account_rows.sql`). Old code
+  did delete-then-insert per table: a failure between the two left a client's
+  Projects page EMPTY until the next good tick. **Apply that migration before
+  deploying the function**; without it the function warns and falls back to the
+  non-atomic path (`write:"legacy"` in the summary).
+- **Monday calls**: 30s timeout, 3 attempts with backoff on 429/5xx/complexity
+  (queries only - never retry a mutation). `sync-monday-roadmap` shares the
+  helper and the per-board isolation.
+- Adding a column to `projects`/`action_items`/`ticket_links`/`toolkit_systems`:
+  the RPC maps JSON keys to columns by name, so populate it in `sync-monday`'s
+  row objects and it flows; no RPC change needed.
 
 ## Editing screens-rest.jsx
 Lines contain non-ASCII (·, —, …, ✓). The Edit tool's exact-match can fail on

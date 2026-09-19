@@ -45,15 +45,50 @@ const MILESTONES: Record<number, string[]> = {
 const DONE_LABELS = new Set(["done", "complete", "completed", "hit", "achieved", "yes"]);
 const isDone = (text: string) => DONE_LABELS.has((text || "").trim().toLowerCase());
 
+// One Monday API call, hardened for an unattended sync (same helper as
+// sync-monday): 30s per-call timeout; retries QUERIES only (this function's
+// mutations create/delete subitems - a retried mutation could double-create) on
+// network errors, HTTP 429/5xx and complexity / rate-limit errors, honouring
+// the wait Monday states, else 1s / 2s, capped at 20s.
+const MONDAY_CALL_TIMEOUT_MS = 30_000;
+const MONDAY_ATTEMPTS = 3;
+class MondayError extends Error {
+  retryable: boolean;
+  retryAfterMs: number;
+  constructor(message: string, retryable: boolean, retryAfterMs = 0) {
+    super(message); this.retryable = retryable; this.retryAfterMs = retryAfterMs;
+  }
+}
 async function monday(token: string, query: string, variables: Record<string, unknown>) {
-  const res = await fetch(MONDAY_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-10" },
-    body: JSON.stringify({ query, variables }),
-  });
-  const json = await res.json();
-  if (json.errors) throw new Error("Monday API error: " + JSON.stringify(json.errors));
-  return json.data;
+  const idempotent = !/^\s*mutation\b/.test(query);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(MONDAY_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-10" },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(MONDAY_CALL_TIMEOUT_MS),
+      });
+      if (res.status === 429 || res.status >= 500) {
+        const retryAfter = Number(res.headers.get("retry-after") || 0) * 1000;
+        throw new MondayError(`Monday HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`, true, retryAfter);
+      }
+      const json = await res.json();
+      if (json.errors || json.error_code || json.error_message) {
+        const text = JSON.stringify(json.errors ?? json);
+        const limited = /complexity|rate.?limit|too many|internal server error|timeout/i.test(text);
+        const m = /retry_in_seconds\D{0,5}(\d+)|reset in (\d+) second/i.exec(text);
+        throw new MondayError("Monday API error: " + text, limited, m ? Number(m[1] ?? m[2]) * 1000 : 0);
+      }
+      return json.data;
+    } catch (e) {
+      const retryable = e instanceof MondayError ? e.retryable : true; // network / abort / bad JSON
+      const wait = Math.min(20_000, (e instanceof MondayError && e.retryAfterMs) || 1000 * 2 ** (attempt - 1));
+      if (!idempotent || !retryable || attempt >= MONDAY_ATTEMPTS) throw e;
+      console.warn(`monday: attempt ${attempt} failed - ${String(e).slice(0, 200)} - retrying in ${wait}ms`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
 }
 
 const norm = (s: string) => (s || "").trim().toLowerCase();
@@ -120,7 +155,7 @@ Deno.serve(async (req) => {
     }
 
     const { data: accounts, error: accErr } = await supabase
-      .from("accounts").select("id, monday_roadmap_board_id, monday_program_board_id").not("monday_roadmap_board_id", "is", null);
+      .from("accounts").select("id, short_name, monday_roadmap_board_id, monday_program_board_id").not("monday_roadmap_board_id", "is", null);
     if (accErr) throw accErr;
 
     // A subitem event fires from the subitems board (an unknown board id) — fall
@@ -138,144 +173,152 @@ Deno.serve(async (req) => {
       const boardId = String(acct.monday_roadmap_board_id);
       const progBoardId = acct.monday_program_board_id ? String(acct.monday_program_board_id) : null;
       if (scoped && boardId !== eventBoardId && progBoardId !== eventBoardId) continue;
+      const name = acct.short_name || acct.id;
 
-      // 1) Resolve columns on the markets board + the subitems board.
-      const meta = await monday(token, META_QUERY, { board: [boardId] });
-      const cols: any[] = meta?.boards?.[0]?.columns ?? [];
-      if (!cols.length) { summary.push({ account: acct.id, error: "board not found" }); continue; }
-      const stageCol = colByTitle(cols, "stage", "status")?.id ?? null;
-      const roleCol = colByTitle(cols, "role", "text")?.id ?? null;
-      const onbCol = colByTitle(cols, "onboarded", "date")?.id ?? null;
-      const subCol = cols.find((c) => c.type === "subtasks");
-      let subBoardId: string | null = null;
-      try { subBoardId = JSON.parse(subCol?.settings_str || "{}")?.boardIds?.[0]?.toString() ?? null; } catch { /* ignore */ }
+      // One board's failure is recorded and never stops the others (the
+      // response is then ok:false, failed:N, which the watchdog reads).
+      try {
+        // 1) Resolve columns on the markets board + the subitems board.
+        const meta = await monday(token, META_QUERY, { board: [boardId] });
+        const cols: any[] = meta?.boards?.[0]?.columns ?? [];
+        if (!cols.length) { summary.push({ account: acct.id, name, ok: false, error: "board not found" }); continue; }
+        const stageCol = colByTitle(cols, "stage", "status")?.id ?? null;
+        const roleCol = colByTitle(cols, "role", "text")?.id ?? null;
+        const onbCol = colByTitle(cols, "onboarded", "date")?.id ?? null;
+        const subCol = cols.find((c) => c.type === "subtasks");
+        let subBoardId: string | null = null;
+        try { subBoardId = JSON.parse(subCol?.settings_str || "{}")?.boardIds?.[0]?.toString() ?? null; } catch { /* ignore */ }
 
-      let doneCol: string | null = null, doneAtCol: string | null = null;
-      if (subBoardId) {
-        const subMeta = await monday(token, META_QUERY, { board: [subBoardId] });
-        const subCols: any[] = subMeta?.boards?.[0]?.columns ?? [];
-        doneCol = (colByTitle(subCols, "done", "status") || subCols.find((c) => c.type === "status"))?.id ?? null;
-        doneAtCol = (colByTitle(subCols, "done at", "date") || subCols.find((c) => c.type === "date"))?.id ?? null;
-      }
+        let doneCol: string | null = null, doneAtCol: string | null = null;
+        if (subBoardId) {
+          const subMeta = await monday(token, META_QUERY, { board: [subBoardId] });
+          const subCols: any[] = subMeta?.boards?.[0]?.columns ?? [];
+          doneCol = (colByTitle(subCols, "done", "status") || subCols.find((c) => c.type === "status"))?.id ?? null;
+          doneAtCol = (colByTitle(subCols, "done at", "date") || subCols.find((c) => c.type === "date"))?.id ?? null;
+        }
 
-      // 2) Read markets + their subitems.
-      const subColIds = [doneCol, doneAtCol].filter(Boolean) as string[];
-      const ITEMS_QUERY = `
-        query ($board: [ID!]) {
-          boards(ids: $board) {
-            items_page(limit: 200) {
-              items {
-                id name
-                column_values(ids: ${JSON.stringify([stageCol, roleCol, onbCol].filter(Boolean))}) { id text value }
-                subitems { id name column_values(ids: ${JSON.stringify(subColIds)}) { id text } }
+        // 2) Read markets + their subitems.
+        const subColIds = [doneCol, doneAtCol].filter(Boolean) as string[];
+        const ITEMS_QUERY = `
+          query ($board: [ID!]) {
+            boards(ids: $board) {
+              items_page(limit: 200) {
+                items {
+                  id name
+                  column_values(ids: ${JSON.stringify([stageCol, roleCol, onbCol].filter(Boolean))}) { id text value }
+                  subitems { id name column_values(ids: ${JSON.stringify(subColIds)}) { id text } }
+                }
               }
             }
-          }
-        }`;
-      const data = await monday(token, ITEMS_QUERY, { board: [boardId] });
-      const items: any[] = data?.boards?.[0]?.items_page?.items ?? [];
+          }`;
+        const data = await monday(token, ITEMS_QUERY, { board: [boardId] });
+        const items: any[] = data?.boards?.[0]?.items_page?.items ?? [];
 
-      const locations: any[] = [];
-      const milestonesByItem: Record<string, any[]> = {};
+        const locations: any[] = [];
+        const milestonesByItem: Record<string, any[]> = {};
 
-      for (let idx = 0; idx < items.length; idx++) {
-        const it = items[idx];
-        const cv: Record<string, string> = {};
-        for (const c of it.column_values) cv[c.id] = c.text ?? "";
-        const stage = stageIndex(stageCol ? cv[stageCol] : "");
-        const canonical = MILESTONES[stage];
+        for (let idx = 0; idx < items.length; idx++) {
+          const it = items[idx];
+          const cv: Record<string, string> = {};
+          for (const c of it.column_values) cv[c.id] = c.text ?? "";
+          const stage = stageIndex(stageCol ? cv[stageCol] : "");
+          const canonical = MILESTONES[stage];
 
-        // --- AUTO-LABEL: ensure exactly 5 subitems named the current stage's
-        // milestones. Rebuild only when names/count drift (e.g. a stage change or
-        // generic placeholders) — steady state never mutates, so staff's Done
-        // checks persist. Match by POSITION afterwards.
-        let subs: any[] = it.subitems ?? [];
-        const namesMatch = subs.length === 5 && canonical.every((lbl, i) => (subs[i]?.name || "").trim() === lbl);
-        if (!namesMatch) {
-          for (const s of subs) {
-            await monday(token, `mutation ($i: ID!) { delete_item(item_id: $i) { id } }`, { i: s.id });
+          // --- AUTO-LABEL: ensure exactly 5 subitems named the current stage's
+          // milestones. Rebuild only when names/count drift (e.g. a stage change or
+          // generic placeholders) — steady state never mutates, so staff's Done
+          // checks persist. Match by POSITION afterwards.
+          let subs: any[] = it.subitems ?? [];
+          const namesMatch = subs.length === 5 && canonical.every((lbl, i) => (subs[i]?.name || "").trim() === lbl);
+          if (!namesMatch) {
+            for (const s of subs) {
+              await monday(token, `mutation ($i: ID!) { delete_item(item_id: $i) { id } }`, { i: s.id });
+            }
+            subs = [];
+            for (const lbl of canonical) {
+              await monday(token, `mutation ($p: ID!, $n: String!) { create_subitem(parent_item_id: $p, item_name: $n) { id } }`, { p: it.id, n: lbl });
+            }
+            // Freshly built => all not-done.
           }
-          subs = [];
-          for (const lbl of canonical) {
-            await monday(token, `mutation ($p: ID!, $n: String!) { create_subitem(parent_item_id: $p, item_name: $n) { id } }`, { p: it.id, n: lbl });
-          }
-          // Freshly built => all not-done.
+
+          const ms = canonical.map((lbl, i) => {
+            const s = namesMatch ? subs[i] : null;
+            const scv: Record<string, string> = {};
+            if (s) for (const c of s.column_values) scv[c.id] = c.text ?? "";
+            const done = s ? isDone(doneCol ? scv[doneCol] : "") : false;
+            const doneAtRaw = s && doneAtCol ? scv[doneAtCol] : "";
+            return { idx: i, label: lbl, done, done_at: done && doneAtRaw ? `${doneAtRaw}T00:00:00Z` : null };
+          });
+
+          locations.push({
+            account_id: acct.id, monday_item_id: String(it.id), name: it.name,
+            role: roleCol ? (cv[roleCol] || null) : null,
+            onboarded: onbCol ? (cv[onbCol] || null) : null,
+            stage, sort: idx,
+          });
+          milestonesByItem[String(it.id)] = ms;
         }
 
-        const ms = canonical.map((lbl, i) => {
-          const s = namesMatch ? subs[i] : null;
-          const scv: Record<string, string> = {};
-          if (s) for (const c of s.column_values) scv[c.id] = c.text ?? "";
-          const done = s ? isDone(doneCol ? scv[doneCol] : "") : false;
-          const doneAtRaw = s && doneAtCol ? scv[doneAtCol] : "";
-          return { idx: i, label: lbl, done, done_at: done && doneAtRaw ? `${doneAtRaw}T00:00:00Z` : null };
-        });
+        // 3) Mirror into the read tables (delete-then-insert per account).
+        await supabase.from("locations").delete().eq("account_id", acct.id);
+        if (locations.length) {
+          const { data: inserted, error: insErr } = await supabase.from("locations").insert(locations).select("id, monday_item_id");
+          if (insErr) throw insErr;
+          const rows: any[] = [];
+          for (const loc of inserted ?? []) {
+            for (const m of milestonesByItem[loc.monday_item_id] || []) {
+              rows.push({ location_id: loc.id, idx: m.idx, label: m.label, done: m.done, done_at: m.done_at });
+            }
+          }
+          if (rows.length) {
+            const { error: msErr } = await supabase.from("location_milestones").insert(rows);
+            if (msErr) throw msErr;
+          }
+        }
 
-        locations.push({
-          account_id: acct.id, monday_item_id: String(it.id), name: it.name,
-          role: roleCol ? (cv[roleCol] || null) : null,
-          onboarded: onbCol ? (cv[onbCol] || null) : null,
-          stage, sort: idx,
-        });
-        milestonesByItem[String(it.id)] = ms;
+        // 4) Program quarters (engine card): one item per calendar quarter, with a
+        // Proof (X->Y) line + Playbook/Report deliverable links. Initiatives are
+        // reused from projects on the portal side (grouped by quarter via due-date).
+        let quarters = 0;
+        if (progBoardId) {
+          const pmeta = await monday(token, META_QUERY, { board: [progBoardId] });
+          const pcols: any[] = pmeta?.boards?.[0]?.columns ?? [];
+          const qCol = colByTitle(pcols, "quarter", "date")?.id ?? null;
+          const proofCol = (colByTitle(pcols, "proof", "long_text") || colByTitle(pcols, "proof", "text"))?.id ?? null;
+          const pbCol = colByTitle(pcols, "playbook", "link")?.id ?? null;
+          const rpCol = colByTitle(pcols, "report", "link")?.id ?? null;
+          const pColIds = [qCol, proofCol, pbCol, rpCol].filter(Boolean) as string[];
+          const PQ = `query ($board: [ID!]) { boards(ids: $board) { items_page(limit: 200) { items { id name column_values(ids: ${JSON.stringify(pColIds)}) { id text value } } } } }`;
+          const pdata = await monday(token, PQ, { board: [progBoardId] });
+          const pitems: any[] = pdata?.boards?.[0]?.items_page?.items ?? [];
+          const rows = pitems.map((it) => {
+            const cv: Record<string, any> = {};
+            for (const c of it.column_values) cv[c.id] = c;
+            return {
+              account_id: acct.id, monday_item_id: String(it.id), label: it.name,
+              quarter_start: qCol && cv[qCol]?.text ? cv[qCol].text : null,
+              proof: proofCol ? (cv[proofCol]?.text || null) : null,
+              playbook_url: pbCol ? linkUrl(cv[pbCol]) : null,
+              report_url: rpCol ? linkUrl(cv[rpCol]) : null,
+            };
+          }).sort((a, b) => String(a.quarter_start || "").localeCompare(String(b.quarter_start || "")));
+          rows.forEach((r, i) => { (r as any).sort = i; });
+          await supabase.from("program_quarters").delete().eq("account_id", acct.id);
+          if (rows.length) {
+            const { error: pqErr } = await supabase.from("program_quarters").insert(rows);
+            if (pqErr) throw pqErr;
+          }
+          quarters = rows.length;
+        }
+
+        summary.push({ account: acct.id, name, ok: true, markets: locations.length, quarters });
+      } catch (e) {
+        summary.push({ account: acct.id, name, ok: false, error: e instanceof Error ? e.message : String(e) });
       }
-
-      // 3) Mirror into the read tables (delete-then-insert per account).
-      await supabase.from("locations").delete().eq("account_id", acct.id);
-      if (locations.length) {
-        const { data: inserted, error: insErr } = await supabase.from("locations").insert(locations).select("id, monday_item_id");
-        if (insErr) throw insErr;
-        const rows: any[] = [];
-        for (const loc of inserted ?? []) {
-          for (const m of milestonesByItem[loc.monday_item_id] || []) {
-            rows.push({ location_id: loc.id, idx: m.idx, label: m.label, done: m.done, done_at: m.done_at });
-          }
-        }
-        if (rows.length) {
-          const { error: msErr } = await supabase.from("location_milestones").insert(rows);
-          if (msErr) throw msErr;
-        }
-      }
-
-      // 4) Program quarters (engine card): one item per calendar quarter, with a
-      // Proof (X->Y) line + Playbook/Report deliverable links. Initiatives are
-      // reused from projects on the portal side (grouped by quarter via due-date).
-      let quarters = 0;
-      if (progBoardId) {
-        const pmeta = await monday(token, META_QUERY, { board: [progBoardId] });
-        const pcols: any[] = pmeta?.boards?.[0]?.columns ?? [];
-        const qCol = colByTitle(pcols, "quarter", "date")?.id ?? null;
-        const proofCol = (colByTitle(pcols, "proof", "long_text") || colByTitle(pcols, "proof", "text"))?.id ?? null;
-        const pbCol = colByTitle(pcols, "playbook", "link")?.id ?? null;
-        const rpCol = colByTitle(pcols, "report", "link")?.id ?? null;
-        const pColIds = [qCol, proofCol, pbCol, rpCol].filter(Boolean) as string[];
-        const PQ = `query ($board: [ID!]) { boards(ids: $board) { items_page(limit: 200) { items { id name column_values(ids: ${JSON.stringify(pColIds)}) { id text value } } } } }`;
-        const pdata = await monday(token, PQ, { board: [progBoardId] });
-        const pitems: any[] = pdata?.boards?.[0]?.items_page?.items ?? [];
-        const rows = pitems.map((it) => {
-          const cv: Record<string, any> = {};
-          for (const c of it.column_values) cv[c.id] = c;
-          return {
-            account_id: acct.id, monday_item_id: String(it.id), label: it.name,
-            quarter_start: qCol && cv[qCol]?.text ? cv[qCol].text : null,
-            proof: proofCol ? (cv[proofCol]?.text || null) : null,
-            playbook_url: pbCol ? linkUrl(cv[pbCol]) : null,
-            report_url: rpCol ? linkUrl(cv[rpCol]) : null,
-          };
-        }).sort((a, b) => String(a.quarter_start || "").localeCompare(String(b.quarter_start || "")));
-        rows.forEach((r, i) => { (r as any).sort = i; });
-        await supabase.from("program_quarters").delete().eq("account_id", acct.id);
-        if (rows.length) {
-          const { error: pqErr } = await supabase.from("program_quarters").insert(rows);
-          if (pqErr) throw pqErr;
-        }
-        quarters = rows.length;
-      }
-
-      summary.push({ account: acct.id, markets: locations.length, quarters });
     }
 
-    return Response.json({ ok: true, summary });
+    const failed = summary.filter((x) => !x.ok).length;
+    return Response.json({ ok: failed === 0, synced: summary.length - failed, failed, summary });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e) }), {
       status: 500, headers: { "Content-Type": "application/json" },
