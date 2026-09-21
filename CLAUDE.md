@@ -57,3 +57,18 @@ are `verify_jwt: true`.
 Lines contain non-ASCII (·, —, …, ✓). The Edit tool's exact-match can fail on
 these. For large/awkward edits, splice with a Python script (reads/writes UTF-8)
 using ASCII anchors instead of fighting the matcher.
+
+## Supabase access — MCP first, Management API fallback
+The `supabase` MCP server is declared in `.mcp.json` (project scope, auto-approved
+via `.claude/settings.json`). It needs `SUPABASE_ACCESS_TOKEN` in the environment;
+Conductor injects it from the gitignored `.conductor/settings.local.toml` on the
+Mac that creates the workspace. If the MCP tools are missing in a session, do not
+stop — use the same token against the Management API (it is what the MCP wraps):
+```
+SQL:      curl -s -X POST https://api.supabase.com/v1/projects/aryttfcmleukwstknvio/database/query \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d '{"query":"select 1"}'
+Functions: GET  https://api.supabase.com/v1/projects/aryttfcmleukwstknvio/functions
+```
+The Supabase CLI also reads the token from `SUPABASE_ACCESS_TOKEN` (`supabase functions deploy <name> --project-ref aryttfcmleukwstknvio`).
+Token missing entirely? Ask the user for it once, then persist it in that settings.local.toml.
