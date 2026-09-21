@@ -25,3 +25,6 @@ pnpm-debug.log*
 .context/
 .gstack/
 .qa/
+
+# conductor machine-local settings (holds secrets)
+.conductor/settings.local.toml
