@@ -20,7 +20,7 @@ const row = (over = {}) => ({
 
 // No default for accountId on purpose: one test passes `undefined` to prove the
 // strip fails closed, and a default would silently turn that into a real account.
-const render = (rows, accountId) => renderToStaticMarkup(React.createElement(ProposalStats, { rows, accountId }));
+const render = (rows, accountId, onGo) => renderToStaticMarkup(React.createElement(ProposalStats, { rows, accountId, onGo }));
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 describe('ProposalStats renders the strip', () => {
@@ -86,6 +86,22 @@ describe('ProposalStats renders the strip', () => {
     expect(mixed).not.toContain('77,7');
     expect(mixed).not.toContain('data-bucket="build"');
     expect(mixed).not.toContain('Reviewed');
+  });
+
+  it('renders Build and Sent tiles as stage links only when a navigator is supplied', () => {
+    const rows = [row(), row({ openedAt: 'x' }), row({ status: 'review' }), row({ status: 'sent', sentAt: 'x' })];
+    const plain = render(rows, CMGT);
+    expect(plain).not.toContain('<button');
+    const linked = render(rows, CMGT, () => {});
+    expect(linked).toContain('<button type="button" class="fx-tile fx-tile--link" data-tile="build" data-stage="build"');
+    expect(linked).toContain('<button type="button" class="fx-tile fx-tile--link" data-tile="sent" data-stage="sent"');
+    // New and Reviewed stay plain tiles: they live on the inbox the strip already sits on.
+    expect(linked).toContain('<div class="fx-tile" data-tile="new">');
+    expect(linked).toContain('<div class="fx-tile" data-tile="reviewed">');
+    expect((linked.match(/<button/g) || []).length).toBe(2);
+    // The value card's tiles never become links.
+    expect(linked).toContain('<div class="fx-tile" data-tile="annual">');
+    expect(linked).toContain('<div class="fx-tile" data-tile="average">');
   });
 
   it('shows zeros, not the rows, when the viewed account id is missing in live data', () => {

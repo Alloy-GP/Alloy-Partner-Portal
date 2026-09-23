@@ -1941,12 +1941,6 @@ export default function ProposalsScreen() {
   // Persist a proposal mutation to Supabase (live only; mock dev stays
   // session-local). RLS-scoped to the viewed account; keyed by lead_key.
   const live = isSupabaseConfigured && !!DATA.account?.id;
-  // The pipeline stats strip. Computed from `subs` — the SAME account-scoped rows
-  // every stage renders (loadData filters by account_id and RLS enforces it) —
-  // and re-checked against the viewed account inside proposalStats, which drops
-  // any row it cannot attribute to it. Each list view decides whether to show
-  // it (never on a drilled-in lead), so nothing here duplicates that logic.
-  const statsEl = <ProposalStats rows={subs} accountId={DATA.account?.id} />;
   const persist = (leadKey, patch) => {
     if (!live) return;
     supabase.from('proposals').update(patch)
@@ -1974,6 +1968,15 @@ export default function ProposalsScreen() {
     setSearchParams(next, { replace: true });
   }, [mode, inbox, focusBuild, selectedId, watchId]); // eslint-disable-line react-hooks/exhaustive-deps
   const go = (id) => { if (id === 'sent') setWatchId(null); if (id === 'new') setInbox(true); if (id === 'build') setFocusBuild(false); setMode(id); }; // Build step with nothing focused → bucket list
+  // The pipeline stats strip. Computed from `subs` — the SAME account-scoped rows
+  // every stage renders (loadData filters by account_id and RLS enforces it) —
+  // and re-checked against the viewed account inside proposalStats, which drops
+  // any row it cannot attribute to it. Each list view decides whether to show
+  // it (never on a drilled-in lead), so nothing here duplicates that logic.
+  // Its Build / Sent tiles navigate through the same `go` as the stepper, so a
+  // tile can only ever land where the step would. Declared AFTER `go`: the
+  // element is created here and reads `go` now, not at click time.
+  const statsEl = <ProposalStats rows={subs} accountId={DATA.account?.id} onGo={go} />;
   const openLead = (id) => { markSeen(id); setSelectedId(id); setInbox(false); setMode('new'); }; // grid card → drill into the analysis
   const selectRail = (id) => setSelectedId(id); // flip between leads inside the drill-in
   const pickSent = (id) => { setWatchId(id); setSelectedId(id); }; // focus a sent lead → also make it the selected proposal (so Edit/Realign target it)
