@@ -1553,3 +1553,10 @@
 .proposal-system .fx-split [data-bucket="sent"],     .proposal-system .fx-tile .dot[data-bucket="sent"]     { background: var(--alloy-pink); }
 @media (max-width: 1240px) { .proposal-system .fx-stats { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .proposal-system .fx-stat-note { display: none; } }
+/* Build / Sent tiles double as links into their stage list. Same tile at rest;
+   on hover the tint deepens and an arrow appears so it reads as clickable. */
+.proposal-system .fx-tile--link { appearance: none; font: inherit; text-align: left; color: inherit; border: 0; cursor: pointer; transition: background .13s, box-shadow .13s; }
+.proposal-system .fx-tile--link .n::after { content: '→'; margin-left: auto; padding-left: 8px; font-size: 14px; color: var(--fg-muted); opacity: 0; transition: opacity .13s; }
+.proposal-system .fx-tile--link:hover, .proposal-system .fx-tile--link:focus-visible { background: #ebe5f3; }
+.proposal-system .fx-tile--link:hover .n::after, .proposal-system .fx-tile--link:focus-visible .n::after { opacity: 1; }
+.proposal-system .fx-tile--link:focus-visible { outline: 2px solid var(--alloy-purple); outline-offset: 2px; }
