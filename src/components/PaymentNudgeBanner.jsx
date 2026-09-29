@@ -21,7 +21,6 @@ export default function PaymentNudgeBanner({ onOpen }) {
       <div className="notif-text">
         <div className="notif-kicker">Action required</div>
         <div className="notif-title">Add a bank account to activate autopay</div>
-        <div className="notif-sub">About a minute. Entered securely with Intuit — Alloy never sees or stores your account number.</div>
       </div>
       <button type="button" className="notif-cta" onClick={onOpen}>Set up autopay</button>
     </div>
