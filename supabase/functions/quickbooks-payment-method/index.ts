@@ -236,6 +236,12 @@ Deno.serve(async (req) => {
         .select("id, company, quickbooks_customer_id").eq("id", accountId).maybeSingle();
       if (!account) return json({ error: "account not found" }, 404);
       if (!account.quickbooks_customer_id) return json({ error: "account not linked to a QBO customer" }, 400);
+      // An ACH template is useless without a bank on file — it would just fail on
+      // the first draft. The client adds the bank from their portal (owner /
+      // accounting, nudged at sign-in); Admin shows it as soon as it lands.
+      const { count: banks } = await db.from("quickbooks_payment_methods")
+        .select("id", { count: "exact", head: true }).eq("account_id", account.id);
+      if (!banks) return json({ error: "no bank account on file yet — the client adds it from their portal first" }, 400);
 
       const amount = Number(body.amount);
       const itemId = String(body.itemId || "");

@@ -48,7 +48,7 @@ export async function downloadInvoice(invoiceId, filename) {
 
 // Call the payment function and surface OUR error message on a non-2xx (the
 // supabase client hides the body behind error.context).
-async function invokePayment(body) {
+export async function invokePayment(body) {
   const { data, error } = await supabase.functions.invoke('quickbooks-payment-method', { body });
   if (error) {
     let msg = error.message || 'Payment service unavailable';
