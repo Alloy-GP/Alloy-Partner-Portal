@@ -129,6 +129,33 @@ describe('where the pipeline stats strip renders in the real cockpit', () => {
     expect(strips()).toBe(0);
   });
 
+  it('clicking the Build tile on the inbox lands on the Build bucket list, strip still showing', async () => {
+    await mount('/proposals?stage=new');
+    const tile = container.querySelector('.fx-stats [data-tile="build"]');
+    expect(tile.tagName).toBe('BUTTON');
+    await act(async () => { tile.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('.fx-eyebrow').textContent).toContain('being built');
+    expect(container.querySelector('.fx-blist')).not.toBeNull();   // the list, not the editor
+    expect(container.querySelector('.fx-back-row')).toBeNull();
+    expect(strips()).toBe(1);
+  });
+
+  it('clicking the Sent tile lands on the Sent list, not a focused proposal', async () => {
+    await mount('/proposals?stage=won');
+    const tile = container.querySelector('.fx-stats [data-tile="sent"]');
+    expect(tile.tagName).toBe('BUTTON');
+    await act(async () => { tile.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('.fx-eyebrow').textContent).toContain('Live proposals');
+    expect(container.querySelector('.fx-back-row')).toBeNull();
+    expect(strips()).toBe(1);
+  });
+
+  it('New and Reviewed tiles are not links', async () => {
+    await mount('/proposals?stage=build');
+    expect(container.querySelector('.fx-stats [data-tile="new"]').tagName).toBe('DIV');
+    expect(container.querySelector('.fx-stats [data-tile="reviewed"]').tagName).toBe('DIV');
+  });
+
   it('the strip on screen is scoped to the viewed account (a foreign row in DATA never shows)', async () => {
     const cam = camFor(CMGT_ACCOUNT_ID);
     const saved = DATA.proposals;
