@@ -9,6 +9,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //   - createCustomer  → ensure the account has a QBO customer (creates if missing)
 //   - attach          → { token, accountName?, achAuthorized, agreementVersion }
 //                       tokenized bank (browser) → createFromToken → store ref + ACH auth
+//                       → emails BILLING_ALERT_TO (default admin@alloygp.co) so Alloy
+//                         starts the autopay draft (Admin → client → Autopay)
 //
 // Staff actions (Alloy configures billing; clients never set their own price):
 //   - inspectRecurring→ dump QBO recurring templates (shape reference)
@@ -19,6 +21,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //                       create inactive); first charge defaults to 1st of next month so
 //                       Alloy verifies before money moves.
 //   - deleteRecurring → { recurringId } remove a recurring template + its schedule row
+//   - resendBankAlert → { accountId } re-send the bank-added email for the bank on file
 //
 // PCI: raw bank #s are tokenized in the browser and never reach us. verify_jwt: true.
 // Secrets: QBO_CLIENT_ID/SECRET, optional QBO_ENV. Connection from quickbooks_oauth.
@@ -123,6 +126,68 @@ function firstOfNextMonth(): string {
   return d.toISOString().slice(0, 10);
 }
 
+// --- "bank added" alert to Alloy ---------------------------------------------
+// Nothing drafts until staff start autopay, so the moment a client's bank lands
+// the team gets an email with everything needed and a link straight to
+// Admin → client → Autopay. Never throws: a mail failure must not fail the attach.
+const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
+const BILLING_ALERT_TO = (Deno.env.get("BILLING_ALERT_TO") || "admin@alloygp.co").split(/[,\s]+/).filter(Boolean);
+const PORTAL_URL = Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co";
+const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const prettyType = (t: unknown) => {
+  const u = String(t || "").toUpperCase();
+  return `${u.startsWith("PERSONAL") ? "Personal" : "Business"} ${u.includes("SAVINGS") ? "savings" : "checking"}`;
+};
+
+async function notifyBankAdded(db: any, account: any, method: any, authorizerId: string | null)
+  : Promise<{ sent: boolean; id?: string; error?: string }> {
+  try {
+    const key = Deno.env.get("RESEND_API_KEY");
+    if (!key) return { sent: false, error: "RESEND_API_KEY not set" };
+    let who = "";
+    if (authorizerId) {
+      const { data: p } = await db.from("profiles").select("name, title").eq("id", authorizerId).maybeSingle();
+      const { data: u } = await db.auth.admin.getUserById(authorizerId);
+      who = [p?.name, p?.title ? `(${p.title})` : "", u?.user?.email ? `· ${u.user.email}` : ""].filter(Boolean).join(" ");
+    }
+    const when = method?.ach_authorized_at ? new Date(method.ach_authorized_at) : new Date();
+    const whenStr = when.toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" }) + " ET";
+    const adminUrl = `${PORTAL_URL}/admin/clients?client=${account.id}`;
+    const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
+    const row = (k: string, v: string) =>
+      `<tr><td style="font-family:${F};font-size:12px;color:#7a6f88;padding:6px 14px 6px 0;white-space:nowrap;vertical-align:top;">${k}</td>` +
+      `<td style="font-family:${F};font-size:13.5px;color:#3f2a55;padding:6px 0;">${v}</td></tr>`;
+    const html = `
+<div style="background:#f8f7fc;padding:28px 12px;">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:26px 28px;border:1px solid #ece8f1;">
+    <div style="font-family:${F};font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#d9356e;">Billing · action needed</div>
+    <div style="font-family:${F};font-size:21px;font-weight:700;color:#381c4f;margin:6px 0 14px;">${esc(account.company)} added a bank account</div>
+    <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+      ${row("Bank", `<strong>${esc(method?.bank_name || "Bank account")}</strong> · ${esc(prettyType(method?.account_type))} · •••• ${esc(method?.last4 || "----")}`)}
+      ${row("Status", esc(method?.verification_status === "VERIFIED" ? "verified" : "not verified (normal — QuickBooks drafts anyway)"))}
+      ${row("Authorized by", esc(who || "—"))}
+      ${row("When", esc(whenStr))}
+      ${row("Agreement", esc(`ACH authorization ${method?.ach_agreement_version || "v1"}`))}
+      ${row("QuickBooks customer", esc(account.quickbooks_customer_id || "—"))}
+    </table>
+    <div style="font-family:${F};font-size:13.5px;line-height:1.6;color:#3f2a55;margin:16px 0 18px;">
+      <strong>Nothing drafts yet.</strong> Start their autopay in Admin — pick the service item, the monthly amount and the draft day. The first draft can't be before the 1st of next month, so verify the template in QuickBooks before then.
+    </div>
+    <a href="${adminUrl}" style="display:inline-block;background:#381c4f;color:#ffffff;font-family:${F};font-weight:700;font-size:13.5px;text-decoration:none;padding:12px 20px;border-radius:999px;">Open in Admin → Autopay</a>
+    <div style="font-family:${F};font-size:12px;color:#8a8395;margin-top:22px;border-top:1px solid #ece8f1;padding-top:12px;">Sent by the Alloy portal when a client adds a bank account. Bank numbers are never stored — only this masked reference.</div>
+  </div>
+</div>`;
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: FROM, to: BILLING_ALERT_TO, subject: `Bank account added: ${account.company} — start their autopay`, html }),
+    });
+    if (!res.ok) { const t = await res.text(); console.error("bank alert resend", res.status, t); return { sent: false, error: `resend ${res.status}: ${t.slice(0, 200)}` }; }
+    const j = await res.json().catch(() => ({}));
+    return { sent: true, id: j?.id };
+  } catch (e) { console.error("bank alert", e); return { sent: false, error: String(e) }; }
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -165,9 +230,18 @@ Deno.serve(async (req) => {
     }
 
     // --- staff actions: Alloy configures billing (clients never set their price) ---
-    const staffActions = ["inspectRecurring", "listItems", "createRecurring", "deleteRecurring", "backfillBankMethods"];
+    const staffActions = ["inspectRecurring", "listItems", "createRecurring", "deleteRecurring", "backfillBankMethods", "resendBankAlert"];
     if (staffActions.includes(action)) {
       if (!me.is_staff) return json({ error: "staff only" }, 403);
+
+      if (action === "resendBankAlert") {
+        const id = String(body.accountId || "");
+        const { data: acct } = await db.from("accounts").select("id, company, quickbooks_customer_id").eq("id", id).maybeSingle();
+        if (!acct) return json({ error: "account not found" }, 404);
+        const { data: pm } = await db.from("quickbooks_payment_methods").select("*").eq("account_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (!pm) return json({ error: "no bank on file" }, 400);
+        return json({ ok: true, to: BILLING_ALERT_TO, alert: await notifyBankAdded(db, acct, pm, pm.ach_authorized_by || null) });
+      }
       const { token, realmId } = await getAccessToken(db);
 
       if (action === "inspectRecurring") {
@@ -355,7 +429,8 @@ Deno.serve(async (req) => {
       const { error: insErr } = await db.from("quickbooks_payment_methods")
         .upsert(row, { onConflict: "account_id, qbo_bank_account_id" });
       if (insErr) throw insErr;
-      return json({ ok: true, method: { last4: row.last4, bankName: row.bank_name, accountType: row.account_type, verificationStatus: row.verification_status, authorizedAt: row.ach_authorized_at } });
+      const alert = await notifyBankAdded(db, { ...account, quickbooks_customer_id: customerId }, row, user.id);
+      return json({ ok: true, alert, method: { last4: row.last4, bankName: row.bank_name, accountType: row.account_type, verificationStatus: row.verification_status, authorizedAt: row.ach_authorized_at } });
     }
 
     return json({ error: "unknown action" }, 400);
