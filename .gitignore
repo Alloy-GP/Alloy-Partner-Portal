@@ -28,3 +28,6 @@ pnpm-debug.log*
 
 # conductor machine-local settings (holds secrets)
 .conductor/settings.local.toml
+
+# supabase CLI scratch (project-ref cache from `supabase functions deploy`)
+supabase/.temp/

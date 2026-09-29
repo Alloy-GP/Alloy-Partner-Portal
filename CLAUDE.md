@@ -72,3 +72,15 @@ Functions: GET  https://api.supabase.com/v1/projects/aryttfcmleukwstknvio/functi
 ```
 The Supabase CLI also reads the token from `SUPABASE_ACCESS_TOKEN` (`supabase functions deploy <name> --project-ref aryttfcmleukwstknvio`).
 Token missing entirely? Ask the user for it once, then persist it in that settings.local.toml.
+
+## Autopay onboarding nudge (bank on file)
+Soft nudge for billing-role clients with no row in `quickbooks_payment_methods`:
+modal at sign-in ("Remind me later" = session snooze) + persistent banner on every
+screen + Account-page empty state, until a bank is attached. Decision is pure —
+`shouldNudgePayment` in `src/lib/paymentNudge.js` (tested). Admin can exempt an
+account via `accounts.autopay_required=false`. Seams: migration → `admin` fn
+`ACCOUNT_FIELDS` → `AdminScreen` toggle → `loadData` (`account.autopayRequired`) →
+`App.jsx`. Capture is PCI-safe: browser → Intuit tokens endpoint (unauthenticated
+by design; host comes from the function's `config` action) → `attach`. Intuit
+gotcha: `createFromToken` wants `{ value: token }`, not `{ token }` (PMT-4002).
+Alloy still creates the recurring draft (staff-only `createRecurring`).

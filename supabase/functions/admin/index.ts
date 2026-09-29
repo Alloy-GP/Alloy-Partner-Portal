@@ -21,6 +21,8 @@ const ACCOUNT_FIELDS = [
   // Verified WhatConverts account names, saved alongside the ids so the mapping
   // stays auditable after the fact (id -> "Tidewater Property").
   "wc_profile_names",
+  // Autopay nudge: false exempts the account (billed another way / Alloy's own).
+  "autopay_required",
 ];
 // ── WhatConverts account lookup ───────────────────────────────────────────────
 // Nothing verifies that the WhatConverts account id a staffer types belongs to the

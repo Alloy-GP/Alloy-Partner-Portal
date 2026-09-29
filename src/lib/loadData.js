@@ -196,6 +196,8 @@ export async function loadAccountData(session, accountId, me) {
       id: account.id,
       company: account.company,
       shortName: account.short_name,
+      // Autopay nudge: Admin can exempt an account (accounts.autopay_required=false).
+      autopayRequired: account.autopay_required !== false,
       tier: account.tier,
       market: account.market,
       locations: Array.isArray(account.locations) ? account.locations : [],

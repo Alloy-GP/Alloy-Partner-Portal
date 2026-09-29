@@ -1014,3 +1014,18 @@ select.input {
   .aq-row > .aq-btn, .aq-row > .aq-meta { grid-column: 2; justify-self: end; margin-top: 2px; }
   .aq-title { white-space: normal; }
 }
+
+/* Autopay onboarding nudge — persistent banner (all screens) + setup modal */
+.pm-nudge { margin-bottom: 20px; }
+.pm-nudge .notif-sub { font-size: 12.5px; opacity: .88; margin-top: 3px; line-height: 1.4; }
+.pm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { .pm-grid { grid-template-columns: 1fr; } }
+.pm-secure { display: flex; align-items: center; gap: 9px; font-size: 12.5px; line-height: 1.45; color: var(--fg-2); background: var(--alloy-off-white); border-radius: 10px; padding: 10px 12px; }
+.pm-secure svg { flex-shrink: 0; color: var(--dark-green, #2c6e62); }
+.pm-agree { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.5; color: var(--fg-2); background: var(--alloy-off-white); border-radius: 10px; padding: 12px; cursor: pointer; }
+.pm-agree input { margin-top: 3px; flex-shrink: 0; }
+.pm-agree.is-invalid { outline: 1.5px solid #b03a3a; }
+.pm-field-err { font-size: 12px; color: #b03a3a; font-weight: 600; }
+.input.is-invalid { border-color: #b03a3a; }
+.pm-done { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--alloy-off-white); border-radius: 12px; }
+.pm-done .pm-done-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--alloy-purple-tint); color: var(--alloy-purple); flex-shrink: 0; }

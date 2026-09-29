@@ -23,6 +23,10 @@ import { canSeeProposals } from './lib/proposalAccess.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
 import QuarterGoalsModal from './components/QuarterGoalsModal.jsx';
+import PaymentSetupModal from './components/PaymentSetupModal.jsx';
+import PaymentNudgeBanner from './components/PaymentNudgeBanner.jsx';
+import { shouldNudgePayment, isNudgeSnoozed, snoozeNudge } from './lib/paymentNudge.js';
+import { isSupabaseConfigured } from './lib/supabase.js';
 
 // Screen id ↔ URL path. The screen switch keys off the id derived from the URL.
 // NOTE: the KEYS are historical screen-ids (kept stable so analytics + onNav
@@ -44,6 +48,10 @@ const TWEAKS = /*EDITMODE-BEGIN*/{
   "showBg": true,
   "mobileCards": "card"
 }/*EDITMODE-END*/;
+
+// Autopay nudge: auto-open at most once per PAGE LOAD (module scope, so an
+// App remount from an auth refresh can't re-fire it or double-count the event).
+let pmAutoOpenedThisLoad = false;
 
 function App({ session, onSignOut, staffNav } = {}) {
   const navigate = useNavigate();
@@ -90,6 +98,20 @@ function App({ session, onSignOut, staffNav } = {}) {
   // gating), opens the prefilled in-portal form. Each open logs a goals_open.
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
   const openGoals = () => { track('goals_open', {}); setGoalsModalOpen(true); };
+  // Autopay onboarding — SOFT nudge. A billing-role client with no bank on
+  // file gets the setup modal at sign-in ("Remind me later" snoozes it for the
+  // session) plus a persistent banner on every screen, until a bank is on
+  // file. The decision is pure (src/lib/paymentNudge.js); mock mode never nudges.
+  const [pmModalOpen, setPmModalOpen] = useState(false);
+  const [, setPmTick] = useState(0);   // re-render once a bank is saved (DATA is mutable)
+  const pmNudge = isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
+  const openPm = () => { track('payment_nudge_open', {}); setPmModalOpen(true); };
+  const autoOpenPm = () => {
+    if (pmAutoOpenedThisLoad || isNudgeSnoozed()) return;
+    pmAutoOpenedThisLoad = true;
+    track('payment_nudge_shown', {});
+    setPmModalOpen(true);
+  };
   // Mobile top bar hides on scroll-down, returns on scroll-up.
   const [barHidden, setBarHidden] = useState(false);
   // Sidebar control: expanded | collapsed | hover (expand on hover).
@@ -152,9 +174,20 @@ function App({ session, onSignOut, staffNav } = {}) {
     const seenCurrent = u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT);
     if (!u.id || u.isStaff || seenCurrent) return;
     tourStartedRef.current = true;
-    const t = setTimeout(() => startPortalTour({ userId: u.id }), 800);
+    const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmNudge) autoOpenPm(); } }), 800);
     return () => clearTimeout(t);
   }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt]);
+
+  // Auto-open the autopay modal at sign-in — unless the first-run tour is about
+  // to play on the dashboard (it opens the nudge when it finishes instead).
+  useEffect(() => {
+    if (!pmNudge) return;
+    const u = DATA.user || {};
+    const tourDue = !!u.id && !u.isStaff && !(u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT));
+    if (tourDue && active === 'dashboard') return;
+    const t = setTimeout(autoOpenPm, 400);
+    return () => clearTimeout(t);
+  }, [pmNudge]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },
@@ -196,7 +229,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       case "rewards": return <RecognitionScreen/>;
       case "snapshot": return <SnapshotScreen/>;
       case "performance": return <PerformanceScreen onNav={handleNav}/>;
-      case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null}/>;
+      case "account-details": return <AccountScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onAddPayment={pmNudge ? openPm : null}/>;
       case "assets": return <AssetsScreen/>;
       // Proposals is a CMGT-only pilot: Alloy staff on any account, and among
       // clients only CMGT. Gating the ROUTE (not just the nav) so a direct URL
@@ -244,6 +277,7 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       <main className="main">
         <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
+        {pmNudge ? <PaymentNudgeBanner onOpen={openPm} /> : null}
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
 
@@ -277,6 +311,19 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       {goalsModalOpen ? (
         <QuarterGoalsModal onClose={() => setGoalsModalOpen(false)} />
+      ) : null}
+
+      {pmModalOpen ? (
+        <PaymentSetupModal
+          onLater={() => { snoozeNudge(); setPmModalOpen(false); }}
+          onSaved={(m) => {
+            // Same shape loadData builds from quickbooks_payment_methods, so the
+            // banner clears and the Account card fills in without a reload.
+            DATA.paymentMethod = { bankName: m.bankName || null, accountType: m.accountType || null, last4: m.last4 || null, status: m.verificationStatus || null, authorizedAt: m.authorizedAt || new Date().toISOString() };
+            setPmTick((t) => t + 1);
+          }}
+          onFinish={() => setPmModalOpen(false)}
+        />
       ) : null}
     </div>
     </>

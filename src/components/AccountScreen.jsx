@@ -114,8 +114,25 @@ function nextDraftDate(billingDay, startDate) {
 
 // Payment method on file + autopay schedule. Data from loadData (DATA.paymentMethod
 // from quickbooks_payment_methods, DATA.autopay from autopay_schedules). Billing-gated.
-function PaymentMethodCard({ pm, autopay }) {
-  if (!pm && !autopay) return null;
+function PaymentMethodCard({ pm, autopay, onAdd }) {
+  // Nothing on file: show the way in when this user is being nudged (billing
+  // role + account requires autopay); otherwise stay out of the way as before.
+  if (!pm && !autopay) {
+    if (!onAdd) return null;
+    return (
+      <section className="card card-pad-lg acct-pm" style={{ marginBottom: 20 }} data-testid="pm-empty-card">
+        <div className="card-head">
+          <span className="kicker">Payment method on file</span>
+          <h3>Set up autopay</h3>
+          <div className="grow" />
+        </div>
+        <div className="acct-empty">No bank account on file yet. Add one to activate autopay — about a minute, and your details go straight to Intuit.</div>
+        <div style={{ marginTop: 14 }}>
+          <button className="btn btn-primary" onClick={onAdd}>Add bank account</button>
+        </div>
+      </section>
+    );
+  }
   const active = autopay && autopay.status === 'active';
   const draft = autopay ? nextDraftDate(autopay.billingDay, autopay.startDate) : null;
   const amountStr = autopay && autopay.amount
@@ -165,7 +182,7 @@ function PaymentMethodCard({ pm, autopay }) {
 // Deterministic palette for the Plan & usage category pills (project phases).
 const CAT_PALETTE = ['#d9356e', '#2c6e62', '#2a6391', '#b8881a', '#381c4f', '#5a8f7b'];
 
-export default function AccountScreen({ onNav, onCompose }) {
+export default function AccountScreen({ onNav, onCompose, onAddPayment }) {
   const acct = DATA.account || {};
   const user = DATA.user || {};
   const team = DATA.team || [];
@@ -337,7 +354,7 @@ export default function AccountScreen({ onNav, onCompose }) {
       </div>
 
       {/* ── Payment method on file + autopay (under company profile) ── */}
-      {showBilling ? <PaymentMethodCard pm={DATA.paymentMethod} autopay={DATA.autopay} /> : null}
+      {showBilling ? <PaymentMethodCard pm={DATA.paymentMethod} autopay={DATA.autopay} onAdd={onAddPayment} /> : null}
 
       {/* ── Row 2: Billing & invoices (gated to billing roles) ───── */}
       {showBilling ? (

@@ -99,10 +99,13 @@ function visibleSteps() {
 
 let active = null;
 
-export function startPortalTour({ userId } = {}) {
+// `onDone` fires when the tour closes (finished or skipped) — or right away if
+// there is nothing to show — so a follow-up prompt (the autopay nudge) can
+// wait its turn instead of stacking on top of the tour.
+export function startPortalTour({ userId, onDone } = {}) {
   if (active) return;                       // already running
   const steps = visibleSteps();
-  if (!steps.length) return;
+  if (!steps.length) { if (onDone) onDone(); return; }
   active = driver({
     showProgress: true,
     allowClose: true,
@@ -114,7 +117,7 @@ export function startPortalTour({ userId } = {}) {
     doneBtnText: 'Done',
     popoverClass: 'alloy-tour',
     steps,
-    onDestroyed: () => { active = null; markComplete(userId); },
+    onDestroyed: () => { active = null; markComplete(userId); if (onDone) onDone(); },
   });
   active.drive();
   // Stamp completion as soon as the tour is SHOWN (not only on finish) so it
