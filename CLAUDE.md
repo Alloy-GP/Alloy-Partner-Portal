@@ -83,4 +83,6 @@ account via `accounts.autopay_required=false`. Seams: migration → `admin` fn
 `App.jsx`. Capture is PCI-safe: browser → Intuit tokens endpoint (unauthenticated
 by design; host comes from the function's `config` action) → `attach`. Intuit
 gotcha: `createFromToken` wants `{ value: token }`, not `{ token }` (PMT-4002).
-Alloy still creates the recurring draft (staff-only `createRecurring`).
+Alloy still creates the recurring draft — Admin → client → Autopay (`AdminAutopay.jsx` →
+staff-only `createRecurring`/`deleteRecurring`). A successful `attach` emails
+`BILLING_ALERT_TO` (default admin@alloygp.co) via Resend; staff can `resendBankAlert`.
