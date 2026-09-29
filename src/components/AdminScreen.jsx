@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../lib/admin.js';
+import AdminAutopay from './AdminAutopay.jsx';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
 import SyncHealth from './SyncHealth.jsx';
@@ -337,6 +338,9 @@ function AdminScreen({ startNew, selectId, embed }) {
               <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
                 <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : (isNew ? 'Create client' : 'Save changes')}</button>
               </div>
+
+              {/* Autopay — bank on file + start/stop the monthly draft */}
+              {!isNew ? <AdminAutopay accountId={selectedId} company={form.company} /> : null}
 
               {/* Team / access */}
               {!isNew ? (
