@@ -5,6 +5,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //
 // Client actions (billing-capable role, own account):
 //   - get             → bank method on file for the caller's account (last-4 only)
+//   - config          → which Intuit host the browser tokenizes against (env + tokenUrl)
 //   - createCustomer  → ensure the account has a QBO customer (creates if missing)
 //   - attach          → { token, accountName?, achAuthorized, agreementVersion }
 //                       tokenized bank (browser) → createFromToken → store ref + ACH auth
@@ -153,6 +154,14 @@ Deno.serve(async (req) => {
         .select("last4, account_name, bank_name, account_type, verification_status, is_default, ach_authorized_at, created_at")
         .eq("account_id", me.account_id).order("created_at", { ascending: false });
       return json({ methods: data || [] });
+    }
+
+    // --- config: where the browser tokenizes raw bank details (any authed user).
+    // The function owns QBO_ENV, so the UI can never drift to the wrong Intuit
+    // host (a sandbox token is useless against a production customer). Intuit's
+    // tokens endpoint is unauthenticated by design — raw numbers never reach us.
+    if (action === "config") {
+      return json({ env: sandbox() ? "sandbox" : "production", tokenUrl: `${payBase()}/quickbooks/v4/payments/tokens` });
     }
 
     // --- staff actions: Alloy configures billing (clients never set their price) ---
@@ -318,7 +327,8 @@ Deno.serve(async (req) => {
           "Accept": "application/json",
           "Request-Id": crypto.randomUUID(),    // Payments idempotency key
         },
-        body: JSON.stringify({ token: bankToken }),
+        // Intuit expects the token under `value` (PMT-4002 "value is required" otherwise).
+        body: JSON.stringify({ value: bankToken }),
       });
       if (!res.ok) return json({ error: `QBO bank attach ${res.status}: ${(await res.text()).slice(0, 500)}` }, 502);
       const bank = await res.json();
@@ -339,7 +349,7 @@ Deno.serve(async (req) => {
       const { error: insErr } = await db.from("quickbooks_payment_methods")
         .upsert(row, { onConflict: "account_id, qbo_bank_account_id" });
       if (insErr) throw insErr;
-      return json({ ok: true, method: { last4: row.last4, bankName: row.bank_name, accountType: row.account_type } });
+      return json({ ok: true, method: { last4: row.last4, bankName: row.bank_name, accountType: row.account_type, verificationStatus: row.verification_status, authorizedAt: row.ach_authorized_at } });
     }
 
     return json({ error: "unknown action" }, 400);

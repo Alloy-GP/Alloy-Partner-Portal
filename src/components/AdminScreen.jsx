@@ -16,6 +16,7 @@ const BLANK = {
   dash_folder_id: '', dash_upload_url: '', pastel_url: '',
   locations: [],
   lead_field_labels: {},
+  autopay_required: true,
 };
 
 function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
@@ -320,6 +321,10 @@ function AdminScreen({ startNew, selectId, embed }) {
                 <Field label="Dash upload link" value={form.dash_upload_url} onChange={set('dash_upload_url')} hint="Guest-upload link — powers the Upload Assets button" />
                 <Field label="Pastel website board" value={form.pastel_url} onChange={set('pastel_url')} hint="Client's Pastel feedback URL — routes 'Website update' requests here" />
               </div>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, fontSize: 13, lineHeight: 1.45, cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.autopay_required !== false} onChange={(e) => set('autopay_required')(e.target.checked)} style={{ marginTop: 3 }} />
+                <span><strong>Require autopay setup</strong> — at sign-in, nudge this client's owner/accounting users to add a bank account until one is on file (soft: they can snooze per session). Turn off for accounts billed another way.</span>
+              </label>
 
               <div style={{ marginTop: 12 }}>
                 <TextareaField
