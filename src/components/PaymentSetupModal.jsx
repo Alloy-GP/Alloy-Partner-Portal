@@ -36,7 +36,11 @@ function Field({ label, error, children }) {
   );
 }
 
-export default function PaymentSetupModal({ onLater, onSaved, onFinish }) {
+// `previewOnly` (staff "View as client"): everything renders as the client sees
+// it, but Save is locked — a bank can only be authorized by the client's own
+// owner/accounting user (NACHA), and the attach endpoint would otherwise bind it
+// to the STAFF member's account. No analytics in preview either.
+export default function PaymentSetupModal({ onLater, onSaved, onFinish, previewOnly = false }) {
   const company = (DATA.account && DATA.account.company) || '';
   const [form, setForm] = useState({
     name: company, routing: '', account: '', confirm: '', accountType: 'BUSINESS_CHECKING', phone: '', agree: false,
@@ -55,7 +59,7 @@ export default function PaymentSetupModal({ onLater, onSaved, onFinish }) {
   const later = () => {
     if (busy) return;
     if (saved) { onFinish && onFinish(); return; }
-    track('payment_nudge_dismissed', {});
+    if (!previewOnly) track('payment_nudge_dismissed', {});
     onLater && onLater();
   };
 
@@ -66,6 +70,7 @@ export default function PaymentSetupModal({ onLater, onSaved, onFinish }) {
   }, [busy, saved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async () => {
+    if (previewOnly) { setErr('Staff preview — only the client’s owner or accounting user can add a bank account, from their own sign-in.'); return; }
     const v = validateBankForm(form);
     setErrors(v.errors);
     if (!v.ok) { setErr('Check the highlighted fields.'); return; }
@@ -129,6 +134,12 @@ export default function PaymentSetupModal({ onLater, onSaved, onFinish }) {
             <p style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--fg-2)', margin: 0 }}>
               Alloy bills monthly by ACH. Add the account you’d like drafted — it takes about a minute.
             </p>
+            {previewOnly ? (
+              <div className="pm-secure" style={{ background: 'var(--alloy-yellow-tint, #fff6d6)', color: 'var(--alloy-purple)' }} data-testid="pm-preview-note">
+                <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase' }}>Staff preview</span>
+                <span>This is what the client’s owner sees. Only they can add a bank account, from their own sign-in.</span>
+              </div>
+            ) : null}
             <div className="pm-secure">
               <LockIcon />
               <span>Your details are sent directly to <strong>Intuit (QuickBooks Payments)</strong> and tokenized there. Alloy never sees or stores your routing or account number.</span>
@@ -175,7 +186,7 @@ export default function PaymentSetupModal({ onLater, onSaved, onFinish }) {
             <div className="nr-foot" style={{ alignItems: 'center' }}>
               {stage ? <span style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginRight: 'auto' }}>{stage}</span> : null}
               <button className="btn btn-secondary" onClick={later} disabled={busy}>Remind me later</button>
-              <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Save bank account'}</button>
+              <button className="btn btn-primary" onClick={submit} disabled={busy || previewOnly} title={previewOnly ? 'Preview only' : undefined}>{busy ? 'Saving…' : 'Save bank account'}</button>
             </div>
           </>
         )}

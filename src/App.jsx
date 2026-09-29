@@ -18,7 +18,7 @@ import PrivacyScreen from './components/PrivacyScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
-import { can } from './lib/perms.js';
+import { can, effectiveIdentity } from './lib/perms.js';
 import { canSeeProposals } from './lib/proposalAccess.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
@@ -63,7 +63,13 @@ function App({ session, onSignOut, staffNav } = {}) {
   // the REAL staff flag (truthy only for staff), so the exit toggle never hides.
   const realStaff = !!staffNav;
   const viewAsClient = realStaff && new URLSearchParams(location.search).get('as') === 'client';
-  if (DATA.user) DATA.user.isStaff = realStaff && !viewAsClient; // effective flag — children read it synchronously this render
+  if (DATA.user) {
+    // Effective identity — children read DATA.user synchronously this render.
+    // Preview = the client's OWNER (see effectiveIdentity); real role remembered.
+    if (DATA.user.realRole === undefined) DATA.user.realRole = DATA.user.role;
+    const eff = effectiveIdentity(DATA.user, { realStaff, viewAsClient });
+    DATA.user.isStaff = eff.isStaff; DATA.user.role = eff.role;
+  }
   const toggleViewAsClient = () => {
     const sp = new URLSearchParams(location.search);
     if (viewAsClient) sp.delete('as'); else sp.set('as', 'client');
@@ -105,11 +111,13 @@ function App({ session, onSignOut, staffNav } = {}) {
   const [pmModalOpen, setPmModalOpen] = useState(false);
   const [, setPmTick] = useState(0);   // re-render once a bank is saved (DATA is mutable)
   const pmNudge = isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
-  const openPm = () => { track('payment_nudge_open', {}); setPmModalOpen(true); };
+  // Staff previewing a client see the nudge but must not log client events.
+  const trackNudge = (type) => { if (!viewAsClient) track(type, {}); };
+  const openPm = () => { trackNudge('payment_nudge_open'); setPmModalOpen(true); };
   const autoOpenPm = () => {
     if (pmAutoOpenedThisLoad || isNudgeSnoozed()) return;
     pmAutoOpenedThisLoad = true;
-    track('payment_nudge_shown', {});
+    trackNudge('payment_nudge_shown');
     setPmModalOpen(true);
   };
   // Mobile top bar hides on scroll-down, returns on scroll-up.
@@ -323,6 +331,7 @@ function App({ session, onSignOut, staffNav } = {}) {
             setPmTick((t) => t + 1);
           }}
           onFinish={() => setPmModalOpen(false)}
+          previewOnly={realStaff}
         />
       ) : null}
     </div>
