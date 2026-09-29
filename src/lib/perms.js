@@ -65,6 +65,16 @@ export function roleKey(user) {
   return `${side}:${role}`;
 }
 
+// The identity the app gates on THIS render. Staff "View as client" must show
+// exactly what a client sees: the staff flag drops AND the role becomes the
+// client's OWNER — a staff role (admin/staff) matches no `client:*` entry, so
+// without the role swap a preview showed LESS than any real client (no billing,
+// no New request, no autopay nudge). Outside preview the real role stands.
+export function effectiveIdentity(user, { realStaff, viewAsClient } = {}) {
+  const role = (user && user.realRole !== undefined) ? user.realRole : (user && user.role);
+  return { isStaff: !!realStaff && !viewAsClient, role: viewAsClient ? 'owner' : role };
+}
+
 // Does this user have the given capability?
 export function can(user, cap) {
   const allowed = CAPS[cap];

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { can, roleKey } from "./perms.js";
+import { can, roleKey, effectiveIdentity } from "./perms.js";
 
 const alloyAdmin = { isStaff: true, role: "admin" };
 const alloyStaff = { isStaff: true, role: "staff" };
@@ -46,5 +46,25 @@ describe("can", () => {
 
   it("returns false for an unknown capability", () => {
     expect(can(alloyAdmin, "nonexistent_cap")).toBe(false);
+  });
+});
+
+describe("effectiveIdentity (staff 'View as client')", () => {
+  const admin = { id: "s1", role: "admin", isStaff: true };
+  it("outside preview: real staff flag and real role", () => {
+    expect(effectiveIdentity(admin, { realStaff: true, viewAsClient: false })).toEqual({ isStaff: true, role: "admin" });
+  });
+  it("in preview: presents as the client OWNER so gates match a real client", () => {
+    const eff = effectiveIdentity(admin, { realStaff: true, viewAsClient: true });
+    expect(eff).toEqual({ isStaff: false, role: "owner" });
+    expect(can({ ...admin, ...eff }, "billing")).toBe(true);
+    expect(can({ ...admin, ...eff }, "newRequest")).toBe(true);
+  });
+  it("restores the remembered real role after preview (App stores realRole)", () => {
+    const swapped = { id: "s1", role: "owner", realRole: "staff", isStaff: false };
+    expect(effectiveIdentity(swapped, { realStaff: true, viewAsClient: false })).toEqual({ isStaff: true, role: "staff" });
+  });
+  it("a client is never staff and keeps their role", () => {
+    expect(effectiveIdentity({ id: "c1", role: "accounting" }, { realStaff: false, viewAsClient: false })).toEqual({ isStaff: false, role: "accounting" });
   });
 });
