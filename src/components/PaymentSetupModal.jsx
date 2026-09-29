@@ -131,9 +131,6 @@ export default function PaymentSetupModal({ onLater, onSaved, onFinish, previewO
               <button className="nr-close" onClick={later} aria-label="Remind me later" disabled={busy}><I.Close width={14} height={14} /></button>
             </div>
 
-            <p style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--fg-2)', margin: 0 }}>
-              Alloy bills monthly by ACH. Add the account you’d like drafted — it takes about a minute.
-            </p>
             {previewOnly ? (
               <div className="pm-secure" style={{ background: 'var(--alloy-yellow-tint, #fff6d6)', color: 'var(--alloy-purple)' }} data-testid="pm-preview-note">
                 <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase' }}>Staff preview</span>
