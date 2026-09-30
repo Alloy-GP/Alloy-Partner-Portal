@@ -305,6 +305,38 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
                 ); })}
               </div>
               {errors.exclusivityMiles ? <div className="err">{errors.exclusivityMiles}</div> : null}
+              <div className="card-head" style={{ marginTop: 18 }}><div className="eyebrow">Custom rows</div><button type="button" className="btn-g" onClick={() => set('customRows')([...form.customRows, { id: `c${Date.now().toString(36)}`, label: '', note: '', cells: {} }])} data-testid="adm-custom-add">+ Add row</button></div>
+              <div className="card-sub">Your own line items — shown after the standard rows, before Monthly investment. Per plan: a check, a dash, or text.</div>
+              <div className="adm-rowlist" data-testid="adm-custom-rows">
+                {form.customRows.length === 0 ? <div className="help" style={{ margin: 0 }}>None yet.</div> : null}
+                {form.customRows.map((r, i) => {
+                  const setRow = (patch) => set('customRows')(form.customRows.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                  const setCell = (planKey, v) => setRow({ cells: { ...r.cells, [planKey]: v } });
+                  const kindOf = (v) => v === true ? 'check' : (v === false || v == null || v === '') ? 'dash' : 'text';
+                  return (
+                    <div key={r.id} className="adm-rowitem" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 10 }} data-testid={`adm-custom-${i}`}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr auto', gap: 10, width: '100%', alignItems: 'end' }}>
+                        <Field label="Label"><input className="in sm" value={r.label} onChange={(e) => setRow({ label: e.target.value })} placeholder="Quarterly strategy call" /></Field>
+                        <Field label="Note (under the label)"><input className="in sm" value={r.note} onChange={(e) => setRow({ note: e.target.value })} placeholder="Optional one-liner" /></Field>
+                        <button type="button" className="btn-g pink" onClick={() => set('customRows')(form.customRows.filter((_, j) => j !== i))}>Remove</button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, plansNorm.length)}, minmax(0, 1fr))`, gap: 10, width: '100%' }}>
+                        {plansNorm.map((p) => { const v = r.cells[p.key]; const kind = kindOf(v); return (
+                          <div key={p.key} style={{ display: 'grid', gap: 4 }}>
+                            <span className="lbl sm">{p.name}</span>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <select className="in sm" value={kind} onChange={(e) => setCell(p.key, e.target.value === 'check' ? true : e.target.value === 'dash' ? false : (typeof v === 'string' ? v : ''))} style={{ flex: '0 0 82px' }} aria-label={`${p.name} value type`}>
+                                <option value="check">✓ check</option><option value="dash">– dash</option><option value="text">text</option>
+                              </select>
+                              {kind === 'text' ? <input className="in sm" value={typeof v === 'string' ? v : ''} onChange={(e) => setCell(p.key, e.target.value)} placeholder="e.g. 2 / quarter" /> : null}
+                            </div>
+                          </div>
+                        ); })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </>
         ) : null}

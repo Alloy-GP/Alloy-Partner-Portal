@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizePlans, pickPlan, dueAtStart, planLocLabel, marketsFor, fmtUSD, termWords, longDate,
-  compareRows, defaultCompareRows, normalizeCompareRows, roiFor, defaultValidThrough, isExpired, addBusinessDays,
+  compareRows, defaultCompareRows, normalizeCompareRows, normalizeCustomRows, roiFor, defaultValidThrough, isExpired, addBusinessDays,
   proposalRef, nextRefSeq, plansFromRow, agreementDocument, agreementText, PLAN_TEMPLATES, COMPARE_ROW_DEFS, ALLOY_LEGAL,
 } from './proposalPlans.js';
 
@@ -68,6 +68,28 @@ describe('compare rows', () => {
     expect(rows.find((r) => r.key === 'monthly').cells[1]).toEqual({ kind: 'text', text: '$6,850' });
     expect(rows.find((r) => r.key === 'referral').cells[0]).toEqual({ kind: 'text', text: '−$150 / mo' });
     expect(COMPARE_ROW_DEFS.map((r) => r.key)).toEqual(['locations', 'term', 'exclusivity', 'guarantee', 'portal', 'referral', 'setup', 'monthly']);
+  });
+});
+
+describe('custom comparison rows', () => {
+  const plans = normalizePlans(PLAN_TEMPLATES);
+  it('normalises, drops nameless rows, coerces cells', () => {
+    const rows = normalizeCustomRows([{ label: ' Strategy calls ', note: 'per quarter', cells: { core: '1', growth: true, scale: null } }, { label: '', cells: {} }, null]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: 'c1', label: 'Strategy calls', note: 'per quarter', cells: { core: '1', growth: true, scale: false } });
+  });
+  it('renders between the standard rows and Monthly investment, one cell per plan', () => {
+    const rows = compareRows(plans, {}, { customRows: [{ id: 'x', label: 'Strategy calls', cells: { growth: true, scale: '2 / quarter' } }] });
+    const keys = rows.map((r) => r.key);
+    expect(keys[keys.length - 1]).toBe('monthly');
+    expect(keys[keys.length - 2]).toBe('custom-x');
+    const c = rows.find((r) => r.key === 'custom-x');
+    expect(c.custom).toBe(true);
+    expect(c.cells).toEqual([{ kind: 'dash' }, { kind: 'check' }, { kind: 'text', text: '2 / quarter' }]);
+  });
+  it('lands at the end when Monthly investment is hidden', () => {
+    const rows = compareRows(plans, { monthly: false }, { customRows: [{ id: 'x', label: 'Extra', cells: {} }] });
+    expect(rows[rows.length - 1].key).toBe('custom-x');
   });
 });
 

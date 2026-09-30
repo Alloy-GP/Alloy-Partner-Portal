@@ -62,19 +62,32 @@ export function normalizeCompareRows(raw) {
   return Object.fromEntries(COMPARE_ROW_DEFS.map((r) => [r.key, src[r.key] !== false]));
 }
 
+// Staff-authored rows: [{ id, label, note, cells: { <planKey>: true|false|'text' } }].
+// Anything malformed is dropped; a missing cell renders as a dash.
+export function normalizeCustomRows(raw) {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr.filter((r) => r && typeof r === 'object' && String(r.label || '').trim()).map((r, i) => ({
+    id: String(r.id || `c${i + 1}`), label: String(r.label).trim(), note: String(r.note || '').trim(),
+    cells: Object.fromEntries(Object.entries(r.cells && typeof r.cells === 'object' ? r.cells : {}).map(([k, v]) => [k, v === true ? true : v === false || v == null ? false : String(v)])),
+  }));
+}
+const toCell = (v) => v === true ? { kind: 'check' } : (v === false || v == null || v === '') ? { kind: 'dash' } : { kind: 'text', text: String(v) };
+
 // Rows × plans → cells the grid renders. A cell is {kind:'check'|'dash'|'text', text}.
+// Custom rows sit after the standard rows and before Monthly investment.
 export function compareRows(plans, toggles, opts = {}) {
   const t = normalizeCompareRows(toggles);
   const o = { exclusivityMiles: opts.exclusivityMiles || DEFAULT_EXCLUSIVITY_MILES };
-  return COMPARE_ROW_DEFS.filter((r) => t[r.key]).map((r) => ({
+  const std = COMPARE_ROW_DEFS.filter((r) => t[r.key]).map((r) => ({
     key: r.key, label: r.label, note: r.note(o), strong: !!r.strong,
-    cells: (plans || []).map((p) => {
-      const v = r.cell(p);
-      if (v === true) return { kind: 'check' };
-      if (v === false || v == null || v === '') return { kind: 'dash' };
-      return { kind: 'text', text: String(v) };
-    }),
+    cells: (plans || []).map((p) => toCell(r.cell(p))),
   }));
+  const custom = normalizeCustomRows(opts.customRows).map((r) => ({
+    key: `custom-${r.id}`, label: r.label, note: r.note, strong: false, custom: true,
+    cells: (plans || []).map((p) => toCell(r.cells[p.key])),
+  }));
+  const last = std.length && std[std.length - 1].key === 'monthly' ? std.pop() : null;
+  return [...std, ...custom, ...(last ? [last] : [])];
 }
 
 // "How it pays for itself": how many new communities a year cover the fee.

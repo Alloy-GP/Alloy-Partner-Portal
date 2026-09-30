@@ -118,6 +118,9 @@ describe('ClientWorkspace', () => {
     expect(host.querySelectorAll('.adm-plan')).toHaveLength(2);
     expect(host.querySelector('[data-testid="adm-plan-1-name"]').value).toBe('Growth');
     expect(host.querySelector('[data-testid="adm-plan-1"] .adm-plan-head').className).toContain('rec');
+    click(host.querySelector('[data-testid="adm-custom-add"]'));
+    expect(host.querySelector('[data-testid="adm-custom-0"]')).toBeTruthy();
+    expect(host.querySelectorAll('[data-testid="adm-custom-0"] select')).toHaveLength(2); // one value editor per plan
     click(host.querySelector('[data-testid="adm-subtab-content"]'));
     expect(host.querySelectorAll('[data-testid^="adm-section-"]')).toHaveLength(6);
     click(host.querySelector('[data-testid="adm-section-s2"] .sw'));
