@@ -9,7 +9,7 @@ export default function Investment({ p, plans: allPlans, selected, onSelect, pre
   const plans = (allPlans || []).filter((x) => x.show !== false);
   const multi = plans.length > 1;
   const cols = `minmax(0,1.4fr) ${plans.map(() => 'minmax(120px,1fr)').join(' ')}`;
-  const rows = compareRows(plans, p.compareRows, { exclusivityMiles: p.exclusivityMiles });
+  const rows = compareRows(plans, p.compareRows, { exclusivityMiles: p.exclusivityMiles, customRows: p.customRows });
   const expired = isExpired(p.validThrough);
   const anyGuarantee = plans.some((x) => x.guarantee);
   const guaranteePlans = plans.filter((x) => x.guarantee).map((x) => x.name);

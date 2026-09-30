@@ -11,7 +11,7 @@
 //   AdminEngagement    → parse/format reference links, status labels
 // ============================================================================
 import { can } from './perms.js';
-import { plansFromRow, normalizeCompareRows, normalizeSections, DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL, VALIDITY_DAYS } from './proposalPlans.js';
+import { plansFromRow, normalizeCompareRows, normalizeCustomRows, normalizeSections, DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL, VALIDITY_DAYS } from './proposalPlans.js';
 
 // Bump when the acceptance wording changes. Stored per acceptance as
 // engagement_proposals.agreement_version so we can prove which text an owner
@@ -53,6 +53,7 @@ export function engagementRowToView(row) {
     clientAddress: row.client_address || '',
     plans: plansFromRow(row),
     compareRows: normalizeCompareRows(row.compare_rows),
+    customRows: normalizeCustomRows(row.custom_rows),
     markets: Array.isArray(row.markets) ? row.markets.filter(Boolean) : [],
     sections: normalizeSections(row.sections),
     spoc: row.spoc || '',

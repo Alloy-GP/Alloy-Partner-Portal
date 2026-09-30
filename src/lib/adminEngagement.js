@@ -2,7 +2,7 @@ import { supabase } from './supabase.js';
 import { engagementRowToView, normalizeReferenceLinks, parseLinkLines, invalidLinkLines, isHttpUrl } from './engagementGate.js';
 import { DEFAULT_MODULES, MODULE_BY_KEY, normalizeLocations } from './engagementCatalog.js';
 import {
-  PLAN_TEMPLATES, normalizePlans, pickPlan, visiblePlans, defaultCompareRows, normalizeCompareRows, normalizeSections,
+  PLAN_TEMPLATES, normalizePlans, pickPlan, visiblePlans, defaultCompareRows, normalizeCompareRows, normalizeCustomRows, normalizeSections,
   DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL, VALIDITY_DAYS, defaultValidThrough, proposalRef, nextRefSeq, vimeoId,
 } from './proposalPlans.js';
 
@@ -96,6 +96,7 @@ export function blankProposalForm({ company, locations, legalName } = {}) {
     modules: [...DEFAULT_MODULES],
     plans: PLAN_TEMPLATES.map((p) => ({ ...p })),
     compareRows: defaultCompareRows(),
+    customRows: [],
     sections: normalizeSections({}),
     markets: (Array.isArray(locations) ? locations : []).map((l) => (l && l.name) || l).filter(Boolean),
     spoc: '',
@@ -128,6 +129,7 @@ export function viewToForm(v) {
     modules: [...(v.modules || [])],
     plans: (v.plans || []).map((p) => ({ ...p })),
     compareRows: normalizeCompareRows(v.compareRows),
+    customRows: (v.customRows || []).map((r) => ({ ...r, cells: { ...r.cells } })),
     sections: normalizeSections(v.sections),
     markets: [...(v.markets || [])],
     spoc: v.spoc || '',
@@ -164,6 +166,7 @@ export function formToRow(form = {}) {
     modules: (form.modules || []).filter((k) => MODULE_BY_KEY[k]),
     plans,
     compare_rows: normalizeCompareRows(form.compareRows),
+    custom_rows: normalizeCustomRows(form.customRows),
     sections: normalizeSections(form.sections),
     markets: (Array.isArray(form.markets) ? form.markets : []).map((m) => String(m || '').trim()).filter(Boolean),
     spoc: String(form.spoc || '').trim() || null,
