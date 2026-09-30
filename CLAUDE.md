@@ -86,3 +86,21 @@ gotcha: `createFromToken` wants `{ value: token }`, not `{ token }` (PMT-4002).
 Alloy still creates the recurring draft — Admin → client → Autopay (`AdminAutopay.jsx` →
 staff-only `createRecurring`/`deleteRecurring`). A successful `attach` emails
 `BILLING_ALERT_TO` (default admin@alloygp.co) via Resend; staff can `resendBankAlert`.
+
+## Engagement proposal gate (Alloy's proposal to a NEW client)
+Not the CMGT board system (`proposals`). Table `engagement_proposals`: staff author
+in Admin → client → Engagement proposal (`AdminEngagement.jsx`, writes under RLS)
+from the evergreen catalog `src/lib/engagementCatalog.js` (modules + how each
+scales with `locations_count`). **Send → the client's portal is LOCKED to
+`ProposalGate.jsx` until their OWNER accepts** (`acceptProposal` cap = client:owner).
+Decision is pure — `proposalGateState` in `src/lib/engagementGate.js` (tested):
+staff never locked, "View as client" locked (that is the QA path; Accept disabled
+in preview). Client writes (accept / request_changes) + staff `notify_sent` go
+through the `engagement-proposal` edge fn (`verify_jwt: true`; emails
+`PROPOSAL_ALERT_TO`, default admin@alloygp.co). Seams: migration → `loadData`
+(`DATA.engagement`, error-tolerant) → `App.jsx` (gate before `titles`; mutes the
+autopay nudge + tour while locked; staff banner when 'sent') → `AuthGate` realtime
+channel (`engagement_proposals`) so send/withdraw locks/unlocks live. Withdraw
+unlocks and allows a new proposal; re-send bumps `version`; acceptance records
+who/when/`accepted_version`/`agreement_version` (bump `PROPOSAL_AGREEMENT_VERSION`
+when the wording changes). Reference docs = `reference_links` (view.alloygp.co).

@@ -54,6 +54,10 @@ const CAPS = {
   screen_roi: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:accounting'],
   partnershipValue: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:accounting'],
   billing: ['alloy:admin', 'client:owner', 'client:accounting'],
+  // Accepting Alloy's engagement proposal commits the company — the client's
+  // OWNER only. Staff never accept on a client's behalf (the edge fn enforces
+  // it too); other client roles read the proposal and ask questions.
+  acceptProposal: ['client:owner'],
 };
 
 // Map a loaded user ({ isStaff, role }) to its identity key, normalizing any

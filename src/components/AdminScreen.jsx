@@ -2,6 +2,7 @@ import React from 'react';
 import { I } from './icons.jsx';
 import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../lib/admin.js';
 import AdminAutopay from './AdminAutopay.jsx';
+import AdminEngagement from './AdminEngagement.jsx';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
 import SyncHealth from './SyncHealth.jsx';
@@ -341,6 +342,9 @@ function AdminScreen({ startNew, selectId, embed }) {
 
               {/* Autopay — bank on file + start/stop the monthly draft */}
               {!isNew ? <AdminAutopay accountId={selectedId} company={form.company} /> : null}
+
+              {/* Engagement proposal — Alloy's proposal to a new client; 'sent' locks their portal */}
+              {!isNew ? <AdminEngagement accountId={selectedId} company={form.company} locations={form.locations} /> : null}
 
               {/* Team / access */}
               {!isNew ? (

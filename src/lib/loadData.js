@@ -2,6 +2,7 @@ import { supabase } from './supabase.js';
 import { enrichLead } from './proposalMockData.js';
 import { camFor } from './camProfiles.js';
 import { isPlanningItem } from './quarterStats.js';
+import { engagementRowToView } from './engagementGate.js';
 
 // A proposals row (snake_case DB) → the raw lead shape enrichLead consumes
 // (camelCase) that enrichLead consumes. Shared by loadData and the
@@ -101,7 +102,7 @@ export async function loadAccountData(session, accountId, me) {
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
     toolkitRes, assetsRes, proposalUvpsRes, proposalsRes, proposalEventsRes,
-    newsletterRes, guidesRes,
+    newsletterRes, guidesRes, engagementRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -152,6 +153,10 @@ export async function loadAccountData(session, accountId, me) {
     // opened). Scoped to global (account_id null) + this account, explicitly —
     // so staff viewing a client see that client's guides, not every account's.
     supabase.from('guides').select('id, account_id, title, description, category, tag, sort').or(`account_id.is.null,account_id.eq.${accountId}`).order('sort'),
+    // Engagement proposal · Alloy's own proposal to this client. RLS shows a
+    // client only a SENT or ACCEPTED one (staff see drafts too, but the gate
+    // ignores drafts). 'sent' locks the portal to ProposalGate (App.jsx).
+    supabase.from('engagement_proposals').select('*').eq('account_id', accountId).in('status', ['sent', 'accepted']).order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -229,6 +234,10 @@ export async function loadAccountData(session, accountId, me) {
       // state (so a pre-plan quarter doesn't read as bogus progress). '*' = always.
       planPublishedQuarters: Array.isArray(account.plan_published_quarters) ? account.plan_published_quarters : [],
     },
+    // The live engagement proposal (or null). A query error (e.g. the table
+    // not migrated yet on this database) must never take the portal down —
+    // it just means no gate.
+    engagement: engagementRes && !engagementRes.error ? engagementRowToView(engagementRes.data) : null,
     roles: ROLES,
     recurringServices: (recurringRes.data || []).map((r) => ({
       id: r.id, name: r.name, short: r.short, cadence: r.cadence,

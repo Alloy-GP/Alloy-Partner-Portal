@@ -99,6 +99,9 @@ function AuthGate() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'action_items' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_services' }, refresh)
+      // Engagement proposal: a send/withdraw from Admin locks or unlocks the
+      // client's portal live; an acceptance shows up for staff without a reload.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_proposals' }, refresh)
       .subscribe();
     return () => { clearTimeout(timer); supabase.removeChannel(channel); };
   }, [configured, session, viewAccountId]); // eslint-disable-line react-hooks/exhaustive-deps

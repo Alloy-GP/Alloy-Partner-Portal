@@ -20,6 +20,8 @@ import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
 import { can, effectiveIdentity } from './lib/perms.js';
 import { canSeeProposals } from './lib/proposalAccess.js';
+import ProposalGate from './components/ProposalGate.jsx';
+import { proposalGateState } from './lib/engagementGate.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
 import QuarterGoalsModal from './components/QuarterGoalsModal.jsx';
@@ -110,7 +112,15 @@ function App({ session, onSignOut, staffNav } = {}) {
   // file. The decision is pure (src/lib/paymentNudge.js); mock mode never nudges.
   const [pmModalOpen, setPmModalOpen] = useState(false);
   const [, setPmTick] = useState(0);   // re-render once a bank is saved (DATA is mutable)
-  const pmNudge = isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
+  // Engagement proposal gate — a NEW client whose proposal is 'sent' sees ONLY
+  // the proposal page until their owner accepts (src/lib/engagementGate.js).
+  // Staff are never locked; "View as client" is (that is how staff QA it).
+  // While locked, the autopay nudge and the first-run tour stay quiet — they
+  // are the NEXT steps and fire naturally once the portal opens.
+  const [, setGateTick] = useState(0);
+  const gateState = proposalGateState({ user: DATA.user, engagement: DATA.engagement });
+  const locked = gateState === 'locked';
+  const pmNudge = !locked && isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
   // Staff previewing a client see the nudge but must not log client events.
   const trackNudge = (type) => { if (!viewAsClient) track(type, {}); };
   const openPm = () => { trackNudge('payment_nudge_open'); setPmModalOpen(true); };
@@ -175,7 +185,7 @@ function App({ session, onSignOut, staffNav } = {}) {
   // anchors are mounted; the tour stamps profiles.tour_completed_at on finish.
   const tourStartedRef = React.useRef(false);
   useEffect(() => {
-    if (tourStartedRef.current || active !== "dashboard") return;
+    if (tourStartedRef.current || active !== "dashboard" || locked) return;
     const u = DATA.user || {};
     // Show on first sign-in (no completion) OR when the tour was revised after
     // their last completion ("something new"). Otherwise leave them alone.
@@ -184,7 +194,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     tourStartedRef.current = true;
     const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmNudge) autoOpenPm(); } }), 800);
     return () => clearTimeout(t);
-  }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt]);
+  }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt, locked]);
 
   // Auto-open the autopay modal at sign-in — unless the first-run tour is about
   // to play on the dashboard (it opens the nudge when it finishes instead).
@@ -196,6 +206,20 @@ function App({ session, onSignOut, staffNav } = {}) {
     const t = setTimeout(autoOpenPm, 400);
     return () => clearTimeout(t);
   }, [pmNudge]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Locked → the proposal is the whole portal. Accepting flips DATA in place
+  // (the row is already 'accepted' server-side) and re-renders into the real
+  // portal, where the autopay nudge / tour take over.
+  if (locked) {
+    return (
+      <ProposalGate
+        onSignOut={onSignOut}
+        previewOnly={realStaff}
+        onExitPreview={toggleViewAsClient}
+        onAccepted={() => { if (DATA.engagement) DATA.engagement.status = 'accepted'; setGateTick((t) => t + 1); }}
+      />
+    );
+  }
 
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },
@@ -286,6 +310,12 @@ function App({ session, onSignOut, staffNav } = {}) {
       <main className="main">
         <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
         {pmNudge ? <PaymentNudgeBanner onOpen={openPm} /> : null}
+        {realStaff && !viewAsClient && DATA.engagement && DATA.engagement.status === 'sent' ? (
+          <div className="eg-staff-banner" role="status" data-testid="eg-staff-banner">
+            <span><strong>Proposal sent (v{DATA.engagement.version}).</strong> This client's portal is locked to the proposal until their owner accepts.</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={toggleViewAsClient}>Preview as client</button>
+          </div>
+        ) : null}
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
 
