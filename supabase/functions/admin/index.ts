@@ -114,6 +114,9 @@ async function syncWhatConverts(accountId: string): Promise<string | null> {
 const PORTAL_URL = Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co";
 const PORTAL_HOST = PORTAL_URL.replace(/^https?:\/\//, "");
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
+// Replies to invites land in a monitored mailbox (also helps deliverability —
+// no-reply senders with no reply-to score worse).
+const INVITE_REPLY_TO = Deno.env.get("INVITE_REPLY_TO") || "team@alloygp.co";
 
 function esc(s: unknown): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -219,17 +222,33 @@ async function sendSnapshotEmail(admin: any, snapshotId: string) {
 // Branded "you're invited" email with a one-click sign-in link. We generate the
 // link ourselves and send via Resend (not the built-in auth mailer) so it's
 // reliable + on-brand, and so failures surface instead of vanishing.
-function renderInviteEmail(acct: any, link: string, staff: boolean): string {
+// `proposal` = the account has an engagement proposal SENT and unaccepted: the
+// portal is locked to the proposal page, so the invite must say "review your
+// proposal", not "here is your full portal" (which they cannot see yet).
+function renderInviteEmail(acct: any, link: string, staff: boolean, proposal = false): string {
   // Email-safe rebuild of the "Growth Portal invite" design handoff: table
   // layout, inline styles, literal hex (CSS vars/flex/gradients degrade
   // gracefully), Helvetica/Arial fallback (Poppins as progressive enhancement).
   const name = acct?.short_name || acct?.company || "your team";
   const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
-  const eyebrow = staff ? "Team access" : "Your growth portal is ready";
+  const eyebrow = staff ? "Team access" : proposal ? "A proposal is waiting for you" : "Your growth portal is ready";
+  const headline = proposal && !staff ? "Your proposal from<br>Alloy Growth Partners" : "You're invited to<br>the Alloy Growth Portal";
   const intro = staff
     ? "You've been added to the Alloy Growth Portal &mdash; your team's live view of the work we're driving for clients. One click signs you in, no password needed."
+    : proposal
+    ? `We've prepared a growth partnership proposal for ${esc(name)}. One click signs you in to read it &mdash; what we'd do in each of your markets, what it costs, and the documents behind it. Ask questions right from the page; the rest of your Growth Portal opens the moment you accept.`
     : "This is your live view of the work we're driving together &mdash; the roadmap, the leads waiting on you, and the value we've built. One click signs you in, no password needed.";
-  const tour = [
+  const cta = proposal && !staff ? "Review the proposal &nbsp;&rarr;" : "Accept invite &amp; sign in &nbsp;&rarr;";
+  const tour = proposal && !staff ? [
+    { tint: "#fbe2eb", stroke: "#d9356e", name: "The proposal, market by market", desc: "Every module scaled to the locations you manage.",
+      svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="14" y2="17"></line>' },
+    { tint: "#dcecf7", stroke: "#4b86b4", name: "Reference documents", desc: "The audit, playbook and reports the plan is built on.",
+      svg: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>' },
+    { tint: "#fbf2d6", stroke: "#b8902f", name: "Ask your Alloy team", desc: "Questions and changes go straight to us from the page.",
+      svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' },
+    { tint: "#def0ec", stroke: "#3f8f80", name: "Accept, and your portal opens", desc: "Playbook, roadmap, leads and inbox, live from day one.",
+      svg: '<polyline points="20 6 9 17 4 12"></polyline>' },
+  ] : [
     { tint: "#fbe2eb", stroke: "#d9356e", name: "Leads waiting on you", desc: "Qualify new opportunities the moment they land.",
       svg: '<polygon points="13 2 4 14 11 14 11 22 20 10 13 10 13 2"></polygon>' },
     { tint: "#dcecf7", stroke: "#4b86b4", name: "Your growth roadmap", desc: "Every market tracked from Foundation to Dominance.",
@@ -279,11 +298,11 @@ function renderInviteEmail(acct: any, link: string, staff: boolean): string {
     </td></tr>
     <tr><td style="padding:40px 40px 36px;">
       <div style="font-family:${F};font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:#d9356e;margin-bottom:14px;">${eyebrow}</div>
-      <div style="font-family:${F};font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 16px;">You're invited to<br>the Alloy Growth Portal</div>
+      <div style="font-family:${F};font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 16px;">${headline}</div>
       <div style="font-family:${F};font-weight:400;font-size:16px;line-height:1.62;color:#555555;margin:0 0 30px;">${intro}</div>
       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
         <td align="center" bgcolor="#d9356e" style="border-radius:12px;background:#d9356e;box-shadow:0 8px 24px rgba(217,53,110,0.25);">
-          <a href="${link}" style="display:inline-block;padding:18px 32px;font-family:${F};font-size:16px;font-weight:700;letter-spacing:0.01em;line-height:1;color:#ffffff;text-decoration:none;border-radius:12px;">Accept invite &amp; sign in &nbsp;&rarr;</a>
+          <a href="${link}" style="display:inline-block;padding:18px 32px;font-family:${F};font-size:16px;font-weight:700;letter-spacing:0.01em;line-height:1;color:#ffffff;text-decoration:none;border-radius:12px;">${cta}</a>
         </td>
       </tr></table>
       <div style="border-top:1px solid #e8e4ef;margin-top:38px;padding-top:26px;">
@@ -318,16 +337,34 @@ async function sendInviteEmail(
   const link = linkData?.properties?.action_link;
   if (linkErr || !link) return { emailed: false, error: `generateLink: ${linkErr?.message || "no link"}` };
   const { data: acct } = await admin.from("accounts").select("company, short_name, logo_url").eq("id", accountId).maybeSingle();
+  // A SENT engagement proposal locks this client's portal to the proposal page,
+  // so the invite talks about the proposal, not a portal they can't see yet.
+  const { data: prop } = staff ? { data: null } : await admin.from("engagement_proposals")
+    .select("id").eq("account_id", accountId).eq("status", "sent").limit(1).maybeSingle();
+  const proposal = !!prop;
+  const name = acct?.short_name || acct?.company || "";
   const subject = staff
     ? "You've been added to the Alloy team portal"
-    : `You're invited to the Alloy Growth Portal &middot; ${acct?.short_name || acct?.company || ""}`.trim().replace(/ &middot;\s*$/, "");
-  const html = renderInviteEmail(acct, link, staff);
+    : proposal
+    ? `Your proposal from Alloy Growth Partners${name ? ` · ${name}` : ""}`
+    : `Your Alloy Growth Portal invite${name ? ` · ${name}` : ""}`;
+  const html = renderInviteEmail(acct, link, staff, proposal);
+  // Plain-text twin: HTML-only mail is a spam signal, and some clients prefer it.
+  const text = [
+    staff ? "You've been added to the Alloy Growth Portal." : proposal
+      ? `We've prepared a growth partnership proposal for ${name || "your company"}. Sign in to read it, ask questions, and accept when you're ready — the rest of your Growth Portal opens the moment you do.`
+      : `You're invited to the Alloy Growth Portal — your live view of the work we're driving together for ${name || "your company"}.`,
+    "", `${proposal && !staff ? "Review the proposal" : "Accept the invite and sign in"}: ${link}`, "",
+    `This sign-in link is single-use and expires soon. If it has expired, enter your email at ${PORTAL_HOST} for a fresh one.`,
+    "", "--", `Alloy Growth Partners · ${PORTAL_HOST}`,
+  ].join("\n");
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM, to: [email], subject, html }),
+    body: JSON.stringify({ from: FROM, to: [email], subject, html, text, reply_to: INVITE_REPLY_TO }),
   });
   if (!res.ok) return { emailed: false, error: `resend ${res.status}: ${await res.text()}` };
+  await admin.from("account_invites").update({ emailed_at: new Date().toISOString() }).eq("email", email);
   return { emailed: true };
 }
 
@@ -453,11 +490,28 @@ Deno.serve(async (req) => {
           is_staff: row.is_staff, name: row.name, initials: row.initials, title: row.title,
         }, { onConflict: "id" });
       }
-      // Always email a working sign-in link &mdash; new OR existing user. (New users
-      // are created by the 'invite' link; the signup trigger then provisions
-      // their profile from the invite row above.)
+      // Email a working sign-in link (new OR existing user) — unless staff chose
+      // to add this person quietly (send_email === false): e.g. a new client whose
+      // FIRST email should be the proposal, or someone to be invited later from
+      // the Team & access list ("Send invite"). New users are created by the
+      // 'invite' link; the signup trigger then provisions their profile from the
+      // invite row above.
+      if (body.send_email === false) return json({ ok: true, emailed: false, skipped: true });
       const { emailed, error: emailError } = await sendInviteEmail(
         admin, email, row.account_id, body.redirectTo || PORTAL_URL, !uid, row.is_staff,
+      );
+      return json({ ok: true, emailed, emailError });
+    }
+
+    // Send (or re-send) the invite email for someone already on the account.
+    if (action === "send_invite") {
+      const email = String(body.email || "").trim().toLowerCase();
+      if (!email) return json({ error: "email required" }, 400);
+      const { data: inv } = await admin.from("account_invites").select("account_id, is_staff").eq("email", email).maybeSingle();
+      if (!inv) return json({ error: "no invite for that email — add them first" }, 404);
+      const { data: uid } = await admin.rpc("auth_uid_by_email", { p_email: email });
+      const { emailed, error: emailError } = await sendInviteEmail(
+        admin, email, inv.account_id, body.redirectTo || PORTAL_URL, !uid, !!inv.is_staff,
       );
       return json({ ok: true, emailed, emailError });
     }

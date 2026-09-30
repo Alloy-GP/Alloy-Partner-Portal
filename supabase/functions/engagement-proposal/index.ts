@@ -28,52 +28,7 @@ const CORS = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
-const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
-const PORTAL_URL = (Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co").replace(/\/$/, "");
-const ALERT_TO = (Deno.env.get("PROPOSAL_ALERT_TO") || Deno.env.get("BILLING_ALERT_TO") || "admin@alloygp.co")
-  .split(/[,\s]+/).filter(Boolean);
-const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
-const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const money = (n: unknown) => {
-  const v = Number(n);
-  return Number.isFinite(v) && v > 0 ? v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: v % 1 ? 2 : 0 }) : "—";
-};
-const whenET = (d = new Date()) =>
-  d.toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" }) + " ET";
-
-// One branded shell for every email this function sends.
-function shell(opts: { kicker: string; title: string; rows?: [string, string][]; body?: string; ctaUrl?: string; ctaLabel?: string; footer: string }) {
-  const row = (k: string, v: string) =>
-    `<tr><td style="font-family:${F};font-size:12px;color:#7a6f88;padding:6px 14px 6px 0;white-space:nowrap;vertical-align:top;">${k}</td>` +
-    `<td style="font-family:${F};font-size:13.5px;color:#3f2a55;padding:6px 0;">${v}</td></tr>`;
-  return `
-<div style="background:#f8f7fc;padding:28px 12px;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:26px 28px;border:1px solid #ece8f1;">
-    <div style="font-family:${F};font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#d9356e;">${esc(opts.kicker)}</div>
-    <div style="font-family:${F};font-size:21px;font-weight:700;color:#381c4f;margin:6px 0 14px;">${esc(opts.title)}</div>
-    ${opts.rows && opts.rows.length ? `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${opts.rows.map(([k, v]) => row(k, v)).join("")}</table>` : ""}
-    ${opts.body ? `<div style="font-family:${F};font-size:13.5px;line-height:1.6;color:#3f2a55;margin:16px 0 18px;">${opts.body}</div>` : ""}
-    ${opts.ctaUrl ? `<a href="${opts.ctaUrl}" style="display:inline-block;background:#381c4f;color:#ffffff;font-family:${F};font-weight:700;font-size:13.5px;text-decoration:none;padding:12px 20px;border-radius:999px;">${esc(opts.ctaLabel || "Open")}</a>` : ""}
-    <div style="font-family:${F};font-size:12px;color:#8a8395;margin-top:22px;border-top:1px solid #ece8f1;padding-top:12px;">${esc(opts.footer)}</div>
-  </div>
-</div>`;
-}
-
-async function sendEmail(to: string[], subject: string, html: string): Promise<{ sent: boolean; id?: string; error?: string }> {
-  try {
-    const key = Deno.env.get("RESEND_API_KEY");
-    if (!key) return { sent: false, error: "RESEND_API_KEY not set" };
-    if (!to.length) return { sent: false, error: "no recipients" };
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: FROM, to, subject, html }),
-    });
-    if (!res.ok) { const t = await res.text(); console.error("resend", res.status, t); return { sent: false, error: `resend ${res.status}: ${t.slice(0, 200)}` }; }
-    const j = await res.json().catch(() => ({}));
-    return { sent: true, id: j?.id };
-  } catch (e) { console.error("email", e); return { sent: false, error: String(e) }; }
-}
+import { ALERT_TO, PORTAL_URL, esc, money, whenET, sendEmail } from "./mail.ts";
 
 Deno.serve(async (req) => {
   try {
@@ -126,7 +81,7 @@ Deno.serve(async (req) => {
       }).eq("id", p.id).eq("status", "sent").select("*").single();
       if (uErr) throw uErr;
 
-      const alert = await sendEmail(ALERT_TO, `Proposal accepted: ${company}`, shell({
+      const alert = await sendEmail(ALERT_TO, `Proposal accepted: ${company}`, {
         kicker: "Proposal · accepted",
         title: `${company} accepted their proposal`,
         rows: [
@@ -140,7 +95,7 @@ Deno.serve(async (req) => {
         body: "<strong>Their portal is now open.</strong> Next they are nudged to add a bank account for autopay; once it lands you start the monthly draft in Admin → Autopay.",
         ctaUrl: adminUrl, ctaLabel: "Open in Admin",
         footer: "Sent by the Alloy portal when a client owner accepts an engagement proposal.",
-      }));
+      }, user.email || undefined);
       return json({ proposal: updated, alert });
     }
 
@@ -157,14 +112,14 @@ Deno.serve(async (req) => {
       const { error: uErr } = await db.from("engagement_proposals").update({ change_requests: [...list, entry] }).eq("id", p.id);
       if (uErr) throw uErr;
 
-      const alert = await sendEmail(ALERT_TO, `Proposal question from ${company}`, shell({
+      const alert = await sendEmail(ALERT_TO, `Proposal question from ${company}`, {
         kicker: "Proposal · question",
         title: `${entry.name || company} asked about their proposal`,
         rows: [["From", `${esc(entry.name)} · ${esc(entry.email)}`], ["When", esc(whenET())], ["Proposal", esc(`v${p.version} · ${p.status}`)]],
         body: `<div style="white-space:pre-wrap;background:#f8f7fc;border-radius:10px;padding:12px 14px;">${esc(message)}</div>`,
         ctaUrl: adminUrl, ctaLabel: "Open in Admin",
-        footer: "Reply by email or edit and re-send the proposal from Admin. Their portal stays locked to the proposal until they accept.",
-      }));
+        footer: "Reply to this email to answer them directly, or edit and re-send the proposal from Admin. Their portal stays locked to the proposal until they accept.",
+      }, entry.email || undefined);
       return json({ ok: true, request: entry, alert });
     }
 
@@ -183,13 +138,18 @@ Deno.serve(async (req) => {
       const list = [...to];
       if (!list.length) return json({ sent: 0, to: [], note: "No owner on this account yet — invite one first (Team & access)." });
 
-      const r = await sendEmail(list, `Your proposal from Alloy Growth Partners is ready`, shell({
+      const r = await sendEmail(list, `Growth partnership proposal for ${company}`, {
         kicker: "Alloy Growth Partners",
-        title: `Your growth partnership proposal is ready, ${company}`,
-        body: "Sign in to your Growth Portal to read the proposal, see exactly what we'll do in each of your markets, and accept when you're ready. Questions? Ask right from the proposal page — your Alloy team gets them immediately.",
-        ctaUrl: PORTAL_URL, ctaLabel: "Open your proposal",
-        footer: "You're receiving this because your company has a proposal waiting in the Alloy Growth Portal.",
-      }));
+        title: `${company}: your growth partnership proposal`,
+        rows: [
+          ["Proposal", esc(p.title || "Growth partnership")],
+          ["Markets", esc(`${p.locations_count} location${Number(p.locations_count) === 1 ? "" : "s"}`)],
+          ["Version", esc(`v${p.version}`) + (p.sent_at ? ` · sent ${esc(new Date(p.sent_at).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" }))}` : "")],
+        ],
+        body: `Sign in to the Alloy Growth Portal with this email address to read the full proposal: what we do in each of your markets, what it costs, and what happens after you accept. If something needs to change, ask from the proposal page and we get it immediately.<br><br>Questions in the meantime? Just reply to this email.`,
+        ctaUrl: PORTAL_URL, ctaLabel: "Review the proposal",
+        footer: `Sent to the account owner(s) of ${company} by Alloy Growth Partners because a proposal is waiting for you in the Growth Portal.`,
+      });
       return json({ sent: r.sent ? list.length : 0, to: list, alert: r });
     }
 
