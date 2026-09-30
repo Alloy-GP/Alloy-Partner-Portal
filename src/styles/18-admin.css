@@ -84,8 +84,9 @@
 .adm-client .c { font-size: 11px; color: var(--a-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
 .adm-client .dot { width: 7px; height: 7px; border-radius: 999px; flex: 0 0 auto; }
 .adm-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
-.adm-rail { flex: 1 1 300px; max-width: 100%; display: flex; flex-direction: column; gap: 16px; }
+.adm-rail { flex: 1 1 320px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .adm-rail-acts { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.adm-rail-acts .btn-p, .adm-rail-acts .btn-o { flex: 1 1 auto; justify-content: center; padding-left: 14px; padding-right: 14px; letter-spacing: .06em; }
 .adm-rail .card { padding: 18px 20px; }
 
 /* profile */
@@ -125,7 +126,9 @@
 .adm-invite-opts { display: flex; gap: 16px; align-items: center; margin-top: 10px; font-size: 12.5px; font-weight: 600; color: var(--a-purple); flex-wrap: wrap; }
 
 /* proposal sub-tabs */
-.adm-subtabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.adm-subtabs { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.adm-subtabs::-webkit-scrollbar { display: none; }
+.adm-subtab { flex: 0 0 auto; }
 .adm-subtab { padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer; background: #fff; color: var(--a-purple); border: 1px solid var(--a-gray); white-space: nowrap; display: flex; align-items: center; gap: 8px; transition: background 120ms; }
 .adm-subtab.on { background: var(--a-purple); color: #fff; border-color: var(--a-purple); }
 .adm-subtab .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--a-pink-tint); color: var(--a-pink); }
@@ -138,7 +141,8 @@
 .adm-roi-line .v { font-size: 14px; font-weight: 700; color: var(--a-purple); }
 
 /* plans */
-.adm-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.adm-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 14px; align-items: start; }
+.adm-plan { min-width: 0; }
 .adm-plan { background: #fff; border-radius: 10px; border: 1px solid var(--a-gray); box-shadow: var(--a-sm); overflow: hidden; }
 .adm-plan.hidden { opacity: .5; }
 .adm-plan-head { padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--a-off); }
@@ -146,8 +150,11 @@
 .adm-plan-head input { font-size: 15px; font-weight: 800; color: var(--a-purple); background: transparent; border: 0; outline: none; width: 100%; min-width: 0; }
 .adm-plan-head.rec input { color: #fff; }
 .adm-plan-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
-.adm-plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.adm-plan-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: end; }
+.adm-plan .in { min-width: 0; }
 .adm-flags { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--a-gray); }
+.adm-plan-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap; }
+.adm-plan-foot .side { display: flex; align-items: center; gap: 12px; margin-left: auto; white-space: nowrap; }
 .adm-flag { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; background: var(--a-off); border: 0; width: 100%; font: inherit; }
 .adm-flag.on { background: var(--a-green-tint); }
 .adm-flag.fixed { cursor: default; }
@@ -216,6 +223,9 @@
 .adm-rail-links { display: flex; gap: 8px; justify-content: space-between; padding: 0 4px; }
 .adm-empty { padding: 40px 28px; color: var(--a-muted); font-size: 13px; }
 
+@media (max-width: 1240px) {
+  .adm-rail { max-width: 100%; }
+}
 @media (max-width: 900px) {
   .adm-left { flex-wrap: wrap; }
   .adm-list { flex: 1 1 100%; }
