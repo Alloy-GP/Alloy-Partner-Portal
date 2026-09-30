@@ -37,7 +37,7 @@ function Field({ label, hint, error, children, span, style }) {
   );
 }
 
-export default function ProposalWorkspace({ accountId, company, shortName, locations, invites, view, onChanged, subTab, setSubTab, registerActions }) {
+export default function ProposalWorkspace({ accountId, company, shortName, locations, invites, view, onChanged, subTab, setSubTab, registerActions, onFeedback }) {
   const [form, setForm] = useState(() => (view ? viewToForm(view) : blankProposalForm({ company, locations })));
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
@@ -50,6 +50,7 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
   const [activity, setActivity] = useState([]);
   const [uid, setUid] = useState(null);
 
+  useEffect(() => { if (onFeedback) onFeedback(err ? 'err' : 'ok', err || note); }, [note, err]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { supabase.auth.getUser().then((r) => setUid((r && r.data && r.data.user && r.data.user.id) || null)).catch(() => {}); }, []);
   useEffect(() => { setForm(view ? viewToForm(view) : blankProposalForm({ company, locations })); setErrors({}); setErr(''); setNote(''); }, [view && view.id, view && view.updatedAt, accountId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!accountId) return; loadProposalActivity(accountId, view).then(setActivity).catch(() => setActivity([])); }, [accountId, view && view.updatedAt, view && view.thread && view.thread.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -382,7 +383,6 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
           </>
         ) : null}
 
-        {note ? <div className="note-ok" data-testid="adm-proposal-note">{note}</div> : null}
         {err ? <div className="err" data-testid="adm-proposal-err">{err}</div> : null}
       </div>
 
@@ -390,7 +390,7 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
       <div className="adm-rail" data-testid="adm-rail">
         <div className="adm-rail-acts">
           {view ? <a className="btn-o" href={previewHref} target="_blank" rel="noopener noreferrer">Preview as client</a> : null}
-          {!accepted ? <button type="button" className="btn-p glow" onClick={send} disabled={busy} data-testid="adm-send">{status === 'sent' ? `Save & re-send (v${(view.version || 1) + 1})` : 'Send to client'}</button> : <button type="button" className="btn-p" onClick={save} disabled={busy}>Save plan changes</button>}
+          {!accepted ? <button type="button" className="btn-p glow" onClick={send} disabled={busy} data-testid="adm-send">{status === 'sent' ? `Save & re-send (v${(view.version || 1) + 1})` : 'Send to client'}</button> : null}
         </div>
         {!accepted ? (
           <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, fontSize: 12, color: 'var(--a-body)' }}><input type="checkbox" checked={notifyOwners} onChange={(e) => setNotifyOwners(e.target.checked)} /> Email the owner(s) when sent</label>
