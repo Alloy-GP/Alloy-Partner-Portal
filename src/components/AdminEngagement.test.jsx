@@ -56,14 +56,20 @@ describe('AdminEngagement', () => {
     const form = host.querySelector('[data-testid="admin-engagement-form"]');
     expect(form).toBeTruthy();
     expect(form.querySelector('input').value).toBe('Growth partnership for Community Management, LLC');
-    expect(host.textContent).toContain('at 2 locations');            // locations prefilled from the account
+    // the three standard tiers are prefilled, Growth recommended
+    expect(host.querySelector('[data-testid="admin-plan-0-name"]').value).toBe('Core');
+    expect(host.querySelector('[data-testid="admin-plan-1-name"]').value).toBe('Growth');
+    expect(host.querySelector('[data-testid="admin-plan-2-name"]').value).toBe('Scale');
+    expect(host.querySelector('[data-testid="admin-plan-1"] input[type="radio"]').checked).toBe(true);
+    expect(host.querySelector('[data-testid="admin-plan-add"]')).toBeNull();                          // already 3
+    expect(host.textContent).toContain('At Growth:');                                                    // ROI preview from the recommended plan
     expect(host.querySelector('[data-testid="admin-module-gbp"] input').checked).toBe(true);        // default set
     expect(host.querySelector('[data-testid="admin-module-video"] input').checked).toBe(false);
   });
 
-  it('with a sent proposal: status strip, version, preview link, scaled module lines, and client questions', async () => {
+  it('with a sent proposal: status strip, ref, validity, preview link, a legacy plan synthesised, and client questions', async () => {
     const host = await mount({
-      id: 'p1', account_id: 'a1', status: 'sent', title: 'T', intro: '', closing: '', locations_count: 3,
+      id: 'p1', account_id: 'a1', status: 'sent', title: 'T', intro: '', closing: '', locations_count: 3, ref: 'CMA-2026-01', valid_through: '2099-01-01',
       modules: ['gbp', 'reporting'], monthly_amount: 4250, setup_amount: null, start_date: '2026-11-01', term_months: 12,
       reference_links: [{ label: 'Audit', url: 'https://view.alloygp.co/a.html' }], version: 2, sent_at: '2026-09-30T14:00:00Z',
       change_requests: [
@@ -73,10 +79,12 @@ describe('AdminEngagement', () => {
     });
     const t = host.textContent;
     expect(t).toContain('Sent · portal locked until accepted');
-    expect(t).toContain('v2');
+    expect(t).toContain('v2'); expect(t).toContain('CMA-2026-01'); expect(t).toContain('valid through');
     expect(host.querySelector('a[href="/c/a1/?as=client"]')).toBeTruthy();
     expect(host.querySelector('[data-testid="admin-module-gbp"] input').checked).toBe(true);
-    expect(t).toContain('3 profile managed weekly (1 × 3 locations)');
+    // no plans on the row → one plan synthesised from the v1 summary columns
+    expect(host.querySelector('[data-testid="admin-plan-0-name"]').value).toBe('Growth plan');
+    expect(host.querySelector('[data-testid="admin-plan-1"]')).toBeNull();
     expect(host.querySelector('[data-testid="admin-module-video"] input').checked).toBe(false);
     expect(t).toContain('Can we start December 1?');
     expect(t).toContain('Yes — moving it now.');

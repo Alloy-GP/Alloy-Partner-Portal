@@ -11,6 +11,7 @@
 //   AdminEngagement    → parse/format reference links, status labels
 // ============================================================================
 import { can } from './perms.js';
+import { plansFromRow, normalizeCompareRows, DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL } from './proposalPlans.js';
 
 // Bump when the acceptance wording changes. Stored per acceptance as
 // engagement_proposals.agreement_version so we can prove which text an owner
@@ -43,6 +44,25 @@ export function engagementRowToView(row) {
     startDate: row.start_date || null,
     termMonths: row.term_months != null ? Number(row.term_months) : null,
     referenceLinks: normalizeReferenceLinks(row.reference_links),
+    // v2 — statement of investment + agreement inputs. Legacy rows get one plan
+    // synthesised from the summary columns so nothing in flight breaks.
+    ref: row.ref || '',
+    validThrough: row.valid_through || null,
+    clientLegalName: row.client_legal_name || '',
+    clientEntityType: row.client_entity_type || '',
+    clientAddress: row.client_address || '',
+    plans: plansFromRow(row),
+    compareRows: normalizeCompareRows(row.compare_rows),
+    exclusivityMiles: Math.max(1, Math.floor(Number(row.exclusivity_miles) || DEFAULT_EXCLUSIVITY_MILES)),
+    roiFeePerDoor: Number(row.roi_fee_per_door) > 0 ? Number(row.roi_fee_per_door) : DEFAULT_ROI.feePerDoor,
+    roiDoorsPerCommunity: Number(row.roi_doors_per_community) > 0 ? Math.floor(Number(row.roi_doors_per_community)) : DEFAULT_ROI.doorsPerCommunity,
+    testimonialVimeoId: String(row.testimonial_vimeo_id || DEFAULT_TESTIMONIAL.vimeoId).trim(),
+    testimonialCaption: String(row.testimonial_caption || DEFAULT_TESTIMONIAL.caption).trim(),
+    welcomeCallUrl: row.welcome_call_url || '',
+    preparedByName: row.prepared_by_name || '',
+    acceptedPlanKey: row.accepted_plan_key || null,
+    hasAgreementSnapshot: !!row.agreement_hash,
+    sentBy: row.sent_by || null,
     version: Number(row.version) || 1,
     sentAt: row.sent_at || null,
     acceptedAt: row.accepted_at || null,

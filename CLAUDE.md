@@ -104,3 +104,21 @@ channel (`engagement_proposals`) so send/withdraw locks/unlocks live. Withdraw
 unlocks and allows a new proposal; re-send bumps `version`; acceptance records
 who/when/`accepted_version`/`agreement_version` (bump `PROPOSAL_AGREEMENT_VERSION`
 when the wording changes). Reference docs = `reference_links` (view.alloygp.co).
+
+**v2 page (design handoff, Sep 30 2026):** `src/components/proposal/*` (ProposalPage,
+AcceptCard, AgreementModal, TopicModal, Investment) + `src/styles/17-proposal.css`
+(scoped `.pp`, Gotham from `public/fonts`, mobile stacks <960px). Evergreen copy in
+`src/lib/proposalContent.js` — HARD RULES: never "Most CAM companies grow by accident";
+form submissions only, never call tracking/phone. Plans (1–3, one recommended),
+comparison-row toggles, ROI defaults ($14/door, 150 doors), validity (+30 days),
+client legal identity, testimonial, welcome-call link: `proposalPlans.js` +
+`adminEngagement.js` (`validateForSend` requires legal name/entity/address/start).
+The contract text is `supabase/functions/engagement-proposal/agreementTerms.js`
+(verbatim from the handoff; `buildAgreement`) and the ONE shared implementation of
+plans + the agreement document is `proposalShared.js` in the same folder — the portal
+imports it by relative path, so the modal and the server snapshot render the same
+bytes. Accept requires `agreementRead` + `planKey`; the fn stores `accepted_plan_key`,
+IP, user agent, `agreement_snapshot` (facts + full text) and `agreement_hash`
+(sha-256) — the signed record until a PDF service exists. Headless Chrome in the
+cloud sandbox stalls on this page (Gotham shaping + scroll containers), as it did
+on the designer's prototype: verify visually in a real browser on stg.

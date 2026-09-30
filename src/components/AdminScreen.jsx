@@ -356,7 +356,7 @@ function AdminScreen({ startNew, selectId, embed }) {
               {!isNew ? <AdminAutopay accountId={selectedId} company={form.company} /> : null}
 
               {/* Engagement proposal — Alloy's proposal to a new client; 'sent' locks their portal */}
-              {!isNew ? <AdminEngagement accountId={selectedId} company={form.company} locations={form.locations} /> : null}
+              {!isNew ? <AdminEngagement accountId={selectedId} company={form.company} shortName={form.short_name} locations={form.locations} /> : null}
 
               {/* Team / access */}
               {!isNew ? (
