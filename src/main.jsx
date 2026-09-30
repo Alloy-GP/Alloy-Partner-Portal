@@ -23,6 +23,7 @@ import './styles/14-privacy.css';
 import './styles/15-proposals.css';
 import './styles/16-engagement.css';
 import './styles/17-proposal.css';
+import './styles/18-admin.css';
 
 import AuthGate from './AuthGate.jsx';
 

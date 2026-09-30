@@ -70,16 +70,22 @@ export function normalizePlans(raw) {
       exclusive: !!p.exclusive,
       referralDiscount: Math.max(0, Number(p.referralDiscount) || 0),
       recommended: !!p.recommended,
+      show: p.show !== false,
     });
     if (out.length >= PLAN_KEYS_MAX) break;
   }
-  const rec = out.filter((p) => p.recommended);
-  if (out.length && rec.length !== 1) out.forEach((p, i) => { p.recommended = i === (rec.length ? out.indexOf(rec[0]) : 0); });
+  // Exactly one recommended, and it must be a SHOWN plan.
+  const shown = out.filter((p) => p.show);
+  const rec = shown.filter((p) => p.recommended);
+  if (out.length) out.forEach((p) => { p.recommended = false; });
+  if (shown.length) (rec[0] || shown[0]).recommended = true;
   return out;
 }
 
+// Only plans the client can see take part in selection.
+export function visiblePlans(plans) { return (Array.isArray(plans) ? plans : []).filter((p) => p && p.show !== false); }
 export function pickPlan(plans, key) {
-  const list = Array.isArray(plans) ? plans : [];
+  const list = visiblePlans(plans);
   return list.find((p) => p.key === key) || list.find((p) => p.recommended) || list[0] || null;
 }
 
@@ -98,7 +104,8 @@ export function marketsFor(names, plan) {
 // The service agreement for THIS proposal + plan + signer, as facts and as the
 // full text. Snapshotted verbatim at acceptance. `input`:
 //   { ref, clientLegalName, clientEntityType, clientAddress, effectiveDate,
-//     plan, markets: string[], signerName, signerTitle, preparedBy }
+//     plan, markets: string[], signerName, signerTitle, spoc }
+//   spoc = the point of contact named before acceptance; the signer replaces it.
 export function agreementDocument(input) {
   const i = input || {};
   const plan = i.plan || { name: "Growth plan", monthly: 0, setup: 0, locations: 1, termMonths: 12, guarantee: false, exclusive: false };
@@ -134,7 +141,7 @@ export function agreementDocument(input) {
     setup: fmtUSD(plan.setup),
     termMonths: term,
     guarantee: !!plan.guarantee,
-    spoc: String(i.signerName || "").trim() ? signer : "[Client point of contact]",
+    spoc: String(i.signerName || "").trim() ? signer : (String(i.spoc || "").trim() || "[Client point of contact]"),
   });
   const base = {
     ref: String(i.ref || ""), legalName, effective, signer, alloySigner: ALLOY_LEGAL.signer,

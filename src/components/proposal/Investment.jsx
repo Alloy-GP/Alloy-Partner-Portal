@@ -5,7 +5,8 @@ import { Check } from './icons.jsx';
 
 // §05 Statement of investment: plan header cells (clickable when >1), the
 // comparison grid, the terms band, the total card — and the guarantee seal.
-export default function Investment({ p, plans, selected, onSelect, preparer, sentDate }) {
+export default function Investment({ p, plans: allPlans, selected, onSelect, preparer, sentDate }) {
+  const plans = (allPlans || []).filter((x) => x.show !== false);
   const multi = plans.length > 1;
   const cols = `minmax(0,1.4fr) ${plans.map(() => 'minmax(120px,1fr)').join(' ')}`;
   const rows = compareRows(plans, p.compareRows, { exclusivityMiles: p.exclusivityMiles });
