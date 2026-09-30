@@ -31,6 +31,17 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
 import { ALERT_TO, esc, money, whenET, sendEmail, safePortalUrl } from "./mail.ts";
+// Shared with the portal (src/lib/proposalPlans.js re-exports the same file):
+// one implementation of plans + the agreement document, so what the owner
+// confirmed on screen is byte-for-byte what we snapshot and hash here.
+import { normalizePlans, pickPlan, marketsFor, agreementDocument, fmtUSD } from "./proposalShared.js";
+
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const clientIp = (req: Request) => (req.headers.get("cf-connecting-ip") || (req.headers.get("x-forwarded-for") || "").split(",")[0] || req.headers.get("x-real-ip") || "").trim() || null;
 
 // Every client-side email address on an account: signed-in owners + invited
 // owners who have not signed in yet. Lower-cased, de-duplicated.
@@ -74,7 +85,7 @@ Deno.serve(async (req) => {
     const { data: p, error: pErr } = await db.from("engagement_proposals").select("*").eq("id", proposalId).maybeSingle();
     if (pErr) throw pErr;
     if (!p) return json({ error: "proposal not found" }, 404);
-    const { data: account } = await db.from("accounts").select("id, company, short_name").eq("id", p.account_id).maybeSingle();
+    const { data: account } = await db.from("accounts").select("id, company, short_name, locations").eq("id", p.account_id).maybeSingle();
     const company = account?.company || account?.short_name || "the client";
     // Links in every email point at the portal the caller is on (staging or
     // production) — safelisted in safePortalUrl.
@@ -88,15 +99,38 @@ Deno.serve(async (req) => {
       if (me.role !== "owner") return json({ error: "Only your account owner can accept the proposal." }, 403);
       if (p.status === "accepted") return json({ error: "This proposal has already been accepted." }, 409);
       if (p.status !== "sent") return json({ error: "This proposal isn't open for acceptance." }, 409);
+      if (p.valid_through && String(p.valid_through).slice(0, 10) < todayISO()) return json({ error: "This proposal has expired. Ask your Alloy team to refresh it." }, 409);
       const name = String(body.name || "").trim();
       if (name.length < 2) return json({ error: "Enter your full name." }, 400);
       const title = String(body.title || "").trim().slice(0, 120);
       const agreementVersion = String(body.agreementVersion || "v1").slice(0, 20);
+      if (!body.agreementRead) return json({ error: "Read and confirm the agreement first." }, 400);
       const now = new Date().toISOString();
+
+      // The plan they chose (falls back to the recommended one for legacy rows).
+      const plans = normalizePlans(p.plans && p.plans.length ? p.plans : [{
+        key: "plan", name: "Growth plan", monthly: p.monthly_amount, setup: p.setup_amount, locations: p.locations_count, termMonths: p.term_months || 12, recommended: true,
+      }]);
+      const plan = pickPlan(plans, String(body.planKey || ""));
+      if (!plan) return json({ error: "This proposal has no plan to accept." }, 409);
+
+      // The exact agreement they confirmed — snapshotted and hashed server-side
+      // from the same inputs the page rendered, so it can't be edited in flight.
+      const { named } = marketsFor(account?.locations, plan);
+      const doc = agreementDocument({
+        ref: p.ref, clientLegalName: p.client_legal_name, clientEntityType: p.client_entity_type, clientAddress: p.client_address,
+        effectiveDate: p.start_date, plan, markets: named, signerName: name, signerTitle: title,
+      });
+      const hash = await sha256Hex(doc.text);
+      const snapshot = { ...doc, acceptedAt: now, agreementVersion, ip: clientIp(req), userAgent: (req.headers.get("user-agent") || "").slice(0, 400) };
 
       const { data: updated, error: uErr } = await db.from("engagement_proposals").update({
         status: "accepted", accepted_at: now, accepted_by: user.id, accepted_name: name,
         accepted_title: title || null, accepted_version: p.version, agreement_version: agreementVersion,
+        accepted_plan_key: plan.key, accepted_ip: snapshot.ip, accepted_user_agent: snapshot.userAgent,
+        agreement_snapshot: snapshot, agreement_hash: hash,
+        // the summary columns follow the accepted plan
+        monthly_amount: plan.monthly, setup_amount: plan.setup || null, term_months: plan.termMonths, locations_count: plan.locations,
       }).eq("id", p.id).eq("status", "sent").select("*").single();
       if (uErr) throw uErr;
 
@@ -106,10 +140,11 @@ Deno.serve(async (req) => {
         rows: [
           ["Accepted by", `<strong>${esc(name)}</strong>${title ? ` (${esc(title)})` : ""} · ${esc(user.email || "")}`],
           ["When", esc(whenET())],
-          ["Version", esc(`v${p.version}`) + ` · agreement ${esc(agreementVersion)}`],
-          ["Monthly", esc(money(p.monthly_amount)) + (p.setup_amount ? ` · setup ${esc(money(p.setup_amount))}` : "")],
-          ["Start", esc(p.start_date || "—") + (p.term_months ? ` · ${esc(p.term_months)} months` : "")],
-          ["Locations", esc(p.locations_count)],
+          ["Plan", `<strong>${esc(plan.name)}</strong> · ${esc(plan.locations)} location${plan.locations === 1 ? "" : "s"}`],
+          ["Version", esc(`v${p.version}`) + ` · agreement ${esc(agreementVersion)} · ${esc(hash.slice(0, 12))}…`],
+          ["Monthly", esc(fmtUSD(plan.monthly)) + (plan.setup ? ` · setup ${esc(fmtUSD(plan.setup))}` : "")],
+          ["Start", esc(p.start_date || "—") + ` · ${esc(plan.termMonths)} months`],
+          ["Signed from", esc(snapshot.ip || "unknown IP")],
         ],
         body: "<strong>Their portal is now open.</strong> Next they are nudged to add a bank account for autopay; once it lands you start the monthly draft in Admin → Autopay.",
         ctaUrl: adminUrl, ctaLabel: "Open in Admin",
@@ -173,13 +208,17 @@ Deno.serve(async (req) => {
       const list = await ownerEmails(db, p.account_id);
       if (!list.length) return json({ sent: 0, to: [], note: "No owner on this account yet — invite one first (Team & access)." });
 
+      const plansList = normalizePlans(p.plans);
+      const planLine = plansList.length
+        ? plansList.map((pl: any) => `${esc(pl.name)} ${esc(fmtUSD(pl.monthly))}/mo${pl.recommended && plansList.length > 1 ? " (recommended)" : ""}`).join(" · ")
+        : esc(`${p.locations_count} location${Number(p.locations_count) === 1 ? "" : "s"}`);
       const r = await sendEmail(list, `Growth partnership proposal for ${company}`, {
         kicker: "Alloy Growth Partners",
         title: `${company}: your growth partnership proposal`,
         rows: [
-          ["Proposal", esc(p.title || "Growth partnership")],
-          ["Markets", esc(`${p.locations_count} location${Number(p.locations_count) === 1 ? "" : "s"}`)],
-          ["Version", esc(`v${p.version}`) + (p.sent_at ? ` · sent ${esc(new Date(p.sent_at).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" }))}` : "")],
+          ["Proposal", esc(p.title || "Growth partnership") + (p.ref ? ` · ${esc(p.ref)}` : "")],
+          [plansList.length > 1 ? "Plans" : "Plan", planLine],
+          ["Valid through", esc(p.valid_through ? new Date(`${String(p.valid_through).slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }) : "—")],
         ],
         body: `Sign in at <a href="${portalUrl}" style="color:#381c4f;">${esc(portalUrl.replace(/^https?:\/\//, ""))}</a> with this email address to read the full proposal: what we do in each of your markets, what it costs, and what happens after you accept. If something needs to change, ask from the proposal page and we get it immediately.<br><br>Questions in the meantime? Just reply to this email.`,
         ctaUrl: portalUrl, ctaLabel: "Review the proposal",

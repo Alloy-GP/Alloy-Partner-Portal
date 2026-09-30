@@ -20,7 +20,7 @@ import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
 import { can, effectiveIdentity } from './lib/perms.js';
 import { canSeeProposals } from './lib/proposalAccess.js';
-import ProposalGate from './components/ProposalGate.jsx';
+import ProposalPage from './components/proposal/ProposalPage.jsx';
 import { proposalGateState } from './lib/engagementGate.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
@@ -212,7 +212,7 @@ function App({ session, onSignOut, staffNav } = {}) {
   // portal, where the autopay nudge / tour take over.
   if (locked) {
     return (
-      <ProposalGate
+      <ProposalPage
         onSignOut={onSignOut}
         previewOnly={realStaff}
         onExitPreview={toggleViewAsClient}

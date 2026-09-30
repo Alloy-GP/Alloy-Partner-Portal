@@ -20,8 +20,10 @@ async function invoke(body) {
 }
 
 // Owner accepts → { proposal } (the updated row).
-export function acceptProposal({ proposalId, name, title, agreementVersion }) {
-  return invoke({ action: 'accept', proposalId, name, title: title || '', agreementVersion });
+// planKey = the plan they chose in §05; agreementRead = they confirmed the
+// agreement in the modal (the function refuses without it).
+export function acceptProposal({ proposalId, planKey, name, title, agreementVersion, agreementRead }) {
+  return invoke({ action: 'accept', proposalId, planKey: planKey || null, name, title: title || '', agreementVersion, agreementRead: !!agreementRead });
 }
 
 // Any client user on the account asks a question / requests a change → { ok }.
