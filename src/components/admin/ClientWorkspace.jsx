@@ -52,6 +52,12 @@ export default function ClientWorkspace({ startNew, selectId }) {
   const [inviteForm, setInviteForm] = useState({ email: '', name: '', title: '', role: 'owner', is_staff: false, send_email: true });
   const [busyInvite, setBusyInvite] = useState(false);
   const actionsRef = useRef({});
+  // Feedback lives in the header next to the action button — never a floating bubble.
+  const [feedback, setFeedback] = useState(null); // { kind: 'ok' | 'err', text }
+  useEffect(() => { if (feedback && feedback.kind === 'ok') { const t = setTimeout(() => setFeedback(null), 6000); return () => clearTimeout(t); } return undefined; }, [feedback]);
+  useEffect(() => { setFeedback(null); }, [tab, selectedId]);
+  const [, setActionsTick] = useState(0);
+  useEffect(() => { if (error) setFeedback({ kind: 'err', text: error }); }, [error]);
 
   useEffect(() => { wcAccounts().then((r) => setWcNames(Object.fromEntries((r?.accounts || []).map((a) => [String(a.id), a.name])))).catch(() => setWcNames({})); }, []);
   const refreshStatuses = () => listLiveProposalStatuses().then(setStatuses).catch(() => {});
@@ -82,29 +88,29 @@ export default function ClientWorkspace({ startNew, selectId }) {
   const isNew = selectedId === 'new';
 
   const save = async () => {
-    if (!String(form.company || '').trim()) { setError('Company name is required.'); setTab('profile'); return; }
+    if (!String(form.company || '').trim()) { setFeedback({ kind: 'err', text: 'Company name is required.' }); setTab('profile'); return; }
     setSaving(true); setError(''); setNotice('');
     try {
       const dash = { dash_folder_id: form.dash_folder_id || null, dash_upload_url: form.dash_upload_url || null };
       const payload = { ...form, lead_field_labels: parseLabelMap(labelText) };
       if (isNew) { const r = await createAccount(payload); await setDashConfig(r.account.id, dash); await loadAccounts(r.account.id); }
       else { await updateAccount(selectedId, payload); await setDashConfig(selectedId, dash); await loadAccounts(selectedId); }
-      setNotice('Saved.');
-    } catch (e) { setError(String(e.message || e)); } finally { setSaving(false); }
+      setFeedback({ kind: 'ok', text: 'Saved.' });
+    } catch (e) { setFeedback({ kind: 'err', text: String(e.message || e) }); } finally { setSaving(false); }
   };
   const remove = async () => {
     if (isNew || !selectedId) return;
     if (!window.confirm(`Delete "${form.company}"? This removes the client and all of their portal data. This cannot be undone.`)) return;
     setSaving(true);
     try { await deleteAccount(selectedId); setSelectedId(null); setForm(BLANK); setInvites([]); await loadAccounts(); }
-    catch (e) { setError(String(e.message || e)); } finally { setSaving(false); }
+    catch (e) { setFeedback({ kind: 'err', text: String(e.message || e) }); } finally { setSaving(false); }
   };
   const onLogo = async (e) => {
     const file = e.target.files && e.target.files[0]; e.target.value = '';
     if (!file || isNew) return;
     setSaving(true); setError('');
-    try { const logo_url = await uploadLogo(selectedId, file); await updateAccount(selectedId, { logo_url }); setForm((f) => ({ ...f, logo_url })); await loadAccounts(selectedId); }
-    catch (e2) { setError(String(e2.message || e2)); } finally { setSaving(false); }
+    try { const logo_url = await uploadLogo(selectedId, file); await updateAccount(selectedId, { logo_url }); setForm((f) => ({ ...f, logo_url })); await loadAccounts(selectedId); setFeedback({ kind: 'ok', text: 'Icon updated.' }); }
+    catch (e2) { setFeedback({ kind: 'err', text: String(e2.message || e2) }); } finally { setSaving(false); }
   };
 
   // team
@@ -136,8 +142,7 @@ export default function ClientWorkspace({ startNew, selectId }) {
   const onProposal = tab === 'proposal';
   const filtered = (accounts || []).filter((a) => !query || `${a.short_name} ${a.company}`.toLowerCase().includes(query.toLowerCase()));
   const badge = accepted ? { t: 'Active', cls: 'green' } : status === 'sent' ? { t: 'Sent', cls: 'yellow' } : status === 'draft' ? { t: 'Draft', cls: '' } : null;
-  const statusPill = accepted ? { t: `Active plan · accepted ${proposal.acceptedAt ? new Date(proposal.acceptedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}`, cls: 'green', dot: '#aed7d0' } : status === 'sent' ? { t: 'Sent · awaiting acceptance', cls: 'yellow', dot: '#f5d880' } : { t: 'Draft', cls: '', dot: '#8a8395' };
-
+  
   return (
     <div className="adm" data-testid="client-workspace">
       <div className="adm-head">
@@ -150,7 +155,9 @@ export default function ClientWorkspace({ startNew, selectId }) {
             </div>
           </div>
           <div className="adm-head-acts">
-            {onProposal && !isNew ? <span className={`pill ${statusPill.cls}`} data-testid="adm-status-pill"><i style={{ background: statusPill.dot }} />{statusPill.t}</span>
+            {feedback ? <span className={feedback.kind === 'ok' ? 'note-ok' : 'err'} style={{ margin: 0, maxWidth: 420, fontSize: 12.5 }} role="status" data-testid="adm-feedback">{feedback.text}</span> : null}
+            {onProposal && !isNew
+              ? <button type="button" className="btn-p" onClick={() => actionsRef.current.save && actionsRef.current.save()} disabled={!!actionsRef.current.busy || proposal === undefined} data-testid="adm-save">{actionsRef.current.busy ? 'Saving…' : 'Save'}</button>
               : <button type="button" className="btn-p" onClick={save} disabled={saving || !selectedId} data-testid="adm-save">{saving ? 'Saving…' : isNew ? 'Create client' : 'Save changes'}</button>}
           </div>
         </div>
@@ -188,7 +195,8 @@ export default function ClientWorkspace({ startNew, selectId }) {
                   accountId={selectedId} company={form.company} shortName={form.short_name} locations={form.locations} invites={invites}
                   view={proposal} subTab={subTab} setSubTab={setSubTab}
                   onChanged={(v) => { if (v === undefined) loadProposal(selectedId); else { setProposal(v); refreshStatuses(); } }}
-                  registerActions={(a) => { actionsRef.current = a; }}
+                  registerActions={(a) => { actionsRef.current = a; setActionsTick((t) => t + 1); }}
+                  onFeedback={(kind, text) => setFeedback(text ? { kind, text } : null)}
                 />
               )) : null}
             </>
@@ -196,13 +204,6 @@ export default function ClientWorkspace({ startNew, selectId }) {
         </div>
       </div>
 
-      {(error || (notice && tab !== 'team')) ? (
-        <div style={{ position: 'fixed', left: 16, right: 16, bottom: 16, display: 'flex', justifyContent: 'center', pointerEvents: 'none', zIndex: 30 }}>
-          <div style={{ pointerEvents: 'auto', background: error ? '#b03a3a' : '#2c6e62', color: '#fff', fontSize: 13, fontWeight: 600, padding: '10px 16px', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', display: 'flex', gap: 14, alignItems: 'center' }} role="status">
-            {error || notice}<button type="button" onClick={() => { setError(''); setNotice(''); }} style={{ background: 'none', border: 0, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>✕</button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

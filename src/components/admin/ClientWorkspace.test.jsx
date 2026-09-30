@@ -105,7 +105,8 @@ describe('ClientWorkspace', () => {
     const host = await mount({ selectId: 'a1' });
     click(host.querySelector('[data-testid="adm-tab-proposal"]'));
     await flush();
-    expect(host.querySelector('[data-testid="adm-status-pill"]').textContent).toContain('Sent · awaiting acceptance');
+    expect(host.querySelector('[data-testid="adm-status-pill"]')).toBeNull();                 // status lives on the tab badge
+    expect(host.querySelector('[data-testid="adm-save"]').textContent).toBe('Save');           // header Save = save without re-sending
     expect(host.querySelector('[data-testid="adm-send"]').textContent).toBe('Save & re-send (v2)');
     expect(host.querySelector('[data-testid="adm-see"]').textContent).toContain('Growth plan · 3 locations');
     expect(host.querySelector('[data-testid="adm-see"]').textContent).toContain('$6,850');
@@ -137,13 +138,14 @@ describe('ClientWorkspace', () => {
     const host = await mount({ selectId: 'a1' });
     click(host.querySelector('[data-testid="adm-tab-proposal"]'));
     await flush();
-    expect(host.querySelector('[data-testid="adm-status-pill"]').textContent).toContain('Draft');
+    expect(host.querySelector('[data-testid="adm-tab-proposal"] .badge').textContent).toBe('Draft');
     expect(host.querySelector('[data-testid="adm-subtab-agreement"] .badge').textContent).toBe('2 missing');
     expect(host.querySelector('[data-testid="adm-check-markets"]').className).toBe('');
     expect(host.querySelector('[data-testid="adm-check-owner"]').className).toBe('');
     click(host.querySelector('[data-testid="adm-send"]'));
     await flush();
     expect(host.querySelector('[data-testid="adm-proposal-err"]').textContent).toMatch(/Before sending: markets selected, entity type & address/);
+    expect(host.querySelector('[data-testid="adm-feedback"]').textContent).toMatch(/Before sending/); // mirrored beside the header button
   });
 
   it('accepted: tab reads Plan, panel shows the signed plan, billing buttons are disabled', async () => {
@@ -159,6 +161,7 @@ describe('ClientWorkspace', () => {
     const disabled = [...host.querySelectorAll('.adm-billing button')].map((b) => b.disabled);
     expect(disabled).toEqual([true, true]);
     expect(host.querySelector('[data-testid="adm-send"]')).toBeNull();
-    expect(host.querySelector('.adm-rail .btn-p').textContent).toBe('Save plan changes');
+    expect(host.querySelector('.adm-rail .btn-p')).toBeNull();                                  // header Save covers plan changes
+    expect(host.querySelector('[data-testid="adm-save"]').textContent).toBe('Save');
   });
 });
