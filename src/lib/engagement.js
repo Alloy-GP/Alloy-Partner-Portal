@@ -6,7 +6,10 @@ import { supabase, isSupabaseConfigured } from './supabase.js';
 // non-2xx (the supabase client hides the body behind error.context).
 async function invoke(body) {
   if (!isSupabaseConfigured) throw new Error('Supabase not configured');
-  const { data, error } = await supabase.functions.invoke('engagement-proposal', { body });
+  // Every email the function sends links back to THIS portal host (staging vs
+  // production) — same idea as the invite flow's redirectTo.
+  const portalUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
+  const { data, error } = await supabase.functions.invoke('engagement-proposal', { body: { ...body, portalUrl } });
   if (error) {
     let msg = error.message || 'Service unavailable';
     try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch { /* keep msg */ }
