@@ -99,9 +99,9 @@
 /* locations */
 .adm-loc { display: grid; grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 12px 14px; border-radius: 8px; background: var(--a-off); border: 1px solid var(--a-gray); }
 .adm-loc .dot { width: 10px; height: 10px; border-radius: 999px; }
-.adm-loc .n { font-size: 14px; font-weight: 700; color: var(--a-purple); white-space: nowrap; }
+.adm-loc .n { font-size: 14px; font-weight: 700; color: var(--a-purple); }
 .adm-loc .hq { margin-left: 8px; font-size: 9px; font-weight: 700; letter-spacing: .10em; padding: 3px 7px; border-radius: 999px; background: var(--a-yellow-tint); color: var(--a-purple); }
-.adm-loc .a, .adm-loc .st { font-size: 12px; color: var(--a-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-loc .a, .adm-loc .st { font-size: 12px; color: var(--a-muted); line-height: 1.4; }
 .adm-loc .st { color: var(--a-body); }
 .adm-loc-edit { display: grid; grid-template-columns: 1.2fr 1.4fr 1fr auto; gap: 10px; align-items: end; padding: 12px 14px; border-radius: 8px; background: #fff; border: 1px solid var(--a-strong); }
 .adm-loc-edit .acts { display: flex; gap: 6px; align-items: center; }
@@ -109,7 +109,7 @@
 /* integrations */
 .adm-tile { display: block; padding: 14px; border-radius: 8px; border: 1px solid var(--a-gray); background: var(--a-off); }
 .adm-tile .h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.adm-tile .h span { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--a-purple); white-space: nowrap; }
+.adm-tile .h span { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--a-purple); }
 .adm-tile .h i { width: 7px; height: 7px; border-radius: 999px; display: inline-block; background: var(--a-strong); }
 .adm-tile .h i.on { background: var(--a-green); }
 
@@ -117,7 +117,7 @@
 .adm-person { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 8px; background: var(--a-off); border: 1px solid var(--a-gray); flex-wrap: wrap; }
 .adm-person .av { width: 34px; height: 34px; border-radius: 999px; background: var(--a-purple); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex: 0 0 auto; }
 .adm-person .who { flex: 1 1 180px; min-width: 0; }
-.adm-person .who .n { font-size: 14px; font-weight: 700; color: var(--a-purple); white-space: nowrap; }
+.adm-person .who .n { font-size: 14px; font-weight: 700; color: var(--a-purple); }
 .adm-person .who .e { font-size: 12px; color: var(--a-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm-person .state { font-size: 12px; font-weight: 700; white-space: nowrap; color: var(--a-purple); }
 .adm-person .state.dim { color: var(--a-muted); } .adm-person .state.warn { color: #7a5a12; }
@@ -151,7 +151,7 @@
 .adm-flag { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; background: var(--a-off); border: 0; width: 100%; font: inherit; }
 .adm-flag.on { background: var(--a-green-tint); }
 .adm-flag.fixed { cursor: default; }
-.adm-flag span { font-size: 13px; font-weight: 700; color: var(--a-purple); white-space: nowrap; }
+.adm-flag span { font-size: 13px; font-weight: 700; color: var(--a-purple); }
 .adm-flag .box { width: 18px; height: 18px; border-radius: 6px; border: 2px solid var(--a-strong); background: #fff; display: flex; align-items: center; justify-content: center; }
 .adm-flag.on .box { border-color: var(--a-purple); background: var(--a-purple); }
 .adm-rec { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--a-muted); cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0; }
@@ -161,8 +161,8 @@
 .adm-rowlist { display: flex; flex-direction: column; gap: 6px; }
 .adm-rowitem { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; background: var(--a-off); border: 1px solid var(--a-gray); }
 .adm-rowitem.off { opacity: .5; }
-.adm-rowitem .t { font-size: 13px; font-weight: 700; color: var(--a-purple); white-space: nowrap; }
-.adm-rowitem .d { font-size: 12px; color: var(--a-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-rowitem .t { font-size: 13px; font-weight: 700; color: var(--a-purple); }
+.adm-rowitem .d { font-size: 12px; color: var(--a-muted); line-height: 1.4; }
 .adm-rowitem .num { flex: 0 0 auto; background: var(--a-pink); color: #fff; font-size: 11px; font-weight: 800; padding: 5px 9px; border-radius: 6px; line-height: 1; }
 .adm-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
 .adm-fact { background: var(--a-off); border: 1px solid var(--a-gray); border-radius: 8px; padding: 12px 14px; }
@@ -173,18 +173,18 @@
 .adm-plan-panel { background: var(--a-purple); border-radius: 10px; padding: 24px 26px; color: #fff; position: relative; overflow: hidden; }
 .adm-plan-panel .stripes { position: absolute; left: 0; right: 0; top: 0; }
 .adm-plan-panel .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.adm-plan-panel .eb { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--a-yellow); white-space: nowrap; }
+.adm-plan-panel .eb { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--a-yellow); }
 .adm-plan-panel .name { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
-.adm-plan-panel .name b { font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1; white-space: nowrap; }
-.adm-plan-panel .name span { font-size: 13px; color: var(--a-strong); white-space: nowrap; }
+.adm-plan-panel .name b { font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.adm-plan-panel .name span { font-size: 13px; color: var(--a-strong); }
 .adm-plan-panel .money { text-align: right; }
 .adm-plan-panel .money b { font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1; white-space: nowrap; }
 .adm-plan-panel .money b small { font-size: 11px; font-weight: 700; color: var(--a-blue); }
-.adm-plan-panel .money div { font-size: 12px; color: var(--a-strong); margin-top: 6px; white-space: nowrap; }
+.adm-plan-panel .money div { font-size: 12px; color: var(--a-strong); margin-top: 6px; }
 .adm-plan-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 20px; }
 .adm-plan-facts div { background: rgba(255,255,255,.08); border-radius: 8px; padding: 12px 14px; }
 .adm-plan-facts .k { font-size: 10px; font-weight: 700; letter-spacing: .10em; text-transform: uppercase; color: var(--a-blue); white-space: nowrap; }
-.adm-plan-facts .v { font-size: 14px; font-weight: 700; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-plan-facts .v { font-size: 14px; font-weight: 700; margin-top: 4px; line-height: 1.35; overflow-wrap: anywhere; }
 .adm-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .adm-3 .card { padding: 22px; margin: 0; }
 .adm-inc { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; color: var(--a-purple); }
@@ -195,20 +195,20 @@
 
 /* rail cards */
 .adm-see { background: var(--a-purple); border-radius: 10px; padding: 20px 22px; color: #fff; }
-.adm-see .eb { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--a-yellow); margin-bottom: 12px; white-space: nowrap; }
-.adm-see .plan { font-size: 12px; color: var(--a-strong); white-space: nowrap; }
+.adm-see .eb { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--a-yellow); margin-bottom: 12px; }
+.adm-see .plan { font-size: 12px; color: var(--a-strong); }
 .adm-see .money { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
 .adm-see .money b { font-size: 32px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
 .adm-see .money span { font-size: 11px; font-weight: 700; color: var(--a-blue); }
 .adm-see .sub { margin-top: 10px; font-size: 12px; color: var(--a-strong); line-height: 1.5; }
 .adm-check { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.16); display: flex; flex-direction: column; gap: 6px; }
-.adm-check div { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--a-strong); white-space: nowrap; }
+.adm-check div { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--a-strong); }
 .adm-check div.ok { color: #fff; }
 .adm-check .c { width: 14px; height: 14px; border-radius: 999px; background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .adm-check div.ok .c { background: var(--a-green); }
 .adm-act { display: flex; gap: 10px; align-items: flex-start; }
 .adm-act i { width: 8px; height: 8px; border-radius: 999px; margin-top: 5px; flex: 0 0 auto; display: inline-block; }
-.adm-act .w { font-size: 13px; font-weight: 700; color: var(--a-purple); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-act .w { font-size: 13px; font-weight: 700; color: var(--a-purple); line-height: 1.35; }
 .adm-act .t { font-size: 11px; color: var(--a-muted); white-space: nowrap; }
 .adm-rail .eg-thread { max-height: 260px; }
 .adm-rail .send { display: flex; gap: 8px; }
