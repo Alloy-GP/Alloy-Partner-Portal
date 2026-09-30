@@ -41,8 +41,12 @@ export const deleteNewsletterRequest = (id) => call('newsletter_delete', { id })
 // Resolve WhatConverts account ids to their real names, so Admin can show a
 // staffer whose account a typed id belongs to before it starts pulling leads.
 export const wcAccounts = () => call('wc_accounts', {});
+// `send_email: false` adds the person quietly (no email yet) — used for a new
+// client whose first email should be the proposal, or to invite later.
 export const addInvite = (accountId, invite) =>
   call('add_invite', { account_id: accountId, redirectTo: window.location.origin, ...invite });
+// Email (or re-email) the sign-in invite to someone already on the account.
+export const sendInvite = (email) => call('send_invite', { email, redirectTo: window.location.origin });
 export const removeInvite = (email) => call('remove_invite', { email });
 
 // Upload a client's square logo to the public `logos` bucket (staff only),

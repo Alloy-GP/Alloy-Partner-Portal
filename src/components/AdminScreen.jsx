@@ -1,6 +1,6 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../lib/admin.js';
+import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, sendInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../lib/admin.js';
 import AdminAutopay from './AdminAutopay.jsx';
 import AdminEngagement from './AdminEngagement.jsx';
 import AdminAnalytics from './AdminAnalytics.jsx';
@@ -97,7 +97,7 @@ function AdminScreen({ startNew, selectId, embed }) {
       .catch(() => { if (alive) setWcNames({}); });
     return () => { alive = false; };
   }, []);
-  const [inviteForm, setInviteForm] = useState({ email: '', name: '', title: '', role: 'owner', is_staff: false });
+  const [inviteForm, setInviteForm] = useState({ email: '', name: '', title: '', role: 'owner', is_staff: false, send_email: true });
   const [busyInvite, setBusyInvite] = useState(false);
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('clients');
@@ -175,12 +175,24 @@ function AdminScreen({ startNew, selectId, embed }) {
     setBusyInvite(true); setNotice(''); setError('');
     try {
       const res = await addInvite(selectedId, inviteForm);
-      if (res && res.emailed) {
+      if (res && res.skipped) {
+        setNotice(`${email} added — no email sent. Use “Send invite” in the list when you're ready, or let the proposal email be their first sign-in.`);
+      } else if (res && res.emailed) {
         setNotice(`Invite email sent to ${email}.`);
       } else {
         setError(`${email} was added, but the invite email failed to send${res?.emailError ? ` — ${res.emailError}` : ''}. They can still sign in at ${window.location.host}.`);
       }
-      setInviteForm({ email: '', name: '', title: '', role: 'owner', is_staff: false });
+      setInviteForm((f) => ({ email: '', name: '', title: '', role: 'owner', is_staff: false, send_email: f.send_email }));
+      const r = await listInvites(selectedId); setInvites(r.invites || []);
+    } catch (e) { setError(String(e.message || e)); } finally { setBusyInvite(false); }
+  };
+
+  const sendInviteH = async (email) => {
+    setBusyInvite(true); setNotice(''); setError('');
+    try {
+      const res = await sendInvite(email);
+      if (res && res.emailed) setNotice(`Invite email sent to ${email}.`);
+      else setError(`Invite email to ${email} failed${res?.emailError ? ` — ${res.emailError}` : ''}.`);
       const r = await listInvites(selectedId); setInvites(r.invites || []);
     } catch (e) { setError(String(e.message || e)); } finally { setBusyInvite(false); }
   };
@@ -357,8 +369,14 @@ function AdminScreen({ startNew, selectId, embed }) {
                       <div key={inv.email} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{inv.email}</div>
-                          <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>{inv.name ? `${inv.name} · ` : ''}{inv.role}{inv.is_staff ? ' · staff' : ''}</div>
+                          <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>
+                            {inv.name ? `${inv.name} · ` : ''}{inv.role}{inv.is_staff ? ' · staff' : ''}
+                            {' · '}{inv.emailed_at
+                              ? <span>invite sent {new Date(inv.emailed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                              : <span style={{ color: '#7a5a12', fontWeight: 700 }}>not emailed yet</span>}
+                          </div>
                         </div>
+                        <button className={`btn btn-sm ${inv.emailed_at ? 'btn-ghost' : 'btn-secondary'}`} onClick={() => sendInviteH(inv.email)} disabled={busyInvite} title={inv.emailed_at ? 'Send a fresh sign-in link' : 'Email them their sign-in link now'}>{inv.emailed_at ? 'Resend' : 'Send invite'}</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => removeInviteH(inv.email)} disabled={busyInvite} style={{ color: 'var(--alloy-pink)' }}>Remove</button>
                       </div>
                     ))}
@@ -386,13 +404,17 @@ function AdminScreen({ startNew, selectId, embed }) {
                       <input type="checkbox" checked={!!inviteForm.is_staff} onChange={(e) => setInviteForm((f) => ({ ...f, is_staff: e.target.checked }))} />
                       Alloy staff
                     </label>
-                    <button className="btn btn-secondary" onClick={addInviteH} disabled={busyInvite || !inviteForm.email.trim()}>Add</button>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--alloy-purple)', whiteSpace: 'nowrap' }} title="Uncheck to add them without emailing. You can send the invite from the list later, or let the proposal email be their first sign-in.">
+                      <input type="checkbox" checked={inviteForm.send_email !== false} onChange={(e) => setInviteForm((f) => ({ ...f, send_email: e.target.checked }))} />
+                      Email invite now
+                    </label>
+                    <button className="btn btn-secondary" onClick={addInviteH} disabled={busyInvite || !inviteForm.email.trim()}>{inviteForm.send_email !== false ? 'Add & email' : 'Add quietly'}</button>
                   </div>
                   {notice ? (
                     <div style={{ marginTop: 8, background: 'var(--alloy-green-tint)', color: 'var(--dark-green, #2c6e62)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 }}>{notice}</div>
                   ) : null}
                   <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 8 }}>
-                    Adding someone emails them an invite link; they sign in and only see this client's data. Removing them revokes access.
+                    Adding someone gives them access to this client only. Email the sign-in invite now, or later with “Send invite”. If the client has a proposal out, the invite (and the proposal email) point them at the proposal — the rest of the portal opens when they accept. Removing them revokes access.
                   </div>
                 </>
               ) : null}
