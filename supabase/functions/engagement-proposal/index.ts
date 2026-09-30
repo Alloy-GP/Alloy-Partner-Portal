@@ -12,6 +12,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //                       PROPOSAL_ALERT_TO (default admin@alloygp.co).
 //   • request_changes — any client user on the account asks a question or asks
 //                       for a change → appended to change_requests + emailed.
+//   • staff_reply     — STAFF: answer in the thread → appended with role 'staff'
+//                       and emailed to whoever asked (else the owners).
 //   • notify_sent     — STAFF: email the account's owner(s) that the proposal is
 //                       waiting for them in the portal.
 //
@@ -29,6 +31,20 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
 import { ALERT_TO, esc, money, whenET, sendEmail, safePortalUrl } from "./mail.ts";
+
+// Every client-side email address on an account: signed-in owners + invited
+// owners who have not signed in yet. Lower-cased, de-duplicated.
+async function ownerEmails(db: any, accountId: string): Promise<string[]> {
+  const to = new Set<string>();
+  const { data: owners } = await db.from("profiles").select("id").eq("account_id", accountId).eq("role", "owner").eq("is_staff", false);
+  for (const o of owners || []) {
+    const { data: u } = await db.auth.admin.getUserById(o.id);
+    const email = u?.user?.email; if (email) to.add(email.toLowerCase());
+  }
+  const { data: invites } = await db.from("account_invites").select("email").eq("account_id", accountId).eq("role", "owner").eq("is_staff", false);
+  for (const i of invites || []) if (i.email) to.add(String(i.email).toLowerCase());
+  return [...to];
+}
 
 Deno.serve(async (req) => {
   try {
@@ -110,7 +126,7 @@ Deno.serve(async (req) => {
       const message = String(body.message || "").trim();
       if (message.length < 5) return json({ error: "Tell us a little more so we can act on it." }, 400);
       if (message.length > 4000) return json({ error: "Keep it under 4,000 characters." }, 400);
-      const entry = { at: new Date().toISOString(), by: user.id, name: me.name || user.email || "", email: user.email || "", message };
+      const entry = { at: new Date().toISOString(), by: user.id, name: me.name || user.email || "", email: user.email || "", role: "client", message };
       const list = Array.isArray(p.change_requests) ? p.change_requests : [];
       const { error: uErr } = await db.from("engagement_proposals").update({ change_requests: [...list, entry] }).eq("id", p.id);
       if (uErr) throw uErr;
@@ -126,19 +142,35 @@ Deno.serve(async (req) => {
       return json({ ok: true, request: entry, alert });
     }
 
+    // ── staff_reply (staff) ────────────────────────────────────────────────
+    if (action === "staff_reply") {
+      if (!me.is_staff) return json({ error: "staff only" }, 403);
+      if (p.status !== "sent" && p.status !== "accepted") return json({ error: "The client can't see this proposal yet — send it first." }, 409);
+      const message = String(body.message || "").trim();
+      if (message.length < 2) return json({ error: "Type a reply first." }, 400);
+      if (message.length > 4000) return json({ error: "Keep it under 4,000 characters." }, 400);
+      const entry = { at: new Date().toISOString(), by: user.id, name: me.name || user.email || "Alloy", email: user.email || "", role: "staff", message };
+      const list0 = Array.isArray(p.change_requests) ? p.change_requests : [];
+      const { error: uErr } = await db.from("engagement_proposals").update({ change_requests: [...list0, entry] }).eq("id", p.id);
+      if (uErr) throw uErr;
+      // Email whoever has asked in this thread; if nobody has, the owners.
+      const asked: string[] = [...new Set<string>(list0.filter((e: any) => e && e.role !== "staff" && e.email).map((e: any) => String(e.email).toLowerCase()))];
+      const to = asked.length ? asked : await ownerEmails(db, p.account_id);
+      const alert = await sendEmail(to, `Reply from Alloy on your proposal · ${company}`, {
+        kicker: "Alloy Growth Partners",
+        title: `${me.name || "Your Alloy team"} replied on your proposal`,
+        body: `<div style="white-space:pre-wrap;background:#f8f7fc;border-radius:10px;padding:12px 14px;">${esc(message)}</div><br>The full conversation is on your proposal page. Reply there, or just answer this email.`,
+        ctaUrl: portalUrl, ctaLabel: "Open the proposal",
+        footer: `Sent because you asked a question on ${company}'s proposal in the Alloy Growth Portal.`,
+      }, user.email || undefined);
+      return json({ ok: true, entry, to, alert });
+    }
+
     // ── notify_sent (staff) ────────────────────────────────────────────────
     if (action === "notify_sent") {
       if (!me.is_staff) return json({ error: "staff only" }, 403);
       if (p.status !== "sent") return json({ error: "Send the proposal first." }, 409);
-      const to = new Set<string>();
-      const { data: owners } = await db.from("profiles").select("id").eq("account_id", p.account_id).eq("role", "owner").eq("is_staff", false);
-      for (const o of owners || []) {
-        const { data: u } = await db.auth.admin.getUserById(o.id);
-        const email = u?.user?.email; if (email) to.add(email.toLowerCase());
-      }
-      const { data: invites } = await db.from("account_invites").select("email").eq("account_id", p.account_id).eq("role", "owner").eq("is_staff", false);
-      for (const i of invites || []) if (i.email) to.add(String(i.email).toLowerCase());
-      const list = [...to];
+      const list = await ownerEmails(db, p.account_id);
       if (!list.length) return json({ sent: 0, to: [], note: "No owner on this account yet — invite one first (Team & access)." });
 
       const r = await sendEmail(list, `Growth partnership proposal for ${company}`, {

@@ -66,7 +66,10 @@ describe('AdminEngagement', () => {
       id: 'p1', account_id: 'a1', status: 'sent', title: 'T', intro: '', closing: '', locations_count: 3,
       modules: ['gbp', 'reporting'], monthly_amount: 4250, setup_amount: null, start_date: '2026-11-01', term_months: 12,
       reference_links: [{ label: 'Audit', url: 'https://view.alloygp.co/a.html' }], version: 2, sent_at: '2026-09-30T14:00:00Z',
-      change_requests: [{ at: '2026-09-30T15:00:00Z', name: 'Jeff Harman', email: 'jeff@cmgt.org', message: 'Can we start December 1?' }],
+      change_requests: [
+        { at: '2026-09-30T15:00:00Z', name: 'Jeff Harman', email: 'jeff@cmgt.org', message: 'Can we start December 1?' },
+        { at: '2026-09-30T15:30:00Z', name: 'Skyler Nelson', role: 'staff', message: 'Yes — moving it now.' },
+      ],
     });
     const t = host.textContent;
     expect(t).toContain('Sent · portal locked until accepted');
@@ -76,6 +79,9 @@ describe('AdminEngagement', () => {
     expect(t).toContain('3 profile managed weekly (1 × 3 locations)');
     expect(host.querySelector('[data-testid="admin-module-video"] input').checked).toBe(false);
     expect(t).toContain('Can we start December 1?');
+    expect(t).toContain('Yes — moving it now.');
+    expect(host.querySelector('[data-testid="admin-engagement-thread"] .eg-msg.is-staff.is-mine')).toBeTruthy();
+    expect(host.querySelector('[data-testid="admin-engagement-reply"]')).toBeTruthy();
     expect(host.querySelector('[data-testid="admin-engagement-send"].btn').textContent).toContain('re-send (v+1)');
     expect(host.querySelector('[data-testid="admin-engagement-withdraw"]')).toBeTruthy();
     expect(host.querySelector('textarea[class*="input"]')).toBeTruthy();

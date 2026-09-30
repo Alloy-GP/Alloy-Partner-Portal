@@ -29,6 +29,11 @@ export function requestProposalChanges({ proposalId, message }) {
   return invoke({ action: 'request_changes', proposalId, message });
 }
 
+// Staff: reply in the proposal's thread; the client who asked is emailed → { ok, entry }.
+export function replyOnProposal({ proposalId, message }) {
+  return invoke({ action: 'staff_reply', proposalId, message });
+}
+
 // Staff: email the client's owner(s) that their proposal is ready → { sent }.
 export function notifyProposalSent(proposalId) {
   return invoke({ action: 'notify_sent', proposalId });
