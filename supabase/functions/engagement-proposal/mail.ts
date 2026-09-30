@@ -9,6 +9,21 @@
 export const FROM = Deno.env.get("PROPOSAL_FROM") || "Alloy Growth Partners <noreply@alloygp.co>";
 export const REPLY_TO = Deno.env.get("PROPOSAL_REPLY_TO") || "team@alloygp.co";
 export const PORTAL_URL = (Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co").replace(/\/$/, "");
+// The portal the CALLER is using (staff on staging sends a proposal → the owner's
+// email must link to staging, not production, exactly like invites already do
+// via redirectTo). Only our own hosts are honoured; anything else falls back to
+// PORTAL_URL so a forged origin can never turn our email into a phishing link.
+export function safePortalUrl(v: unknown): string {
+  try {
+    const u = new URL(String(v || ""));
+    const ok = u.protocol === "https:" && (
+      u.hostname === "alloygp.co" || u.hostname.endsWith(".alloygp.co") ||
+      /^alloy-partner-portal(-[a-z0-9]+)?(-git-[a-z0-9-]+)?-alloy-growth-partners\.vercel\.app$/.test(u.hostname) ||
+      u.hostname === "alloy-partner-portal.vercel.app"
+    );
+    return ok ? u.origin : PORTAL_URL;
+  } catch { return PORTAL_URL; }
+}
 export const ALERT_TO = (Deno.env.get("PROPOSAL_ALERT_TO") || Deno.env.get("BILLING_ALERT_TO") || "admin@alloygp.co")
   .split(/[,\s]+/).filter(Boolean);
 const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";

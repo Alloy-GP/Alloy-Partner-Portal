@@ -28,7 +28,7 @@ const CORS = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
-import { ALERT_TO, PORTAL_URL, esc, money, whenET, sendEmail } from "./mail.ts";
+import { ALERT_TO, esc, money, whenET, sendEmail, safePortalUrl } from "./mail.ts";
 
 Deno.serve(async (req) => {
   try {
@@ -60,7 +60,10 @@ Deno.serve(async (req) => {
     if (!p) return json({ error: "proposal not found" }, 404);
     const { data: account } = await db.from("accounts").select("id, company, short_name").eq("id", p.account_id).maybeSingle();
     const company = account?.company || account?.short_name || "the client";
-    const adminUrl = `${PORTAL_URL}/admin/clients?client=${p.account_id}`;
+    // Links in every email point at the portal the caller is on (staging or
+    // production) — safelisted in safePortalUrl.
+    const portalUrl = safePortalUrl(body.portalUrl);
+    const adminUrl = `${portalUrl}/admin/clients?client=${p.account_id}`;
 
     // ── accept ─────────────────────────────────────────────────────────────
     if (action === "accept") {
@@ -146,8 +149,8 @@ Deno.serve(async (req) => {
           ["Markets", esc(`${p.locations_count} location${Number(p.locations_count) === 1 ? "" : "s"}`)],
           ["Version", esc(`v${p.version}`) + (p.sent_at ? ` · sent ${esc(new Date(p.sent_at).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" }))}` : "")],
         ],
-        body: `Sign in to the Alloy Growth Portal with this email address to read the full proposal: what we do in each of your markets, what it costs, and what happens after you accept. If something needs to change, ask from the proposal page and we get it immediately.<br><br>Questions in the meantime? Just reply to this email.`,
-        ctaUrl: PORTAL_URL, ctaLabel: "Review the proposal",
+        body: `Sign in at <a href="${portalUrl}" style="color:#381c4f;">${esc(portalUrl.replace(/^https?:\/\//, ""))}</a> with this email address to read the full proposal: what we do in each of your markets, what it costs, and what happens after you accept. If something needs to change, ask from the proposal page and we get it immediately.<br><br>Questions in the meantime? Just reply to this email.`,
+        ctaUrl: portalUrl, ctaLabel: "Review the proposal",
         footer: `Sent to the account owner(s) of ${company} by Alloy Growth Partners because a proposal is waiting for you in the Growth Portal.`,
       });
       return json({ sent: r.sent ? list.length : 0, to: list, alert: r });
