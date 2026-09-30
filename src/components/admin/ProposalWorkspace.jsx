@@ -279,10 +279,12 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
                           <button type="button" key={k} className={`adm-flag${on ? ' on' : ''}${toggle ? '' : ' fixed'}`} onClick={toggle || undefined} aria-pressed={on}><span>{l}{k === 'referral' && on ? ` · −${fmtUSD(p.referralDiscount)}/mo` : ''}</span><span className="box">{on ? <Check color="#fff" size={11} /> : null}</span></button>
                         ))}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div className="adm-plan-foot">
                         <button type="button" className={`adm-rec${isRec ? ' on' : ''}`} onClick={() => setRecommended(i)}><span className="r" />Recommended</button>
-                        <span className="help" style={{ margin: 0 }}>Due at start {fmtUSD(dueAtStart({ monthly: Number(String(p.monthly).replace(/[$,]/g, '')) || 0, setup: Number(String(p.setup).replace(/[$,]/g, '')) || 0 }))}</span>
-                        <button type="button" className="link pink" onClick={() => removePlan(i)}>Remove</button>
+                        <span className="side">
+                          <span className="help" style={{ margin: 0 }}>Due at start {fmtUSD(dueAtStart({ monthly: Number(String(p.monthly).replace(/[$,]/g, '')) || 0, setup: Number(String(p.setup).replace(/[$,]/g, '')) || 0 }))}</span>
+                          <button type="button" className="link pink" onClick={() => removePlan(i)}>Remove</button>
+                        </span>
                       </div>
                     </div>
                   </div>
