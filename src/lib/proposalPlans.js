@@ -6,7 +6,7 @@
 // here so there is exactly one implementation. Tested in proposalPlans.test.js.
 // ============================================================================
 export {
-  ALLOY_LEGAL, fmtUSD, termWords, longDate, slugKey, normalizePlans, pickPlan,
+  ALLOY_LEGAL, fmtUSD, termWords, longDate, slugKey, normalizePlans, pickPlan, visiblePlans,
   dueAtStart, planLocLabel, marketsFor, agreementDocument, agreementText,
 } from '../../supabase/functions/engagement-proposal/proposalShared.js';
 import { normalizePlans as _normalizePlans, fmtUSD as _fmtUSD, planLocLabel as _planLocLabel } from '../../supabase/functions/engagement-proposal/proposalShared.js';
@@ -22,6 +22,22 @@ export const DEFAULT_EXCLUSIVITY_MILES = 16;
 export const DEFAULT_ROI = { feePerDoor: 14, doorsPerCommunity: 150 };
 export const DEFAULT_TESTIMONIAL = { vimeoId: '1131397045', caption: 'Client testimonial · 2:58' };
 export const VALIDITY_DAYS = 30;
+
+// The six page sections. `sections` jsonb on the row is {key: bool}; missing = shown.
+export const SECTION_DEFS = [
+  { key: 's1', n: '01', label: 'The plan in one view', note: 'Intro paragraph + 3 stat tiles' },
+  { key: 's2', n: '02', label: 'We know CAM', note: '35 years · 10 expertise tiles' },
+  { key: 's3', n: '03', label: 'What you get', note: '4 outcome cards from the modules' },
+  { key: 's4', n: '04', label: 'How we do it', note: '5 topic tiles with peek modals' },
+  { key: 's5', n: '05', label: 'Investment & guarantee', note: 'Plan comparison + seal' },
+  { key: 's6', n: '06', label: 'Next steps', note: '4-step timeline + CTA' },
+];
+export function normalizeSections(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return Object.fromEntries(SECTION_DEFS.map((s) => [s.key, src[s.key] !== false]));
+}
+// Full Vimeo URL or bare id → id digits ('' when unparseable).
+export function vimeoId(v) { const m = String(v || '').match(/(\d{6,})/); return m ? m[1] : ''; }
 export const FIRST_PLAYBOOK_BUSINESS_DAYS = 21;
 
 // Comparison grid rows. `show` is a per-proposal toggle (compare_rows jsonb);

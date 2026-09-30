@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { blankProposalForm, viewToForm, formToRow, validateProposalForm, validateForSend, sendWarnings } from './adminEngagement.js';
+import { blankProposalForm, viewToForm, formToRow, validateProposalForm, validateForSend, sendWarnings, sendChecklist, activityFromEvents } from './adminEngagement.js';
 import { DEFAULT_MODULES } from './engagementCatalog.js';
 import { PLAN_TEMPLATES } from './proposalPlans.js';
 
@@ -81,4 +81,33 @@ describe('validation', () => {
     expect(sendWarnings({ intro: '', testimonialVimeoId: '', linksText: '', welcomeCallUrl: '' })).toHaveLength(4);
     expect(sendWarnings(good)).toEqual(['No reference documents linked.', 'No welcome-call scheduling link — the accepted state will say we’ll reach out.']);
   });
+});
+
+describe('sendChecklist', () => {
+  const form = { ...blankProposalForm({ company: 'CMGT', locations: [{ name: 'A' }] }), clientEntityType: 'LLC', clientAddress: 'x', startDate: '2026-11-01' };
+  it('all green with a complete form and an owner', () => {
+    const c = sendChecklist(form, [{ role: 'owner', is_staff: false }]);
+    expect(c.every((x) => x.ok)).toBe(true);
+    expect(c.map((x) => x.key)).toEqual(['markets', 'plan', 'legal', 'entity', 'start', 'owner']);
+  });
+  it('flags what is missing; only the owner is soft', () => {
+    const c = sendChecklist({ ...form, markets: [], clientAddress: '' }, [{ role: 'staff', is_staff: false }]);
+    expect(c.find((x) => x.key === 'markets')).toMatchObject({ ok: false, hard: true });
+    expect(c.find((x) => x.key === 'entity')).toMatchObject({ ok: false, hard: true });
+    expect(c.find((x) => x.key === 'owner')).toMatchObject({ ok: false, hard: false });
+    const hidden = { ...form, plans: form.plans.map((p) => ({ ...p, show: false })) };
+    expect(sendChecklist(hidden, []).find((x) => x.key === 'plan').ok).toBe(false);
+  });
+});
+
+describe('activityFromEvents', () => {
+  it('turns proposal events into a dated feed with first names, newest first, plus the send', () => {
+    const a = activityFromEvents([
+      { user_id: 'u1', type: 'proposal_viewed', meta: { version: 2 }, created_at: '2026-09-30T14:00:00Z' },
+      { user_id: 'u1', type: 'proposal_agreement_opened', meta: {}, created_at: '2026-09-30T15:00:00Z' },
+      { user_id: 'u1', type: 'login', meta: {}, created_at: '2026-09-30T16:00:00Z' },
+    ], { u1: 'Jeff' }, { sentAt: '2026-09-30T13:00:00Z', version: 2 });
+    expect(a.map((x) => x.what)).toEqual(['Jeff opened the agreement', 'Jeff viewed v2', 'You sent v2']);
+  });
+  it('is quiet with nothing', () => { expect(activityFromEvents([], {}, null)).toEqual([]); });
 });

@@ -122,3 +122,25 @@ IP, user agent, `agreement_snapshot` (facts + full text) and `agreement_hash`
 (sha-256) — the signed record until a PDF service exists. Headless Chrome in the
 cloud sandbox stalls on this page (Gotham shaping + scroll containers), as it did
 on the designer's prototype: verify visually in a real browser on stg.
+
+## Admin · Manage Clients workspace (design handoff, Sep 30 2026)
+`src/components/admin/ClientWorkspace.jsx` replaces the old one-page AdminScreen:
+sticky header (identity · tab strip · Save / status pill) + clients list + tabs
+`ClientTabs.jsx` (Profile, Locations, Integrations, Team & access) and
+`ProposalWorkspace.jsx` (sub-tabs Overview/Plan · Plans & pricing · Content ·
+Agreement, plus the right rail: Preview/Send, "Client will see" + send checklist,
+Activity, Thread, Back to draft/Withdraw). Styles `18-admin.css` (scoped `.adm`).
+- Locations are `accounts.locations` jsonb `[{name, hq, address, status, tag}]`
+  (tag: active | onboarding | proposed) — they feed the proposal's market chips.
+- Proposal v2 columns: `markets text[]` (which locations this proposal covers),
+  `sections jsonb` (page section toggles s1–s6; the page hides them), `spoc`,
+  `valid_days` (send stamps valid_through = today + days), plans carry `show`.
+- Team roles: client owner | staff ("Viewer" in the UI) | accounting; only the
+  owner accepts. `list_invites` (admin fn) adds `signed_up` + `last_seen_at`
+  from events. Invites can be added quietly (`send_email:false`) and sent later.
+- Send is gated by `sendChecklist` (markets, recommended plan, legal name,
+  entity+address, start date are hard; "an owner invited" is a warning).
+- Activity = `events` rows `proposal_*` for the account (staff read policy) via
+  `loadProposalActivity`; names from the account's profiles.
+- Plan (accepted) view: purple summary, Included / Markets / Signed cards, and a
+  Billing row whose "Change plan" / "Pause · cancel" are DISABLED placeholders.

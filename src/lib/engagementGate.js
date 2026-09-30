@@ -11,7 +11,7 @@
 //   AdminEngagement    → parse/format reference links, status labels
 // ============================================================================
 import { can } from './perms.js';
-import { plansFromRow, normalizeCompareRows, DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL } from './proposalPlans.js';
+import { plansFromRow, normalizeCompareRows, normalizeSections, DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL, VALIDITY_DAYS } from './proposalPlans.js';
 
 // Bump when the acceptance wording changes. Stored per acceptance as
 // engagement_proposals.agreement_version so we can prove which text an owner
@@ -53,6 +53,10 @@ export function engagementRowToView(row) {
     clientAddress: row.client_address || '',
     plans: plansFromRow(row),
     compareRows: normalizeCompareRows(row.compare_rows),
+    markets: Array.isArray(row.markets) ? row.markets.filter(Boolean) : [],
+    sections: normalizeSections(row.sections),
+    spoc: row.spoc || '',
+    validDays: Number(row.valid_days) > 0 ? Math.floor(Number(row.valid_days)) : VALIDITY_DAYS,
     exclusivityMiles: Math.max(1, Math.floor(Number(row.exclusivity_miles) || DEFAULT_EXCLUSIVITY_MILES)),
     roiFeePerDoor: Number(row.roi_fee_per_door) > 0 ? Number(row.roi_fee_per_door) : DEFAULT_ROI.feePerDoor,
     roiDoorsPerCommunity: Number(row.roi_doors_per_community) > 0 ? Math.floor(Number(row.roi_doors_per_community)) : DEFAULT_ROI.doorsPerCommunity,

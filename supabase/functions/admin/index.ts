@@ -459,7 +459,23 @@ Deno.serve(async (req) => {
       const { data, error } = await admin
         .from("account_invites").select("*").eq("account_id", body.account_id).order("email");
       if (error) throw error;
-      return json({ invites: data });
+      // Team & access shows whether each person has signed in and when they were
+      // last active (events.created_at). Resolve email → auth user id per invite
+      // (a handful per account), then one events query.
+      const invites = data || [];
+      const uids: Record<string, string> = {};
+      for (const inv of invites) {
+        const { data: uid } = await admin.rpc("auth_uid_by_email", { p_email: inv.email });
+        if (uid) uids[inv.email] = String(uid);
+      }
+      const ids = Object.values(uids);
+      const lastSeen: Record<string, string> = {};
+      if (ids.length) {
+        const { data: evs } = await admin.from("events").select("user_id, created_at")
+          .in("user_id", ids).order("created_at", { ascending: false }).limit(500);
+        for (const e of evs || []) if (e.user_id && !lastSeen[e.user_id]) lastSeen[e.user_id] = e.created_at;
+      }
+      return json({ invites: invites.map((inv: any) => ({ ...inv, signed_up: !!uids[inv.email], last_seen_at: uids[inv.email] ? (lastSeen[uids[inv.email]] || null) : null })) });
     }
 
     if (action === "add_invite") {

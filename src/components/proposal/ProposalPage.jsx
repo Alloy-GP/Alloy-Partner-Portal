@@ -37,8 +37,11 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
   const owners = (DATA.team || []).filter((t) => !t.isStaff && t.role === 'owner').map((t) => t.name).filter(Boolean);
   const preparer = p.preparedByName || 'Your Alloy team';
   const preparerFirst = p.preparedByName ? p.preparedByName.split(/\s+/)[0] : 'Your Alloy team';
-  const locationNames = (Array.isArray(account.locations) ? account.locations : []).map((l) => (l && l.name) || l).filter(Boolean);
+  const accountLocationNames = (Array.isArray(account.locations) ? account.locations : []).map((l) => (l && l.name) || l).filter(Boolean);
+  // Markets = what staff picked for THIS proposal (falls back to the account's locations).
+  const locationNames = (p.markets && p.markets.length) ? p.markets : accountLocationNames;
   const { named } = marketsFor(locationNames, selected);
+  const show = (k) => !p.sections || p.sections[k] !== false;
   const outcomes = useMemo(() => outcomesFor(p.modules), [p.modules]);
   const sentDate = p.sentAt ? new Date(p.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
@@ -79,7 +82,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
   const selectPlan = (key) => { setPlanKey(key); setAgreementRead(false); if (!previewOnly) track('proposal_plan_selected', { proposalId: p.id, planKey: key }); };
   const agreement = useMemo(() => agreementDocument({
     ref: p.ref, clientLegalName: p.clientLegalName, clientEntityType: p.clientEntityType, clientAddress: p.clientAddress,
-    effectiveDate: p.startDate, plan: selected, markets: named, signerName: name, signerTitle: title,
+    effectiveDate: p.startDate, plan: selected, markets: named, signerName: name, signerTitle: title, spoc: p.spoc,
   }), [p.ref, p.clientLegalName, p.clientEntityType, p.clientAddress, p.startDate, selected, named.join('|'), name, title]); // eslint-disable-line react-hooks/exhaustive-deps
   const openAgreement = () => { setAgreementOpen(true); if (!previewOnly) track('proposal_agreement_opened', { proposalId: p.id, planKey: selected && selected.key }); };
   const agree = () => { setAgreementOpen(false); setAgreementRead(true); setAcceptOpen(true); if (!previewOnly) track('proposal_agreement_confirmed', { proposalId: p.id }); setTimeout(() => nameRef.current && nameRef.current.focus(), 300); };
@@ -178,11 +181,12 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
         <div className="pp-main">
           <div className="pp-toc">
             <span className="eyebrow lbl">In this proposal</span>
-            {[['s1', 'The plan'], ['s2', 'We know CAM'], ['s3', 'What you get'], ['s4', 'How we do it'], ['s5', 'Investment'], ['s6', 'Next steps']].map(([id, t], i) => (
+            {[['s1', 'The plan'], ['s2', 'We know CAM'], ['s3', 'What you get'], ['s4', 'How we do it'], ['s5', 'Investment'], ['s6', 'Next steps']].map(([id, t], i) => show(id) ? (
               <a key={id} href={`#${id}`}><b>{String(i + 1).padStart(2, '0')}</b>{t}</a>
-            ))}
+            ) : null)}
           </div>
 
+          {show('s1') ? (<>
           <div id="s1" className="pp-h2"><span className="num">01</span><h2>The plan in one view</h2></div>
           <div className="card pp-pad">
             <p className="pp-lead">{SUMMARY_PARAGRAPH}</p>
@@ -192,7 +196,9 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               <div className="pp-tile" style={{ borderTopColor: '#a1c8e7' }}><b>{selected ? selected.locations : locationNames.length || 1}</b><div className="t">Market{(selected ? selected.locations : 1) === 1 ? '' : 's'} covered</div><div className="d">Each one found, tracked and reviewed on its own.</div></div>
             </div>
           </div>
+          </>) : null}
 
+          {show('s2') ? (<>
           <div id="s2" className="pp-h2"><span className="num">02</span><h2>We know CAM</h2></div>
           <div className="card pp-pad">
             <div className="pp-know">
@@ -203,7 +209,9 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               {EXPERTISE.map((x) => <div key={x.title} className="pp-xtile"><div className="pp-accent" style={{ background: x.color }} /><div className="t">{x.title}</div><div className="d">{x.body}</div></div>)}
             </div>
           </div>
+          </>) : null}
 
+          {show('s3') ? (<>
           <div id="s3" className="pp-h2"><span className="num">03</span><h2>What you get</h2></div>
           <div className="pp-grid300" data-testid="pp-outcomes">
             {outcomes.map((o) => (
@@ -216,7 +224,9 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               </div>
             ))}
           </div>
+          </>) : null}
 
+          {show('s4') ? (<>
           <div id="s4" className="pp-h2"><span className="num">04</span><h2>How we do it</h2></div>
           <div className="pp-topics">
             {TOPICS.map((t) => (
@@ -229,10 +239,14 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               </button>
             ))}
           </div>
+          </>) : null}
 
+          {show('s5') ? (<>
           <div id="s5" className="pp-h2"><span className="num">05</span><h2>Investment &amp; guarantee</h2></div>
           <Investment p={p} plans={plans} selected={selected} onSelect={selectPlan} preparer={preparer} sentDate={sentDate} />
+          </>) : null}
 
+          {show('s6') ? (<>
           <div id="s6" className="pp-h2"><span className="num">06</span><h2>Next steps</h2></div>
           <div className="pp-next">
             <Stripes thin />
@@ -254,6 +268,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               {!accepted && !expired && (canAccept || previewOnly) ? <button type="button" className="btn-pill" onClick={jumpToAccept} data-testid="pp-cta">Accept the proposal <ArrowRight /></button> : null}
             </div>
           </div>
+          </>) : null}
         </div>
 
         {/* ── sidebar ── */}

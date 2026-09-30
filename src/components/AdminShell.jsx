@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { PortfolioGrid, SnapshotQueue } from './AlloyHome.jsx';
-import AdminScreen from './AdminScreen.jsx';
+import ClientWorkspace from './admin/ClientWorkspace.jsx';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
 import AdminGuides from './AdminGuides.jsx';
@@ -27,7 +27,7 @@ const NAV = [
     { id: 'newsletter', label: 'Newsletter Room', icon: I.Send, path: '/admin/newsletter' },
     { id: 'updates', label: 'Monthly Updates', icon: I.Calendar, path: '/admin/updates' },
     { id: 'guides', label: 'Guides', icon: I.Book, path: '/admin/guides' },
-    { id: 'proposals', label: 'Proposals', icon: I.Doc, path: '/admin/proposals', soon: true },
+    { id: 'proposals', label: 'Proposals', icon: I.Doc, path: '/admin/proposals', badge: 'New' },
   ] },
   { group: 'Insights', items: [
     { id: 'analytics', label: 'Engagement', icon: I.Chart, path: '/admin/analytics' },
@@ -181,7 +181,7 @@ function AdminShell({ onSignOut }) {
   const content = (() => {
     switch (section) {
       case 'portfolio': return <PortfolioGrid onEnter={(id) => go(`/c/${id}`)} onEditClient={(id) => go(`/admin/clients?client=${id}`)} onAddClient={() => go('/admin/clients?new=1')} />;
-      case 'clients': return <AdminScreen embed startNew={sp.get('new') === '1'} selectId={sp.get('client')} />;
+      case 'clients': return <ClientWorkspace startNew={sp.get('new') === '1'} selectId={sp.get('client')} />;
       case 'team': return <TeamAccess go={go} />;
       case 'newsletter': return <AdminNewsletter />;
       case 'updates': return (
@@ -225,6 +225,7 @@ function AdminShell({ onSignOut }) {
                     <span className="icon"><it.icon /></span>
                     <span>{it.label}</span>
                     {it.soon ? <span className="nav-soon-tag">Soon</span> : null}
+                    {it.badge ? <span className="nav-soon-tag" style={{ background: 'var(--alloy-pink)', color: '#fff' }}>{it.badge}</span> : null}
                   </div>
                 ))}
               </React.Fragment>
@@ -240,7 +241,8 @@ function AdminShell({ onSignOut }) {
         <div className="sidebar-scrim" onClick={() => setMobileNav(false)} />
       </div>
 
-      <main className="main">
+      <main className="main" style={section === 'clients' ? { padding: 0 } : undefined}>
+        {section === 'clients' ? content : (<>
         <div className="main-header">
           <div>
             <h1>{title.t}</h1>
@@ -250,6 +252,7 @@ function AdminShell({ onSignOut }) {
           <button className="btn btn-secondary btn-sm" onClick={onSignOut}>Sign out</button>
         </div>
         <div className="content">{content}</div>
+        </>)}
       </main>
     </div>
   );
