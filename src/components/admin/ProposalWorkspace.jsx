@@ -11,6 +11,8 @@ import {
   isExpired, agreementDocument, marketsFor, vimeoId,
 } from '../../lib/proposalPlans.js';
 import { ThreadMessage } from '../ThreadMessage.jsx';
+import { OUTCOME_KEYS } from '../../lib/proposalContent.js';
+import { MODULES } from '../../lib/engagementCatalog.js';
 import AgreementModal from '../proposal/AgreementModal.jsx';
 import { LOCATION_TAGS } from './ClientTabs.jsx';
 
@@ -318,6 +320,27 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
                     <div style={{ flex: 1, minWidth: 0 }}><div className="t">{s.label}</div><div className="d">{s.note}</div></div>
                     {s.key === 's1' || s.key === 's6' ? <button type="button" className="btn-g" onClick={() => setSubTab('overview')}>Edit</button> : null}
                     <button type="button" className={`sw${on ? ' on' : ''}`} onClick={() => set('sections')({ ...form.sections, [s.key]: !on })} aria-pressed={on} aria-label={`Show ${s.label}`} />
+                  </div>
+                ); })}
+              </div>
+            </div>
+            <div className="card" data-testid="adm-outcomes">
+              <div className="card-head"><div className="eyebrow">What you get · the four outcome cards</div><span className="help" style={{ margin: 0, whiteSpace: 'nowrap' }}>Modules become the chips</span></div>
+              <div className="card-sub">One card per engine. Switch a card off to drop it; tick the modules this engagement includes — they appear as chips on the card and drive the agreement's scope.</div>
+              <div className="grid220">
+                {OUTCOME_KEYS.map((o) => { const on = form.sections[o.key] !== false; const mods = MODULES.filter((m) => m.engine === o.engine); return (
+                  <div key={o.key} className={`adm-rowitem${on ? '' : ' off'}`} style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 8 }} data-testid={`adm-outcome-${o.engine}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}><div className="t">{o.tag}</div><div className="d">{o.title}</div></div>
+                      <button type="button" className={`sw${on ? ' on' : ''}`} onClick={() => set('sections')({ ...form.sections, [o.key]: !on })} aria-pressed={on} aria-label={`Show ${o.tag}`} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+                      {mods.map((m) => { const mon = form.modules.includes(m.key); return (
+                        <label key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: mon ? 'var(--a-purple)' : 'var(--a-muted)', fontWeight: mon ? 700 : 500, cursor: 'pointer' }} data-testid={`adm-module-${m.key}`}>
+                          <input type="checkbox" checked={mon} onChange={() => set('modules')(mon ? form.modules.filter((k) => k !== m.key) : [...form.modules, m.key])} /> {m.name}
+                        </label>
+                      ); })}
+                    </div>
                   </div>
                 ); })}
               </div>

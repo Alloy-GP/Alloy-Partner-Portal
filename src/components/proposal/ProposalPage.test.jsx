@@ -131,6 +131,16 @@ describe('ProposalPage', () => {
     expect(host.textContent).toContain('Expired January 1, 2020');
   });
 
+  it('all four outcome cards render even when modules cover two engines; a toggle hides one', () => {
+    let host = mount(owner, engagement({ modules: ['foundation', 'gbp'] }));
+    expect(host.querySelectorAll('[data-testid="pp-outcomes"] .pp-outcome')).toHaveLength(4);
+    expect(host.querySelector('[data-testid="pp-outcome-match"] .pp-chips').children).toHaveLength(0);
+    act(() => mounted.root.unmount()); mounted.host.remove(); mounted = null;
+    host = mount(owner, engagement({ sections: { 'o-match': false } }));
+    expect(host.querySelectorAll('[data-testid="pp-outcomes"] .pp-outcome')).toHaveLength(3);
+    expect(host.querySelector('[data-testid="pp-outcome-match"]')).toBeNull();
+  });
+
   it('single legacy plan: no chooser, no recommended tag, guarantee card hidden', () => {
     const host = mount(owner, engagement({ plans: [{ key: 'plan', name: 'Growth plan', monthly: 4250, setup: 0, locations: 2, termMonths: 12, guarantee: false, exclusive: false, referralDiscount: 0, recommended: true }] }));
     expect(host.textContent).toContain('Your plan');
