@@ -50,7 +50,10 @@ export function engagementRowToView(row) {
     acceptedTitle: row.accepted_title || null,
     acceptedVersion: row.accepted_version != null ? Number(row.accepted_version) : null,
     agreementVersion: row.agreement_version || null,
-    changeRequests: Array.isArray(row.change_requests) ? row.change_requests : [],
+    // The conversation on this proposal: client questions + staff replies, in
+    // time order (stored in change_requests; entries before roles existed are
+    // the client's).
+    thread: normalizeThread(row.change_requests),
     updatedAt: row.updated_at || null,
   };
 }
@@ -97,6 +100,28 @@ export const STATUS_LABEL = {
   withdrawn: 'Withdrawn',
 };
 export const statusLabel = (s) => STATUS_LABEL[s] || String(s || '');
+
+// --- thread ----------------------------------------------------------------
+// Stored as a jsonb array on the row. Every entry: { at, by, name, email, role,
+// message }. role is 'client' (asked from the proposal page) or 'staff' (replied
+// from Admin). Anything malformed is dropped rather than crashing the page.
+export function normalizeThread(raw) {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr
+    .filter((e) => e && typeof e.message === 'string' && e.message.trim())
+    .map((e) => ({
+      at: e.at || null, by: e.by || null, name: String(e.name || ''), email: String(e.email || ''),
+      role: e.role === 'staff' ? 'staff' : 'client', message: String(e.message),
+    }))
+    .sort((a, b) => (Date.parse(a.at || 0) || 0) - (Date.parse(b.at || 0) || 0));
+}
+// "Sep 30, 11:32 AM" for thread entries; '' when unknown.
+export function fmtWhen(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
 
 // --- reference links -------------------------------------------------------
 // Stored as [{label, url}]. Admin edits them as one line each: "Label | URL"

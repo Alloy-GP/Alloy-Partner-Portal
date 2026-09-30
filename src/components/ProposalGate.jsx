@@ -5,13 +5,13 @@ import { track } from '../lib/track.js';
 import { acceptProposal, requestProposalChanges } from '../lib/engagement.js';
 import {
   canAcceptProposal, validateAcceptForm, validateChangeRequest, proposalAgreementText,
-  PROPOSAL_AGREEMENT_VERSION, fmtMoney, fmtDate, paragraphs,
+  PROPOSAL_AGREEMENT_VERSION, fmtMoney, fmtDate, fmtWhen, paragraphs,
 } from '../lib/engagementGate.js';
 import {
   groupByEngine, deliverableLines, locationImpact, effortByEngine, effortCurve, scalesWithLocations,
 } from '../lib/engagementCatalog.js';
 
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
 // ============================================================================
 // ProposalGate — the ONLY thing a new client can see until their owner accepts
@@ -79,7 +79,12 @@ export default function ProposalGate({ onAccepted, onSignOut, previewOnly = fals
     } finally { setBusy(false); }
   };
 
-  // ── questions / change requests ───────────────────────────────────────────
+  // ── the conversation (client questions + staff replies) ──────────────────
+  // Seeded from DATA and re-synced when a realtime refresh brings a staff reply.
+  const [thread, setThread] = useState(p.thread || []);
+  useEffect(() => { setThread(p.thread || []); }, [p.thread]);
+  const threadRef = useRef(null);
+  useEffect(() => { const el = threadRef.current; if (el) el.scrollTop = el.scrollHeight; }, [thread.length]);
   const [q, setQ] = useState('');
   const [qBusy, setQBusy] = useState(false);
   const [qErr, setQErr] = useState('');
@@ -90,8 +95,11 @@ export default function ProposalGate({ onAccepted, onSignOut, previewOnly = fals
     if (!v.ok) { setQErr(v.error); return; }
     setQBusy(true); setQErr('');
     try {
-      await requestProposalChanges({ proposalId: p.id, message: v.message });
+      const r = await requestProposalChanges({ proposalId: p.id, message: v.message });
       track('proposal_change_requested', { proposalId: p.id });
+      const entry = (r && r.request) || { at: new Date().toISOString(), name: user.name || '', role: 'client', message: v.message };
+      setThread((t) => [...t, entry]);
+      if (DATA.engagement) DATA.engagement.thread = [...(DATA.engagement.thread || []), entry];
       setQSent(true); setQ('');
     } catch (e) { setQErr(String((e && e.message) || e)); }
     finally { setQBusy(false); }
@@ -269,14 +277,19 @@ export default function ProposalGate({ onAccepted, onSignOut, previewOnly = fals
             )}
           </section>
 
-          {/* ── Questions ── */}
+          {/* ── Conversation ── */}
           <section className="card eg-card" data-testid="eg-questions">
-            <div className="eg-kicker">Questions?</div>
-            <h3 className="eg-h3">Ask your Alloy team</h3>
-            {qSent ? (
-              <div className="eg-note eg-note-ok"><strong>Sent.</strong> Your Alloy team has it and will get back to you by email. Ask something else any time.</div>
-            ) : null}
-            <textarea className="input" rows={4} value={q} onChange={(e) => { setQ(e.target.value); setQErr(''); }} placeholder="A change you’d like, something unclear, a different start date…" />
+            <div className="eg-kicker">Questions &amp; changes</div>
+            <h3 className="eg-h3">Talk to your Alloy team</h3>
+            {thread.length ? (
+              <div className="eg-thread" ref={threadRef} data-testid="eg-thread" aria-live="polite">
+                {thread.map((m, i) => <ThreadMessage key={i} m={m} mine={m.role !== 'staff'} />)}
+              </div>
+            ) : (
+              <div className="eg-note">Ask anything about this proposal: a change, a date, something unclear. Replies show up right here, and by email.</div>
+            )}
+            {qSent ? <div className="eg-note eg-note-ok"><strong>Sent.</strong> Your Alloy team has it.</div> : null}
+            <textarea className="input" rows={3} value={q} onChange={(e) => { setQ(e.target.value); setQErr(''); setQSent(false); }} placeholder={thread.length ? 'Reply…' : 'A change you’d like, something unclear, a different start date…'} />
             {qErr ? <div className="nr-err" role="alert">{qErr}</div> : null}
             <button className="btn btn-secondary" onClick={ask} disabled={qBusy || previewOnly} title={previewOnly ? 'Preview only' : undefined}>{qBusy ? 'Sending…' : 'Send'}</button>
           </section>
@@ -302,6 +315,18 @@ export default function ProposalGate({ onAccepted, onSignOut, previewOnly = fals
           </section>
         </aside>
       </div>
+    </div>
+  );
+}
+
+// One message in the proposal thread. Colour says WHO (Alloy = purple, client =
+// light); side says whose screen it is (`mine` sits right). Shared with Admin.
+export function ThreadMessage({ m, mine }) {
+  const who = m.role === 'staff' ? `${m.name || 'Alloy'} · Alloy` : (m.name || 'Client');
+  return (
+    <div className={`eg-msg ${m.role === 'staff' ? 'is-staff' : 'is-client'}${mine ? ' is-mine' : ''}`} data-role={m.role}>
+      <div className="eg-msg-meta">{who}{m.at && fmtWhen(m.at) ? ` · ${fmtWhen(m.at)}` : ''}</div>
+      <div className="eg-msg-body">{m.message}</div>
     </div>
   );
 }

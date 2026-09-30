@@ -22,7 +22,7 @@ const engagement = (over = {}) => ({
   locationsCount: 3, modules: [...DEFAULT_MODULES, 'proposal-system'],
   monthlyAmount: 6850, setupAmount: 2500, startDate: '2026-11-01', termMonths: 12,
   referenceLinks: [{ label: 'Q3 Playbook', url: 'https://view.alloygp.co/cmgt/playbook/x.html' }],
-  changeRequests: [], ...over,
+  thread: [], ...over,
 });
 
 function mount(user, eng = engagement(), props = {}) {
@@ -80,6 +80,20 @@ describe('ProposalGate', () => {
     expect(btn).toBeTruthy(); expect(btn.disabled).toBe(true);
     expect(mounted.host.textContent).toContain('Staff preview');
     expect(mounted.host.querySelector('.eg-preview-bar')).toBeTruthy();
+  });
+
+  it('renders the conversation with Alloy replies and the client’s own questions', () => {
+    mounted = mount(owner, engagement({ thread: [
+      { at: '2026-09-30T14:00:00Z', name: 'Jeff Harman', role: 'client', message: 'Can we start Dec 1?' },
+      { at: '2026-09-30T15:00:00Z', name: 'Skyler Nelson', role: 'staff', message: 'Done — v2 starts Dec 1.' },
+    ] }));
+    const th = mounted.host.querySelector('[data-testid="eg-thread"]');
+    expect(th).toBeTruthy();
+    const msgs = [...th.querySelectorAll('.eg-msg')];
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].className).toContain('is-client'); expect(msgs[0].className).toContain('is-mine');
+    expect(msgs[1].className).toContain('is-staff'); expect(msgs[1].textContent).toContain('Skyler Nelson · Alloy');
+    expect(th.textContent).toContain('Done — v2 starts Dec 1.');
   });
 
   it('survives a sparse proposal: no money, no links, no intro, one location', () => {

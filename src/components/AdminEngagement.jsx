@@ -4,9 +4,10 @@ import {
   getEngagementProposal, saveEngagementProposal, sendEngagementProposal, withdrawEngagementProposal, unsendEngagementProposal,
   blankProposalForm, viewToForm, validateProposalForm, sendWarnings,
 } from '../lib/adminEngagement.js';
-import { notifyProposalSent } from '../lib/engagement.js';
+import { notifyProposalSent, replyOnProposal } from '../lib/engagement.js';
+import { ThreadMessage } from './ProposalGate.jsx';
 import { ENGINE_META, MODULES, deliverableLines, locationImpact, normalizeLocations, scalesWithLocations } from '../lib/engagementCatalog.js';
-import { statusLabel, fmtDate, fmtMoney } from '../lib/engagementGate.js';
+import { statusLabel, fmtDate, fmtMoney, validateChangeRequest } from '../lib/engagementGate.js';
 
 const { useState, useEffect } = React;
 
@@ -37,6 +38,8 @@ export default function AdminEngagement({ accountId, company, locations }) {
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
   const [notifyOwners, setNotifyOwners] = useState(true);
+  const [reply, setReply] = useState('');
+  const [replyBusy, setReplyBusy] = useState(false);
   const [uid, setUid] = useState(null);
 
   useEffect(() => { supabase.auth.getUser().then((r) => setUid((r && r.data && r.data.user && r.data.user.id) || null)).catch(() => {}); }, []);
@@ -125,6 +128,19 @@ export default function AdminEngagement({ accountId, company, locations }) {
     catch (e) { setErr(String((e && e.message) || e)); } finally { setBusy(false); }
   };
 
+  const sendReply = async () => {
+    const r = validateChangeRequest(reply);
+    if (!r.ok) { setErr(r.error); return; }
+    setReplyBusy(true); setErr(''); setNote('');
+    try {
+      const res = await replyOnProposal({ proposalId: v.id, message: r.message });
+      setReply('');
+      await load();
+      setNote(res && res.to && res.to.length ? `Reply posted and emailed to ${res.to.join(', ')}.` : 'Reply posted.');
+    } catch (e) { setErr(String((e && e.message) || e)); }
+    finally { setReplyBusy(false); }
+  };
+
   const previewHref = `/c/${accountId}/?as=client`;
   const n = normalizeLocations(form.locationsCount);
   const impact = locationImpact(form.modules, n);
@@ -156,16 +172,20 @@ export default function AdminEngagement({ accountId, company, locations }) {
               </div>
             )}
 
-            {/* change requests */}
-            {v && v.changeRequests && v.changeRequests.length ? (
-              <div style={{ background: 'var(--alloy-yellow-tint, #fdf6e0)', borderRadius: 8, padding: '10px 12px', display: 'grid', gap: 8 }} data-testid="admin-engagement-questions">
-                <div style={{ ...LBL, marginBottom: 0, color: '#7a5a12' }}>Questions from the client · {v.changeRequests.length}</div>
-                {[...v.changeRequests].reverse().map((c, i) => (
-                  <div key={i} style={{ fontSize: 13, lineHeight: 1.5 }}>
-                    <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>{c.name || c.email || 'Client'} · {fmtWhen(c.at)}</div>
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{c.message}</div>
-                  </div>
-                ))}
+            {/* the conversation with the client — their questions, your replies */}
+            {v && (v.thread.length || status === 'sent' || status === 'accepted') ? (
+              <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '10px 12px', display: 'grid', gap: 8, background: '#fbfafd' }} data-testid="admin-engagement-thread">
+                <div style={{ ...LBL, marginBottom: 0 }}>Conversation with the client · {v.thread.length}</div>
+                {v.thread.length ? (
+                  <div className="eg-thread">{v.thread.map((m, i) => <ThreadMessage key={i} m={m} mine={m.role === 'staff'} />)}</div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: 'var(--fg-muted)' }}>Nothing yet. Questions the client asks on the proposal page land here; anything you write below is emailed to them with a link back to it.</div>
+                )}
+                <textarea className="input" rows={2} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Reply to the client…" style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }} data-testid="admin-engagement-reply" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={sendReply} disabled={replyBusy || busy || !reply.trim()}>{replyBusy ? 'Sending…' : 'Reply'}</button>
+                  <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Posted to the proposal page and emailed to whoever asked (or the owners), from your address.</span>
+                </div>
               </div>
             ) : null}
 

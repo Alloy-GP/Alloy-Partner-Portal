@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   proposalGateState, isPortalLocked, canAcceptProposal, validateAcceptForm, validateChangeRequest,
-  engagementRowToView, normalizeReferenceLinks, parseLinkLines, formatLinkLines, invalidLinkLines,
+  engagementRowToView, normalizeReferenceLinks, parseLinkLines, formatLinkLines, invalidLinkLines, normalizeThread, fmtWhen,
   labelFromUrl, proposalAgreementText, PROPOSAL_AGREEMENT_VERSION, paragraphs, fmtMoney, statusLabel,
 } from './engagementGate.js';
 
@@ -63,11 +63,28 @@ describe('engagementRowToView', () => {
     });
     expect(v).toMatchObject({ id: 'p1', status: 'sent', locationsCount: 3, modules: ['gbp'], monthlyAmount: 4250, version: 2 });
     expect(v.referenceLinks).toEqual([{ label: 'Audit', url: 'https://view.alloygp.co/x/audit.html' }]);
-    expect(v.setupAmount).toBeNull(); expect(v.changeRequests).toEqual([]);
+    expect(v.setupAmount).toBeNull(); expect(v.thread).toEqual([]);
   });
   it('null in, null out; a bad location count becomes 1', () => {
     expect(engagementRowToView(null)).toBeNull();
     expect(engagementRowToView({ id: 'p', locations_count: 0 }).locationsCount).toBe(1);
+  });
+});
+
+describe('normalizeThread', () => {
+  it('orders by time, defaults role to client, drops junk', () => {
+    const t = normalizeThread([
+      { at: '2026-09-30T15:00:00Z', name: 'Skyler', role: 'staff', message: 'Moved to Dec 1.' },
+      { at: '2026-09-30T14:00:00Z', name: 'Jeff', email: 'j@x.co', message: 'Can we start Dec 1?' },
+      { at: '2026-09-30T16:00:00Z', message: '   ' }, null, 'nope',
+    ]);
+    expect(t.map((m) => m.role)).toEqual(['client', 'staff']);
+    expect(t[0].message).toBe('Can we start Dec 1?'); expect(t[0].email).toBe('j@x.co');
+    expect(normalizeThread(undefined)).toEqual([]);
+  });
+  it('fmtWhen is short and safe', () => {
+    expect(fmtWhen('2026-09-30T15:04:00Z')).toMatch(/Sep 30/);
+    expect(fmtWhen('garbage')).toBe(''); expect(fmtWhen(null)).toBe('');
   });
 });
 

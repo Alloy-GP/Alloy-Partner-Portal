@@ -114,6 +114,14 @@
 .eg-soon { border-style: dashed; background: transparent; }
 .eg-card textarea.input { resize: vertical; margin-bottom: 10px; }
 
+/* the conversation: colour = who (Alloy purple / client light), side = mine */
+.eg-thread { max-height: 320px; overflow-y: auto; display: grid; gap: 8px; padding: 2px 2px 6px; margin-bottom: 10px; scroll-behavior: smooth; }
+.eg-msg { max-width: 92%; border-radius: 12px; padding: 9px 12px; font-size: 13px; line-height: 1.5; background: var(--alloy-off-white); color: var(--fg-3); justify-self: start; border: 1px solid var(--border-subtle); }
+.eg-msg.is-staff { background: var(--alloy-purple); color: #fff; border-color: var(--alloy-purple); }
+.eg-msg.is-mine { justify-self: end; }
+.eg-msg-meta { font-size: 11px; font-weight: 700; opacity: .75; margin-bottom: 3px; }
+.eg-msg-body { white-space: pre-wrap; word-break: break-word; }
+
 /* staff banner inside the normal portal while a client's proposal is out */
 .eg-staff-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
