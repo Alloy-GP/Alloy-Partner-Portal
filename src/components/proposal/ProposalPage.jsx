@@ -42,7 +42,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
   const locationNames = (p.markets && p.markets.length) ? p.markets : accountLocationNames;
   const { named } = marketsFor(locationNames, selected);
   const show = (k) => !p.sections || p.sections[k] !== false;
-  const outcomes = useMemo(() => outcomesFor(p.modules), [p.modules]);
+  const outcomes = useMemo(() => outcomesFor(p.modules, p.sections), [p.modules, p.sections]);
   const sentDate = p.sentAt ? new Date(p.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
   useEffect(() => {
@@ -215,7 +215,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
           <div id="s3" className="pp-h2"><span className="num">03</span><h2>What you get</h2></div>
           <div className="pp-grid300" data-testid="pp-outcomes">
             {outcomes.map((o) => (
-              <div key={o.tag} className="card pp-outcome">
+              <div key={o.key} className="card pp-outcome" data-testid={`pp-outcome-${o.engine}`}>
                 <div className="pp-accent" style={{ background: o.color }} />
                 <div className="head"><span className="eyebrow tag">{o.tag}</span><span className="pp-pill">{o.scale}</span></div>
                 <div className="t">{o.title}</div>

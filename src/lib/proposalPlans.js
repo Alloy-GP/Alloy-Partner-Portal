@@ -32,9 +32,10 @@ export const SECTION_DEFS = [
   { key: 's5', n: '05', label: 'Investment & guarantee', note: 'Plan comparison + seal' },
   { key: 's6', n: '06', label: 'Next steps', note: '4-step timeline + CTA' },
 ];
+export const OUTCOME_TOGGLE_KEYS = ['o-reach', 'o-match', 'o-retain', 'o-core'];
 export function normalizeSections(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
-  return Object.fromEntries(SECTION_DEFS.map((s) => [s.key, src[s.key] !== false]));
+  return Object.fromEntries([...SECTION_DEFS.map((s) => s.key), ...OUTCOME_TOGGLE_KEYS].map((k) => [k, src[k] !== false]));
 }
 // Full Vimeo URL or bare id → id digits ('' when unparseable).
 export function vimeoId(v) { const m = String(v || '').match(/(\d{6,})/); return m ? m[1] : ''; }

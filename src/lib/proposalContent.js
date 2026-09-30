@@ -43,10 +43,16 @@ const OUTCOME_DEFS = [
   { engine: 'retain', tag: 'Keep every board', color: COLORS.green, scale: 'Every market', title: 'Keep the boards you have.', body: 'A review engine in every market — requests, responses and monitoring — so reputation compounds where boards actually vote.' },
   { engine: 'core', tag: 'Know what moved', color: COLORS.pink, scale: 'One portal', title: 'See every lead and dollar.', body: 'Every form submission traced to its market. Monthly reports, quarterly playbooks, and a strategist call each quarter.' },
 ];
-export function outcomesFor(moduleKeys) {
+// Every card renders unless staff switch it off (sections jsonb key `o-<engine>`);
+// the chips are the modules switched on for that engine. An engine with no
+// modules still shows its card (evergreen copy) — the section never goes lopsided.
+export const OUTCOME_KEYS = OUTCOME_DEFS.map((o) => ({ key: `o-${o.engine}`, engine: o.engine, tag: o.tag, title: o.title }));
+export function outcomesFor(moduleKeys, sections) {
   const mods = modulesFor(moduleKeys);
-  return OUTCOME_DEFS.map((o) => ({ ...o, chips: mods.filter((m) => m.engine === o.engine).map((m) => m.name) }))
-    .filter((o) => o.chips.length || o.engine === 'core');
+  const s = sections && typeof sections === 'object' ? sections : {};
+  return OUTCOME_DEFS
+    .filter((o) => s[`o-${o.engine}`] !== false)
+    .map((o) => ({ ...o, key: `o-${o.engine}`, chips: mods.filter((m) => m.engine === o.engine).map((m) => m.name) }));
 }
 
 export const STAGES = [

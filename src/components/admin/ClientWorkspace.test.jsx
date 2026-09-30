@@ -121,6 +121,12 @@ describe('ClientWorkspace', () => {
     expect(host.querySelectorAll('[data-testid^="adm-section-"]')).toHaveLength(6);
     click(host.querySelector('[data-testid="adm-section-s2"] .sw'));
     expect(host.querySelector('[data-testid="adm-section-s2"]').className).toContain('off');
+    expect(host.querySelectorAll('[data-testid^="adm-outcome-"]')).toHaveLength(4);
+    expect(host.querySelector('[data-testid="adm-module-gbp"] input').checked).toBe(false); // this row has no modules stored
+    click(host.querySelector('[data-testid="adm-module-gbp"] input'));
+    expect(host.querySelector('[data-testid="adm-module-gbp"] input').checked).toBe(true);
+    click(host.querySelector('[data-testid="adm-outcome-match"] .sw'));
+    expect(host.querySelector('[data-testid="adm-outcome-match"]').className).toContain('off');
     click(host.querySelector('[data-testid="adm-subtab-agreement"]'));
     expect(host.textContent).toContain('Included (8.8)');
     expect(host.querySelector('[data-testid="adm-subtab-agreement"] .badge')).toBeNull();
