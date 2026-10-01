@@ -62,6 +62,10 @@
 .ob-status.tone-purple { background-color: var(--alloy-purple-tint); color: var(--alloy-purple); }
 .ob-status.tone-pink { background-color: var(--alloy-pink-tint); color: var(--alloy-pink); }
 .ob-status.ob-confirm { border-style: dashed; border-color: var(--alloy-light-gray); }
+/* Derived (read-only) pill — the bank step: no dropdown, no chevron */
+.ob-status.ob-static { background-image: none; padding-right: 12px; cursor: default; }
+.ob-pay-cta { padding: 7px 12px; }
+.ob-status-help .mono { font-family: var(--font-mono); font-size: 12px; }
 .ob-confirmed { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; color: #2c6e62; background: var(--alloy-green-tint); padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
 .ob-x { border: none; background: transparent; color: var(--fg-muted); cursor: pointer; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font-size: 13px; flex-shrink: 0; }
 .ob-x:hover { color: var(--alloy-pink); background: var(--alloy-pink-tint); }

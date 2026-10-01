@@ -131,6 +131,24 @@ describe("loadAccountData field mapping (the 'five seams' guard)", () => {
     delete h.tables.onboarding_items;
   });
 
+  it("derives the bank step from quickbooks_payment_methods, not from the stored status", async () => {
+    h.tables.onboarding_items = {
+      data: [{ id: "ob-bank", account_id: "acc-1", section: "billing", key: "bank_account", label: "Bank account for autopay", kind: "payment", status: "pending", fields: {}, sort: 0 }],
+      error: null,
+    };
+    h.tables.quickbooks_payment_methods = { data: [{ bank_name: "FIRST CITIZENS", account_type: "BUSINESS_CHECKING", last4: "3913" }], error: null };
+    let data = await loadAccountData(session, "acc-1", me);
+    expect(data.onboarding.items[0].status).toBe("complete");
+    delete h.tables.quickbooks_payment_methods;
+    data = await loadAccountData(session, "acc-1", me);
+    expect(data.onboarding.items[0].status).toBe("pending");
+    h.tables.accounts.data.autopay_required = false;
+    data = await loadAccountData(session, "acc-1", me);
+    expect(data.onboarding.items[0].status).toBe("na");
+    delete h.tables.accounts.data.autopay_required;
+    delete h.tables.onboarding_items;
+  });
+
   it("maps account fields incl. pastelUrl, and defaults origin to 'added'", async () => {
     const data = await loadAccountData(session, "acc-1", me);
     expect(data.account.pastelUrl).toBe("https://usepastel.com/x");

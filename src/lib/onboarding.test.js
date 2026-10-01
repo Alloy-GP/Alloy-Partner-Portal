@@ -3,6 +3,7 @@ import {
   TEMPLATE, SECTIONS, STATUSES, STATUS_VALUES, KINDS, templateRows, missingTemplateItems,
   isResolved, onboardingProgress, rowToItem, groupBySection, canSeeOnboarding,
   onboardingNavCount, shouldNudgeOnboarding, newCustomItem, nextSort, statusMeta, fieldsFor,
+  derivePaymentStatus, applyPaymentStatus, onboardingOwnsPaymentNudge,
 } from './onboarding.js';
 
 const owner = { id: 'u1', role: 'owner', isStaff: false };
@@ -31,6 +32,12 @@ describe('TEMPLATE integrity (the sheet, row for row)', () => {
     // Contacts are client-added, never templated.
     expect(TEMPLATE.some((t) => t.section === 'contacts')).toBe(false);
   });
+  it('adds the autopay bank step as a billing item with no typed fields', () => {
+    const bank = TEMPLATE.find((t) => t.key === 'bank_account');
+    expect(bank).toMatchObject({ section: 'billing', kind: 'payment' });
+    expect(fieldsFor('payment')).toEqual([]);
+    expect(SECTIONS.map((s) => s.id)).toEqual(['contacts', 'billing', 'access', 'resources', 'marketing']);
+  });
   it('keeps the sheet’s status dropdown', () => {
     expect(STATUS_VALUES).toEqual(['pending', 'request_sent', 'complete', 'new_account', 'stuck', 'optional', 'na']);
     expect(STATUSES.every((s) => s.label && s.tone && s.help)).toBe(true);
@@ -41,7 +48,7 @@ describe('templateRows', () => {
   it('materializes pending rows in template order, without an account_id', () => {
     const rows = templateRows();
     expect(rows.length).toBe(TEMPLATE.length);
-    expect(rows[0]).toMatchObject({ key: 'domain', status: 'pending', custom: false, sort: 0, fields: {} });
+    expect(rows[0]).toMatchObject({ key: 'bank_account', status: 'pending', custom: false, sort: 0, fields: {} });
     expect(rows[1].sort).toBe(10);
     rows.forEach((r) => expect(r.account_id).toBeUndefined());
   });
@@ -93,7 +100,7 @@ describe('groupBySection', () => {
       item({ id: 'c2', section: 'contacts', sort: 0, createdAt: '2026-02-02' }),
       item({ id: 'c1', section: 'contacts', sort: 0, createdAt: '2026-01-01' }),
     ]);
-    expect(Object.keys(g)).toEqual(['contacts', 'access', 'resources', 'marketing']);
+    expect(Object.keys(g)).toEqual(['contacts', 'billing', 'access', 'resources', 'marketing']);
     expect(g.access.map((i) => i.id)).toEqual(['1', '2']);
     expect(g.contacts.map((i) => i.id)).toEqual(['c1', 'c2']);
     expect(g.resources).toEqual([]);
@@ -152,5 +159,33 @@ describe('field specs', () => {
     expect(fieldsFor('nope')).toBe(KINDS.credential);
     expect(statusMeta('stuck').tone).toBe('pink');
     expect(statusMeta('bogus').value).toBe('pending');
+  });
+});
+
+describe('bank step (kind payment)', () => {
+  const bank = item({ key: 'bank_account', section: 'billing', kind: 'payment', status: 'pending' });
+  it('derives complete from a bank on file, n/a from an autopay exemption, else stored', () => {
+    expect(derivePaymentStatus(bank, { bankOnFile: true }).status).toBe('complete');
+    expect(derivePaymentStatus(bank, { bankOnFile: false, autopayRequired: false }).status).toBe('na');
+    expect(derivePaymentStatus(bank, { bankOnFile: false, autopayRequired: true })).toBe(bank);
+    expect(derivePaymentStatus(bank, {})).toBe(bank);
+    // a bank on file wins even if the account is exempt
+    expect(derivePaymentStatus(bank, { bankOnFile: true, autopayRequired: false }).status).toBe('complete');
+  });
+  it('leaves every other kind alone', () => {
+    const cred = item({ key: 'gbp', status: 'pending' });
+    expect(derivePaymentStatus(cred, { bankOnFile: true })).toBe(cred);
+    expect(applyPaymentStatus([cred, bank], { bankOnFile: true }).map((i) => i.status)).toEqual(['pending', 'complete']);
+  });
+  it('counts toward progress like any other item', () => {
+    expect(onboardingProgress([bank]).open).toBe(1);
+    expect(onboardingProgress(applyPaymentStatus([bank], { bankOnFile: true })).resolved).toBe(1);
+  });
+  it('owns the autopay nudge only while a checklist with the step is open', () => {
+    expect(onboardingOwnsPaymentNudge({ startedAt: 'x', completedAt: null, items: [bank] })).toBe(true);
+    expect(onboardingOwnsPaymentNudge({ startedAt: 'x', completedAt: '2026-10-01', items: [bank] })).toBe(false);
+    expect(onboardingOwnsPaymentNudge({ startedAt: 'x', completedAt: null, items: [item()] })).toBe(false);
+    expect(onboardingOwnsPaymentNudge({ startedAt: null, items: [] })).toBe(false);
+    expect(onboardingOwnsPaymentNudge(null)).toBe(false);
   });
 });

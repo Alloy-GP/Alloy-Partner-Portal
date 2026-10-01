@@ -123,6 +123,12 @@ function App({ session, onSignOut, staffNav } = {}) {
   const gateState = proposalGateState({ user: DATA.user, engagement: DATA.engagement });
   const locked = gateState === 'locked';
   const pmNudge = !locked && isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
+  // While an OPEN onboarding checklist carries the bank step (its nav badge +
+  // dashboard card already point there), the sign-in modal and the persistent
+  // banner stand down — one nudge, not three. The Account page empty state and
+  // the checklist row still open the modal. Resumes once staff mark it complete.
+  const pmViaOnboarding = pmNudge && onboardingOwnsPaymentNudge(DATA.onboarding) && canSeeOnboarding(DATA.user, DATA.account, DATA.onboarding);
+  const pmNudgeUi = pmNudge && !pmViaOnboarding;
   // Staff previewing a client see the nudge but must not log client events.
   const trackNudge = (type) => { if (!viewAsClient) track(type, {}); };
   const openPm = () => { trackNudge('payment_nudge_open'); setPmModalOpen(true); };
@@ -194,20 +200,20 @@ function App({ session, onSignOut, staffNav } = {}) {
     const seenCurrent = u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT);
     if (!u.id || u.isStaff || seenCurrent) return;
     tourStartedRef.current = true;
-    const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmNudge) autoOpenPm(); } }), 800);
+    const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmNudgeUi) autoOpenPm(); } }), 800);
     return () => clearTimeout(t);
   }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt, locked]);
 
   // Auto-open the autopay modal at sign-in — unless the first-run tour is about
   // to play on the dashboard (it opens the nudge when it finishes instead).
   useEffect(() => {
-    if (!pmNudge) return;
+    if (!pmNudgeUi) return;
     const u = DATA.user || {};
     const tourDue = !!u.id && !u.isStaff && !(u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT));
     if (tourDue && active === 'dashboard') return;
     const t = setTimeout(autoOpenPm, 400);
     return () => clearTimeout(t);
-  }, [pmNudge]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pmNudgeUi]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Locked → the proposal is the whole portal. Accepting flips DATA in place
   // (the row is already 'accepted' server-side) and re-renders into the real
@@ -276,7 +282,7 @@ function App({ session, onSignOut, staffNav } = {}) {
       // (and never for accounting users: it holds credentials). Same helper
       // gates the nav entry, so a typed URL can't reach what the nav hides.
       case "onboarding": return canSeeOnboarding(DATA.user, DATA.account, DATA.onboarding)
-        ? <OnboardingScreen onNav={handleNav}/>
+        ? <OnboardingScreen onNav={handleNav} onAddPayment={pmNudge ? openPm : null}/>
         : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
       case "privacy": return <PrivacyScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
@@ -318,7 +324,7 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       <main className="main">
         <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
-        {pmNudge ? <PaymentNudgeBanner onOpen={openPm} /> : null}
+        {pmNudgeUi ? <PaymentNudgeBanner onOpen={openPm} /> : null}
         {realStaff && !viewAsClient && DATA.engagement && DATA.engagement.status === 'sent' ? (
           <div className="eg-staff-banner" role="status" data-testid="eg-staff-banner">
             <span><strong>Proposal sent (v{DATA.engagement.version}).</strong> This client's portal is locked to the proposal until their owner accepts.</span>
@@ -367,6 +373,8 @@ function App({ session, onSignOut, staffNav } = {}) {
             // Same shape loadData builds from quickbooks_payment_methods, so the
             // banner clears and the Account card fills in without a reload.
             DATA.paymentMethod = { bankName: m.bankName || null, accountType: m.accountType || null, last4: m.last4 || null, status: m.verificationStatus || null, authorizedAt: m.authorizedAt || new Date().toISOString() };
+            // …and the onboarding checklist's bank step, if there is one.
+            markOnboardingPaymentComplete().catch(() => {}).then(() => setPmTick((t) => t + 1));
             setPmTick((t) => t + 1);
           }}
           onFinish={() => setPmModalOpen(false)}

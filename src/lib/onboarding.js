@@ -19,6 +19,8 @@ import { can } from './perms.js';
 export const SECTIONS = [
   { id: 'contacts', title: 'Team & contacts', kicker: 'Who we work with',
     blurb: 'Everyone on your side we should know — decision makers, your marketing lead, and whoever we should copy on updates.' },
+  { id: 'billing', title: 'Billing', kicker: 'Autopay',
+    blurb: 'Add the bank account your monthly Alloy fees draft from. It’s a one-minute, bank-grade form — your details go straight to Intuit and are never typed into this checklist.' },
   { id: 'access', title: 'Access & credentials', kicker: 'Platform access',
     blurb: 'Where possible, invite admin@alloygp.co as an administrator instead of sharing a password. Set each line’s status so we know where it stands — “Stuck” flags it for your Alloy team.' },
   { id: 'resources', title: 'Business resources', kicker: 'Brand & proof',
@@ -58,6 +60,9 @@ export const KINDS = {
     { k: 'password', label: 'Password', type: 'password' },
     { k: 'notes', label: 'Notes for Alloy', type: 'textarea', placeholder: 'What you use it for…' },
   ],
+  // Bank step — no free-text fields on purpose (PCI): the row opens the real
+  // autopay flow and its status is derived from quickbooks_payment_methods.
+  payment: [],
   contact: [
     { k: 'title', label: 'Title / role', type: 'text' },
     { k: 'email', label: 'Email', type: 'email' },
@@ -71,6 +76,8 @@ const WE_REQUEST = 'Alloy will send an admin request — just approve it when it
 // Contacts aren't templated (every client's team is different) — the client
 // adds their own rows. Everything else mirrors the sheet, row for row.
 export const TEMPLATE = [
+  // ── Billing ───────────────────────────────────────────────────────────────
+  { section: 'billing', key: 'bank_account', kind: 'payment', label: 'Bank account for autopay', hint: 'Your monthly Alloy fees draft automatically on or about the 1st. Takes about a minute; Alloy never sees your account number.' },
   // ── Access & credentials ──────────────────────────────────────────────────
   { section: 'access', key: 'domain', kind: 'credential', label: 'Domain registrar access', hint: `${INVITE} (GoDaddy, Namecheap, Google Domains…)` },
   { section: 'access', key: 'hosting', kind: 'credential', label: 'Hosting provider login', hint: `${INVITE} (WP Engine, SiteGround, Bluehost…)` },
@@ -177,6 +184,29 @@ export function shouldNudgeOnboarding({ user, account, onboarding } = {}) {
   if (ob.completedAt) return false;
   const p = onboardingProgress(ob.items);
   return p.total > 0 && p.open > 0;
+}
+
+// The bank row's status is never set by hand: a bank on file = complete; an
+// account Alloy exempted from autopay = n/a; otherwise whatever is stored
+// (pending). loadData applies this so every consumer sees the same answer.
+export function derivePaymentStatus(item, { bankOnFile, autopayRequired } = {}) {
+  if (!item || item.kind !== 'payment') return item;
+  const status = bankOnFile ? 'complete' : autopayRequired === false ? 'na' : item.status;
+  return status === item.status ? item : { ...item, status };
+}
+export function applyPaymentStatus(items, ctx) {
+  return (items || []).map((i) => derivePaymentStatus(i, ctx));
+}
+
+// While an OPEN checklist carries the bank step, the autopay sign-in modal and
+// persistent banner stand down (the checklist, its nav badge and the dashboard
+// card already point at it). Once staff mark onboarding complete — or for
+// accounts with no checklist — the regular nudge resumes.
+export function onboardingOwnsPaymentNudge(onboarding) {
+  const ob = onboarding || {};
+  if (ob.completedAt) return false;
+  if (!ob.startedAt && !(ob.items || []).length) return false;
+  return (ob.items || []).some((i) => i.kind === 'payment');
 }
 
 const uuid = () => (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')

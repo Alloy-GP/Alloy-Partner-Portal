@@ -165,3 +165,8 @@ entry + badge (`shell.jsx`) + dashboard Action Queue card (`screen-dashboard.jsx
 `alloy_status` (the sheet's "Alloy Confirm") is staff-only — a DB trigger rejects it
 from a client JWT. Perms cap `screen_onboarding` (accounting excluded: credentials).
 Visibility is one helper, `canSeeOnboarding`, used by both the route and the nav.
+The autopay bank step is a checklist row too (section `billing`, kind `payment`):
+no typed fields — the row's button opens `PaymentSetupModal`; its status is DERIVED
+(`derivePaymentStatus` in `loadData` + the same join in `onboarding_overview`): bank
+in `quickbooks_payment_methods` → complete, `autopay_required=false` → n/a. While a
+checklist is open, `App.jsx` mutes the sign-in modal + banner (`pmNudgeUi`).

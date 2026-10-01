@@ -374,8 +374,8 @@ async function sendInviteEmail(
 // the materialized rows here and this function stamps account_id and inserts
 // with the service role. Clients then edit their rows directly under RLS; staff
 // confirm via alloy_status. Lifecycle stamps live on accounts.
-const OB_SECTIONS = ["contacts", "access", "resources", "marketing"];
-const OB_KINDS = ["contact", "credential", "upload", "tool"];
+const OB_SECTIONS = ["contacts", "billing", "access", "resources", "marketing"];
+const OB_KINDS = ["contact", "credential", "upload", "tool", "payment"];
 const OB_STATUSES = ["pending", "request_sent", "complete", "new_account", "stuck", "optional", "na"];
 function obRows(accountId: string, items: unknown) {
   if (!Array.isArray(items)) return [];
@@ -909,13 +909,21 @@ Deno.serve(async (req) => {
 
     // ── Onboarding checklist ────────────────────────────────────────────────
     if (action === "onboarding_overview") {
-      const [{ data: accts, error: aErr }, { data: items, error: iErr }] = await Promise.all([
-        admin.from("accounts").select("id, company, short_name, tier, logo_url, onboarding_started_at, onboarding_completed_at").order("company"),
-        admin.from("onboarding_items").select("account_id, section, key, status, alloy_status, updated_at, updated_by"),
+      const [{ data: accts, error: aErr }, { data: items, error: iErr }, { data: banks }] = await Promise.all([
+        admin.from("accounts").select("id, company, short_name, tier, logo_url, autopay_required, onboarding_started_at, onboarding_completed_at").order("company"),
+        admin.from("onboarding_items").select("account_id, section, key, kind, status, alloy_status, updated_at, updated_by"),
+        admin.from("quickbooks_payment_methods").select("account_id"),
       ]);
       if (aErr) throw aErr;
       if (iErr) throw iErr;
       const RESOLVED = new Set(["complete", "na", "optional", "new_account"]);
+      // The bank step (kind payment) is derived exactly as loadData derives it
+      // for the client: a bank on file = complete, autopay exempt = n/a.
+      const bankOn = new Set((banks || []).map((b: any) => b.account_id));
+      const autopayOff = new Set((accts || []).filter((a: any) => a.autopay_required === false).map((a: any) => a.id));
+      const effStatus = (it: any) => it.kind === "payment"
+        ? (bankOn.has(it.account_id) ? "complete" : autopayOff.has(it.account_id) ? "na" : it.status)
+        : it.status;
       type Agg = { total: number; resolved: number; stuck: number; confirmed: number; contacts: number; keys: string[]; last: string | null; lastBy: string };
       const blank = (): Agg => ({ total: 0, resolved: 0, stuck: 0, confirmed: 0, contacts: 0, keys: [], last: null, lastBy: "" });
       const agg: Record<string, Agg> = {};
@@ -925,8 +933,9 @@ Deno.serve(async (req) => {
         if (it.updated_at && (!g.last || it.updated_at > g.last)) { g.last = it.updated_at; g.lastBy = it.updated_by || ""; }
         if (it.section === "contacts") { g.contacts++; continue; }
         g.total++;
-        if (RESOLVED.has(it.status)) g.resolved++;
-        if (it.status === "stuck") g.stuck++;
+        const st = effStatus(it);
+        if (RESOLVED.has(st)) g.resolved++;
+        if (st === "stuck") g.stuck++;
         if (it.alloy_status === "complete") g.confirmed++;
       }
       const clients = (accts || []).map((a: any) => ({

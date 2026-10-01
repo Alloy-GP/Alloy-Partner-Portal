@@ -3,7 +3,7 @@ import { enrichLead } from './proposalMockData.js';
 import { camFor } from './camProfiles.js';
 import { isPlanningItem } from './quarterStats.js';
 import { engagementRowToView } from './engagementGate.js';
-import { rowToItem as onboardingRowToItem } from './onboarding.js';
+import { rowToItem as onboardingRowToItem, derivePaymentStatus } from './onboarding.js';
 
 // A proposals row (snake_case DB) → the raw lead shape enrichLead consumes
 // (camelCase) that enrichLead consumes. Shared by loadData and the
@@ -480,7 +480,12 @@ export async function loadAccountData(session, accountId, me) {
     onboarding: {
       startedAt: account.onboarding_started_at || null,
       completedAt: account.onboarding_completed_at || null,
-      items: ((onboardingRes && onboardingRes.data) || []).map(onboardingRowToItem),
+      // The bank step's status is derived here, never trusted from the row:
+      // bank on file → complete; autopay exempt → n/a (see derivePaymentStatus).
+      items: ((onboardingRes && onboardingRes.data) || []).map((r) => derivePaymentStatus(onboardingRowToItem(r), {
+        bankOnFile: ((paymentMethodsRes && paymentMethodsRes.data) || []).length > 0,
+        autopayRequired: account.autopay_required !== false,
+      })),
     },
     // Guides · metadata for the Guides page (html lazy-fetched on open).
     guides: (guidesRes && guidesRes.data || []).map((g) => ({

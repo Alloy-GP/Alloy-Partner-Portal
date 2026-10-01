@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
 import { SECTIONS, STATUSES, statusMeta, fieldsFor, groupBySection, onboardingProgress } from '../lib/onboarding.js';
+import { can } from '../lib/perms.js';
 import { updateOnboardingItem, addOnboardingItem, removeOnboardingItem } from '../lib/onboardingData.js';
 import { track } from '../lib/track.js';
 
@@ -67,9 +68,13 @@ function ProgressRing({ pct, size = 96, stroke = 9 }) {
   );
 }
 
-function ItemRow({ item, staff, onRemove }) {
+function ItemRow({ item, staff, onRemove, pay }) {
+  const isPay = item.kind === 'payment';
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState(item.status);
+  const [localStatus, setStatus] = useState(item.status);
+  // The bank step's status is derived (loadData / onSaved mutate the item), so
+  // read it live instead of from row state that would go stale.
+  const status = isPay ? item.status : localStatus;
   const [alloy, setAlloy] = useState(item.alloyStatus || '');
   const [label, setLabel] = useState(item.label || '');
   const [fields, setFields] = useState(item.fields || {});
@@ -107,9 +112,18 @@ function ItemRow({ item, staff, onRemove }) {
           </span>
         </button>
         <SaveDot state={save} />
-        <select className={`ob-status tone-${meta.tone}`} value={status} onChange={(e) => changeStatus(e.target.value)} aria-label={`Status for ${item.label || 'item'}`}>
-          {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
+        {isPay ? (
+          <>
+            {status !== 'complete' && status !== 'na' && pay && pay.onAdd ? (
+              <button type="button" className="btn btn-primary btn-sm ob-pay-cta" onClick={pay.onAdd}>Add bank account</button>
+            ) : null}
+            <span className={`ob-status ob-static tone-${meta.tone}`} data-testid="ob-pay-status">{meta.label}</span>
+          </>
+        ) : (
+          <select className={`ob-status tone-${meta.tone}`} value={status} onChange={(e) => changeStatus(e.target.value)} aria-label={`Status for ${item.label || 'item'}`}>
+            {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        )}
         {staff ? (
           <select className={`ob-status ob-confirm tone-${alloy ? statusMeta(alloy).tone : 'muted'}`} value={alloy}
             onChange={(e) => changeAlloy(e.target.value)} aria-label="Alloy confirm" title="Alloy confirm — staff only">
@@ -121,7 +135,26 @@ function ItemRow({ item, staff, onRemove }) {
         ) : null)}
         {onRemove ? <button type="button" className="ob-x" onClick={onRemove} aria-label="Remove this item"><I.Close width={12} height={12} /></button> : null}
       </div>
-      {open ? (
+      {open && isPay ? (
+        <div className="ob-details">
+          {status === 'complete' ? (
+            <div className="ob-status-help">
+              {pay && pay.pm ? <>Bank on file: <strong>{pay.pm.bankName || 'Bank account'}</strong> <span className="mono">•••• {pay.pm.last4 || '----'}</span>. </> : 'A bank account is on file. '}
+              Autopay is set up — anything to change goes through your Alloy team (bank details can’t be edited here for security).
+            </div>
+          ) : status === 'na' ? (
+            <div className="ob-status-help">Not needed for your account — Alloy bills you another way.</div>
+          ) : (
+            <div className="ob-status-help">
+              {pay && pay.onAdd
+                ? 'One short form: bank name, routing and account numbers, and an authorization for the monthly draft. The numbers go straight to Intuit — nothing is stored in this checklist.'
+                : pay && pay.canBilling
+                  ? 'Open Account Details to add the bank account.'
+                  : 'An owner or accounting user on your team needs to add this — it needs billing access.'}
+            </div>
+          )}
+        </div>
+      ) : open ? (
         <div className="ob-details">
           <div className="ob-status-help">{meta.help}</div>
           <div className="ob-fields">
@@ -172,7 +205,7 @@ function ContactRow({ item, onRemove }) {
   );
 }
 
-export default function OnboardingScreen({ onNav }) {
+export default function OnboardingScreen({ onNav, onAddPayment }) {
   const navigate = useNavigate();
   const [, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
@@ -187,6 +220,9 @@ export default function OnboardingScreen({ onNav }) {
   const company = (DATA.account && (DATA.account.shortName || DATA.account.company)) || 'your team';
   const done = !!ob.completedAt;
   const left = prog.total - prog.resolved;
+  // Bank step context: the modal trigger (null when this user can't add one
+  // or a bank is on file), what's on file, and whether they have billing access.
+  const pay = { onAdd: onAddPayment || null, pm: DATA.paymentMethod || null, canBilling: can(DATA.user, 'billing') };
 
   const add = async (section) => {
     setErr('');
@@ -272,7 +308,7 @@ export default function OnboardingScreen({ onNav }) {
             ) : (
               <>
                 {list.length === 0 ? <div className="ob-empty">Nothing here yet.</div> : null}
-                {list.map((it) => <ItemRow key={it.id} item={it} staff={staff} onRemove={it.custom ? () => remove(it.id) : null} />)}
+                {list.map((it) => <ItemRow key={it.id} item={it} staff={staff} pay={pay} onRemove={it.custom ? () => remove(it.id) : null} />)}
                 {sec.id === 'marketing' ? <button type="button" className="ob-add" onClick={() => add('marketing')}>+ Add another tool you use</button> : null}
               </>
             )}

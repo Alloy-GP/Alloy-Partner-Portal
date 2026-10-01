@@ -54,3 +54,12 @@ export async function removeOnboardingItem(id) {
   const { error } = await supabase.from('onboarding_items').delete().eq('id', id);
   if (error) throw error;
 }
+
+// After the autopay modal attaches a bank (App.jsx onSaved): stamp the bank
+// row complete so the badge/card/progress drop it without a reload. loadData
+// derives the same answer on the next load, so this is belt-and-braces.
+export async function markOnboardingPaymentComplete() {
+  const rows = items().filter((i) => i.kind === 'payment' && i.status !== 'complete');
+  await Promise.all(rows.map((r) => updateOnboardingItem(r.id, { status: 'complete' })));
+  return rows.length;
+}
