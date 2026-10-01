@@ -940,8 +940,8 @@ Deno.serve(async (req) => {
     // ── Onboarding checklist ────────────────────────────────────────────────
     if (action === "onboarding_overview") {
       const [{ data: accts, error: aErr }, { data: items, error: iErr }, { data: banks }] = await Promise.all([
-        admin.from("accounts").select("id, company, short_name, tier, logo_url, autopay_required, onboarding_started_at, onboarding_completed_at").order("company"),
-        admin.from("onboarding_items").select("account_id, section, key, kind, status, alloy_status, updated_at, updated_by"),
+        admin.from("accounts").select("id, company, short_name, tier, logo_url, autopay_required, locations, onboarding_started_at, onboarding_completed_at").order("company"),
+        admin.from("onboarding_items").select("account_id, section, key, kind, label, status, alloy_status, updated_at, updated_by"),
         admin.from("quickbooks_payment_methods").select("account_id"),
       ]);
       if (aErr) throw aErr;
@@ -954,26 +954,39 @@ Deno.serve(async (req) => {
       const effStatus = (it: any) => it.kind === "payment"
         ? (bankOn.has(it.account_id) ? "complete" : autopayOff.has(it.account_id) ? "na" : it.status)
         : it.status;
-      type Agg = { total: number; resolved: number; stuck: number; confirmed: number; contacts: number; locations: number; keys: string[]; last: string | null; lastBy: string };
-      const blank = (): Agg => ({ total: 0, resolved: 0, stuck: 0, confirmed: 0, contacts: 0, locations: 0, keys: [], last: null, lastBy: "" });
+      type Agg = { total: number; resolved: number; stuck: number; confirmed: number; contacts: number; locations: number; keys: string[]; locNames: string[]; last: string | null; lastBy: string };
+      const blank = (): Agg => ({ total: 0, resolved: 0, stuck: 0, confirmed: 0, contacts: 0, locations: 0, keys: [], locNames: [], last: null, lastBy: "" });
       const agg: Record<string, Agg> = {};
       for (const it of items || []) {
         const g = agg[it.account_id] || (agg[it.account_id] = blank());
         g.keys.push(it.key);
         if (it.updated_at && (!g.last || it.updated_at > g.last)) { g.last = it.updated_at; g.lastBy = it.updated_by || ""; }
         if (it.section === "contacts") { g.contacts++; continue; }
-        if (it.section === "locations") { g.locations++; continue; }
+        if (it.section === "locations") { g.locations++; g.locNames.push(String(it.label || "").trim().toLowerCase()); continue; }
         g.total++;
         const st = effStatus(it);
         if (RESOLVED.has(st)) g.resolved++;
         if (st === "stuck") g.stuck++;
         if (it.alloy_status === "complete") g.confirmed++;
       }
-      const clients = (accts || []).map((a: any) => ({
-        id: a.id, company: a.company, short_name: a.short_name, tier: a.tier, logo_url: a.logo_url,
-        started_at: a.onboarding_started_at, completed_at: a.onboarding_completed_at,
-        ...(agg[a.id] || blank()),
-      }));
+      const clients = (accts || []).map((a: any) => {
+        const g = agg[a.id] || blank();
+        // Staff locations with no checklist row yet → the Admin "+ N new" button
+        // (onboarding_start seeds them), so an already-started checklist can
+        // still pick up locations added later in Manage Clients.
+        const keys = new Set(g.keys), names = new Set(g.locNames);
+        const seedable = (Array.isArray(a.locations) ? a.locations : []).filter((l: any) => {
+          const name = String(l?.name || "").trim();
+          return name && !names.has(name.toLowerCase()) && !(l?.source_key && keys.has(String(l.source_key)));
+        }).length;
+        const { locNames: _omit, ...rest } = g;
+        return {
+          id: a.id, company: a.company, short_name: a.short_name, tier: a.tier, logo_url: a.logo_url,
+          started_at: a.onboarding_started_at, completed_at: a.onboarding_completed_at,
+          seedable: a.onboarding_started_at ? seedable : 0,
+          ...rest,
+        };
+      });
       return json({ clients });
     }
 

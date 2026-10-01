@@ -80,7 +80,9 @@ export default function AdminOnboarding({ go }) {
 
   const Row = ({ c }) => {
     const pct = c.total ? Math.round((c.resolved / c.total) * 100) : 0;
-    const missing = c.started_at ? missingTemplateItems((c.keys || []).map((key) => ({ key }))).length : 0;
+    // New template items + staff locations with no row yet — one button, one
+    // action (onboarding_start is idempotent: inserts only what's missing).
+    const missing = c.started_at ? missingTemplateItems((c.keys || []).map((key) => ({ key }))).length + (c.seedable || 0) : 0;
     const isBusy = busy === c.id;
     const allIn = c.total > 0 && c.resolved === c.total;
     return (
@@ -117,7 +119,7 @@ export default function AdminOnboarding({ go }) {
           ) : (
             <>
               <button className="btn btn-secondary btn-sm" onClick={() => go(`/c/${c.id}/onboarding`)}>Open</button>
-              {missing ? <button className="btn btn-secondary btn-sm" onClick={() => addMissing(c, missing)} disabled={isBusy} title="The template grew since this checklist was started">+ {missing} new</button> : null}
+              {missing ? <button className="btn btn-secondary btn-sm" onClick={() => addMissing(c, missing)} disabled={isBusy} title="New template items and/or staff-entered locations this checklist doesn't have yet">+ {missing} new</button> : null}
               {c.completed_at
                 ? <button className="btn btn-ghost btn-sm" onClick={() => complete(c, false)} disabled={isBusy}>Reopen</button>
                 : <button className="btn btn-ghost btn-sm" onClick={() => complete(c, true)} disabled={isBusy}>Mark complete</button>}
