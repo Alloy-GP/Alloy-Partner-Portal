@@ -97,7 +97,7 @@ function ItemRow({ item, staff, onRemove, pay }) {
   const setField = (k, v) => { const next = { ...fields, [k]: v }; setFields(next); queue({ fields: next }); };
 
   return (
-    <div className={`ob-item${open ? ' open' : ''}`} data-key={item.key}>
+    <div className={`ob-item${open ? ' open' : ''}`} data-key={item.key} data-tone={meta.tone}>
       <div className="ob-item-row">
         <button type="button" className="ob-item-main" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           <span className="ob-chev"><Chevron /></span>
@@ -185,48 +185,61 @@ function ItemRow({ item, staff, onRemove, pay }) {
   );
 }
 
-function ContactRow({ item, onRemove }) {
+// Header strip shared by the free-form entry cards (contacts, locations):
+// "Contact 1 · Bruce Crawford" + save state + remove.
+function EntryHead({ kind, index, name, save, onRemove }) {
+  return (
+    <div className="ob-entry-head">
+      <span className="ob-entry-num">{kind} {index + 1}</span>
+      {name ? <span className="ob-entry-name">{name}</span> : <span className="ob-entry-name muted">Untitled</span>}
+      <span className="grow" />
+      <SaveDot state={save} />
+      {onRemove ? <button type="button" className="ob-x" onClick={onRemove} aria-label={`Remove ${kind.toLowerCase()}`}><I.Close width={12} height={12} /></button> : null}
+    </div>
+  );
+}
+
+function ContactRow({ item, index, onRemove }) {
   const [name, setName] = useState(item.label || '');
   const [fields, setFields] = useState(item.fields || {});
   const { save, queue } = useAutosave(item.id);
   const setField = (k, v) => { const next = { ...fields, [k]: v }; setFields(next); queue({ fields: next }); };
   return (
-    <div className="ob-contact">
-      <input className="input" placeholder="Full name" value={name} aria-label="Full name"
-        onChange={(e) => { setName(e.target.value); queue({ label: e.target.value }); }} />
-      <input className="input" placeholder="Title / role" value={fields.title || ''} aria-label="Title or role" onChange={(e) => setField('title', e.target.value)} />
-      <input className="input" type="email" placeholder="Email" value={fields.email || ''} aria-label="Email" onChange={(e) => setField('email', e.target.value)} />
-      <input className="input" type="tel" placeholder="Phone" value={fields.phone || ''} aria-label="Phone" onChange={(e) => setField('phone', e.target.value)} />
-      <span className="ob-contact-end">
-        <SaveDot state={save} />
-        {onRemove ? <button type="button" className="ob-x" onClick={onRemove} aria-label="Remove contact"><I.Close width={12} height={12} /></button> : null}
-      </span>
+    <div className="ob-entry">
+      <EntryHead kind="Contact" index={index} name={name} save={save} onRemove={onRemove} />
+      <div className="ob-entry-grid four">
+        <label className="ob-field"><span className="ob-field-label">Full name</span>
+          <input className="input" placeholder="Jane Smith" value={name} onChange={(e) => { setName(e.target.value); queue({ label: e.target.value }); }} /></label>
+        <label className="ob-field"><span className="ob-field-label">Title / role</span>
+          <input className="input" placeholder="Owner, Marketing lead…" value={fields.title || ''} onChange={(e) => setField('title', e.target.value)} /></label>
+        <label className="ob-field"><span className="ob-field-label">Email</span>
+          <input className="input" type="email" placeholder="jane@company.com" value={fields.email || ''} onChange={(e) => setField('email', e.target.value)} /></label>
+        <label className="ob-field"><span className="ob-field-label">Phone</span>
+          <input className="input" type="tel" placeholder="(555) 010-2030" value={fields.phone || ''} onChange={(e) => setField('phone', e.target.value)} /></label>
+      </div>
     </div>
   );
 }
 
 // A location: name · address · phone. Saved like any row; a DB trigger merges
 // it into accounts.locations so Alloy's admin, proposal and listings pick it up.
-function LocationRow({ item, onRemove }) {
+function LocationRow({ item, index, onRemove }) {
   const [name, setName] = useState(item.label || '');
   const [fields, setFields] = useState(item.fields || {});
   const { save, queue } = useAutosave(item.id);
   const setField = (k, v) => { const next = { ...fields, [k]: v }; setFields(next); queue({ fields: next }); };
   return (
-    <div className="ob-location">
-      <div className="ob-location-main">
+    <div className="ob-entry">
+      <EntryHead kind="Location" index={index} name={name} save={save} onRemove={onRemove} />
+      <div className="ob-entry-grid loc-main">
         <label className="ob-field"><span className="ob-field-label">Location</span>
           <input className="input" placeholder="e.g. Austin, TX" value={name} onChange={(e) => { setName(e.target.value); queue({ label: e.target.value }); }} /></label>
         <label className="ob-field"><span className="ob-field-label">Address</span>
           <input className="input" placeholder="Street, City, ST ZIP" value={fields.address || ''} onChange={(e) => setField('address', e.target.value)} /></label>
         <label className="ob-field"><span className="ob-field-label">Phone</span>
           <input className="input" type="tel" placeholder="(555) 010-2030" value={fields.phone || ''} onChange={(e) => setField('phone', e.target.value)} /></label>
-        <span className="ob-contact-end">
-          <SaveDot state={save} />
-          {onRemove ? <button type="button" className="ob-x" onClick={onRemove} aria-label="Remove location"><I.Close width={12} height={12} /></button> : null}
-        </span>
       </div>
-      <div className="ob-location-more">
+      <div className="ob-entry-grid loc-more">
         <label className="ob-field"><span className="ob-field-label">Location manager</span>
           <input className="input" placeholder="Who runs this office" value={fields.manager || ''} onChange={(e) => setField('manager', e.target.value)} /></label>
         <label className="ob-field"><span className="ob-field-label">Hours</span>
@@ -310,48 +323,68 @@ export default function OnboardingScreen({ onNav, onAddPayment }) {
           <a className="btn btn-primary" href={uploadUrl} target="_blank" rel="noopener noreferrer"><I.Upload width={14} height={14} /> Upload files</a>
           <button type="button" className="btn btn-secondary" onClick={() => onNav && onNav('tickets')}>Ask a question</button>
         </div>
+        {prog.total ? (
+          <nav className="ob-toc" aria-label="Sections">
+            {SECTIONS.map((sec, i) => {
+              const list = groups[sec.id] || [];
+              const sp = isFreeform(sec.id) ? null : onboardingProgress(list);
+              const sectionDone = !!(sp && sp.total && sp.resolved === sp.total);
+              return (
+                <a key={sec.id} href={`#ob-${sec.id}`} className={`ob-toc-chip${sectionDone ? ' done' : ''}`}>
+                  <span className="n">{sectionDone ? <I.Check width={11} height={11} /> : i + 1}</span>
+                  <span className="t">{sec.title}</span>
+                  <span className="c">{sp ? `${sp.resolved}/${sp.total}` : list.length}</span>
+                </a>
+              );
+            })}
+          </nav>
+        ) : null}
       </section>
 
       {err ? <div className="ob-err">{err}</div> : null}
 
-      {SECTIONS.map((sec) => {
+      {SECTIONS.map((sec, idx) => {
         const list = groups[sec.id] || [];
         const isContacts = sec.id === 'contacts';
         const isLocations = sec.id === 'locations';
         const sp = isFreeform(sec.id) ? null : onboardingProgress(list);
+        const sectionDone = !!(sp && sp.total && sp.resolved === sp.total);
         return (
-          <section key={sec.id} className="card ob-section" id={`ob-${sec.id}`}>
+          <section key={sec.id} className={`card ob-section${sectionDone ? ' done' : ''}`} id={`ob-${sec.id}`} data-sec={sec.id}>
             <div className="ob-sec-head">
-              <div>
+              <span className="ob-sec-num">{sectionDone ? <I.Check width={16} height={16} /> : idx + 1}</span>
+              <div className="ob-sec-titles">
                 <span className="kicker">{sec.kicker}</span>
                 <h3>{sec.title}</h3>
-                <p className="ob-sec-blurb">{sec.blurb}</p>
               </div>
               {sp ? (
-                <span className={`ob-sec-count${sp.total && sp.resolved === sp.total ? ' ok' : ''}`}>{sp.resolved} / {sp.total}</span>
+                <span className={`ob-sec-count${sectionDone ? ' ok' : ''}`}>{sectionDone ? 'Done' : `${sp.resolved} of ${sp.total}`}</span>
               ) : <span className="ob-sec-count">{list.length} {isLocations ? (list.length === 1 ? 'location' : 'locations') : (list.length === 1 ? 'person' : 'people')}</span>}
             </div>
-            {isLocations ? (
-              <>
-                {list.length === 0 ? <div className="ob-empty">No locations yet — add your main office first.</div> : null}
-                {list.map((it) => <LocationRow key={it.id} item={it} onRemove={() => remove(it.id)} />)}
-                <button type="button" className="ob-add" onClick={() => add('locations')}>+ Add a location</button>
-              </>
-            ) : isContacts ? (
-              <>
-                {list.length ? (
-                  <div className="ob-contact-head" aria-hidden="true"><span>Full name</span><span>Title / role</span><span>Email</span><span>Phone</span><span /></div>
-                ) : <div className="ob-empty">No one added yet — start with whoever runs point on marketing.</div>}
-                {list.map((it) => <ContactRow key={it.id} item={it} onRemove={() => remove(it.id)} />)}
-                <button type="button" className="ob-add" onClick={() => add('contacts')}>+ Add a contact</button>
-              </>
-            ) : (
-              <>
-                {list.length === 0 ? <div className="ob-empty">Nothing here yet.</div> : null}
-                {list.map((it) => <ItemRow key={it.id} item={it} staff={staff} pay={pay} onRemove={it.custom ? () => remove(it.id) : null} />)}
-                {sec.id === 'marketing' ? <button type="button" className="ob-add" onClick={() => add('marketing')}>+ Add another tool you use</button> : null}
-              </>
-            )}
+            <div className="ob-sec-body">
+              <p className="ob-sec-blurb">{sec.blurb}</p>
+              {isLocations ? (
+                <>
+                  {list.length === 0 ? <div className="ob-empty">No locations yet — add your main office first.</div> : null}
+                  {list.map((it, i) => <LocationRow key={it.id} item={it} index={i} onRemove={() => remove(it.id)} />)}
+                  <button type="button" className="ob-add" onClick={() => add('locations')}>+ Add a location</button>
+                </>
+              ) : isContacts ? (
+                <>
+                  {list.length === 0 ? <div className="ob-empty">No one added yet — start with whoever runs point on marketing.</div> : null}
+                  {list.map((it, i) => <ContactRow key={it.id} item={it} index={i} onRemove={() => remove(it.id)} />)}
+                  <button type="button" className="ob-add" onClick={() => add('contacts')}>+ Add a contact</button>
+                </>
+              ) : (
+                <>
+                  {list.length === 0 ? <div className="ob-empty">Nothing here yet.</div> : null}
+                  <div className="ob-items">
+                    {list.map((it) => <ItemRow key={it.id} item={it} staff={staff} pay={pay} onRemove={it.custom ? () => remove(it.id) : null} />)}
+                  </div>
+                  {sec.id === 'marketing' ? <button type="button" className="ob-add" onClick={() => add('marketing')}>+ Add another tool you use</button> : null}
+                </>
+              )}
+            </div>
           </section>
         );
       })}
