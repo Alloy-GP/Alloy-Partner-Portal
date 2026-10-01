@@ -104,10 +104,13 @@ export function marketsFor(names, plan) {
 // The service agreement for THIS proposal + plan + signer, as facts and as the
 // full text. Snapshotted verbatim at acceptance. `input`:
 //   { ref, clientLegalName, clientEntityType, clientAddress, effectiveDate,
-//     plan, markets: string[], signerName, signerTitle, spoc }
+//     plan, markets: string[], signerName, signerTitle, spoc, exclusivityMiles }
 //   spoc = the point of contact named before acceptance; the signer replaces it.
+export const DEFAULT_EXCLUSIVITY_MILES = 16;
+
 export function agreementDocument(input) {
   const i = input || {};
+  const miles = Math.max(1, Math.floor(Number(i.exclusivityMiles) || DEFAULT_EXCLUSIVITY_MILES));
   const plan = i.plan || { name: "Growth plan", monthly: 0, setup: 0, locations: 1, termMonths: 12, guarantee: false, exclusive: false };
   const legalName = String(i.clientLegalName || "").trim() || "[Client legal name]";
   const signer = String(i.signerName || "").trim()
@@ -128,7 +131,7 @@ export function agreementDocument(input) {
     { k: "Term", v: `${plan.termMonths} months, from ${effective}` },
     { k: "Billing", v: "ACH autopay, 1st of each month" },
     { k: "Growth Guarantee", v: plan.guarantee ? "Included (Sec. 8.8)" : "Not included" },
-    { k: "Market exclusivity", v: plan.exclusive ? "Included, each market (Sec. 3.2)" : "Not included" },
+    { k: "Market exclusivity", v: plan.exclusive ? `Included, each market · ${miles}-mile radius (Sec. 3.2)` : "Not included" },
     { k: "Alloy", v: `${ALLOY_LEGAL.name}, ${ALLOY_LEGAL.city}` },
   ];
   const built = buildAgreement({
@@ -141,10 +144,11 @@ export function agreementDocument(input) {
     setup: fmtUSD(plan.setup),
     termMonths: term,
     guarantee: !!plan.guarantee,
+    miles,
     spoc: String(i.signerName || "").trim() ? signer : (String(i.spoc || "").trim() || "[Client point of contact]"),
   });
   const base = {
-    ref: String(i.ref || ""), legalName, effective, signer, alloySigner: ALLOY_LEGAL.signer,
+    ref: String(i.ref || ""), legalName, effective, signer, alloySigner: ALLOY_LEGAL.signer, exclusivityMiles: miles,
     plan: { key: plan.key, name: plan.name, monthly: plan.monthly, setup: plan.setup, locations: plan.locations, termMonths: plan.termMonths, guarantee: !!plan.guarantee, exclusive: !!plan.exclusive },
     facts, preamble: built.preamble, sections: built.sections, closing: built.closing,
   };

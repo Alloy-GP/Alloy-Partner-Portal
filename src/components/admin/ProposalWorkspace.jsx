@@ -145,7 +145,7 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
 
   const agreement = useMemo(() => agreementDocument({
     ref: view ? view.ref : '', clientLegalName: form.clientLegalName, clientEntityType: form.clientEntityType, clientAddress: form.clientAddress,
-    effectiveDate: form.startDate, plan: rec, markets: marketsFor(form.markets.length ? form.markets : locNames, rec).named, spoc: form.spoc,
+    effectiveDate: form.startDate, plan: rec, markets: marketsFor(form.markets.length ? form.markets : locNames, rec).named, spoc: form.spoc, exclusivityMiles: form.exclusivityMiles,
   }), [form, rec, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const subTabs = [['overview', accepted ? 'Plan' : 'Overview'], ['plans', 'Plans & pricing'], ['content', 'Content'], ['agreement', 'Agreement']];

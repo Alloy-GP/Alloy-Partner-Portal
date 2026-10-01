@@ -8,8 +8,9 @@
 export {
   ALLOY_LEGAL, fmtUSD, termWords, longDate, slugKey, normalizePlans, pickPlan, visiblePlans,
   dueAtStart, planLocLabel, marketsFor, agreementDocument, agreementText,
+  DEFAULT_EXCLUSIVITY_MILES,
 } from '../../supabase/functions/engagement-proposal/proposalShared.js';
-import { normalizePlans as _normalizePlans, fmtUSD as _fmtUSD, planLocLabel as _planLocLabel } from '../../supabase/functions/engagement-proposal/proposalShared.js';
+import { normalizePlans as _normalizePlans, fmtUSD as _fmtUSD, planLocLabel as _planLocLabel, DEFAULT_EXCLUSIVITY_MILES } from '../../supabase/functions/engagement-proposal/proposalShared.js';
 
 // Prefill for a new proposal — staff edit from here. Prices are the current
 // standard tiers; locations default from the account where it has them.
@@ -18,7 +19,6 @@ export const PLAN_TEMPLATES = [
   { key: 'growth', name: 'Growth', tagline: 'Three markets', monthly: 6850, setup: 2500, locations: 3, termMonths: 12, guarantee: true, exclusive: true, referralDiscount: 150, recommended: true },
   { key: 'scale', name: 'Scale', tagline: 'Five markets', monthly: 9400, setup: 2500, locations: 5, termMonths: 12, guarantee: true, exclusive: true, referralDiscount: 150, recommended: false },
 ];
-export const DEFAULT_EXCLUSIVITY_MILES = 16;
 export const DEFAULT_ROI = { feePerDoor: 14, doorsPerCommunity: 150 };
 export const DEFAULT_TESTIMONIAL = { vimeoId: '1131397045', caption: 'Client testimonial · 2:58' };
 export const VALIDITY_DAYS = 30;

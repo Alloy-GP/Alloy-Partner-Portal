@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       const { named } = marketsFor(Array.isArray(p.markets) && p.markets.length ? p.markets : account?.locations, plan);
       const doc = agreementDocument({
         ref: p.ref, clientLegalName: p.client_legal_name, clientEntityType: p.client_entity_type, clientAddress: p.client_address,
-        effectiveDate: p.start_date, plan, markets: named, signerName: name, signerTitle: title, spoc: p.spoc,
+        effectiveDate: p.start_date, plan, markets: named, signerName: name, signerTitle: title, spoc: p.spoc, exclusivityMiles: p.exclusivity_miles,
       });
       const hash = await sha256Hex(doc.text);
       const snapshot = { ...doc, acceptedAt: now, agreementVersion, ip: clientIp(req), userAgent: (req.headers.get("user-agent") || "").slice(0, 400) };
