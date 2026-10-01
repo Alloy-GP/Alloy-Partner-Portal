@@ -112,7 +112,7 @@ describe('ClientWorkspace', () => {
 
     h.state.onboardingItems = [
       { id: 'c1', account_id: 'a1', section: 'contacts', key: 'custom:c1', label: 'Bruce Crawford', kind: 'contact', status: 'pending', fields: { title: 'Owner', email: 'b@x.com', phone: '214.494.6002' }, custom: true, sort: 10 },
-      { id: 'l1', account_id: 'a1', section: 'locations', key: 'loc:biloxi-ms', label: 'Biloxi, MS', kind: 'location', status: 'pending', fields: { address: '1 Beach Blvd, Biloxi, MS', phone: '228.555.0100' }, custom: true, sort: 10 },
+      { id: 'l1', account_id: 'a1', section: 'locations', key: 'loc:biloxi-ms', label: 'Biloxi, MS', kind: 'location', status: 'pending', fields: { address: '1 Beach Blvd, Biloxi, MS', phone: '228.555.0100', manager: 'Pam Andersen', hours: 'Mon–Fri 9–5', notes: 'Satellite · 3 staff' }, custom: true, sort: 10 },
       { id: 'g1', account_id: 'a1', section: 'access', key: 'cms', label: 'Website CMS login', kind: 'credential', status: 'complete', alloy_status: 'complete', fields: { username: 'b@x.com', password: 'hunter2', url: 'https://x.com/wp-admin' }, custom: false, sort: 30, updated_by: 'Bruce' },
       { id: 'p1', account_id: 'a1', section: 'billing', key: 'bank_account', label: 'Bank account for autopay', kind: 'payment', status: 'pending', fields: {}, custom: false, sort: 0 },
     ];
@@ -123,6 +123,8 @@ describe('ClientWorkspace', () => {
     expect(host2.querySelector('[data-testid="adm-cred-open"]').getAttribute('href')).toBe('/c/a1/onboarding');
     expect(host2.querySelector('[data-testid="adm-cred-contacts"]').textContent).toContain('Bruce Crawford');
     expect(host2.querySelector('[data-testid="adm-cred-locations"]').textContent).toContain('1 Beach Blvd');
+    expect(host2.querySelector('[data-testid="adm-cred-locations"]').textContent).toContain('Pam Andersen');
+    expect(host2.querySelector('[data-testid="adm-cred-locations"]').textContent).toContain('Satellite · 3 staff');
     const access = host2.querySelector('[data-testid="adm-cred-access"]');
     expect(access.textContent).toContain('Website CMS login');
     expect(access.textContent).toContain('Alloy: Complete');

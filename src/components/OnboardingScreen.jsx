@@ -214,14 +214,26 @@ function LocationRow({ item, onRemove }) {
   const setField = (k, v) => { const next = { ...fields, [k]: v }; setFields(next); queue({ fields: next }); };
   return (
     <div className="ob-location">
-      <input className="input" placeholder="Location name (e.g. Austin, TX)" value={name} aria-label="Location name"
-        onChange={(e) => { setName(e.target.value); queue({ label: e.target.value }); }} />
-      <input className="input" placeholder="Street, City, ST ZIP" value={fields.address || ''} aria-label="Address" onChange={(e) => setField('address', e.target.value)} />
-      <input className="input" type="tel" placeholder="Phone" value={fields.phone || ''} aria-label="Phone" onChange={(e) => setField('phone', e.target.value)} />
-      <span className="ob-contact-end">
-        <SaveDot state={save} />
-        {onRemove ? <button type="button" className="ob-x" onClick={onRemove} aria-label="Remove location"><I.Close width={12} height={12} /></button> : null}
-      </span>
+      <div className="ob-location-main">
+        <label className="ob-field"><span className="ob-field-label">Location</span>
+          <input className="input" placeholder="e.g. Austin, TX" value={name} onChange={(e) => { setName(e.target.value); queue({ label: e.target.value }); }} /></label>
+        <label className="ob-field"><span className="ob-field-label">Address</span>
+          <input className="input" placeholder="Street, City, ST ZIP" value={fields.address || ''} onChange={(e) => setField('address', e.target.value)} /></label>
+        <label className="ob-field"><span className="ob-field-label">Phone</span>
+          <input className="input" type="tel" placeholder="(555) 010-2030" value={fields.phone || ''} onChange={(e) => setField('phone', e.target.value)} /></label>
+        <span className="ob-contact-end">
+          <SaveDot state={save} />
+          {onRemove ? <button type="button" className="ob-x" onClick={onRemove} aria-label="Remove location"><I.Close width={12} height={12} /></button> : null}
+        </span>
+      </div>
+      <div className="ob-location-more">
+        <label className="ob-field"><span className="ob-field-label">Location manager</span>
+          <input className="input" placeholder="Who runs this office" value={fields.manager || ''} onChange={(e) => setField('manager', e.target.value)} /></label>
+        <label className="ob-field"><span className="ob-field-label">Hours</span>
+          <input className="input" placeholder="Mon–Fri 9am–5pm" value={fields.hours || ''} onChange={(e) => setField('hours', e.target.value)} /></label>
+        <label className="ob-field"><span className="ob-field-label">Notes</span>
+          <input className="input" placeholder="e.g. Main office · satellite with 3 staff" value={fields.notes || ''} onChange={(e) => setField('notes', e.target.value)} /></label>
+      </div>
     </div>
   );
 }
@@ -321,9 +333,7 @@ export default function OnboardingScreen({ onNav, onAddPayment }) {
             </div>
             {isLocations ? (
               <>
-                {list.length ? (
-                  <div className="ob-location-head" aria-hidden="true"><span>Location</span><span>Address</span><span>Phone</span><span /></div>
-                ) : <div className="ob-empty">No locations yet — add your main office first.</div>}
+                {list.length === 0 ? <div className="ob-empty">No locations yet — add your main office first.</div> : null}
                 {list.map((it) => <LocationRow key={it.id} item={it} onRemove={() => remove(it.id)} />)}
                 <button type="button" className="ob-add" onClick={() => add('locations')}>+ Add a location</button>
               </>

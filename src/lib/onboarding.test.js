@@ -147,7 +147,7 @@ describe('custom rows', () => {
     expect(c.key).toMatch(/^custom:/);
     expect(newCustomItem({ accountId: 'a1', section: 'marketing' }).kind).toBe('tool');
     expect(newCustomItem({ accountId: 'a1', section: 'locations', label: 'Biloxi, MS' }).kind).toBe('location');
-    expect(fieldsFor('location').map((f) => f.k)).toEqual(['address', 'phone']);
+    expect(fieldsFor('location').map((f) => f.k)).toEqual(['address', 'phone', 'manager', 'hours', 'notes']);
     expect(newCustomItem({ accountId: 'a1', section: 'resources' }).kind).toBe('upload');
     expect(newCustomItem({ section: 'contacts' }).key).not.toBe(newCustomItem({ section: 'contacts' }).key);
   });

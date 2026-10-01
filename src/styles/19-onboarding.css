@@ -92,10 +92,12 @@
 .ob-contact-head, .ob-contact { display: grid; grid-template-columns: 1.3fr 1.2fr 1.4fr 1fr 74px; gap: 10px; align-items: center; }
 .ob-contact-head { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-muted); padding: 4px 0 8px; }
 .ob-contact { padding: 5px 0; }
-/* Locations table — same treatment, three columns */
-.ob-location-head, .ob-location { display: grid; grid-template-columns: 1.2fr 2fr 1fr 74px; gap: 10px; align-items: center; }
-.ob-location-head { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-muted); padding: 4px 0 8px; }
-.ob-location { padding: 5px 0; }
+/* Locations — one two-line block per place (name · address · phone / manager · hours · notes) */
+.ob-location { padding: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.ob-location + .ob-location { border-top: 1px solid var(--border-subtle); }
+.ob-location-main { display: grid; grid-template-columns: 1.1fr 2fr 1fr 74px; gap: 10px; align-items: end; }
+.ob-location-more { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 10px; align-items: end; }
+.ob-location .ob-contact-end { padding-bottom: 8px; }
 .ob-location .input { padding: 9px 11px; font-size: 13.5px; box-sizing: border-box; width: 100%; }
 .ob-contact .input { padding: 9px 11px; font-size: 13.5px; box-sizing: border-box; width: 100%; }
 .ob-contact-end { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
@@ -120,8 +122,9 @@
   .ob-details { padding-left: 0; }
   .ob-item-row { flex-wrap: wrap; }
   .ob-item-main { flex-basis: 100%; }
-  .ob-contact-head, .ob-location-head { display: none; }
-  .ob-location { grid-template-columns: 1fr 1fr; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+  .ob-contact-head { display: none; }
+  .ob-location-main, .ob-location-more { grid-template-columns: 1fr; }
+  .ob-location .ob-contact-end { padding-bottom: 0; }
   .ob-contact { grid-template-columns: 1fr 1fr; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
   .ob-contact-end { grid-column: 1 / -1; }
   .ob-section { padding: 18px 16px; }

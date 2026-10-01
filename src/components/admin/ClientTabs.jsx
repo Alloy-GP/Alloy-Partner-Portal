@@ -99,6 +99,9 @@ export function LocationsTab({ form, set }) {
             <Field label="Name"><input className="in sm" value={l.name || ''} onChange={(e) => patch(i, 'name', e.target.value)} placeholder="Biloxi, MS" autoFocus /></Field>
             <Field label="Address"><input className="in sm" value={l.address || ''} onChange={(e) => patch(i, 'address', e.target.value)} placeholder="Street, City, ST" /></Field>
             <Field label="Phone"><input className="in sm" type="tel" value={l.phone || ''} onChange={(e) => patch(i, 'phone', e.target.value)} placeholder="(555) 010-2030" /></Field>
+            <Field label="Location manager"><input className="in sm" value={l.manager || ''} onChange={(e) => patch(i, 'manager', e.target.value)} placeholder="Who runs this office" /></Field>
+            <Field label="Hours"><input className="in sm" value={l.hours || ''} onChange={(e) => patch(i, 'hours', e.target.value)} placeholder="Mon–Fri 9am–5pm" /></Field>
+            <Field label="Notes" span><input className="in sm" value={l.notes || ''} onChange={(e) => patch(i, 'notes', e.target.value)} placeholder="Main office · satellite with 3 staff" /></Field>
             <Field label="Status"><select className="in sm" value={l.tag || 'proposed'} onChange={(e) => patch(i, 'tag', e.target.value)}>{LOCATION_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
             <div className="acts">
               <button type="button" className={`btn-g${l.hq ? '' : ''}`} onClick={() => setHQ(i)} title="Set as headquarters">{l.hq ? '★ HQ' : 'Set HQ'}</button>
@@ -110,7 +113,7 @@ export function LocationsTab({ form, set }) {
         ) : (
           <div key={i} className="adm-loc" data-testid={`adm-loc-${i}`}>
             <span className="dot" style={{ background: MARKET_COLORS[i % MARKET_COLORS.length] }} />
-            <div style={{ minWidth: 0 }}><div className="n">{l.name || <span style={{ color: 'var(--a-muted)' }}>Unnamed</span>}{l.hq ? <span className="hq">HQ</span> : null}</div><div className="a">{l.address || '—'}{l.phone ? ` · ${l.phone}` : ''}{l.source_key ? ' · from onboarding' : ''}</div></div>
+            <div style={{ minWidth: 0 }}><div className="n">{l.name || <span style={{ color: 'var(--a-muted)' }}>Unnamed</span>}{l.hq ? <span className="hq">HQ</span> : null}</div><div className="a">{l.address || '—'}{l.phone ? ` · ${l.phone}` : ''}{l.hours ? ` · ${l.hours}` : ''}{l.manager ? ` · ${l.manager}` : ''}{l.source_key ? ' · from onboarding' : ''}</div>{l.notes ? <div className="a" style={{ fontStyle: 'italic' }}>{l.notes}</div> : null}</div>
             <div className="st">{l.status || 'Not started'}</div>
             <span className={`pill ${tagOf(l.tag).cls}`}>{tagOf(l.tag).label}</span>
             <button type="button" className="btn-g" onClick={() => setEditing(i)}>Edit</button>

@@ -414,7 +414,7 @@ async function obSeedLocations(admin: any, accountId: string): Promise<number> {
     haveKeys.add(key); haveNames.add(name.toLowerCase());
     toInsert.push({
       account_id: accountId, section: "locations", key, label: name, hint: null, kind: "location",
-      status: "pending", fields: { address: String(l?.address || ""), phone: String(l?.phone || "") },
+      status: "pending", fields: { address: String(l?.address || ""), phone: String(l?.phone || ""), manager: String(l?.manager || ""), hours: String(l?.hours || ""), notes: String(l?.notes || "") },
       custom: true, sort,
     });
     sort += 10;

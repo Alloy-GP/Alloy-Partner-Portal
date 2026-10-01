@@ -170,7 +170,8 @@ no typed fields — the row's button opens `PaymentSetupModal`; its status is DE
 (`derivePaymentStatus` in `loadData` + the same join in `onboarding_overview`): bank
 in `quickbooks_payment_methods` → complete, `autopay_required=false` → n/a. While a
 checklist is open, `App.jsx` mutes the sign-in modal + banner (`pmNudgeUi`).
-Locations (section `locations`, kind `location`: label = name, fields {address, phone})
+Locations (section `locations`, kind `location`: label = name, fields {address, phone,
+manager, hours, notes})
 SYNC INTO `accounts.locations` via the DB trigger `onboarding_items_locations_sync`
 (`onboarding_sync_locations`, migration 20261001180000): linked by `source_key`/name,
 staff hq/status/tag preserved, client-added entries carry `source='onboarding'` and

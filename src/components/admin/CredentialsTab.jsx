@@ -115,8 +115,13 @@ export default function CredentialsTab({ accountId, account, bankOnFile, autopay
               </tbody></table>
             ) : sec.id === 'locations' ? (
               <>
-                <table className="adm-cred-table"><thead><tr><th>Location</th><th>Address</th><th>Phone</th></tr></thead><tbody>
-                  {list.map((it) => <tr key={it.id}><td><b>{it.label || '—'}</b></td><td>{it.fields.address || '—'}</td><td>{it.fields.phone || '—'}</td></tr>)}
+                <table className="adm-cred-table"><thead><tr><th>Location</th><th>Address</th><th>Phone</th><th>Manager</th><th>Hours</th></tr></thead><tbody>
+                  {list.map((it) => (
+                    <tr key={it.id}>
+                      <td><b>{it.label || '—'}</b>{it.fields.notes ? <div className="help" style={{ margin: '2px 0 0' }}>{it.fields.notes}</div> : null}</td>
+                      <td>{it.fields.address || '—'}</td><td>{it.fields.phone || '—'}</td><td>{it.fields.manager || '—'}</td><td>{it.fields.hours || '—'}</td>
+                    </tr>
+                  ))}
                 </tbody></table>
                 <div className="help">These sync into the Locations tab automatically.</div>
               </>

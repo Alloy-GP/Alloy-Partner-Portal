@@ -70,6 +70,9 @@ export const KINDS = {
   location: [
     { k: 'address', label: 'Address', type: 'text', placeholder: 'Street, City, ST ZIP' },
     { k: 'phone', label: 'Phone', type: 'tel' },
+    { k: 'manager', label: 'Location manager', type: 'text', placeholder: 'Who runs this office' },
+    { k: 'hours', label: 'Hours', type: 'text', placeholder: 'Mon–Fri 9am–5pm' },
+    { k: 'notes', label: 'Notes', type: 'textarea', placeholder: 'e.g. Main office · satellite with 3 staff · opening Q1' },
   ],
   contact: [
     { k: 'title', label: 'Title / role', type: 'text' },
