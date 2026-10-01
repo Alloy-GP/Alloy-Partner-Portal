@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
+import { shouldNudgeOnboarding, onboardingProgress } from "../lib/onboarding.js";
 import ProfilePhoto from './ProfilePhoto.jsx';
 import CompanyMark from './CompanyMark.jsx';
 import { listSnapshots } from '../lib/admin.js';
@@ -788,6 +789,10 @@ function ActionQueue({ onNav }) {
   const pending = usePending(); // null = loading, else array of pending tickets
   // Needs triage = not yet qualified ("yes") and not marked "not a fit" ("no").
   const pendingLeads = (DATA.recentLeads || []).filter(l => l.quotable !== "yes" && l.quotable !== "no").length;
+  // Onboarding checklist — while Alloy has one open for this account with
+  // items left, it's the first thing waiting on the client (src/lib/onboarding.js).
+  const obNudge = shouldNudgeOnboarding({ user: DATA.user, account: DATA.account, onboarding: DATA.onboarding });
+  const ob = obNudge ? onboardingProgress(DATA.onboarding.items) : null;
   const items = (pending || []).slice(0, 20);
   const ago = (iso) => {
     if (!iso) return "";
@@ -815,7 +820,7 @@ function ActionQueue({ onNav }) {
   }, []);
   React.useLayoutEffect(() => { onScroll(); }, [items.length, onScroll]);
   // Fully clear = inbox loaded, no pending tickets and no leads to qualify.
-  const allClear = pending !== null && items.length === 0 && pendingLeads === 0;
+  const allClear = pending !== null && items.length === 0 && pendingLeads === 0 && !obNudge;
   return (
     <div className="banner-card banner-yellow dash-feature-card hdr-icon" data-tour="queue">
       <div className="banner-card-head">
@@ -837,6 +842,19 @@ function ActionQueue({ onNav }) {
           <div className="aq-clear-pill"><I.Bell width={14} height={14} /> We'll flag anything that needs you</div>
         </div>
       ) : (<>
+      {ob ? (
+        <div className="aq-leads aq-onboard" role="button" tabIndex={0} onClick={() => onNav("onboarding")} data-testid="aq-onboarding">
+          <div className="aq-leads-row">
+            <div className="aq-leads-grp">
+              <span className="aq-leads-num">{ob.open}</span>
+              <span className="aq-leads-title">Onboarding<br />{ob.open === 1 ? "item" : "items"} to go</span>
+            </div>
+            <button className="aq-leads-cta" onClick={(e) => { e.stopPropagation(); onNav("onboarding"); }}>Continue</button>
+          </div>
+          <div className="aq-ob-bar"><div style={{ width: `${ob.pct}%` }} /></div>
+          <div className="aq-ob-sub">{ob.resolved} of {ob.total} handled{ob.stuck ? ` · ${ob.stuck} stuck — your Alloy team is on it` : ""}</div>
+        </div>
+      ) : null}
       {pendingLeads > 0 ? (
         <div className="aq-leads" role="button" tabIndex={0} onClick={() => onNav("leads")}>
           <div className="aq-leads-row">

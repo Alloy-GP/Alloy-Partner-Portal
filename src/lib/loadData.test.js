@@ -115,6 +115,22 @@ describe("loadAccountData field mapping (the 'five seams' guard)", () => {
     expect(lead.fields).toEqual({ a: 1 });
   });
 
+  it("threads onboarding rows + lifecycle stamps into DATA.onboarding (the most-missed seam)", async () => {
+    h.tables.accounts.data.onboarding_started_at = "2026-09-30T12:00:00Z";
+    h.tables.onboarding_items = {
+      data: [{ id: "ob-1", account_id: "acc-1", section: "access", key: "gbp", label: "Google Business Profile", kind: "credential",
+        status: "request_sent", alloy_status: "complete", fields: { username: "x@y.com" }, custom: false, sort: 40, updated_by: "Bruce" }],
+      error: null,
+    };
+    const data = await loadAccountData(session, "acc-1", me);
+    expect(data.account.onboardingStartedAt).toBe("2026-09-30T12:00:00Z");
+    expect(data.account.onboardingCompletedAt).toBeNull();
+    expect(data.onboarding).toMatchObject({ startedAt: "2026-09-30T12:00:00Z", completedAt: null });
+    expect(data.onboarding.items[0]).toMatchObject({ id: "ob-1", key: "gbp", status: "request_sent", alloyStatus: "complete", updatedBy: "Bruce", sort: 40 });
+    expect(data.onboarding.items[0].fields).toEqual({ username: "x@y.com" });
+    delete h.tables.onboarding_items;
+  });
+
   it("maps account fields incl. pastelUrl, and defaults origin to 'added'", async () => {
     const data = await loadAccountData(session, "acc-1", me);
     expect(data.account.pastelUrl).toBe("https://usepastel.com/x");

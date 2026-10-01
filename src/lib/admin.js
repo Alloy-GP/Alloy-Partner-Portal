@@ -37,6 +37,14 @@ export const openNewsletterRound = (accountIds, title, dueDate) =>
   call('newsletter_open', { accountIds, title, due_date: dueDate || null });
 export const closeNewsletterRequest = (id) => call('newsletter_close', { id });
 export const deleteNewsletterRequest = (id) => call('newsletter_delete', { id });
+// Onboarding checklist (staff): per-client overview + lifecycle. `items` are
+// the materialized template rows (templateRows() in src/lib/onboarding.js) —
+// the function stamps account_id. start = also "add new template items".
+export const onboardingOverview = () => call('onboarding_overview');
+export const startOnboarding = (accountId, items) => call('onboarding_start', { account_id: accountId, items });
+export const resetOnboarding = (accountId, items) => call('onboarding_reset', { account_id: accountId, items });
+export const completeOnboarding = (accountId, complete = true) => call('onboarding_complete', { account_id: accountId, complete });
+export const removeOnboarding = (accountId) => call('onboarding_remove', { account_id: accountId });
 
 // Resolve WhatConverts account ids to their real names, so Admin can show a
 // staffer whose account a typed id belongs to before it starts pulling leads.

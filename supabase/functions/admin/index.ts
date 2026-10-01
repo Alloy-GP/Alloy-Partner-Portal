@@ -331,6 +331,31 @@ async function sendInviteEmail(
   return { emailed: true };
 }
 
+// ── Onboarding checklist ──────────────────────────────────────────────────────
+// Replaces the Google Sheet Alloy emailed each new client. The TEMPLATE lives in
+// src/lib/onboarding.js (one source of truth, unit-tested); the Admin UI sends
+// the materialized rows here and this function stamps account_id and inserts
+// with the service role. Clients then edit their rows directly under RLS; staff
+// confirm via alloy_status. Lifecycle stamps live on accounts.
+const OB_SECTIONS = ["contacts", "access", "resources", "marketing"];
+const OB_KINDS = ["contact", "credential", "upload", "tool"];
+const OB_STATUSES = ["pending", "request_sent", "complete", "new_account", "stuck", "optional", "na"];
+function obRows(accountId: string, items: unknown) {
+  if (!Array.isArray(items)) return [];
+  return items.map((it: any, i: number) => ({
+    account_id: accountId,
+    section: OB_SECTIONS.includes(it?.section) ? it.section : "access",
+    key: String(it?.key || "").slice(0, 80),
+    label: String(it?.label || "").slice(0, 200),
+    hint: it?.hint ? String(it.hint).slice(0, 400) : null,
+    kind: OB_KINDS.includes(it?.kind) ? it.kind : "credential",
+    status: OB_STATUSES.includes(it?.status) ? it.status : "pending",
+    fields: it?.fields && typeof it.fields === "object" ? it.fields : {},
+    custom: !!it?.custom,
+    sort: Number.isFinite(Number(it?.sort)) ? Number(it.sort) : i * 10,
+  })).filter((r) => r.key && r.label);
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -808,6 +833,102 @@ Deno.serve(async (req) => {
     if (action === "newsletter_delete") {
       if (!body.id) return json({ error: "id required" }, 400);
       const { error } = await admin.from("newsletter_requests").delete().eq("id", body.id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
+    // ── Onboarding checklist ────────────────────────────────────────────────
+    if (action === "onboarding_overview") {
+      const [{ data: accts, error: aErr }, { data: items, error: iErr }] = await Promise.all([
+        admin.from("accounts").select("id, company, short_name, tier, logo_url, onboarding_started_at, onboarding_completed_at").order("company"),
+        admin.from("onboarding_items").select("account_id, section, key, status, alloy_status, updated_at, updated_by"),
+      ]);
+      if (aErr) throw aErr;
+      if (iErr) throw iErr;
+      const RESOLVED = new Set(["complete", "na", "optional", "new_account"]);
+      type Agg = { total: number; resolved: number; stuck: number; confirmed: number; contacts: number; keys: string[]; last: string | null; lastBy: string };
+      const blank = (): Agg => ({ total: 0, resolved: 0, stuck: 0, confirmed: 0, contacts: 0, keys: [], last: null, lastBy: "" });
+      const agg: Record<string, Agg> = {};
+      for (const it of items || []) {
+        const g = agg[it.account_id] || (agg[it.account_id] = blank());
+        g.keys.push(it.key);
+        if (it.updated_at && (!g.last || it.updated_at > g.last)) { g.last = it.updated_at; g.lastBy = it.updated_by || ""; }
+        if (it.section === "contacts") { g.contacts++; continue; }
+        g.total++;
+        if (RESOLVED.has(it.status)) g.resolved++;
+        if (it.status === "stuck") g.stuck++;
+        if (it.alloy_status === "complete") g.confirmed++;
+      }
+      const clients = (accts || []).map((a: any) => ({
+        id: a.id, company: a.company, short_name: a.short_name, tier: a.tier, logo_url: a.logo_url,
+        started_at: a.onboarding_started_at, completed_at: a.onboarding_completed_at,
+        ...(agg[a.id] || blank()),
+      }));
+      return json({ clients });
+    }
+
+    if (action === "onboarding_start") {
+      // Start a checklist — or top up an existing one with template keys it
+      // doesn't have yet (the Admin "+ N new" button). Idempotent on key.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const rows = obRows(id, body.items);
+      const { data: existing, error: eErr } = await admin.from("onboarding_items").select("key").eq("account_id", id);
+      if (eErr) throw eErr;
+      const have = new Set((existing || []).map((r: any) => r.key));
+      const toInsert = rows.filter((r) => !have.has(r.key));
+      if (toInsert.length) {
+        const { error } = await admin.from("onboarding_items").insert(toInsert);
+        if (error) throw error;
+      }
+      const { data: acct } = await admin.from("accounts").select("onboarding_started_at").eq("id", id).maybeSingle();
+      if (!acct) return json({ error: "account not found" }, 404);
+      if (!acct.onboarding_started_at) {
+        const { error } = await admin.from("accounts")
+          .update({ onboarding_started_at: new Date().toISOString(), onboarding_completed_at: null }).eq("id", id);
+        if (error) throw error;
+      }
+      return json({ ok: true, inserted: toInsert.length, skipped: rows.length - toInsert.length });
+    }
+
+    if (action === "onboarding_reset") {
+      // Wipe every row (statuses, contacts, credentials the client typed) and
+      // start fresh from the rows the UI sent.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const { error: dErr } = await admin.from("onboarding_items").delete().eq("account_id", id);
+      if (dErr) throw dErr;
+      const rows = obRows(id, body.items);
+      if (rows.length) {
+        const { error } = await admin.from("onboarding_items").insert(rows);
+        if (error) throw error;
+      }
+      const { error } = await admin.from("accounts")
+        .update({ onboarding_started_at: new Date().toISOString(), onboarding_completed_at: null }).eq("id", id);
+      if (error) throw error;
+      return json({ ok: true, inserted: rows.length });
+    }
+
+    if (action === "onboarding_complete") {
+      // complete: true → stamp done (drops the badge + dashboard card for the
+      // client; the page stays as a reference). false → reopen.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const done = body.complete !== false;
+      const { error } = await admin.from("accounts")
+        .update({ onboarding_completed_at: done ? new Date().toISOString() : null }).eq("id", id);
+      if (error) throw error;
+      return json({ ok: true, completed: done });
+    }
+
+    if (action === "onboarding_remove") {
+      // Remove the checklist entirely — the client loses the Onboarding page.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const { error: dErr } = await admin.from("onboarding_items").delete().eq("account_id", id);
+      if (dErr) throw dErr;
+      const { error } = await admin.from("accounts")
+        .update({ onboarding_started_at: null, onboarding_completed_at: null }).eq("id", id);
       if (error) throw error;
       return json({ ok: true });
     }

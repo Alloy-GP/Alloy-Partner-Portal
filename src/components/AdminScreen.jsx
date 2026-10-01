@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../lib/admin.js';
+import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts, startOnboarding } from '../lib/admin.js';
+import { templateRows } from '../lib/onboarding.js';
 import AdminAutopay from './AdminAutopay.jsx';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
@@ -104,6 +105,10 @@ function AdminScreen({ startNew, selectId, embed }) {
   // lines, so it lives in its own text state and is parsed back on save (parsing
   // per keystroke would fight anyone mid-line).
   const [labelText, setLabelText] = useState('');
+  // New client: seed the onboarding checklist right away (default on) so it's
+  // part of onboarding, not a sheet someone remembers to send later.
+  const [startOb, setStartOb] = useState(true);
+  const [obNotice, setObNotice] = useState(''); // outcome of that seed, shown under Save
 
   const loadAccounts = async (selectAfter, autoSelect = true) => {
     try {
@@ -122,6 +127,7 @@ function AdminScreen({ startNew, selectId, embed }) {
 
   const selectAccount = (a) => {
     if (!a) return;
+    if (a.id !== selectedId) setObNotice('');
     setSelectedId(a.id);
     setForm({ ...BLANK, ...a });
     setLabelText(formatLabelMap(a.lead_field_labels));
@@ -148,6 +154,14 @@ function AdminScreen({ startNew, selectId, embed }) {
       if (selectedId === 'new') {
         const r = await createAccount(payload);
         await setDashConfig(r.account.id, dash);
+        if (startOb) {
+          try {
+            await startOnboarding(r.account.id, templateRows());
+            setObNotice('Client created. Their onboarding checklist is live — it shows the moment they sign in.');
+          } catch (e2) {
+            setError(`Client created, but the onboarding checklist didn’t start (${String(e2.message || e2)}). Start it from Admin → Onboarding.`);
+          }
+        }
         await loadAccounts(r.account.id);
       } else {
         await updateAccount(selectedId, payload);
@@ -335,9 +349,19 @@ function AdminScreen({ startNew, selectId, embed }) {
                 />
               </div>
 
+              {isNew ? (
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, fontSize: 13, lineHeight: 1.45, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={startOb} onChange={(e) => setStartOb(e.target.checked)} style={{ marginTop: 3 }} />
+                  <span><strong>Start their onboarding checklist</strong> — contacts, platform access, brand files and existing marketing tools (the old intake sheet). Shows in their portal with a to-do badge until you mark it complete in Admin → Onboarding.</span>
+                </label>
+              ) : null}
+
               <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
                 <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : (isNew ? 'Create client' : 'Save changes')}</button>
               </div>
+              {obNotice ? (
+                <div style={{ marginTop: 8, background: 'var(--alloy-green-tint)', color: 'var(--dark-green, #2c6e62)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 }}>{obNotice}</div>
+              ) : null}
 
               {/* Autopay — bank on file + start/stop the monthly draft */}
               {!isNew ? <AdminAutopay accountId={selectedId} company={form.company} /> : null}
