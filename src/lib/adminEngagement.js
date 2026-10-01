@@ -262,6 +262,26 @@ export async function listLiveProposalStatuses() {
   return Object.fromEntries((data || []).map((r) => [r.account_id, r.status]));
 }
 
+// Manage Clients list sections. Pipeline first (draft/sent), then clients
+// with an accepted plan or no proposal at all (legacy accounts), then Alloy's
+// own `internal` account(s) — staff profiles live there; it is not a client.
+export const CLIENT_GROUPS = [
+  { key: 'proposal', label: 'In proposal' },
+  { key: 'clients', label: 'Active clients' },
+  { key: 'internal', label: 'Internal' },
+];
+export function groupClients(accounts, statuses) {
+  const st = statuses || {};
+  const by = { proposal: [], clients: [], internal: [] };
+  for (const a of accounts || []) {
+    const s = st[a.id];
+    if (a.tier === 'internal') by.internal.push(a);
+    else if (s === 'draft' || s === 'sent') by.proposal.push(a);
+    else by.clients.push(a);
+  }
+  return CLIENT_GROUPS.map((g) => ({ ...g, accounts: by[g.key] })).filter((g) => g.accounts.length);
+}
+
 // Activity feed: the client's proposal events (staff can read events) with
 // names resolved from the account's profiles, plus the send itself.
 const ACTIVITY = {

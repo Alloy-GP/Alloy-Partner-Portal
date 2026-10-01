@@ -1,7 +1,7 @@
 import React from 'react';
 import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, sendInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../../lib/admin.js';
 import { parseLabelMap, formatLabelMap } from '../../lib/leadFieldLabels.js';
-import { getEngagementProposal, listLiveProposalStatuses } from '../../lib/adminEngagement.js';
+import { getEngagementProposal, listLiveProposalStatuses, groupClients } from '../../lib/adminEngagement.js';
 import { supabase } from '../../lib/supabase.js';
 import { ProfileTab, LocationsTab, IntegrationsTab, TeamTab } from './ClientTabs.jsx';
 import ProposalWorkspace from './ProposalWorkspace.jsx';
@@ -35,7 +35,7 @@ function WcIdCheck({ value, names }) {
 
 export default function ClientWorkspace({ startNew, selectId }) {
   const [accounts, setAccounts] = useState(null);
-  const [statuses, setStatuses] = useState({});
+  const [statuses, setStatuses] = useState(null); // account_id → live proposal status; null until loaded
   const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState(BLANK);
   const [labelText, setLabelText] = useState('');
@@ -141,6 +141,8 @@ export default function ClientWorkspace({ startNew, selectId }) {
   const accepted = status === 'accepted';
   const onProposal = tab === 'proposal';
   const filtered = (accounts || []).filter((a) => !query || `${a.short_name} ${a.company}`.toLowerCase().includes(query.toLowerCase()));
+  const groups = groupClients(filtered, statuses);
+  const st = statuses || {};
   const badge = accepted ? { t: 'Active', cls: 'green' } : status === 'sent' ? { t: 'Sent', cls: 'yellow' } : status === 'draft' ? { t: 'Draft', cls: '' } : null;
   
   return (
@@ -175,11 +177,16 @@ export default function ClientWorkspace({ startNew, selectId }) {
           <div className="adm-list" data-testid="adm-clients">
             <div className="adm-list-head"><span>Clients</span><button type="button" onClick={newClient}>+ New</button></div>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" aria-label="Search clients" />
-            {accounts === null ? <div className="help" style={{ padding: '4px 12px 12px' }}>Loading…</div> : filtered.map((a) => (
-              <button type="button" key={a.id} className={`adm-client${selectedId === a.id ? ' on' : ''}`} onClick={() => selectAccount(a)}>
-                <div style={{ minWidth: 0 }}><div className="s">{a.short_name || a.company}</div><div className="c">{a.company}</div></div>
-                {statuses[a.id] ? <span className="dot" title={statuses[a.id] === 'accepted' ? 'Active plan' : statuses[a.id] === 'sent' ? 'Proposal sent' : 'Draft proposal'} style={{ background: statuses[a.id] === 'accepted' ? '#aed7d0' : statuses[a.id] === 'sent' ? '#f5d880' : '#c9c1d6' }} /> : null}
-              </button>
+            {accounts === null ? <div className="help" style={{ padding: '4px 12px 12px' }}>Loading…</div> : groups.map((g) => (
+              <React.Fragment key={g.key}>
+                {statuses && groups.length > 1 ? <div className="adm-list-sec" data-testid={`adm-group-${g.key}`}>{g.label}<span className="n">{g.accounts.length}</span></div> : null}
+                {g.accounts.map((a) => (
+                  <button type="button" key={a.id} className={`adm-client${selectedId === a.id ? ' on' : ''}`} onClick={() => selectAccount(a)}>
+                    <div style={{ minWidth: 0 }}><div className="s">{a.short_name || a.company}</div><div className="c">{g.key === 'internal' ? 'Alloy team · not a client' : a.company}</div></div>
+                    {st[a.id] ? <span className="dot" title={st[a.id] === 'accepted' ? 'Active plan' : st[a.id] === 'sent' ? 'Proposal sent' : 'Draft proposal'} style={{ background: st[a.id] === 'accepted' ? '#aed7d0' : st[a.id] === 'sent' ? '#f5d880' : '#c9c1d6' }} /> : null}
+                  </button>
+                ))}
+              </React.Fragment>
             ))}
             {isNew ? <div className="adm-client on"><div className="s">New client…</div></div> : null}
           </div>
