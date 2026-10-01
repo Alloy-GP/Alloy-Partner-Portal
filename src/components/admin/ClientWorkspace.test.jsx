@@ -74,6 +74,9 @@ describe('ClientWorkspace', () => {
     expect(host.querySelector('[data-testid="adm-save"]').textContent).toBe('Save changes');
     expect(host.querySelectorAll('.adm-client')).toHaveLength(2);
     expect(host.querySelector('.adm-client.on .s').textContent).toBe('CMGT');
+    // sent proposal → pipeline section; no proposal → active clients
+    expect([...host.querySelectorAll('.adm-list-sec')].map((e) => e.textContent)).toEqual(['In proposal1', 'Active clients1']);
+    expect(host.querySelector('[data-testid="adm-group-proposal"] + .adm-client .s').textContent).toBe('CMGT');
     expect(host.querySelector('[data-testid="adm-tab-proposal"] .badge').textContent).toBe('Sent');
     expect(host.querySelector('[data-testid="adm-autopay-toggle"]').getAttribute('aria-checked')).toBe('true');
     expect(host.textContent).toContain('Goal on their dashboard');

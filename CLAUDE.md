@@ -130,6 +130,10 @@ sticky header (identity · tab strip · Save / status pill) + clients list + tab
 `ProposalWorkspace.jsx` (sub-tabs Overview/Plan · Plans & pricing · Content ·
 Agreement, plus the right rail: Preview/Send, "Client will see" + send checklist,
 Activity, Thread, Back to draft/Withdraw). Styles `18-admin.css` (scoped `.adm`).
+- Clients list is sectioned by `groupClients` (tested): In proposal (draft/sent) ·
+  Active clients (accepted or no proposal) · Internal. The **Alloy** account is
+  `tier='internal'` — staff profiles live on it; it is NOT a client, and every
+  other admin screen filters that tier out of client lists.
 - Locations are `accounts.locations` jsonb `[{name, hq, address, status, tag}]`
   (tag: active | onboarding | proposed) — they feed the proposal's market chips.
 - Proposal v2 columns: `markets text[]` (which locations this proposal covers),

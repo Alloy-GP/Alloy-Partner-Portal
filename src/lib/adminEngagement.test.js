@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { blankProposalForm, viewToForm, formToRow, validateProposalForm, validateForSend, sendWarnings, sendChecklist, activityFromEvents } from './adminEngagement.js';
+import { blankProposalForm, viewToForm, formToRow, validateProposalForm, validateForSend, sendWarnings, sendChecklist, activityFromEvents, groupClients } from './adminEngagement.js';
 import { DEFAULT_MODULES } from './engagementCatalog.js';
 import { PLAN_TEMPLATES } from './proposalPlans.js';
 
@@ -110,4 +110,29 @@ describe('activityFromEvents', () => {
     expect(a.map((x) => x.what)).toEqual(['Jeff opened the agreement', 'Jeff viewed v2', 'You sent v2']);
   });
   it('is quiet with nothing', () => { expect(activityFromEvents([], {}, null)).toEqual([]); });
+});
+
+describe('groupClients', () => {
+  const accounts = [
+    { id: 'alloy', short_name: 'Alloy', tier: 'internal' },
+    { id: 'cmgt', short_name: 'CMGT', tier: 'Steady' },
+    { id: 'cma', short_name: 'CMA', tier: 'Accelerate' },
+    { id: 'cpe', short_name: 'CPE', tier: 'Ascend' },
+    { id: 'rise', short_name: 'RISE', tier: 'Steady' },
+  ];
+  it('splits pipeline, clients (accepted or legacy) and the internal Alloy account, keeping list order', () => {
+    const g = groupClients(accounts, { cma: 'sent', cpe: 'draft', rise: 'accepted' });
+    expect(g.map((x) => [x.key, x.accounts.map((a) => a.id)])).toEqual([
+      ['proposal', ['cma', 'cpe']],
+      ['clients', ['cmgt', 'rise']],
+      ['internal', ['alloy']],
+    ]);
+  });
+  it('drops empty groups and treats a withdrawn/unknown status as a plain client', () => {
+    expect(groupClients(accounts.slice(1), { cmgt: 'withdrawn' }).map((x) => x.key)).toEqual(['clients']);
+  });
+  it('is stable before statuses load (null → everyone is a client, internal still split out)', () => {
+    expect(groupClients(accounts, null).map((x) => [x.key, x.accounts.length])).toEqual([['clients', 4], ['internal', 1]]);
+    expect(groupClients(null, null)).toEqual([]);
+  });
 });

@@ -77,6 +77,9 @@
 .adm-list-head button { border: 0; background: var(--a-pink); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .06em; padding: 7px 11px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
 .adm-list input { width: calc(100% - 20px); margin: 10px; font-size: 12px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--a-gray); outline: none; color: var(--a-purple); }
 .adm-list input:focus { border-color: var(--a-strong); }
+.adm-list-sec { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 4px; font-size: 10px; font-weight: 700; letter-spacing: .10em; text-transform: uppercase; color: var(--a-muted); }
+.adm-list-sec .n { font-size: 10px; color: var(--a-strong); letter-spacing: 0; }
+.adm-client + .adm-list-sec { border-top: 1px solid var(--a-gray); margin-top: 6px; }
 .adm-client { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; cursor: pointer; border: 0; border-left: 3px solid transparent; background: #fff; width: 100%; text-align: left; }
 .adm-client:hover { background: var(--a-off); }
 .adm-client.on { background: var(--a-off); border-left-color: var(--a-pink); }
