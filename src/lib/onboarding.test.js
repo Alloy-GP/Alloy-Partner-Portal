@@ -3,7 +3,7 @@ import {
   TEMPLATE, SECTIONS, STATUSES, STATUS_VALUES, KINDS, templateRows, missingTemplateItems,
   isResolved, onboardingProgress, rowToItem, groupBySection, canSeeOnboarding,
   onboardingNavCount, shouldNudgeOnboarding, newCustomItem, nextSort, statusMeta, fieldsFor,
-  derivePaymentStatus, applyPaymentStatus, onboardingOwnsPaymentNudge,
+  derivePaymentStatus, applyPaymentStatus, onboardingOwnsPaymentNudge, isFreeform,
 } from './onboarding.js';
 
 const owner = { id: 'u1', role: 'owner', isStaff: false };
@@ -29,14 +29,15 @@ describe('TEMPLATE integrity (the sheet, row for row)', () => {
     ['domain', 'hosting', 'cms', 'google_ads', 'gbp', 'ga', 'gsc', 'gtm', 'linkedin', 'instagram', 'youtube', 'facebook',
       'brand_guide', 'logos', 'media_library', 'proof', 'reports', 'crm', 'email_platform', 'tracking']
       .forEach((k) => expect(keys).toContain(k));
-    // Contacts are client-added, never templated.
-    expect(TEMPLATE.some((t) => t.section === 'contacts')).toBe(false);
+    // Contacts and locations are client-added (locations seeded from the
+    // account by the admin fn), never templated.
+    expect(TEMPLATE.some((t) => t.section === 'contacts' || t.section === 'locations')).toBe(false);
   });
   it('adds the autopay bank step as a billing item with no typed fields', () => {
     const bank = TEMPLATE.find((t) => t.key === 'bank_account');
     expect(bank).toMatchObject({ section: 'billing', kind: 'payment' });
     expect(fieldsFor('payment')).toEqual([]);
-    expect(SECTIONS.map((s) => s.id)).toEqual(['contacts', 'billing', 'access', 'resources', 'marketing']);
+    expect(SECTIONS.map((s) => s.id)).toEqual(['contacts', 'locations', 'billing', 'access', 'resources', 'marketing']);
   });
   it('keeps the sheet’s status dropdown', () => {
     expect(STATUS_VALUES).toEqual(['pending', 'request_sent', 'complete', 'new_account', 'stuck', 'optional', 'na']);
@@ -64,14 +65,17 @@ describe('missingTemplateItems', () => {
 });
 
 describe('onboardingProgress', () => {
-  it('counts resolved / stuck / confirmed over non-contact items only', () => {
+  it('counts resolved / stuck / confirmed over to-do items only (not contacts or locations)', () => {
     const items = [
       item({ key: 'a', status: 'complete', alloyStatus: 'complete' }),
       item({ key: 'b', status: 'na' }),
       item({ key: 'c', status: 'stuck' }),
       item({ key: 'd', status: 'request_sent' }),
       item({ key: 'e', section: 'contacts', kind: 'contact', status: 'pending' }),
+      item({ key: 'f', section: 'locations', kind: 'location', status: 'pending' }),
     ];
+    expect(isFreeform('locations')).toBe(true);
+    expect(isFreeform('billing')).toBe(false);
     expect(onboardingProgress(items)).toEqual({ total: 4, resolved: 2, open: 2, stuck: 1, confirmed: 1, pct: 50 });
   });
   it('is zero-safe', () => {
@@ -100,7 +104,7 @@ describe('groupBySection', () => {
       item({ id: 'c2', section: 'contacts', sort: 0, createdAt: '2026-02-02' }),
       item({ id: 'c1', section: 'contacts', sort: 0, createdAt: '2026-01-01' }),
     ]);
-    expect(Object.keys(g)).toEqual(['contacts', 'billing', 'access', 'resources', 'marketing']);
+    expect(Object.keys(g)).toEqual(['contacts', 'locations', 'billing', 'access', 'resources', 'marketing']);
     expect(g.access.map((i) => i.id)).toEqual(['1', '2']);
     expect(g.contacts.map((i) => i.id)).toEqual(['c1', 'c2']);
     expect(g.resources).toEqual([]);
@@ -142,6 +146,8 @@ describe('custom rows', () => {
     expect(c).toMatchObject({ account_id: 'a1', section: 'contacts', kind: 'contact', custom: true, status: 'pending', sort: 10, label: 'Pam' });
     expect(c.key).toMatch(/^custom:/);
     expect(newCustomItem({ accountId: 'a1', section: 'marketing' }).kind).toBe('tool');
+    expect(newCustomItem({ accountId: 'a1', section: 'locations', label: 'Biloxi, MS' }).kind).toBe('location');
+    expect(fieldsFor('location').map((f) => f.k)).toEqual(['address', 'phone']);
     expect(newCustomItem({ accountId: 'a1', section: 'resources' }).kind).toBe('upload');
     expect(newCustomItem({ section: 'contacts' }).key).not.toBe(newCustomItem({ section: 'contacts' }).key);
   });

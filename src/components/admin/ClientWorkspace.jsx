@@ -5,6 +5,7 @@ import { parseLabelMap, formatLabelMap } from '../../lib/leadFieldLabels.js';
 import { getEngagementProposal, listLiveProposalStatuses, groupClients } from '../../lib/adminEngagement.js';
 import { supabase } from '../../lib/supabase.js';
 import { ProfileTab, LocationsTab, IntegrationsTab, TeamTab } from './ClientTabs.jsx';
+import CredentialsTab from './CredentialsTab.jsx';
 import ProposalWorkspace from './ProposalWorkspace.jsx';
 
 const { useState, useEffect, useRef } = React;
@@ -21,7 +22,7 @@ const BLANK = {
   monday_board_id: '', zendesk_org_id: '', whatconverts_profile_id: '', quickbooks_customer_id: '',
   dash_folder_id: '', dash_upload_url: '', pastel_url: '', locations: [], lead_field_labels: {}, autopay_required: true, logo_url: null,
 };
-const TABS = [['profile', 'Profile'], ['locations', 'Locations'], ['integrations', 'Integrations'], ['team', 'Team & access'], ['proposal', 'Proposal']];
+const TABS = [['profile', 'Profile'], ['locations', 'Locations'], ['integrations', 'Integrations'], ['team', 'Team & access'], ['credentials', 'Credentials'], ['proposal', 'Proposal']];
 const initials = (s) => String(s || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
 
 // WhatConverts id → account name it really is (the id may be valid but another
@@ -210,6 +211,7 @@ export default function ClientWorkspace({ startNew, selectId }) {
               {tab === 'profile' ? <div className="adm-main"><ProfileTab form={{ ...form, id: selectedId }} set={set} isNew={isNew} onLogo={onLogo} onDelete={remove} saving={saving} bankOnFile={bankOnFile} startOb={startOb} setStartOb={setStartOb} /></div> : null}
               {tab === 'locations' ? <div className="adm-main"><LocationsTab form={form} set={set} /></div> : null}
               {tab === 'integrations' ? <div className="adm-main"><IntegrationsTab form={form} set={set} labelText={labelText} setLabelText={setLabelText} wcCheck={<WcIdCheck value={form.whatconverts_profile_id} names={wcNames} />} /></div> : null}
+              {tab === 'credentials' ? <div className="adm-main"><CredentialsTab accountId={selectedId} account={form} bankOnFile={bankOnFile} autopayRequired={form.autopay_required !== false} /></div> : null}
               {tab === 'team' ? <div className="adm-main"><TeamTab invites={invites} inviteForm={inviteForm} setInviteForm={setInviteForm} onAdd={addInviteH} onSend={sendInviteH} onRemove={removeInviteH} busy={busyInvite} notice={notice} /></div> : null}
               {tab === 'proposal' ? (proposal === undefined ? <div className="adm-empty">Loading…</div> : (
                 <ProposalWorkspace

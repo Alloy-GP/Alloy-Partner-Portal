@@ -15,6 +15,8 @@ const DEMO_OB = {
 };
 const DEMO_ONBOARDING_ITEMS = [
   { id: 'ob-c1', section: 'contacts', key: 'custom:c1', label: 'Rim Patel', kind: 'contact', hint: '', status: 'pending', alloyStatus: null, fields: { title: 'Owner', email: 'rim@riseamg.com', phone: '512.555.0142' }, custom: true, sort: 10, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
+  { id: 'ob-l1', section: 'locations', key: 'loc:austin-tx', label: 'Austin, TX', kind: 'location', hint: '', status: 'pending', alloyStatus: null, fields: { address: '2100 S Lamar Blvd, Austin, TX 78704', phone: '512.555.0100' }, custom: true, sort: 10, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
+  { id: 'ob-l2', section: 'locations', key: 'loc:round-rock-tx', label: 'Round Rock, TX', kind: 'location', hint: '', status: 'pending', alloyStatus: null, fields: { address: '', phone: '' }, custom: true, sort: 20, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
   { id: 'ob-c2', section: 'contacts', key: 'custom:c2', label: 'Pamela Andersen', kind: 'contact', hint: '', status: 'pending', alloyStatus: null, fields: { title: 'Director of Client Relations', email: 'pandersen@riseamg.com', phone: '512.555.0143' }, custom: true, sort: 20, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
   ...templateRows().map((t) => ({ id: `ob-${t.key}`, alloyStatus: null, createdAt: '2026-03-02', updatedAt: null, updatedBy: '', ...t, ...(DEMO_OB[t.key] || {}) })),
 ];

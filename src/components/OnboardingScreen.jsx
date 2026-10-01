@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { I } from './icons.jsx';
 import { DATA } from '../data.js';
-import { SECTIONS, STATUSES, statusMeta, fieldsFor, groupBySection, onboardingProgress } from '../lib/onboarding.js';
+import { SECTIONS, STATUSES, statusMeta, fieldsFor, groupBySection, onboardingProgress, isFreeform } from '../lib/onboarding.js';
 import { can } from '../lib/perms.js';
 import { updateOnboardingItem, addOnboardingItem, removeOnboardingItem } from '../lib/onboardingData.js';
 import { track } from '../lib/track.js';
@@ -205,6 +205,27 @@ function ContactRow({ item, onRemove }) {
   );
 }
 
+// A location: name · address · phone. Saved like any row; a DB trigger merges
+// it into accounts.locations so Alloy's admin, proposal and listings pick it up.
+function LocationRow({ item, onRemove }) {
+  const [name, setName] = useState(item.label || '');
+  const [fields, setFields] = useState(item.fields || {});
+  const { save, queue } = useAutosave(item.id);
+  const setField = (k, v) => { const next = { ...fields, [k]: v }; setFields(next); queue({ fields: next }); };
+  return (
+    <div className="ob-location">
+      <input className="input" placeholder="Location name (e.g. Austin, TX)" value={name} aria-label="Location name"
+        onChange={(e) => { setName(e.target.value); queue({ label: e.target.value }); }} />
+      <input className="input" placeholder="Street, City, ST ZIP" value={fields.address || ''} aria-label="Address" onChange={(e) => setField('address', e.target.value)} />
+      <input className="input" type="tel" placeholder="Phone" value={fields.phone || ''} aria-label="Phone" onChange={(e) => setField('phone', e.target.value)} />
+      <span className="ob-contact-end">
+        <SaveDot state={save} />
+        {onRemove ? <button type="button" className="ob-x" onClick={onRemove} aria-label="Remove location"><I.Close width={12} height={12} /></button> : null}
+      </span>
+    </div>
+  );
+}
+
 export default function OnboardingScreen({ onNav, onAddPayment }) {
   const navigate = useNavigate();
   const [, setTick] = useState(0);
@@ -284,7 +305,8 @@ export default function OnboardingScreen({ onNav, onAddPayment }) {
       {SECTIONS.map((sec) => {
         const list = groups[sec.id] || [];
         const isContacts = sec.id === 'contacts';
-        const sp = isContacts ? null : onboardingProgress(list);
+        const isLocations = sec.id === 'locations';
+        const sp = isFreeform(sec.id) ? null : onboardingProgress(list);
         return (
           <section key={sec.id} className="card ob-section" id={`ob-${sec.id}`}>
             <div className="ob-sec-head">
@@ -295,9 +317,17 @@ export default function OnboardingScreen({ onNav, onAddPayment }) {
               </div>
               {sp ? (
                 <span className={`ob-sec-count${sp.total && sp.resolved === sp.total ? ' ok' : ''}`}>{sp.resolved} / {sp.total}</span>
-              ) : <span className="ob-sec-count">{list.length} {list.length === 1 ? 'person' : 'people'}</span>}
+              ) : <span className="ob-sec-count">{list.length} {isLocations ? (list.length === 1 ? 'location' : 'locations') : (list.length === 1 ? 'person' : 'people')}</span>}
             </div>
-            {isContacts ? (
+            {isLocations ? (
+              <>
+                {list.length ? (
+                  <div className="ob-location-head" aria-hidden="true"><span>Location</span><span>Address</span><span>Phone</span><span /></div>
+                ) : <div className="ob-empty">No locations yet — add your main office first.</div>}
+                {list.map((it) => <LocationRow key={it.id} item={it} onRemove={() => remove(it.id)} />)}
+                <button type="button" className="ob-add" onClick={() => add('locations')}>+ Add a location</button>
+              </>
+            ) : isContacts ? (
               <>
                 {list.length ? (
                   <div className="ob-contact-head" aria-hidden="true"><span>Full name</span><span>Title / role</span><span>Email</span><span>Phone</span><span /></div>

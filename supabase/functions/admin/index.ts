@@ -374,8 +374,8 @@ async function sendInviteEmail(
 // the materialized rows here and this function stamps account_id and inserts
 // with the service role. Clients then edit their rows directly under RLS; staff
 // confirm via alloy_status. Lifecycle stamps live on accounts.
-const OB_SECTIONS = ["contacts", "billing", "access", "resources", "marketing"];
-const OB_KINDS = ["contact", "credential", "upload", "tool", "payment"];
+const OB_SECTIONS = ["contacts", "locations", "billing", "access", "resources", "marketing"];
+const OB_KINDS = ["contact", "location", "credential", "upload", "tool", "payment"];
 const OB_STATUSES = ["pending", "request_sent", "complete", "new_account", "stuck", "optional", "na"];
 function obRows(accountId: string, items: unknown) {
   if (!Array.isArray(items)) return [];
@@ -391,6 +391,36 @@ function obRows(accountId: string, items: unknown) {
     custom: !!it?.custom,
     sort: Number.isFinite(Number(it?.sort)) ? Number(it.sort) : i * 10,
   })).filter((r) => r.key && r.label);
+}
+const obSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+// Seed one 'locations' row per staff-entered location (accounts.locations) that
+// has no row yet, so the client sees what we already know and fills in the
+// address + phone. The DB trigger then links row ↔ entry (source_key) and
+// keeps accounts.locations in step with what the client types.
+async function obSeedLocations(admin: any, accountId: string): Promise<number> {
+  const { data: acct } = await admin.from("accounts").select("locations").eq("id", accountId).maybeSingle();
+  const locs: any[] = Array.isArray(acct?.locations) ? acct.locations : [];
+  if (!locs.length) return 0;
+  const { data: rows } = await admin.from("onboarding_items").select("key, label, sort").eq("account_id", accountId).eq("section", "locations");
+  const haveKeys = new Set((rows || []).map((r: any) => r.key));
+  const haveNames = new Set((rows || []).map((r: any) => String(r.label || "").trim().toLowerCase()));
+  let sort = (rows || []).reduce((m: number, r: any) => Math.max(m, Number(r.sort) || 0), 0) + 10;
+  const toInsert: any[] = [];
+  locs.forEach((l: any, i: number) => {
+    const name = String(l?.name || "").trim();
+    if (!name || haveNames.has(name.toLowerCase())) return;
+    let key = String(l?.source_key || "") || `loc:${obSlug(name) || i}`;
+    while (haveKeys.has(key)) key = `${key}-${i}`;
+    haveKeys.add(key); haveNames.add(name.toLowerCase());
+    toInsert.push({
+      account_id: accountId, section: "locations", key, label: name, hint: null, kind: "location",
+      status: "pending", fields: { address: String(l?.address || ""), phone: String(l?.phone || "") },
+      custom: true, sort,
+    });
+    sort += 10;
+  });
+  if (toInsert.length) { const { error } = await admin.from("onboarding_items").insert(toInsert); if (error) throw error; }
+  return toInsert.length;
 }
 
 Deno.serve(async (req) => {
@@ -924,14 +954,15 @@ Deno.serve(async (req) => {
       const effStatus = (it: any) => it.kind === "payment"
         ? (bankOn.has(it.account_id) ? "complete" : autopayOff.has(it.account_id) ? "na" : it.status)
         : it.status;
-      type Agg = { total: number; resolved: number; stuck: number; confirmed: number; contacts: number; keys: string[]; last: string | null; lastBy: string };
-      const blank = (): Agg => ({ total: 0, resolved: 0, stuck: 0, confirmed: 0, contacts: 0, keys: [], last: null, lastBy: "" });
+      type Agg = { total: number; resolved: number; stuck: number; confirmed: number; contacts: number; locations: number; keys: string[]; last: string | null; lastBy: string };
+      const blank = (): Agg => ({ total: 0, resolved: 0, stuck: 0, confirmed: 0, contacts: 0, locations: 0, keys: [], last: null, lastBy: "" });
       const agg: Record<string, Agg> = {};
       for (const it of items || []) {
         const g = agg[it.account_id] || (agg[it.account_id] = blank());
         g.keys.push(it.key);
         if (it.updated_at && (!g.last || it.updated_at > g.last)) { g.last = it.updated_at; g.lastBy = it.updated_by || ""; }
         if (it.section === "contacts") { g.contacts++; continue; }
+        if (it.section === "locations") { g.locations++; continue; }
         g.total++;
         const st = effStatus(it);
         if (RESOLVED.has(st)) g.resolved++;
@@ -962,12 +993,13 @@ Deno.serve(async (req) => {
       }
       const { data: acct } = await admin.from("accounts").select("onboarding_started_at").eq("id", id).maybeSingle();
       if (!acct) return json({ error: "account not found" }, 404);
+      const locations = await obSeedLocations(admin, id);
       if (!acct.onboarding_started_at) {
         const { error } = await admin.from("accounts")
           .update({ onboarding_started_at: new Date().toISOString(), onboarding_completed_at: null }).eq("id", id);
         if (error) throw error;
       }
-      return json({ ok: true, inserted: toInsert.length, skipped: rows.length - toInsert.length });
+      return json({ ok: true, inserted: toInsert.length + locations, skipped: rows.length - toInsert.length, locations });
     }
 
     if (action === "onboarding_reset") {
@@ -982,10 +1014,11 @@ Deno.serve(async (req) => {
         const { error } = await admin.from("onboarding_items").insert(rows);
         if (error) throw error;
       }
+      const locations = await obSeedLocations(admin, id);
       const { error } = await admin.from("accounts")
         .update({ onboarding_started_at: new Date().toISOString(), onboarding_completed_at: null }).eq("id", id);
       if (error) throw error;
-      return json({ ok: true, inserted: rows.length });
+      return json({ ok: true, inserted: rows.length + locations, locations });
     }
 
     if (action === "onboarding_complete") {

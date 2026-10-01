@@ -91,13 +91,14 @@ export function LocationsTab({ form, set }) {
   return (
     <div className="card">
       <div className="card-head"><div className="eyebrow">Locations covered</div><button type="button" className="btn-g" onClick={add} data-testid="adm-add-location">+ Add location</button></div>
-      <div className="card-sub">HQ plus every market they operate in. These feed the proposal, market pages and tracking.</div>
+      <div className="card-sub">HQ plus every market they operate in. These feed the proposal, market pages and tracking. Locations the client adds in their onboarding checklist land here automatically (name, address, phone).</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {locs.length === 0 ? <div className="help" style={{ margin: 0 }}>No locations yet.</div> : null}
         {locs.map((l, i) => editing === i ? (
           <div key={i} className="adm-loc-edit" data-testid={`adm-loc-edit-${i}`}>
             <Field label="Name"><input className="in sm" value={l.name || ''} onChange={(e) => patch(i, 'name', e.target.value)} placeholder="Biloxi, MS" autoFocus /></Field>
             <Field label="Address"><input className="in sm" value={l.address || ''} onChange={(e) => patch(i, 'address', e.target.value)} placeholder="Street, City, ST" /></Field>
+            <Field label="Phone"><input className="in sm" type="tel" value={l.phone || ''} onChange={(e) => patch(i, 'phone', e.target.value)} placeholder="(555) 010-2030" /></Field>
             <Field label="Status"><select className="in sm" value={l.tag || 'proposed'} onChange={(e) => patch(i, 'tag', e.target.value)}>{LOCATION_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
             <div className="acts">
               <button type="button" className={`btn-g${l.hq ? '' : ''}`} onClick={() => setHQ(i)} title="Set as headquarters">{l.hq ? '★ HQ' : 'Set HQ'}</button>
@@ -109,7 +110,7 @@ export function LocationsTab({ form, set }) {
         ) : (
           <div key={i} className="adm-loc" data-testid={`adm-loc-${i}`}>
             <span className="dot" style={{ background: MARKET_COLORS[i % MARKET_COLORS.length] }} />
-            <div style={{ minWidth: 0 }}><div className="n">{l.name || <span style={{ color: 'var(--a-muted)' }}>Unnamed</span>}{l.hq ? <span className="hq">HQ</span> : null}</div><div className="a">{l.address || '—'}</div></div>
+            <div style={{ minWidth: 0 }}><div className="n">{l.name || <span style={{ color: 'var(--a-muted)' }}>Unnamed</span>}{l.hq ? <span className="hq">HQ</span> : null}</div><div className="a">{l.address || '—'}{l.phone ? ` · ${l.phone}` : ''}{l.source_key ? ' · from onboarding' : ''}</div></div>
             <div className="st">{l.status || 'Not started'}</div>
             <span className={`pill ${tagOf(l.tag).cls}`}>{tagOf(l.tag).label}</span>
             <button type="button" className="btn-g" onClick={() => setEditing(i)}>Edit</button>

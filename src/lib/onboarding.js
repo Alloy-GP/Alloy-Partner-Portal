@@ -19,6 +19,8 @@ import { can } from './perms.js';
 export const SECTIONS = [
   { id: 'contacts', title: 'Team & contacts', kicker: 'Who we work with',
     blurb: 'Everyone on your side we should know — decision makers, your marketing lead, and whoever we should copy on updates.' },
+  { id: 'locations', title: 'Locations', kicker: 'Where you operate',
+    blurb: 'Every office or market we should know about — the name you use for it, its address, and the phone number clients call. These flow straight into your account and power your proposal, listings and local pages.' },
   { id: 'billing', title: 'Billing', kicker: 'Autopay',
     blurb: 'Add the bank account your monthly Alloy fees draft from. It’s a one-minute, bank-grade form — your details go straight to Intuit and are never typed into this checklist.' },
   { id: 'access', title: 'Access & credentials', kicker: 'Platform access',
@@ -63,6 +65,12 @@ export const KINDS = {
   // Bank step — no free-text fields on purpose (PCI): the row opens the real
   // autopay flow and its status is derived from quickbooks_payment_methods.
   payment: [],
+  // Locations: the row's label is the location name. Synced into
+  // accounts.locations by a DB trigger (see migration 20261001180000).
+  location: [
+    { k: 'address', label: 'Address', type: 'text', placeholder: 'Street, City, ST ZIP' },
+    { k: 'phone', label: 'Phone', type: 'tel' },
+  ],
   contact: [
     { k: 'title', label: 'Title / role', type: 'text' },
     { k: 'email', label: 'Email', type: 'email' },
@@ -148,9 +156,14 @@ export function groupBySection(items) {
   return out;
 }
 
-// Progress over the checklist proper (contacts are free-form, not to-dos).
+// Free-form sections: rows the client adds (people, places) — listed, not
+// scored. Everything else is a to-do with a status.
+export const FREEFORM_SECTIONS = ['contacts', 'locations'];
+export const isFreeform = (section) => FREEFORM_SECTIONS.includes(section);
+
+// Progress over the checklist proper (free-form sections excluded).
 export function onboardingProgress(items) {
-  const list = (items || []).filter((i) => i.section !== 'contacts');
+  const list = (items || []).filter((i) => !isFreeform(i.section));
   const total = list.length;
   const resolved = list.filter((i) => isResolved(i.status)).length;
   return {
@@ -216,7 +229,7 @@ const uuid = () => (globalThis.crypto && typeof globalThis.crypto.randomUUID ===
 // A client-added row (extra contact, "other tool"). `sort` = caller passes the
 // section's current max + 10 so new rows land at the bottom, in order.
 export function newCustomItem({ accountId, section, label = '', sort = 0 } = {}) {
-  const kind = section === 'contacts' ? 'contact' : section === 'marketing' ? 'tool' : 'upload';
+  const kind = section === 'contacts' ? 'contact' : section === 'locations' ? 'location' : section === 'marketing' ? 'tool' : 'upload';
   return {
     account_id: accountId, section, key: `custom:${uuid()}`, label, hint: '', kind,
     status: 'pending', fields: {}, custom: true, sort,

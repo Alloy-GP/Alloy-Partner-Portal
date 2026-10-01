@@ -95,6 +95,7 @@ export default function AdminOnboarding({ go }) {
                 {allIn && !c.completed_at ? <Pill tone="green">All in — confirm &amp; complete</Pill> : null}
                 {c.confirmed ? <Pill tone="purple">{c.confirmed} confirmed</Pill> : null}
                 {c.contacts ? <Pill>{c.contacts} {c.contacts === 1 ? 'contact' : 'contacts'}</Pill> : null}
+                {c.locations ? <Pill>{c.locations} {c.locations === 1 ? 'location' : 'locations'}</Pill> : null}
               </>
             ) : <Pill>Not started</Pill>}
           </div>
