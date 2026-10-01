@@ -82,8 +82,8 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
   const selectPlan = (key) => { setPlanKey(key); setAgreementRead(false); if (!previewOnly) track('proposal_plan_selected', { proposalId: p.id, planKey: key }); };
   const agreement = useMemo(() => agreementDocument({
     ref: p.ref, clientLegalName: p.clientLegalName, clientEntityType: p.clientEntityType, clientAddress: p.clientAddress,
-    effectiveDate: p.startDate, plan: selected, markets: named, signerName: name, signerTitle: title, spoc: p.spoc,
-  }), [p.ref, p.clientLegalName, p.clientEntityType, p.clientAddress, p.startDate, selected, named.join('|'), name, title]); // eslint-disable-line react-hooks/exhaustive-deps
+    effectiveDate: p.startDate, plan: selected, markets: named, signerName: name, signerTitle: title, spoc: p.spoc, exclusivityMiles: p.exclusivityMiles,
+  }), [p.ref, p.clientLegalName, p.clientEntityType, p.clientAddress, p.startDate, p.exclusivityMiles, selected, named.join('|'), name, title]); // eslint-disable-line react-hooks/exhaustive-deps
   const openAgreement = () => { setAgreementOpen(true); if (!previewOnly) track('proposal_agreement_opened', { proposalId: p.id, planKey: selected && selected.key }); };
   const agree = () => { setAgreementOpen(false); setAgreementRead(true); setAcceptOpen(true); if (!previewOnly) track('proposal_agreement_confirmed', { proposalId: p.id }); setTimeout(() => nameRef.current && nameRef.current.focus(), 300); };
   const jumpToAccept = () => {

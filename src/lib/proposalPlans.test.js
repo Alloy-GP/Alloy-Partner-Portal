@@ -167,6 +167,16 @@ describe('agreementDocument', () => {
     expect(t).toContain(`For ${ALLOY_LEGAL.name}: ${ALLOY_LEGAL.signer}`);
     expect(agreementText(doc)).toBe(doc.text);
   });
+  it('writes the exclusivity radius from the proposal into Sec. 3.2 and the facts (default 16)', () => {
+    const sec32 = (d) => d.sections.find((s) => s.n === '3').subs.find((s) => s.n === '3.2').body;
+    expect(sec32(doc)).toContain('within 16 miles');
+    const wide = agreementDocument({ plan: { ...plan, exclusive: true }, clientLegalName: 'X', exclusivityMiles: 25 });
+    expect(sec32(wide)).toContain('within 25 miles');
+    expect(wide.facts.find((f) => f.k === 'Market exclusivity').v).toBe('Included, each market · 25-mile radius (Sec. 3.2)');
+    expect(wide.exclusivityMiles).toBe(25);
+    expect(agreementDocument({ plan, exclusivityMiles: '40' }).text).toContain('within 40 miles');
+    expect(agreementDocument({ plan, exclusivityMiles: 0 }).text).toContain('within 16 miles');
+  });
   it('degrades to bracketed placeholders when legal fields are missing', () => {
     const d = agreementDocument({ plan, markets: [] });
     expect(d.legalName).toBe('[Client legal name]');
