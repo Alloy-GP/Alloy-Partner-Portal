@@ -148,3 +148,20 @@ Activity, Thread, Back to draft/Withdraw). Styles `18-admin.css` (scoped `.adm`)
   `loadProposalActivity`; names from the account's profiles.
 - Plan (accepted) view: purple summary, Included / Markets / Signed cards, and a
   Billing row whose "Change plan" / "Pause · cancel" are DISABLED placeholders.
+
+## Onboarding checklist (replaces the emailed intake Google Sheet)
+Per-client intake: contacts, platform access/credentials, brand files, existing
+marketing tools. Template = `TEMPLATE` in `src/lib/onboarding.js` (pure, tested).
+Add a line item there with a NEW stable `key` (never rename one — the client's
+answers hang on it); existing clients pick it up via Admin → Onboarding → "+ N new".
+Seams: migration (`onboarding_items` + `accounts.onboarding_started_at/completed_at`)
+→ `admin` fn `onboarding_*` actions (overview/start/reset/complete/remove — the UI
+sends the materialized rows, the fn stamps `account_id`) → `src/lib/admin.js` →
+`AdminOnboarding.jsx` (+ "Start their onboarding checklist" checkbox on New client
+in `admin/ClientWorkspace.jsx` → `ProfileTab`, default on) → `loadData` (`DATA.onboarding`,
+`account.onboardingStartedAt`) → `OnboardingScreen.jsx` at `/onboarding` (clients
+write rows directly under RLS via `src/lib/onboardingData.js`, autosave) → nav
+entry + badge (`shell.jsx`) + dashboard Action Queue card (`screen-dashboard.jsx`).
+`alloy_status` (the sheet's "Alloy Confirm") is staff-only — a DB trigger rejects it
+from a client JWT. Perms cap `screen_onboarding` (accounting excluded: credentials).
+Visibility is one helper, `canSeeOnboarding`, used by both the route and the nav.

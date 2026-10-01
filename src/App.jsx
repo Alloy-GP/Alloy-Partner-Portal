@@ -15,6 +15,7 @@ import AccountScreen from './components/AccountScreen.jsx';
 import { AssetsScreen } from './components/screen-assets.jsx';
 import ProposalsScreen from './components/screen-proposals.jsx';
 import PrivacyScreen from './components/PrivacyScreen.jsx';
+import OnboardingScreen from './components/OnboardingScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
@@ -22,6 +23,7 @@ import { can, effectiveIdentity } from './lib/perms.js';
 import { canSeeProposals } from './lib/proposalAccess.js';
 import ProposalPage from './components/proposal/ProposalPage.jsx';
 import { proposalGateState } from './lib/engagementGate.js';
+import { canSeeOnboarding } from './lib/onboarding.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
 import QuarterGoalsModal from './components/QuarterGoalsModal.jsx';
@@ -39,7 +41,7 @@ const PATHS = {
   dashboard: '/', leads: '/partnership', snapshot: '/snapshot', roi: '/roi', projects: '/playbook', tickets: '/tickets',
   performance: '/visibility',
   playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account', privacy: '/privacy',
-  assets: '/assets', proposals: '/proposals',
+  assets: '/assets', proposals: '/proposals', onboarding: '/onboarding',
 };
 
 // App entry — composes Sidebar + screen
@@ -236,6 +238,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     assets: { t: "Assets", s: `Everything Alloy has made for ${DATA.account.company}` },
     proposals: { t: "Proposals", s: "Intake, match, and send tailored proposals" },
     privacy: { t: "Privacy", s: "How your information is handled" },
+    onboarding: { t: "Onboarding", s: "Everything we need to get your growth engine running" },
   };
 
   // Navigate within the current client context. `sub` appends a sub-path
@@ -268,6 +271,12 @@ function App({ session, onSignOut, staffNav } = {}) {
       // can't reach it either — see src/lib/proposalAccess.js for the matrix.
       case "proposals": return canSeeProposals(DATA.user, DATA.account)
         ? <ProposalsScreen/>
+        : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
+      // Onboarding checklist — only once Alloy has started one for this account
+      // (and never for accounting users: it holds credentials). Same helper
+      // gates the nav entry, so a typed URL can't reach what the nav hides.
+      case "onboarding": return canSeeOnboarding(DATA.user, DATA.account, DATA.onboarding)
+        ? <OnboardingScreen onNav={handleNav}/>
         : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
       case "privacy": return <PrivacyScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;

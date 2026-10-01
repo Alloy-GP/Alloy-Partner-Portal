@@ -24,6 +24,7 @@ import './styles/15-proposals.css';
 import './styles/16-engagement.css';
 import './styles/17-proposal.css';
 import './styles/18-admin.css';
+import './styles/19-onboarding.css';
 
 import AuthGate from './AuthGate.jsx';
 

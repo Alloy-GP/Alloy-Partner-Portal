@@ -3,6 +3,7 @@ import { enrichLead } from './proposalMockData.js';
 import { camFor } from './camProfiles.js';
 import { isPlanningItem } from './quarterStats.js';
 import { engagementRowToView } from './engagementGate.js';
+import { rowToItem as onboardingRowToItem } from './onboarding.js';
 
 // A proposals row (snake_case DB) → the raw lead shape enrichLead consumes
 // (camelCase) that enrichLead consumes. Shared by loadData and the
@@ -102,7 +103,7 @@ export async function loadAccountData(session, accountId, me) {
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
     toolkitRes, assetsRes, proposalUvpsRes, proposalsRes, proposalEventsRes,
-    newsletterRes, guidesRes, engagementRes,
+    newsletterRes, guidesRes, engagementRes, onboardingRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -157,6 +158,10 @@ export async function loadAccountData(session, accountId, me) {
     // client only a SENT or ACCEPTED one (staff see drafts too, but the gate
     // ignores drafts). 'sent' locks the portal to ProposalGate (App.jsx).
     supabase.from('engagement_proposals').select('*').eq('account_id', accountId).in('status', ['sent', 'accepted']).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    // Onboarding checklist · every row for this account (contacts, access,
+    // resources, marketing). Empty until Admin starts one — the nav entry,
+    // dashboard card and /onboarding route all key off DATA.onboarding.
+    supabase.from('onboarding_items').select('*').eq('account_id', accountId).order('sort'),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -233,6 +238,9 @@ export async function loadAccountData(session, accountId, me) {
       // score only when the current quarter is listed here, else a Planning
       // state (so a pre-plan quarter doesn't read as bogus progress). '*' = always.
       planPublishedQuarters: Array.isArray(account.plan_published_quarters) ? account.plan_published_quarters : [],
+      // Onboarding checklist lifecycle (set by the admin fn's onboarding_* actions).
+      onboardingStartedAt: account.onboarding_started_at || null,
+      onboardingCompletedAt: account.onboarding_completed_at || null,
     },
     // The live engagement proposal (or null). A query error (e.g. the table
     // not migrated yet on this database) must never take the portal down —
@@ -466,6 +474,14 @@ export async function loadAccountData(session, accountId, me) {
       dueDate: newsletterRes.data.due_date || null,
       submission: newsletterRes.data.submission || null,
     } : null,
+    // Onboarding checklist · camelCased rows + the account's lifecycle stamps,
+    // in one object so every consumer (nav badge, dashboard card, the page)
+    // reads the same thing. See src/lib/onboarding.js for the helpers.
+    onboarding: {
+      startedAt: account.onboarding_started_at || null,
+      completedAt: account.onboarding_completed_at || null,
+      items: ((onboardingRes && onboardingRes.data) || []).map(onboardingRowToItem),
+    },
     // Guides · metadata for the Guides page (html lazy-fetched on open).
     guides: (guidesRes && guidesRes.data || []).map((g) => ({
       id: g.id, title: g.title, description: g.description, category: g.category || 'Guides',

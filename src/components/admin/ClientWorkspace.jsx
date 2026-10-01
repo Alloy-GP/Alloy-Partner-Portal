@@ -1,5 +1,6 @@
 import React from 'react';
-import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, sendInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts } from '../../lib/admin.js';
+import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, sendInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts, startOnboarding } from '../../lib/admin.js';
+import { templateRows } from '../../lib/onboarding.js';
 import { parseLabelMap, formatLabelMap } from '../../lib/leadFieldLabels.js';
 import { getEngagementProposal, listLiveProposalStatuses, groupClients } from '../../lib/adminEngagement.js';
 import { supabase } from '../../lib/supabase.js';
@@ -48,6 +49,9 @@ export default function ClientWorkspace({ startNew, selectId }) {
   const [subTab, setSubTab] = useState('overview');
   const [proposal, setProposal] = useState(undefined); // undefined = loading
   const [bankOnFile, setBankOnFile] = useState(null);
+  // New client: seed the onboarding checklist on create (default on) so it's
+  // part of onboarding, not a sheet someone remembers to send later.
+  const [startOb, setStartOb] = useState(true);
   const [query, setQuery] = useState('');
   const [inviteForm, setInviteForm] = useState({ email: '', name: '', title: '', role: 'owner', is_staff: false, send_email: true });
   const [busyInvite, setBusyInvite] = useState(false);
@@ -93,9 +97,19 @@ export default function ClientWorkspace({ startNew, selectId }) {
     try {
       const dash = { dash_folder_id: form.dash_folder_id || null, dash_upload_url: form.dash_upload_url || null };
       const payload = { ...form, lead_field_labels: parseLabelMap(labelText) };
-      if (isNew) { const r = await createAccount(payload); await setDashConfig(r.account.id, dash); await loadAccounts(r.account.id); }
-      else { await updateAccount(selectedId, payload); await setDashConfig(selectedId, dash); await loadAccounts(selectedId); }
-      setFeedback({ kind: 'ok', text: 'Saved.' });
+      if (isNew) {
+        const r = await createAccount(payload); await setDashConfig(r.account.id, dash);
+        let obText = '';
+        if (startOb) {
+          try { await startOnboarding(r.account.id, templateRows()); obText = ' Onboarding checklist started — it shows the moment they sign in.'; }
+          catch (e2) { obText = ` The onboarding checklist didn’t start (${String(e2.message || e2)}) — start it from Admin → Onboarding.`; }
+        }
+        await loadAccounts(r.account.id);
+        setFeedback({ kind: 'ok', text: 'Client created.' + obText });
+      } else {
+        await updateAccount(selectedId, payload); await setDashConfig(selectedId, dash); await loadAccounts(selectedId);
+        setFeedback({ kind: 'ok', text: 'Saved.' });
+      }
     } catch (e) { setFeedback({ kind: 'err', text: String(e.message || e) }); } finally { setSaving(false); }
   };
   const remove = async () => {
@@ -193,7 +207,7 @@ export default function ClientWorkspace({ startNew, selectId }) {
 
           {!selectedId ? <div className="adm-empty">Pick a client, or start a new one.</div> : (
             <>
-              {tab === 'profile' ? <div className="adm-main"><ProfileTab form={{ ...form, id: selectedId }} set={set} isNew={isNew} onLogo={onLogo} onDelete={remove} saving={saving} bankOnFile={bankOnFile} /></div> : null}
+              {tab === 'profile' ? <div className="adm-main"><ProfileTab form={{ ...form, id: selectedId }} set={set} isNew={isNew} onLogo={onLogo} onDelete={remove} saving={saving} bankOnFile={bankOnFile} startOb={startOb} setStartOb={setStartOb} /></div> : null}
               {tab === 'locations' ? <div className="adm-main"><LocationsTab form={form} set={set} /></div> : null}
               {tab === 'integrations' ? <div className="adm-main"><IntegrationsTab form={form} set={set} labelText={labelText} setLabelText={setLabelText} wcCheck={<WcIdCheck value={form.whatconverts_profile_id} names={wcNames} />} /></div> : null}
               {tab === 'team' ? <div className="adm-main"><TeamTab invites={invites} inviteForm={inviteForm} setInviteForm={setInviteForm} onAdd={addInviteH} onSend={sendInviteH} onRemove={removeInviteH} busy={busyInvite} notice={notice} /></div> : null}

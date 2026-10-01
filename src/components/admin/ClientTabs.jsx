@@ -29,7 +29,7 @@ function Field({ label, hint, error, children, span }) {
 }
 
 // ── Profile ──────────────────────────────────────────────────────────────────
-export function ProfileTab({ form, set, isNew, onLogo, onDelete, saving, bankOnFile }) {
+export function ProfileTab({ form, set, isNew, onLogo, onDelete, saving, bankOnFile, startOb = true, setStartOb }) {
   return (
     <>
       <div className="card">
@@ -66,6 +66,15 @@ export function ProfileTab({ form, set, isNew, onLogo, onDelete, saving, bankOnF
         </div>
         {!isNew ? <div style={{ marginTop: 6 }}><AdminAutopay accountId={form.id} company={form.company} /></div> : null}
       </div>
+      {isNew && setStartOb ? (
+        <div className="card">
+          <div className="eyebrow" style={{ marginBottom: 14 }}>Onboarding</div>
+          <div className="adm-toggle-row" onClick={() => setStartOb(!startOb)} role="switch" aria-checked={!!startOb} data-testid="adm-onboarding-toggle">
+            <span className={`sw${startOb ? ' on' : ''}`} />
+            <div><div className="t">Start their onboarding checklist</div><div className="d">Contacts, platform access, brand files and existing marketing tools (the old intake sheet). Shows in their portal with a to-do badge until you mark it complete in Admin → Onboarding.</div></div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
