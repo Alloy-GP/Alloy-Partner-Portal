@@ -43,8 +43,22 @@ function renderSnapshotEmail(acct: any, snap: any): string {
   const bar = (c: string) => `<td height="4" style="height:4px;background:${c};font-size:0;line-height:0;">&nbsp;</td>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
-  </head><body style="margin:0;background:${BRAND.off};padding:24px 16px;font-family:${SANS};">
-  <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
+  <meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .gp-stage { background: #1f0e30 !important; }
+      .gp-card { border-color: transparent !important; }
+      .gp-dark { background: #2a1540 !important; }
+      .gp-dark .gp-h, .gp-dark .gp-v { color: #f3eef9 !important; }
+      .gp-dark .gp-k, .gp-dark .gp-muted { color: #b3a6c9 !important; }
+      .gp-dark .gp-rule { border-color: #46325c !important; }
+      .gp-dark .gp-btn { background: #d9356e !important; }
+      .gp-dark .gp-link { color: #e7dcf3 !important; }
+    }
+  </style>
+  </head><body class="gp-stage" bgcolor="#381c4f" style="margin:0;background:#381c4f;padding:24px 16px;font-family:${SANS};">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" class="gp-card" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
     <tr><td style="background:${BRAND.deep};padding:24px 28px;">
       <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy · Weekly Snapshot</div>
       <div style="color:${BRAND.lav};font-family:${SANS};font-size:12.5px;margin-top:3px;">${esc(name)} · ${esc(snap.week_label || "")}</div>

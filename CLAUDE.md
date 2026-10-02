@@ -101,3 +101,5 @@ appends one `open`/`denied` event, returns the HTML) → `src/lib/hostedDoc.js`
 - Create/replace a doc: `SUPABASE_ACCESS_TOKEN=… node scripts/hosted-doc-upload.mjs --slug <slug> --file <doc.html> [--title …] [--password …] [--expires YYYY-MM-DD]`.
 - See opens: `node scripts/hosted-doc-upload.mjs --opens` or `select * from hosted_doc_opens` (Table Editor works too).
 - Change a password: `update hosted_docs set password='…' where slug='…'`.
+- **Accept relay:** a doc's own Accept button may `window.parent.postMessage({ type: 'hosted-doc:accept', name, title, option, optionDetail, price, terms }, '*')`. The gate re-posts it to `hosted-doc` (`action: 'accept'`) with the proven password → `accepted` event (details in `hosted_doc_events.meta`) + Resend email to `HOSTED_DOC_ALERT_TO` (default admin@alloygp.co). Notification only — nothing is signed or billed.
+- The CMA proposal is a "Bundled Page" export: content lives JSON-encoded in `<script type="__bundler/template">`; edit by parsing that string, patching, re-dumping with `</` escaped as `<\/`.

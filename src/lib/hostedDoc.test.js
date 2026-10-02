@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDocSlug, passwordStorageKey, viewerKey, unlockErrorMessage } from './hostedDoc.js';
+import { parseDocSlug, passwordStorageKey, viewerKey, unlockErrorMessage, acceptPayloadFromMessage } from './hostedDoc.js';
 
 describe('parseDocSlug', () => {
   it('matches /p/<slug> and lowercases it', () => {
@@ -52,5 +52,24 @@ describe('unlockErrorMessage', () => {
     expect(unlockErrorMessage('expired')).toMatch(/no longer/i);
     expect(unlockErrorMessage('lookup_failed')).toMatch(/try again/i);
     expect(unlockErrorMessage(undefined)).toMatch(/try again/i);
+  });
+});
+
+describe('acceptPayloadFromMessage', () => {
+  it('passes only the known fields, trimmed, from an accept message', () => {
+    const p = acceptPayloadFromMessage({ type: 'hosted-doc:accept', name: '  Mike Smith ', title: 'CEO', option: 'Option B', optionDetail: 'Same site. Plus the local layer, monthly.', price: '$2,200 / month', terms: 't', extra: 'ignored' });
+    expect(p).toEqual({ name: 'Mike Smith', title: 'CEO', option: 'Option B', optionDetail: 'Same site. Plus the local layer, monthly.', price: '$2,200 / month', terms: 't' });
+    expect(p.extra).toBeUndefined();
+  });
+  it('fills missing fields with empty strings and caps long ones', () => {
+    const p = acceptPayloadFromMessage({ type: 'hosted-doc:accept', name: 'x'.repeat(2000) });
+    expect(p.name).toHaveLength(600);
+    expect(p.title).toBe('');
+  });
+  it('ignores anything that is not an accept message', () => {
+    expect(acceptPayloadFromMessage(null)).toBeNull();
+    expect(acceptPayloadFromMessage('hosted-doc:accept')).toBeNull();
+    expect(acceptPayloadFromMessage({ type: 'something-else', name: 'x' })).toBeNull();
+    expect(acceptPayloadFromMessage({ name: 'x' })).toBeNull();
   });
 });

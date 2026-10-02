@@ -41,3 +41,17 @@ export function unlockErrorMessage(code) {
     default: return 'Something went wrong. Please try again.';
   }
 }
+
+// Accept relay. A hosted document's own Accept button posts this message to
+// the gate page (window.parent); the gate re-posts it to the hosted-doc edge fn
+// with the password it already proved, which logs an `accepted` event and
+// emails Alloy. Only these fields pass through, trimmed and capped — the doc is
+// trusted content, but the values are whatever the reader typed.
+export const ACCEPT_MESSAGE_TYPE = 'hosted-doc:accept';
+export const ACCEPT_FIELDS = ['name', 'title', 'option', 'optionDetail', 'price', 'terms'];
+export function acceptPayloadFromMessage(data) {
+  if (!data || typeof data !== 'object' || data.type !== ACCEPT_MESSAGE_TYPE) return null;
+  const out = {};
+  for (const k of ACCEPT_FIELDS) out[k] = String(data[k] ?? '').trim().slice(0, 600);
+  return out;
+}

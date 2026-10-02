@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { isSupabaseConfigured } from '../lib/supabase.js';
-import { passwordStorageKey, viewerKey, unlockErrorMessage } from '../lib/hostedDoc.js';
+import { passwordStorageKey, viewerKey, unlockErrorMessage, acceptPayloadFromMessage } from '../lib/hostedDoc.js';
 import './hosted-doc.css';
 
 // PUBLIC, shell-less, password-gated document at /p/<slug>. For one-off
@@ -9,21 +9,32 @@ import './hosted-doc.css';
 // shared password, the `hosted-doc` edge fn checks it, records the open, and
 // returns the full HTML, which renders full-viewport in an isolated
 // <iframe srcdoc> (the same way Guides render) so its CSS/JS never touch the app.
+//
+// Accept relay: if the document's own Accept button posts a `hosted-doc:accept`
+// message to window.parent, this page re-posts it to the edge fn (action
+// "accept") with the password it already proved. The fn logs it and emails
+// Alloy. The document stays self-contained — it never sees a key or the slug.
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-async function unlock(slug, password) {
+function currentViewerKey() {
+  try { return viewerKey(window.localStorage); } catch { return 'anon'; }
+}
+
+async function callGate(body) {
   if (!isSupabaseConfigured) throw Object.assign(new Error('unavailable'), { code: 'unavailable' });
-  const vk = (() => { try { return viewerKey(window.localStorage); } catch { return 'anon'; } })();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/hosted-doc`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
-    body: JSON.stringify({ slug, password, viewerKey: vk }),
+    body: JSON.stringify({ viewerKey: currentViewerKey(), ...body }),
   });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || !j.ok) throw Object.assign(new Error(j.error || 'failed'), { code: j.error || 'failed' });
-  return j; // { ok, title, html }
+  return j;
 }
+
+const unlock = (slug, password) => callGate({ action: 'open', slug, password }); // { ok, title, html }
+const notifyAccept = (slug, password, payload) => callGate({ action: 'accept', slug, password, ...payload }); // { ok, emailed }
 
 const readSaved = (slug) => { try { return sessionStorage.getItem(passwordStorageKey(slug)) || ''; } catch { return ''; } };
 const writeSaved = (slug, pw) => { try { if (pw) sessionStorage.setItem(passwordStorageKey(slug), pw); else sessionStorage.removeItem(passwordStorageKey(slug)); } catch { /* ignore */ } };
@@ -33,6 +44,8 @@ export default function HostedDocPage({ slug }) {
   const [status, setStatus] = useState(() => (readSaved(slug) ? 'resuming' : 'idle')); // idle | resuming | checking | open
   const [error, setError] = useState('');
   const [doc, setDoc] = useState(null);
+  const frameRef = useRef(null);
+  const provenRef = useRef(''); // the password that unlocked this doc (for the accept relay)
 
   const go = async (pw, { silent = false } = {}) => {
     setStatus(silent ? 'resuming' : 'checking');
@@ -40,6 +53,7 @@ export default function HostedDocPage({ slug }) {
     try {
       const d = await unlock(slug, pw);
       writeSaved(slug, pw);
+      provenRef.current = pw;
       setDoc(d);
       setStatus('open');
     } catch (e) {
@@ -60,9 +74,24 @@ export default function HostedDocPage({ slug }) {
     if (doc?.title) document.title = doc.title;
   }, [doc]);
 
+  // Accept relay — only messages from OUR iframe, only the accept shape.
+  useEffect(() => {
+    if (status !== 'open') return undefined;
+    const onMessage = (e) => {
+      const win = frameRef.current?.contentWindow;
+      if (!win || e.source !== win) return;
+      const payload = acceptPayloadFromMessage(e.data);
+      if (!payload) return;
+      notifyAccept(slug, provenRef.current, payload).catch((err) => console.warn('hosted-doc: accept notify failed', err?.code || err));
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [status, slug]);
+
   if (status === 'open' && doc) {
     return (
       <iframe
+        ref={frameRef}
         className="hd-frame"
         srcDoc={doc.html}
         title={doc.title || 'Document'}

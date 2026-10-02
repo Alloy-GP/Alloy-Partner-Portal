@@ -49,7 +49,7 @@ async function main() {
   if (!TOKEN) { console.error('SUPABASE_ACCESS_TOKEN is not set.'); process.exit(1); }
 
   if (flag('opens')) {
-    const rows = await sql('select slug, title, opens, viewers, first_open, last_open, wrong_password, expires_at from public.hosted_doc_opens order by last_open desc nulls last');
+    const rows = await sql('select slug, title, opens, viewers, first_open, last_open, wrong_password, accepted, last_accepted, accepted_by, expires_at from public.hosted_doc_opens order by last_open desc nulls last');
     console.table(rows);
     return;
   }
