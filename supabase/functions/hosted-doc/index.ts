@@ -66,29 +66,43 @@ async function notifyAccepted(doc: { title: string }, slug: string, meta: Accept
     const option = [meta.option, meta.optionDetail].filter(Boolean).join(" · ") || "—";
     const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
     const row = (k: string, v: string) =>
-      `<tr><td style="font-family:${F};font-size:12px;color:#7a6f88;padding:6px 14px 6px 0;white-space:nowrap;vertical-align:top;">${k}</td>` +
-      `<td style="font-family:${F};font-size:13.5px;color:#3f2a55;padding:6px 0;">${v}</td></tr>`;
+      `<tr><td class="gp-k" style="font-family:${F};font-size:12px;color:#7a6f88;padding:6px 14px 6px 0;white-space:nowrap;vertical-align:top;">${k}</td>` +
+      `<td class="gp-v" style="font-family:${F};font-size:13.5px;color:#3f2a55;padding:6px 0;">${v}</td></tr>`;
     const html = `
-<div style="background:#f8f7fc;padding:28px 12px;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:26px 28px;border:1px solid #ece8f1;">
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .gp-stage { background: #1f0e30 !important; }
+      .gp-card { border-color: transparent !important; }
+      .gp-dark { background: #2a1540 !important; }
+      .gp-dark .gp-h, .gp-dark .gp-v { color: #f3eef9 !important; }
+      .gp-dark .gp-k, .gp-dark .gp-muted { color: #b3a6c9 !important; }
+      .gp-dark .gp-rule { border-color: #46325c !important; }
+      .gp-dark .gp-btn { background: #d9356e !important; }
+      .gp-dark .gp-link { color: #e7dcf3 !important; }
+    }
+  </style></head>
+<body class="gp-stage" bgcolor="#381c4f" style="margin:0;padding:28px 12px;background:#381c4f;">
+  <div class="gp-card gp-dark" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:26px 28px;">
     <div style="font-family:${F};font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#d9356e;">Proposal · accepted</div>
-    <div style="font-family:${F};font-size:21px;font-weight:700;color:#381c4f;margin:6px 0 14px;">${esc(signer)} accepted ${esc(doc.title || slug)}</div>
+    <div class="gp-h" style="font-family:${F};font-size:21px;font-weight:700;color:#381c4f;margin:6px 0 14px;">${esc(signer)} accepted ${esc(doc.title || slug)}</div>
     <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
       ${row("Option", `<strong>${esc(option)}</strong>`)}
       ${row("Price", esc(meta.price || "—"))}
       ${row("Terms", esc(meta.terms || "—"))}
       ${row("Signed by", esc(signer))}
       ${row("When", esc(whenStr))}
-      ${row("Document", `<a href="${docUrl}" style="color:#381c4f;">${esc(docUrl)}</a>`)}
+      ${row("Document", `<a href="${docUrl}" class="gp-link" style="color:#381c4f;">${esc(docUrl)}</a>`)}
       ${row("Device", esc((ev.user_agent || "—").slice(0, 120)))}
       ${row("IP", esc(ev.ip || "—"))}
     </table>
-    <div style="font-family:${F};font-size:13.5px;line-height:1.6;color:#3f2a55;margin:16px 0 18px;">
+    <div class="gp-v" style="font-family:${F};font-size:13.5px;line-height:1.6;color:#3f2a55;margin:16px 0 18px;">
       <strong>Nothing is signed or billed by this.</strong> The reader sees “We're excited to work together · we'll be in contact shortly.” Follow up with the agreement.
     </div>
-    <div style="font-family:${F};font-size:12px;color:#8a8395;margin-top:22px;border-top:1px solid #ece8f1;padding-top:12px;">Sent by the Alloy portal when a hosted proposal's Accept button is clicked.</div>
+    <div class="gp-muted gp-rule" style="font-family:${F};font-size:12px;color:#8a8395;margin-top:22px;border-top:1px solid #ece8f1;padding-top:12px;">Sent by the Alloy portal when a hosted proposal's Accept button is clicked.</div>
   </div>
-</div>`;
+</body></html>`;
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
