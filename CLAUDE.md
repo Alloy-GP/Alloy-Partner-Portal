@@ -113,7 +113,9 @@ block; "The floor" grays out when the selected plan has no guarantee) · 02 What
 to expect (capability chips, Reach/Match/Retain program cards, 35+ years band +
 expertise tiles, match HOA partner card) · 03 Investment (plan cells with a
 "Fuel" bar, match HOA logo row, Your terms, due-at-start band, seal) · 04 Next
-steps ("Review terms and sign"). Section toggles = `SECTION_DEFS` keys
+steps ("Review terms and sign"). No in-page chat since Oct 2 2026: questions go
+to the rep's contact on the cover; the Admin rail's Thread card shows historical
+client questions only (staff replies still email the owners). Section toggles = `SECTION_DEFS` keys
 results/baseline/programs/expertise/partner/next. Evergreen copy in
 `src/lib/proposalContent.js` — HARD RULES: never "Most CAM companies grow by
 accident"; form submissions only, never call tracking as a service; NO em dashes

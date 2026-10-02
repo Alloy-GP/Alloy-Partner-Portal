@@ -24,7 +24,7 @@ const engagement = (over = {}) => ({
   preparedByName: 'Cameron Lange', preparedByPhone: '5555550100', preparedByEmail: 'cameron@alloygp.co', nextStepsTitle: '',
   monthlyAmount: 6850, setupAmount: 2500, startDate: '2026-11-01', termMonths: 12,
   referenceLinks: [{ label: 'Q2 2026 Impact Report', url: 'https://view.alloygp.co/cmgt/report/x.html' }],
-  thread: [], ...over,
+  ...over,
 });
 
 let mounted;
@@ -186,9 +186,11 @@ describe('ProposalPage (v3)', () => {
     expect(host.textContent).not.toContain('match HOA preferred partner');
   });
 
-  it('thread renders and the sample modals open', () => {
-    const host = mount(owner, engagement({ thread: [{ at: '2026-09-30T14:00:00Z', name: 'Jeff Harman', role: 'client', message: 'Can we start Dec 1?' }, { at: '2026-09-30T15:00:00Z', name: 'Skyler Nelson', role: 'staff', message: 'Done.' }] }));
-    expect(host.querySelectorAll('[data-testid="eg-thread"] .eg-msg')).toHaveLength(2);
+  it('no in-page chat: questions route to the rep; the sample modals open', () => {
+    const host = mount(owner);
+    expect(host.querySelector('[data-testid="pp-thread-card"]')).toBeNull();
+    expect(host.querySelector('[data-testid="pp-next"] .q').textContent).toBe('Questions first? Text, call or email Cameron.');
+    expect(document.documentElement.style.scrollBehavior).toBe('smooth');
     click(host.querySelector('[data-testid="pp-sample-roadmap"]'));
     let m = host.querySelector('[data-testid="pp-sample-modal"]');
     expect(m.textContent).toContain('Every quarter: plan, build, prove'); expect(m.textContent).toContain('Plan locks at Q3 review');
