@@ -190,7 +190,10 @@ describe('ProposalPage (v3)', () => {
     const host = mount(owner);
     expect(host.querySelector('[data-testid="pp-thread-card"]')).toBeNull();
     expect(host.querySelector('[data-testid="pp-next"] .q').textContent).toBe('Questions first? Text, call or email Cameron.');
-    expect(document.documentElement.style.scrollBehavior).toBe('smooth');
+    // section nav eases to its target (JS animation) and updates the hash
+    window.scrollTo = vi.fn();
+    click(host.querySelector('.pp-nav-in a[href="#s3"]'));
+    expect(window.location.hash).toBe('#s3');
     click(host.querySelector('[data-testid="pp-sample-roadmap"]'));
     let m = host.querySelector('[data-testid="pp-sample-modal"]');
     expect(m.textContent).toContain('Every quarter: plan, build, prove'); expect(m.textContent).toContain('Plan locks at Q3 review');
