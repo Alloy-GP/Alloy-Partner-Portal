@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { blankProposalForm, viewToForm, formToRow, validateProposalForm, validateForSend, sendWarnings, sendChecklist, activityFromEvents, groupClients } from './adminEngagement.js';
-import { DEFAULT_MODULES } from './engagementCatalog.js';
 import { PLAN_TEMPLATES } from './proposalPlans.js';
 
 describe('blankProposalForm', () => {
@@ -9,10 +8,9 @@ describe('blankProposalForm', () => {
     expect(f.title).toBe('Growth partnership for CMGT');
     expect(f.clientLegalName).toBe('CMGT');
     expect(f.locationsCount).toBe(2);
-    expect(f.modules).toEqual(DEFAULT_MODULES);
-    expect(f.plans.map((p) => p.name)).toEqual(['Core', 'Growth', 'Scale']);
-    expect(f.plans.find((p) => p.recommended).key).toBe('growth');
-    expect(f.exclusivityMiles).toBe('16'); expect(f.roiFeePerDoor).toBe('14'); expect(f.roiDoorsPerCommunity).toBe('150');
+    expect(f.plans.map((p) => p.name)).toEqual(['Steady', 'Accelerate', 'Ascend']);
+    expect(f.plans.find((p) => p.recommended).key).toBe('accelerate');
+    expect(f.exclusivityMiles).toBe('16'); expect(f.preparedByPhone).toBe(''); expect(f.preparedByEmail).toBe(''); expect(f.nextStepsTitle).toBe('');
     expect(f.testimonialVimeoId).toBe('1131397045');
     expect(Object.values(f.compareRows).every(Boolean)).toBe(true);
   });
@@ -26,14 +24,16 @@ describe('formToRow / viewToForm', () => {
   const good = blankProposalForm({ company: 'CMGT', locations: [] });
   it('normalises plans, mirrors the recommended plan into the v1 summary columns, coerces the rest', () => {
     const row = formToRow({
-      ...good, title: '  T ', modules: ['gbp', 'bogus'], startDate: '2026-11-01T00:00:00Z',
-      exclusivityMiles: '20', roiFeePerDoor: '$14', roiDoorsPerCommunity: '150', clientEntityType: ' LLC ',
+      ...good, title: '  T ', startDate: '2026-11-01T00:00:00Z',
+      exclusivityMiles: '20', preparedByPhone: ' (555) 555-0100 ', preparedByEmail: ' Cameron@AlloyGP.co ', nextStepsTitle: ' Say yes. ', clientEntityType: ' LLC ',
       testimonialVimeoId: 'https://vimeo.com/1131397045'.replace(/\D/g, ''), welcomeCallUrl: 'https://cal.com/alloy/welcome',
       linksText: 'Audit | https://view.alloygp.co/a.html\nnot a link',
     });
-    expect(row).toMatchObject({ title: 'T', modules: ['gbp'], start_date: '2026-11-01', exclusivity_miles: 20, roi_fee_per_door: 14, roi_doors_per_community: 150, client_entity_type: 'LLC', testimonial_vimeo_id: '1131397045', welcome_call_url: 'https://cal.com/alloy/welcome' });
+    expect(row).toMatchObject({ title: 'T', start_date: '2026-11-01', exclusivity_miles: 20, prepared_by_phone: '(555) 555-0100', prepared_by_email: 'cameron@alloygp.co', next_steps_title: 'Say yes.', client_entity_type: 'LLC', testimonial_vimeo_id: '1131397045', welcome_call_url: 'https://cal.com/alloy/welcome' });
     expect(row.plans).toHaveLength(3);
-    expect(row).toMatchObject({ monthly_amount: 6850, setup_amount: 2500, term_months: 12, locations_count: 3 }); // Growth is recommended
+    expect(row).toMatchObject({ monthly_amount: 6850, setup_amount: 2500, term_months: 12, locations_count: 3 }); // Accelerate is recommended
+    expect(row.plans[1]).toMatchObject({ key: 'accelerate', matchHoa: true, fuel: 70 });
+    expect(row.modules).toBeUndefined(); expect(row.intro).toBeUndefined();          // v3: no module picker, no intro
     expect(row.reference_links).toEqual([{ label: 'Audit', url: 'https://view.alloygp.co/a.html' }]);
     expect(row.compare_rows.monthly).toBe(true);
   });
@@ -43,8 +43,8 @@ describe('formToRow / viewToForm', () => {
   });
   it('round-trips through the view shape', () => {
     const view = {
-      title: 'T', intro: 'i', closing: 'c', locationsCount: 3, modules: ['gbp'],
-      plans: PLAN_TEMPLATES, compareRows: { referral: false }, exclusivityMiles: 20, roiFeePerDoor: 14, roiDoorsPerCommunity: 150,
+      title: 'T', locationsCount: 3,
+      plans: PLAN_TEMPLATES, compareRows: { referral: false }, exclusivityMiles: 20, preparedByPhone: '5555550100', preparedByEmail: 'c@alloygp.co', nextStepsTitle: 'Go.',
       clientLegalName: 'Community Management, LLC', clientEntityType: 'Louisiana LLC', clientAddress: '140 Aspen Sq',
       testimonialVimeoId: '1131397045', testimonialCaption: 'Client testimonial · 2:58', welcomeCallUrl: 'https://cal.com/x',
       validThrough: '2026-10-30', startDate: '2026-11-01', referenceLinks: [{ label: 'A', url: 'https://x.co/a' }],
@@ -52,12 +52,12 @@ describe('formToRow / viewToForm', () => {
     };
     const f = viewToForm(view);
     expect(f.linksText).toBe('A | https://x.co/a'); expect(f.compareRows.referral).toBe(false); expect(f.plans).toHaveLength(3);
-    expect(formToRow(f)).toMatchObject({ client_legal_name: 'Community Management, LLC', valid_through: '2026-10-30', start_date: '2026-11-01', exclusivity_miles: 20 });
+    expect(formToRow(f)).toMatchObject({ client_legal_name: 'Community Management, LLC', valid_through: '2026-10-30', start_date: '2026-11-01', exclusivity_miles: 20, prepared_by_phone: '5555550100', next_steps_title: 'Go.' });
   });
 });
 
 describe('validation', () => {
-  const good = { ...blankProposalForm({ company: 'CMGT', locations: [] }), intro: 'Why this plan.', clientEntityType: 'Louisiana limited liability company', clientAddress: '140 Aspen Square, Denham Springs, LA', startDate: '2026-11-01' };
+  const good = { ...blankProposalForm({ company: 'CMGT', locations: [] }), preparedByEmail: 'c@alloygp.co', clientEntityType: 'Louisiana limited liability company', clientAddress: '140 Aspen Square, Denham Springs, LA', startDate: '2026-11-01' };
   it('a complete form passes both levels', () => {
     expect(validateProposalForm(good).ok).toBe(true);
     expect(validateForSend(good).ok).toBe(true);
@@ -67,7 +67,7 @@ describe('validation', () => {
     expect(validateProposalForm({ ...good, plans: [] }).errors.plans).toBeTruthy();
     expect(validateProposalForm({ ...good, plans: [{ name: 'Core', monthly: 0 }] }).errors.plans).toMatch(/monthly/);
     expect(validateProposalForm({ ...good, exclusivityMiles: '2.5' }).errors.exclusivityMiles).toBeTruthy();
-    expect(validateProposalForm({ ...good, roiFeePerDoor: 'abc' }).errors.roiFeePerDoor).toBeTruthy();
+    expect(validateProposalForm({ ...good, preparedByEmail: 'not-an-email' }).errors.preparedByEmail).toBeTruthy();
     expect(validateProposalForm({ ...good, linksText: 'ftp://x' }).errors.linksText).toMatch(/Not a link/);
     expect(validateProposalForm({ ...good, welcomeCallUrl: 'calendly' }).errors.welcomeCallUrl).toBeTruthy();
     expect(validateProposalForm({ ...good, testimonialVimeoId: 'abc' }).errors.testimonialVimeoId).toBeTruthy();
@@ -77,8 +77,9 @@ describe('validation', () => {
     expect(Object.keys(r.errors).sort()).toEqual(['clientAddress', 'clientEntityType', 'clientLegalName', 'startDate']);
     expect(validateProposalForm({ ...good, clientLegalName: '' }).ok).toBe(true); // drafts may be incomplete
   });
-  it('warns (does not block) on missing intro, video, docs, scheduling link', () => {
-    expect(sendWarnings({ intro: '', testimonialVimeoId: '', linksText: '', welcomeCallUrl: '' })).toHaveLength(4);
+  it('warns (does not block) on missing contact, video, docs, scheduling link', () => {
+    expect(sendWarnings({ preparedByPhone: '', preparedByEmail: '', testimonialVimeoId: '', linksText: '', welcomeCallUrl: '' })).toHaveLength(4);
+    expect(sendWarnings({ preparedByEmail: 'c@alloygp.co', testimonialVimeoId: '1', linksText: 'A | https://x.co/a', welcomeCallUrl: 'https://cal.com/x' })).toHaveLength(0);
     expect(sendWarnings(good)).toEqual(['No reference documents linked.', 'No welcome-call scheduling link — the accepted state will say we’ll reach out.']);
   });
 });

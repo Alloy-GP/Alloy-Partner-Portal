@@ -60,8 +60,8 @@ afterEach(() => { if (mounted) { act(() => mounted.root.unmount()); mounted.host
 
 const sentRow = {
   id: 'p1', account_id: 'a1', status: 'sent', ref: 'CMGT-2026-01', version: 1, sent_at: '2026-09-30T14:00:00Z', valid_through: '2099-01-01', title: 'Growth partnership for CMGT.',
-  plans: [{ key: 'core', name: 'Core', monthly: 3200, setup: 2500, locations: 1, termMonths: 12 }, { key: 'growth', name: 'Growth', monthly: 6850, setup: 2500, locations: 3, termMonths: 12, recommended: true, guarantee: true, exclusive: true, referralDiscount: 150 }],
-  compare_rows: {}, sections: {}, markets: ['Denham Springs, LA', 'Biloxi, MS'], exclusivity_miles: 16, roi_fee_per_door: 14, roi_doors_per_community: 150,
+  plans: [{ key: 'steady', name: 'Steady', monthly: 3200, setup: 2500, locations: 1, termMonths: 12 }, { key: 'accelerate', name: 'Accelerate', monthly: 6850, setup: 2500, locations: 3, termMonths: 12, recommended: true, guarantee: true, exclusive: true, matchHoa: true, referralDiscount: 150 }],
+  compare_rows: {}, sections: {}, markets: ['Denham Springs, LA', 'Biloxi, MS'], exclusivity_miles: 16, prepared_by_phone: '5555550100', prepared_by_email: 'cameron@alloygp.co',
   client_legal_name: 'Community Management, LLC', client_entity_type: 'Louisiana LLC', client_address: '140 Aspen Sq', start_date: '2026-11-01', valid_days: 30,
   change_requests: [{ at: '2026-09-30T15:00:00Z', name: 'Jeff', role: 'client', message: 'Can we start Dec 1?' }],
 };
@@ -111,29 +111,28 @@ describe('ClientWorkspace', () => {
     expect(host.querySelector('[data-testid="adm-status-pill"]')).toBeNull();                 // status lives on the tab badge
     expect(host.querySelector('[data-testid="adm-save"]').textContent).toBe('Save');           // header Save = save without re-sending
     expect(host.querySelector('[data-testid="adm-send"]').textContent).toBe('Save & re-send (v2)');
-    expect(host.querySelector('[data-testid="adm-see"]').textContent).toContain('Growth plan · 3 locations');
+    expect(host.querySelector('[data-testid="adm-see"]').textContent).toContain('Accelerate plan · 3 locations');
     expect(host.querySelector('[data-testid="adm-see"]').textContent).toContain('$6,850');
     for (const k of ['markets', 'plan', 'legal', 'entity', 'start', 'owner']) expect(host.querySelector(`[data-testid="adm-check-${k}"]`).className).toBe('ok');
     expect(host.querySelector('[data-testid="adm-thread"]').textContent).toContain('Can we start Dec 1?');
-    expect(host.querySelector('[data-testid="adm-roi-line"]').textContent).toContain('4 new communities a year covers the fee');
+    expect(host.querySelector('[data-testid="adm-contact-phone"]').value).toBe('5555550100');          // v3 cover contact
     expect(host.querySelectorAll('[data-testid="adm-markets"] .adm-chip.on')).toHaveLength(2);
     click(host.querySelector('[data-testid="adm-subtab-plans"]'));
     expect(host.querySelectorAll('.adm-plan')).toHaveLength(2);
-    expect(host.querySelector('[data-testid="adm-plan-1-name"]').value).toBe('Growth');
+    expect(host.querySelector('[data-testid="adm-plan-1-name"]').value).toBe('Accelerate');
     expect(host.querySelector('[data-testid="adm-plan-1"] .adm-plan-head').className).toContain('rec');
+    expect(host.querySelector('[data-testid="adm-plan-1-matchhoa"]').getAttribute('aria-pressed')).toBe('true');
+    expect(host.querySelector('[data-testid="adm-plan-0-matchhoa"]').getAttribute('aria-pressed')).toBe('false');
+    expect(host.querySelector('[data-testid="adm-plan-0-fuel"]')).toBeTruthy();
     click(host.querySelector('[data-testid="adm-custom-add"]'));
     expect(host.querySelector('[data-testid="adm-custom-0"]')).toBeTruthy();
     expect(host.querySelectorAll('[data-testid="adm-custom-0"] select')).toHaveLength(2); // one value editor per plan
     click(host.querySelector('[data-testid="adm-subtab-content"]'));
     expect(host.querySelectorAll('[data-testid^="adm-section-"]')).toHaveLength(6);
-    click(host.querySelector('[data-testid="adm-section-s2"] .sw'));
-    expect(host.querySelector('[data-testid="adm-section-s2"]').className).toContain('off');
-    expect(host.querySelectorAll('[data-testid^="adm-outcome-"]')).toHaveLength(4);
-    expect(host.querySelector('[data-testid="adm-module-gbp"] input').checked).toBe(false); // this row has no modules stored
-    click(host.querySelector('[data-testid="adm-module-gbp"] input'));
-    expect(host.querySelector('[data-testid="adm-module-gbp"] input').checked).toBe(true);
-    click(host.querySelector('[data-testid="adm-outcome-match"] .sw'));
-    expect(host.querySelector('[data-testid="adm-outcome-match"]').className).toContain('off');
+    click(host.querySelector('[data-testid="adm-section-programs"] .sw'));
+    expect(host.querySelector('[data-testid="adm-section-programs"]').className).toContain('off');
+    expect(host.querySelector('[data-testid="adm-next-title"]').getAttribute('placeholder')).toContain('Say yes today.');
+    expect(host.querySelector('[data-testid="adm-outcomes"]')).toBeNull();                       // v3: no module picker
     click(host.querySelector('[data-testid="adm-subtab-agreement"]'));
     expect(host.textContent).toContain('Included (8.8)');
     expect(host.querySelector('[data-testid="adm-subtab-agreement"] .badge')).toBeNull();
@@ -155,14 +154,14 @@ describe('ClientWorkspace', () => {
   });
 
   it('accepted: tab reads Plan, panel shows the signed plan, billing buttons are disabled', async () => {
-    h.state.proposal = { ...sentRow, status: 'accepted', accepted_at: '2026-10-02T15:00:00Z', accepted_name: 'Jeff Harman', accepted_title: 'CEO', accepted_version: 1, accepted_plan_key: 'growth', agreement_hash: 'abc' };
+    h.state.proposal = { ...sentRow, status: 'accepted', accepted_at: '2026-10-02T15:00:00Z', accepted_name: 'Jeff Harman', accepted_title: 'CEO', accepted_version: 1, accepted_plan_key: 'accelerate', agreement_hash: 'abc' };
     const host = await mount({ selectId: 'a1' });
     expect(host.querySelector('[data-testid="adm-tab-proposal"]').textContent).toContain('Plan');
     click(host.querySelector('[data-testid="adm-tab-proposal"]'));
     await flush();
     const panel = host.querySelector('[data-testid="adm-plan-panel"]');
     expect(panel.textContent).toContain('Active plan · accepted October 2, 2026');
-    expect(panel.textContent).toContain('Growth'); expect(panel.textContent).toContain('$6,850');
+    expect(panel.textContent).toContain('Accelerate'); expect(panel.textContent).toContain('$6,850');
     expect(host.textContent).toContain('Jeff Harman, CEO');
     const disabled = [...host.querySelectorAll('.adm-billing button')].map((b) => b.disabled);
     expect(disabled).toEqual([true, true]);

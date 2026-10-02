@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizePlans, pickPlan, dueAtStart, planLocLabel, marketsFor, fmtUSD, termWords, longDate,
-  compareRows, defaultCompareRows, normalizeCompareRows, normalizeCustomRows, roiFor, defaultValidThrough, isExpired, addBusinessDays,
+  compareRows, defaultCompareRows, normalizeCompareRows, normalizeCustomRows, planFuel, normalizeSections, SECTION_DEFS, defaultValidThrough, isExpired, addBusinessDays,
   proposalRef, nextRefSeq, plansFromRow, agreementDocument, agreementText, PLAN_TEMPLATES, COMPARE_ROW_DEFS, ALLOY_LEGAL,
 } from './proposalPlans.js';
 
@@ -26,15 +26,17 @@ describe('normalizePlans', () => {
   });
   it('templates are valid plans', () => {
     const p = normalizePlans(PLAN_TEMPLATES);
-    expect(p).toHaveLength(3); expect(pickPlan(p).key).toBe('growth');
+    expect(p).toHaveLength(3); expect(pickPlan(p).key).toBe('accelerate');
+    expect(p.map((x) => x.name)).toEqual(['Steady', 'Accelerate', 'Ascend']);
+    expect(p[1]).toMatchObject({ matchHoa: true, portal: true, fuel: 70 }); expect(p[0].matchHoa).toBe(false);
   });
 });
 
 describe('pickPlan / labels / money', () => {
   const plans = normalizePlans(PLAN_TEMPLATES);
   it('picks by key, else recommended, else first', () => {
-    expect(pickPlan(plans, 'scale').name).toBe('Scale');
-    expect(pickPlan(plans, 'nope').name).toBe('Growth');
+    expect(pickPlan(plans, 'ascend').name).toBe('Ascend');
+    expect(pickPlan(plans, 'nope').name).toBe('Accelerate');
     expect(pickPlan([], 'x')).toBeNull();
   });
   it('due at start = first month + setup; labels pluralise', () => {
@@ -64,22 +66,45 @@ describe('compare rows', () => {
     const ex = rows.find((r) => r.key === 'exclusivity');
     expect(ex.note).toContain('20 miles');
     expect(ex.cells.map((c) => c.kind)).toEqual(['dash', 'check', 'check']);
-    expect(rows.find((r) => r.key === 'monthly')).toMatchObject({ strong: true });
+    expect(rows.find((r) => r.key === 'monthly')).toMatchObject({ strong: true, note: 'All discounts applied.' });
     expect(rows.find((r) => r.key === 'monthly').cells[1]).toEqual({ kind: 'text', text: '$6,850' });
     expect(rows.find((r) => r.key === 'referral').cells[0]).toEqual({ kind: 'text', text: '−$150 / mo' });
-    expect(COMPARE_ROW_DEFS.map((r) => r.key)).toEqual(['locations', 'term', 'exclusivity', 'guarantee', 'portal', 'referral', 'setup', 'monthly']);
+    expect(rows.find((r) => r.key === 'portal').cells.map((c) => c.text)).toEqual(['Every seat', 'Every seat', 'Every seat']);
+    expect(COMPARE_ROW_DEFS.map((r) => r.key)).toEqual(['matchhoa', 'locations', 'term', 'exclusivity', 'guarantee', 'portal', 'referral', 'setup', 'monthly']);
+  });
+  it('match HOA row: logo cell on partner plans, dash elsewhere; the row drops out when no plan has it', () => {
+    const rows = compareRows(plans, {});
+    expect(rows[0].key).toBe('matchhoa');
+    expect(rows[0].cells.map((c) => c.kind)).toEqual(['dash', 'logo', 'logo']);
+    const none = compareRows(plans.map((p) => ({ ...p, matchHoa: false })), {});
+    expect(none.map((r) => r.key)).not.toContain('matchhoa');
+    expect(compareRows(plans, { matchhoa: false }).map((r) => r.key)).not.toContain('matchhoa');
+  });
+  it('fuel: the plan\u2019s own value, else relative to the priciest plan', () => {
+    expect(plans.map((p) => planFuel(p, plans))).toEqual([35, 70, 100]);
+    const noFuel = plans.map((p) => ({ ...p, fuel: null }));
+    expect(noFuel.map((p) => planFuel(p, noFuel))).toEqual([34, 73, 100]);
+    expect(planFuel(null, plans)).toBe(0);
+  });
+});
+
+describe('sections', () => {
+  it('six toggles, all on by default; false hides; stale v2 keys are ignored', () => {
+    expect(SECTION_DEFS.map((s) => s.key)).toEqual(['results', 'baseline', 'programs', 'expertise', 'partner', 'next']);
+    const s = normalizeSections({ programs: false, s3: false, 'o-match': false });
+    expect(s).toEqual({ results: true, baseline: true, programs: false, expertise: true, partner: true, next: true });
   });
 });
 
 describe('custom comparison rows', () => {
   const plans = normalizePlans(PLAN_TEMPLATES);
   it('normalises, drops nameless rows, coerces cells', () => {
-    const rows = normalizeCustomRows([{ label: ' Strategy calls ', note: 'per quarter', cells: { core: '1', growth: true, scale: null } }, { label: '', cells: {} }, null]);
+    const rows = normalizeCustomRows([{ label: ' Strategy calls ', note: 'per quarter', cells: { steady: '1', accelerate: true, ascend: null } }, { label: '', cells: {} }, null]);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: 'c1', label: 'Strategy calls', note: 'per quarter', cells: { core: '1', growth: true, scale: false } });
+    expect(rows[0]).toMatchObject({ id: 'c1', label: 'Strategy calls', note: 'per quarter', cells: { steady: '1', accelerate: true, ascend: false } });
   });
   it('renders between the standard rows and Monthly investment, one cell per plan', () => {
-    const rows = compareRows(plans, {}, { customRows: [{ id: 'x', label: 'Strategy calls', cells: { growth: true, scale: '2 / quarter' } }] });
+    const rows = compareRows(plans, {}, { customRows: [{ id: 'x', label: 'Strategy calls', cells: { accelerate: true, ascend: '2 / quarter' } }] });
     const keys = rows.map((r) => r.key);
     expect(keys[keys.length - 1]).toBe('monthly');
     expect(keys[keys.length - 2]).toBe('custom-x');
@@ -90,14 +115,6 @@ describe('custom comparison rows', () => {
   it('lands at the end when Monthly investment is hidden', () => {
     const rows = compareRows(plans, { monthly: false }, { customRows: [{ id: 'x', label: 'Extra', cells: {} }] });
     expect(rows[rows.length - 1].key).toBe('custom-x');
-  });
-});
-
-describe('roiFor', () => {
-  it('ceil(fee year / (door × doors × 12)), min 1, singular label', () => {
-    expect(roiFor({ monthly: 6850, feePerDoor: 14, doors: 150 })).toMatchObject({ feeYear: 82200, perCommunity: 25200, communities: 4, label: 'new communities a year' });
-    expect(roiFor({ monthly: 1000, feePerDoor: 14, doors: 150 })).toMatchObject({ communities: 1, label: 'new community a year' });
-    expect(roiFor({ monthly: 1000, feePerDoor: 0, doors: 150 }).communities).toBe(0);
   });
 });
 
@@ -141,7 +158,7 @@ describe('agreementDocument', () => {
   it('fills the facts grid from the plan and the client', () => {
     const f = Object.fromEntries(doc.facts.map((x) => [x.k, x.v]));
     expect(f.Client).toBe('Community Management, LLC');
-    expect(f.Plan).toBe('Growth · 3 locations');
+    expect(f.Plan).toBe('Accelerate · 3 locations');
     expect(f.Markets).toBe('Denham Springs, LA · Biloxi, MS · Lafayette, LA');
     expect(f['Monthly investment']).toBe('$6,850 / month');
     expect(f.Term).toBe('12 months, from November 1, 2026');
@@ -162,7 +179,7 @@ describe('agreementDocument', () => {
   });
   it('renders deterministic text for hashing and names both signers', () => {
     const t = agreementText(doc);
-    expect(t.startsWith('ALLOY CREATIVES & COMMUNITY MANAGEMENT, LLC SERVICE AGREEMENT')).toBe(true);
+    expect(t.startsWith('ALLOY GROWTH PARTNERS & COMMUNITY MANAGEMENT, LLC SERVICE AGREEMENT')).toBe(true);
     expect(t).toContain('For Community Management, LLC: Jeff Harman, CEO');
     expect(t).toContain(`For ${ALLOY_LEGAL.name}: ${ALLOY_LEGAL.signer}`);
     expect(agreementText(doc)).toBe(doc.text);

@@ -105,16 +105,30 @@ unlocks and allows a new proposal; re-send bumps `version`; acceptance records
 who/when/`accepted_version`/`agreement_version` (bump `PROPOSAL_AGREEMENT_VERSION`
 when the wording changes). Reference docs = `reference_links` (view.alloygp.co).
 
-**v2 page (design handoff, Sep 30 2026):** `src/components/proposal/*` (ProposalPage,
-AcceptCard, AgreementModal, TopicModal, Investment) + `src/styles/17-proposal.css`
-(scoped `.pp`, Gotham from `public/fonts`, mobile stacks <960px). Evergreen copy in
-`src/lib/proposalContent.js` — HARD RULES: never "Most CAM companies grow by accident";
-form submissions only, never call tracking/phone. Plans (1–3, one recommended),
-comparison-row toggles, ROI defaults ($14/door, 150 doors), validity (+30 days),
-client legal identity, testimonial, welcome-call link: `proposalPlans.js` +
-`adminEngagement.js` (`validateForSend` requires legal name/entity/address/start).
+**v3 page (design handoffs Sep 30 + Oct 1 2026):** `src/components/proposal/*`
+(ProposalPage, AcceptCard, AgreementModal, SampleModal, Investment) +
+`src/styles/17-proposal.css` (scoped `.pp`, Gotham from `public/fonts`, mobile
+stacks <960px). Four sections: 01 What you're buying (fixed 2×/6×+/1× results
+block; "The floor" grays out when the selected plan has no guarantee) · 02 What
+to expect (capability chips, Reach/Match/Retain program cards, 35+ years band +
+expertise tiles, match HOA partner card) · 03 Investment (plan cells with a
+"Fuel" bar, match HOA logo row, Your terms, due-at-start band, seal) · 04 Next
+steps ("Review terms and sign"). Section toggles = `SECTION_DEFS` keys
+results/baseline/programs/expertise/partner/next. Evergreen copy in
+`src/lib/proposalContent.js` — HARD RULES: never "Most CAM companies grow by
+accident"; form submissions only, never call tracking as a service; NO em dashes
+in page copy. The cover shows the rep's contact (`prepared_by_phone/email`) and
+the Next-steps headline is per-proposal (`next_steps_title`, default seasonal).
+Removed in v3: the module picker / outcome cards, the ROI calculator, Admin
+intro/closing (columns kept, unused). Plans (1–3, one recommended; templates
+Steady/Accelerate/Ascend with `matchHoa`, `portal`, `fuel`), comparison-row
+toggles, validity (+30 days), client legal identity, testimonial (links to
+Vimeo), welcome-call link: `proposalPlans.js` + `adminEngagement.js`
+(`validateForSend` requires legal name/entity/address/start).
 The contract text is `supabase/functions/engagement-proposal/agreementTerms.js`
-(verbatim from the handoff; `buildAgreement`) and the ONE shared implementation of
+(verbatim from the handoff; `buildAgreement`; party = **Alloy Growth Partners, LLC**
+since Oct 2 2026 → `PROPOSAL_AGREEMENT_VERSION` 'v2'; Sec. 3.2 radius =
+`exclusivity_miles`) and the ONE shared implementation of
 plans + the agreement document is `proposalShared.js` in the same folder — the portal
 imports it by relative path, so the modal and the server snapshot render the same
 bytes. Accept requires `agreementRead` + `planKey`; the fn stores `accepted_plan_key`,

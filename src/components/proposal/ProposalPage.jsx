@@ -2,26 +2,35 @@ import React from 'react';
 import { DATA } from '../../data.js';
 import { track } from '../../lib/track.js';
 import { acceptProposal, requestProposalChanges } from '../../lib/engagement.js';
-import { canAcceptProposal, validateAcceptForm, validateChangeRequest, PROPOSAL_AGREEMENT_VERSION, paragraphs } from '../../lib/engagementGate.js';
-import { pickPlan, marketsFor, agreementDocument, isExpired, longDate, FIRST_PLAYBOOK_BUSINESS_DAYS } from '../../lib/proposalPlans.js';
-import { SUMMARY_PARAGRAPH, WE_KNOW_CAM, EXPERTISE, outcomesFor, TOPICS, NEXT_STEPS, MARKET_COLORS } from '../../lib/proposalContent.js';
+import { canAcceptProposal, validateAcceptForm, validateChangeRequest, PROPOSAL_AGREEMENT_VERSION } from '../../lib/engagementGate.js';
+import { pickPlan, marketsFor, agreementDocument, isExpired, EXPECT_KEYS, FIRST_PLAYBOOK_BUSINESS_DAYS } from '../../lib/proposalPlans.js';
+import {
+  COVER_INTRO, contactLine, formatPhone, telHref, RESULTS, resultNum, BASELINE, CAPABILITIES, DIFFERENCE, PROGRAMS, YEARS, EXPERTISE,
+  PARTNER, partnerBody, HOW_WE_WORK, THAT_IT_WORKS, SAMPLES, NEXT_STEPS_TITLE, STEPS, CTA_LABEL, COLORS,
+} from '../../lib/proposalContent.js';
 import { ThreadMessage } from '../ThreadMessage.jsx';
 import AcceptCard from './AcceptCard.jsx';
 import AgreementModal from './AgreementModal.jsx';
-import TopicModal from './TopicModal.jsx';
+import SampleModal from './SampleModal.jsx';
 import Investment from './Investment.jsx';
-import { ArrowRight, External, Stripes } from './icons.jsx';
+import { ArrowRight, External, Stripes, FileIcon } from './icons.jsx';
 
 const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 let viewedThisLoad = false;
 
+const Phone = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>;
+const Mail = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>;
+const Play = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="#381c4f" stroke="#381c4f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 3 14 9-14 9z" /></svg>;
+
 // ============================================================================
-// ProposalPage — the ONLY thing a new client sees until their owner accepts.
-// Shell-less. Cover + floating acceptance card, six numbered sections, sidebar
-// with proof/docs and the sticky question thread. Everything comes from
-// DATA.engagement (engagement_proposals row → engagementRowToView) plus the
-// evergreen content in src/lib/proposalContent.js. Staff see it through
-// "View as client" (previewOnly): Accept is locked, everything else works.
+// ProposalPage (v3) — the ONLY thing a new client sees until their owner
+// accepts. Shell-less. Cover + floating acceptance card, four numbered
+// sections (What you're buying · What to expect · Investment · Next steps),
+// sidebar with the sample modals, proof links and the question thread.
+// Everything comes from DATA.engagement (engagement_proposals row →
+// engagementRowToView) plus the evergreen content in src/lib/proposalContent.js.
+// Staff see it through "View as client" (previewOnly): Accept is locked,
+// everything else works.
 // ============================================================================
 export default function ProposalPage({ onAccepted, onSignOut, previewOnly = false, onExitPreview }) {
   const p = DATA.engagement || {};
@@ -42,8 +51,9 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
   const locationNames = (p.markets && p.markets.length) ? p.markets : accountLocationNames;
   const { named } = marketsFor(locationNames, selected);
   const show = (k) => !p.sections || p.sections[k] !== false;
-  const outcomes = useMemo(() => outcomesFor(p.modules, p.sections), [p.modules, p.sections]);
+  const expectOn = EXPECT_KEYS.some(show);
   const sentDate = p.sentAt ? new Date(p.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const sentLong = p.sentAt ? new Date(p.sentAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
 
   useEffect(() => {
     if (viewedThisLoad || previewOnly) return;
@@ -51,7 +61,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     track('proposal_viewed', { proposalId: p.id, version: p.version });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── floating card ↔ sidebar padding (README §1) ──────────────────────────
+  // ── floating card ↔ sidebar padding ───────────────────────────────────────
   const coverRef = useRef(null); const cardRef = useRef(null); const nameRef = useRef(null);
   const [sidebarPad, setSidebarPad] = useState(174);
   useLayoutEffect(() => {
@@ -69,6 +79,24 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     measure();
     return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
   }, []);
+
+  // ── 01 results count-up (once, when the block scrolls into view) ──────────
+  const noIO = typeof IntersectionObserver === 'undefined';
+  const resultsRef = useRef(null);
+  const [seen, setSeen] = useState(noIO);
+  const [prog, setProg] = useState(noIO ? 1 : 0);
+  useEffect(() => {
+    if (seen || noIO || !resultsRef.current) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      setSeen(true); io.disconnect();
+      const t0 = performance.now(); const dur = 1400;
+      const tick = (t) => { const x = Math.min(1, (t - t0) / dur); setProg(1 - Math.pow(1 - x, 3)); if (x < 1) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    }, { threshold: 0.35 });
+    io.observe(resultsRef.current);
+    return () => io.disconnect();
+  }, [seen, noIO]);
 
   // ── acceptance ────────────────────────────────────────────────────────────
   const [acceptOpen, setAcceptOpen] = useState(false);
@@ -96,7 +124,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     }
   };
   const accept = async () => {
-    if (previewOnly) { setErr('Staff preview — only the client’s owner can accept, from their own sign-in.'); return; }
+    if (previewOnly) { setErr('Staff preview. Only the client’s owner can accept, from their own sign-in.'); return; }
     const v = validateAcceptForm({ name, agree: agreementRead });
     if (!v.ok) { setErr(v.errors.name || v.errors.agree); return; }
     setBusy(true); setErr('');
@@ -115,7 +143,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
   useEffect(() => { const el = threadRef.current; if (el) el.scrollTop = el.scrollHeight; }, [thread.length]);
   const [q, setQ] = useState(''); const [qBusy, setQBusy] = useState(false); const [qErr, setQErr] = useState(''); const [qSent, setQSent] = useState(false);
   const ask = async () => {
-    if (previewOnly) { setQErr('Staff preview — questions come from the client’s own sign-in.'); return; }
+    if (previewOnly) { setQErr('Staff preview. Questions come from the client’s own sign-in.'); return; }
     const v = validateChangeRequest(q);
     if (!v.ok) { setQErr(v.error); return; }
     setQBusy(true); setQErr('');
@@ -130,14 +158,25 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     finally { setQBusy(false); }
   };
 
-  const [topic, setTopic] = useState(null);
-  const steps = NEXT_STEPS(preparerFirst, !!p.welcomeCallUrl);
-  const introParas = paragraphs(p.intro);
-  const closingParas = paragraphs(p.closing);
+  const [sample, setSample] = useState(null);
+  const openSample = (s) => { setSample(s); if (!previewOnly) track('proposal_sample_opened', { proposalId: p.id, sample: s.key }); };
+  const steps = STEPS(FIRST_PLAYBOOK_BUSINESS_DAYS);
+  const phone = p.preparedByPhone || ''; const email = p.preparedByEmail || '';
+  const refLinks = p.referenceLinks || [];
+  const vimeo = p.testimonialVimeoId || '';
+  const capParts = String(p.testimonialCaption || 'Client testimonial').split(' · ');
+  const nav = [
+    show('results') ? ['s1', 'What you’re buying'] : null,
+    expectOn ? ['s2', 'What to expect'] : null,
+    ['s3', 'Investment'],
+    show('next') ? ['s4', 'Next steps'] : null,
+  ].filter(Boolean);
+  const numOf = (id) => String(nav.findIndex((n) => n[0] === id) + 1).padStart(2, '0');
+  const floorMuted = !!(selected && !selected.guarantee);
 
   return (
     <div className="pp" data-testid="proposal-page">
-      {previewOnly ? <div role="button" className="pp-preview-bar" onClick={onExitPreview} title="Click to exit client view">👁 Viewing as a client — this is the locked proposal page. Click to exit</div> : null}
+      {previewOnly ? <div role="button" className="pp-preview-bar" onClick={onExitPreview} title="Click to exit client view">👁 Viewing as a client: this is the locked proposal page. Click to exit</div> : null}
       <div className="pp-top">
         <div className="pp-top-in">
           <div className="pp-top-brand"><img src="/assets/alloy-logo-full-color.svg" alt="Alloy" /><div className="pp-top-sep" /><div className="pp-top-for">Proposal for <b>{company}</b></div></div>
@@ -153,21 +192,23 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
           <div className="pp-cover-main">
             <div className="pp-cover-eyebrow">
               <span className="eyebrow" style={{ color: '#f5d880' }}>Proposal · v{p.version || 1}</span>
-              {sentDate ? <><span className="dot" /><span className="eyebrow" style={{ color: '#a1c8e7' }}>{sentDate}</span></> : null}
+              {sentLong ? <><span className="dot" /><span className="eyebrow" style={{ color: '#a1c8e7' }}>{sentLong}</span></> : null}
             </div>
             <h1>{p.title || `Growth partnership for ${short}.`}</h1>
-            {introParas.length ? introParas.map((t, i) => <p key={i}>{t}</p>) : <p>{SUMMARY_PARAGRAPH}</p>}
-            {locationNames.length ? (
-              <div className="pp-markets">
-                <span className="eyebrow lbl">Your markets</span>
-                {locationNames.slice(0, 5).map((n, i) => <span key={n} className="pp-chip-outline"><i style={{ background: MARKET_COLORS[i % MARKET_COLORS.length] }} />{n}</span>)}
-              </div>
-            ) : null}
+            <p>{COVER_INTRO}</p>
+            <div className="pp-contact" data-testid="pp-contact">
+              <div className="q">{contactLine(preparer, { phone, email })}</div>
+              {(phone || email) ? (
+                <div className="links">
+                  {phone ? <a href={telHref(phone)}><Phone />{formatPhone(phone)}</a> : null}
+                  {email ? <a href={`mailto:${email}`}><Mail />{email}</a> : null}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="pp-cover-spacer" />
           <AcceptCard
             cardRef={cardRef} plan={selected} company={company} startDate={p.startDate}
-            roiDefaults={{ feePerDoor: p.roiFeePerDoor, doorsPerCommunity: p.roiDoorsPerCommunity }}
             canAccept={canAccept} ownerNames={owners} expired={expired} validThrough={p.validThrough} previewOnly={previewOnly}
             open={acceptOpen} onToggle={() => setAcceptOpen((o) => !o)} agreementRead={agreementRead} onOpenAgreement={openAgreement}
             name={name} title={title} onName={setName} onTitle={setTitle} onAccept={accept} busy={busy} err={err} nameRef={nameRef}
@@ -176,96 +217,126 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
         </div>
       </div>
 
+      {/* ── section nav ── */}
+      <div className="pp-nav">
+        <div className="pp-nav-in">
+          {nav.map(([id, t]) => <a key={id} href={`#${id}`}><b>{numOf(id)}</b>{t}</a>)}
+        </div>
+        <Stripes className="pp-nav-stripes" />
+      </div>
+
       {/* ── body ── */}
       <div className="pp-body">
         <div className="pp-main">
-          <div className="pp-toc">
-            <span className="eyebrow lbl">In this proposal</span>
-            {[['s1', 'The plan'], ['s2', 'We know CAM'], ['s3', 'What you get'], ['s4', 'How we do it'], ['s5', 'Investment'], ['s6', 'Next steps']].map(([id, t], i) => show(id) ? (
-              <a key={id} href={`#${id}`}><b>{String(i + 1).padStart(2, '0')}</b>{t}</a>
-            ) : null)}
-          </div>
-
-          {show('s1') ? (<>
-          <div id="s1" className="pp-h2"><span className="num">01</span><h2>The plan in one view</h2></div>
-          <div className="card pp-pad">
-            <p className="pp-lead">{SUMMARY_PARAGRAPH}</p>
-            <div className="pp-tiles">
-              <div className="pp-tile" style={{ borderTopColor: '#d9356e' }}><b>1</b><div className="t">Portal, one number</div><div className="d">Playbook, leads, reports and billing in one place.</div></div>
-              <div className="pp-tile" style={{ borderTopColor: '#aed7d0' }}><b>{FIRST_PLAYBOOK_BUSINESS_DAYS}</b><div className="t">Business days to first playbook</div><div className="d">Counted from your welcome call.</div></div>
-              <div className="pp-tile" style={{ borderTopColor: '#a1c8e7' }}><b>{selected ? selected.locations : locationNames.length || 1}</b><div className="t">Market{(selected ? selected.locations : 1) === 1 ? '' : 's'} covered</div><div className="d">Each one found, tracked and reviewed on its own.</div></div>
-            </div>
-          </div>
-          </>) : null}
-
-          {show('s2') ? (<>
-          <div id="s2" className="pp-h2"><span className="num">02</span><h2>We know CAM</h2></div>
-          <div className="card pp-pad">
-            <div className="pp-know">
-              <p>{WE_KNOW_CAM.intro}</p>
-              <div className="pp-years"><b>{WE_KNOW_CAM.years}</b><span>Combined years<br />in CAM</span></div>
-            </div>
-            <div className="pp-grid220">
-              {EXPERTISE.map((x) => <div key={x.title} className="pp-xtile"><div className="pp-accent" style={{ background: x.color }} /><div className="t">{x.title}</div><div className="d">{x.body}</div></div>)}
-            </div>
-          </div>
-          </>) : null}
-
-          {show('s3') ? (<>
-          <div id="s3" className="pp-h2"><span className="num">03</span><h2>What you get</h2></div>
-          <div className="pp-grid300" data-testid="pp-outcomes">
-            {outcomes.map((o) => (
-              <div key={o.key} className="card pp-outcome" data-testid={`pp-outcome-${o.engine}`}>
-                <div className="pp-accent" style={{ background: o.color }} />
-                <div className="head"><span className="eyebrow tag">{o.tag}</span><span className="pp-pill">{o.scale}</span></div>
-                <div className="t">{o.title}</div>
-                <p>{o.body}</p>
-                <div className="pp-chips">{o.chips.map((c) => <span key={c} className="pp-chip">{c}</span>)}</div>
+          {show('results') ? (<>
+          <div id="s1" className="pp-h2"><span className="num">{numOf('s1')}</span><h2>What you’re buying</h2></div>
+          <div className="card pp-pad" data-testid="pp-results">
+            <div className="eyebrow pp-eb">{RESULTS.eyebrow}</div>
+            <h3 className="pp-h3">{RESULTS.h3}</h3>
+            <p className="pp-lead">{RESULTS.p}</p>
+            <div className={`pp-results${seen ? ' seen' : ''}`} ref={resultsRef}>
+              <Stripes thin />
+              <div className="grid">
+                {RESULTS.cards.map((c, i) => (
+                  <div key={c.key} className={`pp-result${c.guarantee && floorMuted ? ' muted' : ''}`} style={{ transitionDelay: `${i * 120}ms` }} data-testid={`pp-result-${c.key}`}>
+                    <div className="k">{c.k}</div>
+                    <div className="n" style={{ color: c.color }}>{resultNum(c, prog)}</div>
+                    <div className="t">{c.title}</div>
+                    <div className="s">{c.sub}</div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="pp-fine">{RESULTS.fine}</div>
           </div>
           </>) : null}
 
-          {show('s4') ? (<>
-          <div id="s4" className="pp-h2"><span className="num">04</span><h2>How we do it</h2></div>
-          <div className="pp-topics">
-            {TOPICS.map((t) => (
-              <button type="button" key={t.key} className="card pp-topic" onClick={() => setTopic(t)} data-testid={`pp-topic-${t.key}`}>
-                <div className="pp-accent" style={{ background: t.color }} />
-                <div className="head"><span className="eyebrow tag">{t.tag}</span><span className="scope" style={{ background: t.pillBg }}>{t.scope}</span></div>
-                <div className="t">{t.title}</div>
-                <div className="d">{t.blurb}</div>
-                <div className="peek">Take a peek <ArrowRight size={14} /></div>
-              </button>
-            ))}
+          {expectOn ? (<>
+          <div id="s2" className="pp-h2"><span className="num">{numOf('s2')}</span><h2>What to expect</h2></div>
+          <div className="card pp-pad" data-testid="pp-expect">
+            {show('baseline') ? (
+              <div data-testid="pp-baseline">
+                <div className="eyebrow pp-eb">{BASELINE.eyebrow}</div>
+                <h3 className="pp-h3 big">{BASELINE.h3}</h3>
+                <p className="pp-lead tight">{BASELINE.p}</p>
+                <div className="pp-caps">
+                  {CAPABILITIES.map((c) => <span key={c} className="pp-cap">{c}</span>)}
+                  <span className="pp-cap more">{BASELINE.more}</span>
+                </div>
+              </div>
+            ) : null}
+            {show('baseline') && (show('programs') || show('expertise') || show('partner')) ? <div className="pp-rule" /> : null}
+            {(show('programs') || show('expertise')) ? (
+              <>
+                <div className="eyebrow pp-eb">{DIFFERENCE.eyebrow}</div>
+                <h3 className="pp-h3 big">{DIFFERENCE.h3a}<span className="pink">{DIFFERENCE.h3b}</span></h3>
+                <p className="pp-lead tight">{DIFFERENCE.p}</p>
+              </>
+            ) : null}
+            {show('programs') ? (
+              <div data-testid="pp-programs">
+                <div className="pp-label"><span>{DIFFERENCE.programsLabel}</span><i /></div>
+                <div className="pp-programs">
+                  {PROGRAMS.map((e) => (
+                    <div key={e.key} className="pp-program" data-testid={`pp-program-${e.key}`}>
+                      <div className="pp-accent" style={{ background: e.color }} />
+                      <div className="who"><div className="nm">{e.name}</div><div className="pr">{e.paren}</div></div>
+                      <div className="what"><div className="t">{e.title}</div><div className="d">{e.body}</div></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {show('expertise') ? (
+              <div data-testid="pp-expertise">
+                <div className="pp-label gap"><span>{YEARS.label}</span><i /></div>
+                <p className="pp-lead tight">{YEARS.p}</p>
+                <div className="pp-years">
+                  <Stripes thin className="top" />
+                  <div className="big"><b>{YEARS.num}</b><span>+</span></div>
+                  <div className="rest">
+                    <div className="lead"><div className="t">{YEARS.title}</div><div className="s">{YEARS.sub}</div></div>
+                    <div className="stats">{YEARS.stats.map((s) => <div key={s.l}><b>{s.n}</b><span className="eyebrow">{s.l}</span></div>)}</div>
+                  </div>
+                </div>
+                <div className="pp-grid220">
+                  {EXPERTISE.map((x) => <div key={x.title} className="pp-xtile"><div className="pp-accent" style={{ background: x.color }} /><div className="t">{x.title}</div><div className="d">{x.body}</div></div>)}
+                </div>
+              </div>
+            ) : null}
+            {show('partner') ? (
+              <div data-testid="pp-partner">
+                <div className="pp-label gap"><span>{PARTNER.label}</span><i /></div>
+                <div className="pp-partner">
+                  <div className="pp-accent" style={{ background: COLORS.pink }} />
+                  <div className="tx"><div className="t">{PARTNER.title}</div><div className="d">{partnerBody(plans)}</div></div>
+                  <img src={PARTNER.logo} alt={PARTNER.logoAlt} />
+                </div>
+              </div>
+            ) : null}
           </div>
           </>) : null}
 
-          {show('s5') ? (<>
-          <div id="s5" className="pp-h2"><span className="num">05</span><h2>Investment &amp; guarantee</h2></div>
+          <div id="s3" className="pp-h2"><span className="num">{numOf('s3')}</span><h2>Investment &amp; guarantee</h2></div>
           <Investment p={p} plans={plans} selected={selected} onSelect={selectPlan} preparer={preparer} sentDate={sentDate} />
-          </>) : null}
 
-          {show('s6') ? (<>
-          <div id="s6" className="pp-h2"><span className="num">06</span><h2>Next steps</h2></div>
-          <div className="pp-next">
+          {show('next') ? (<>
+          <div id="s4" className="pp-h2"><span className="num">{numOf('s4')}</span><h2>Next steps</h2></div>
+          <div className="pp-next" data-testid="pp-next">
             <Stripes thin />
-            <h2>Say yes today.<br />Boards find you before the next quarter.</h2>
-            {closingParas.length ? closingParas.map((t, i) => <p key={i}>{t}</p>) : <p>No kickoff paperwork, no waiting on a contract to bounce around. The moment you accept, the clock below starts.</p>}
-            <div className="pp-timeline">
-              <div className="track" />
+            <h2>{p.nextStepsTitle || NEXT_STEPS_TITLE}</h2>
+            <div className="pp-steps3">
               {steps.map((s) => (
-                <div key={s.n} className="pp-tstep">
-                  <div className="dot" style={{ background: s.color }}>{s.n}</div>
-                  <div className="eyebrow when" style={{ color: s.color }}>{s.when}</div>
+                <div key={s.n} className="pp-step3" style={{ borderTopColor: s.color }}>
+                  <div className="n" style={{ color: s.color }}>{s.n}</div>
+                  <div className="eyebrow when">{s.when}</div>
                   <div className="t">{s.title}</div>
-                  <div className="d">{s.body}</div>
                 </div>
               ))}
             </div>
             <div className="pp-next-foot">
               <div className="q">Questions first? {preparerFirst} answers in the thread on the right.</div>
-              {!accepted && !expired && (canAccept || previewOnly) ? <button type="button" className="btn-pill" onClick={jumpToAccept} data-testid="pp-cta">Accept the proposal <ArrowRight /></button> : null}
+              {!accepted && !expired && (canAccept || previewOnly) ? <button type="button" className="btn-pill" onClick={jumpToAccept} data-testid="pp-cta">{CTA_LABEL} <ArrowRight /></button> : null}
             </div>
           </div>
           </>) : null}
@@ -273,23 +344,43 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
 
         {/* ── sidebar ── */}
         <div className="pp-side" style={{ paddingTop: sidebarPad }}>
-          {(p.testimonialVimeoId || (p.referenceLinks || []).length) ? (
-            <div className="card" data-testid="pp-proof">
-              <div className="eyebrow k">Proof &amp; reference</div>
-              <div className="t">Proof behind this proposal</div>
-              {p.testimonialVimeoId ? (
-                <div className="pp-video">
-                  <div className="frame"><iframe src={`https://player.vimeo.com/video/${p.testimonialVimeoId}?title=0&byline=0&portrait=0&color=d9356e`} title="Client testimonial" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen loading="lazy" /></div>
-                  <div className="cap"><i />{p.testimonialCaption || 'Client testimonial'}</div>
-                </div>
-              ) : null}
-              {(p.referenceLinks || []).length ? (
-                <div className="pp-docs">
-                  {p.referenceLinks.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" onClick={() => { if (!previewOnly) track('proposal_ref_open', { url: l.url }); }}>{l.label}<External /></a>)}
-                </div>
-              ) : null}
+          <div className="card pp-side-card" data-testid="pp-proof">
+            <div className="eyebrow k">{HOW_WE_WORK.k}</div>
+            <div className="t">{HOW_WE_WORK.t}</div>
+            <div className="sub">{HOW_WE_WORK.sub}</div>
+            <div className="pp-stiles">
+              {SAMPLES.slice(0, 2).map((s) => (
+                <button type="button" key={s.key} className="pp-stile dark" onClick={() => openSample(s)} data-testid={`pp-sample-${s.key}`}>
+                  <span className="ic" style={{ background: s.color }}><FileIcon size={16} /></span>
+                  <span className="tx"><span className="t1">{s.title}</span><span className="t2">{s.sub}</span></span>
+                  <span className="go"><ArrowRight size={16} /></span>
+                </button>
+              ))}
             </div>
-          ) : null}
+            <div className="eyebrow k sep">{THAT_IT_WORKS.k}</div>
+            <div className="t">{THAT_IT_WORKS.t}</div>
+            <div className="pp-stiles">
+              {vimeo ? (
+                <a className="pp-stile" href={`https://vimeo.com/${vimeo}`} target="_blank" rel="noopener noreferrer" onClick={() => { if (!previewOnly) track('proposal_ref_open', { url: `https://vimeo.com/${vimeo}` }); }} data-testid="pp-testimonial">
+                  <span className="ic" style={{ background: COLORS.pinkTint }}><Play /></span>
+                  <span className="tx"><span className="t1">{capParts[0]}</span><span className="t2">Video{capParts[1] ? ` · ${capParts.slice(1).join(' · ')}` : ''}</span></span>
+                  <span className="go"><External size={14} /></span>
+                </a>
+              ) : null}
+              <button type="button" className="pp-stile" onClick={() => openSample(SAMPLES[2])} data-testid="pp-sample-casestudy">
+                <span className="ic" style={{ background: SAMPLES[2].color }}><FileIcon size={16} /></span>
+                <span className="tx"><span className="t1">{SAMPLES[2].title}</span><span className="t2">{SAMPLES[2].sub}</span></span>
+                <span className="go pink"><ArrowRight size={16} /></span>
+              </button>
+              {refLinks.map((l) => (
+                <a key={l.url} className="pp-stile" href={l.url} target="_blank" rel="noopener noreferrer" onClick={() => { if (!previewOnly) track('proposal_ref_open', { url: l.url }); }}>
+                  <span className="ic" style={{ background: COLORS.blueTint }}><FileIcon size={16} /></span>
+                  <span className="tx"><span className="t1">{l.label}</span><span className="t2">Document</span></span>
+                  <span className="go"><External size={14} /></span>
+                </a>
+              ))}
+            </div>
+          </div>
 
           <div className="card pp-thread-card" data-testid="pp-thread-card">
             <div className="eyebrow k">Questions &amp; changes</div>
@@ -312,7 +403,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
       </div>
       <Stripes className="pp-foot-stripes" />
 
-      {topic ? <TopicModal topic={topic} markets={named} onClose={() => setTopic(null)} /> : null}
+      {sample ? <SampleModal sample={sample} onClose={() => setSample(null)} /> : null}
       {agreementOpen ? <AgreementModal doc={agreement} onClose={() => setAgreementOpen(false)} onAgree={agree} canAgree={!expired} /> : null}
     </div>
   );
