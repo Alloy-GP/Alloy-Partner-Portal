@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { easeOutQuint, scrollDuration, animateScroll, scrollToElement } from './smoothScroll.js';
+import { easeOutQuint, scrollDuration, animateScroll, scrollToElement, activeSection } from './smoothScroll.js';
 
 // A fake window + a hand-cranked clock/frame queue so the animation is deterministic.
 function fakeWin({ scrollY = 0, scrollHeight = 6000, innerHeight = 900 } = {}) {
@@ -80,5 +80,20 @@ describe('animateScroll', () => {
   });
   it('is a no-op without a window', () => {
     expect(typeof animateScroll(100, { win: null })).toBe('function');
+  });
+});
+
+describe('activeSection (scroll spy)', () => {
+  const ids = ['s1', 's2', 's3', 's4'];
+  it('is the last heading at or above the threshold', () => {
+    expect(activeSection(ids, [400, 1200, 2600, 4000], 128)).toBe('s1');     // nothing scrolled yet
+    expect(activeSection(ids, [-700, 100, 1500, 2900], 128)).toBe('s2');     // s2 just tucked under the bars
+    expect(activeSection(ids, [-3000, -2100, -700, 300], 128)).toBe('s3');     // s4 still 300px down
+    expect(activeSection(ids, [-3000, -2100, -700, 100], 128)).toBe('s4');     // s4 tucked under → active
+  });
+  it('snaps to the last section at the bottom of the page, tolerates missing headings', () => {
+    expect(activeSection(ids, [-3000, -2100, -700, 300], 128, true)).toBe('s4');
+    expect(activeSection(ids, [-3000, Infinity, -700, 300], 128)).toBe('s3');
+    expect(activeSection([], [], 128)).toBeNull();
   });
 });

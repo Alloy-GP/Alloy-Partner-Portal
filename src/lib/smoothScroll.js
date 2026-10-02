@@ -59,3 +59,15 @@ export function scrollToElement(el, { offset = 0, ...opts } = {}) {
   const y = el.getBoundingClientRect().top + (Number(w.scrollY ?? w.pageYOffset) || 0) - offset;
   return animateScroll(y, { win: w, ...opts });
 }
+
+// Scroll spy: which section is "current". `tops` are the headings' viewport
+// tops (same order as `ids`); the last one at/above `threshold` wins, the
+// first section before anything has scrolled, the last at the page bottom.
+export function activeSection(ids, tops, threshold = 0, atBottom = false) {
+  const list = Array.isArray(ids) ? ids : [];
+  if (!list.length) return null;
+  if (atBottom) return list[list.length - 1];
+  let active = list[0];
+  list.forEach((id, i) => { const t = Number(tops && tops[i]); if (Number.isFinite(t) && t <= threshold) active = id; });
+  return active;
+}

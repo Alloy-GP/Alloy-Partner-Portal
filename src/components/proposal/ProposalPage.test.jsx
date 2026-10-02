@@ -194,6 +194,7 @@ describe('ProposalPage (v3)', () => {
     window.scrollTo = vi.fn();
     click(host.querySelector('.pp-nav-in a[href="#s3"]'));
     expect(window.location.hash).toBe('#s3');
+    expect(host.querySelectorAll('.pp-nav-in a.is-active')).toHaveLength(1);   // scroll spy marks one section current
     click(host.querySelector('[data-testid="pp-sample-roadmap"]'));
     let m = host.querySelector('[data-testid="pp-sample-modal"]');
     expect(m.textContent).toContain('Every quarter: plan, build, prove'); expect(m.textContent).toContain('Plan locks at Q3 review');
