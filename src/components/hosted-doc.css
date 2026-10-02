@@ -1,0 +1,141 @@
+/* Password gate for hosted documents (/p/<slug>) — same brand chrome as the
+   login screen and the public goals form (purple stage + glow + white card). */
+
+.hd-page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--alloy-purple-deep);
+  overflow: auto;
+}
+
+.hd-bg {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 40% at 25% 20%, rgba(217, 53, 110, 0.35), transparent 70%),
+    radial-gradient(45% 45% at 80% 30%, rgba(245, 216, 128, 0.22), transparent 70%),
+    radial-gradient(50% 50% at 60% 90%, rgba(161, 200, 231, 0.25), transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.hd-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 40px 40px 30px;
+}
+
+.hd-logo { height: 32px; width: auto; margin: 0 0 22px; display: block; }
+
+.hd-eyebrow {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--alloy-pink);
+  margin: 0 0 6px;
+}
+
+.hd-card h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 23px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  margin: 0 0 10px;
+}
+
+.hd-sub { font-size: 14px; line-height: 1.55; color: var(--fg-muted); margin: 0 0 22px; }
+
+.hd-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.hd-field { display: flex; flex-direction: column; gap: 7px; }
+.hd-field label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.hd-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius);
+  font-size: 16px; /* ≥16px keeps iOS from zooming the field */
+  font-family: inherit;
+  color: var(--fg);
+  background: var(--alloy-off-white);
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.hd-form input:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--alloy-purple);
+  box-shadow: 0 0 0 3px rgba(56, 28, 79, 0.12);
+}
+.hd-form input:disabled { opacity: 0.6; }
+
+.hd-submit {
+  margin-top: 2px;
+  padding: 14px 16px;
+  border: 0;
+  cursor: pointer;
+  border-radius: var(--radius);
+  background: var(--alloy-pink);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  transition: filter 0.15s, transform 0.05s;
+}
+.hd-submit:hover:not(:disabled) { filter: brightness(0.94); }
+.hd-submit:active:not(:disabled) { transform: translateY(1px); }
+.hd-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.hd-error {
+  background: var(--alloy-pink-tint);
+  color: var(--alloy-pink);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+}
+
+.hd-foot {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+.hd-foot a { color: var(--alloy-purple); font-weight: 600; }
+.hd-foot a:hover { color: var(--alloy-pink); }
+
+/* The unlocked document: full viewport, nothing of the app around it. */
+.hd-frame {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #f8f7fc;
+}
+
+@media (max-width: 560px) {
+  .hd-card { padding: 30px 22px 24px; }
+}

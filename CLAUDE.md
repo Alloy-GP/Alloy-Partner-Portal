@@ -86,3 +86,18 @@ gotcha: `createFromToken` wants `{ value: token }`, not `{ token }` (PMT-4002).
 Alloy still creates the recurring draft — Admin → client → Autopay (`AdminAutopay.jsx` →
 staff-only `createRecurring`/`deleteRecurring`). A successful `attach` emails
 `BILLING_ALERT_TO` (default admin@alloygp.co) via Resend; staff can `resendBankAlert`.
+
+## Hosted docs (`/p/<slug>`) — password-gated standalone HTML
+One-off documents that don't fit the portal (e.g. a custom proposal built
+elsewhere as a single HTML file) are hosted at `growth.alloygp.co/p/<slug>`
+behind a shared password, with opens logged. **The repo is public — never commit
+the HTML under `public/`**; it lives in `hosted_docs.html` (like `guides.html`).
+Seams: `supabase/migrations/20261002120000_hosted_docs.sql` (`hosted_docs`,
+`hosted_doc_events`, staff-readable `hosted_doc_opens` view) → `hosted-doc` edge
+fn (`verify_jwt: true`, anon key clears the gateway; checks the password,
+appends one `open`/`denied` event, returns the HTML) → `src/lib/hostedDoc.js`
+(pure, tested) → `src/components/hosted-doc.jsx` (gate → full-viewport
+`<iframe srcdoc>`) → `AuthGate.jsx` public route.
+- Create/replace a doc: `SUPABASE_ACCESS_TOKEN=… node scripts/hosted-doc-upload.mjs --slug <slug> --file <doc.html> [--title …] [--password …] [--expires YYYY-MM-DD]`.
+- See opens: `node scripts/hosted-doc-upload.mjs --opens` or `select * from hosted_doc_opens` (Table Editor works too).
+- Change a password: `update hosted_docs set password='…' where slug='…'`.

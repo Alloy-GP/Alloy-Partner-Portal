@@ -10,6 +10,8 @@ import NoAccess from './components/NoAccess.jsx';
 import AdminShell from './components/AdminShell.jsx';
 import { BoardProposalPage } from './components/board-proposal.jsx';
 import QuarterGoalsForm from './components/quarter-goals.jsx';
+import HostedDocPage from './components/hosted-doc.jsx';
+import { parseDocSlug } from './lib/hostedDoc.js';
 import App from './App.jsx';
 
 let loginLogged = false; // once per page load
@@ -126,6 +128,12 @@ function AuthGate() {
   // Public, shell-less pre-planning goals form — a shareable link (no auth) for
   // clients to submit next quarter's goals. Runs even in mock mode.
   if (/^\/goals\/?$/.test(location.pathname)) return <QuarterGoalsForm />;
+
+  // Public, shell-less, password-gated document at /p/<slug> — a one-off
+  // standalone HTML doc (e.g. a custom proposal) hosted on this domain for
+  // review. The hosted-doc edge fn checks the password and logs the open.
+  const docSlug = parseDocSlug(location.pathname);
+  if (docSlug) return <HostedDocPage slug={docSlug} />;
 
   if (!configured) return <App />;
   if (loading) return splash;
