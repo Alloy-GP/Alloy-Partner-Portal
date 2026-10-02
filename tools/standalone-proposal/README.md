@@ -5,8 +5,8 @@ its styles, Gotham, the logo, the cover mark and the match HOA logo are all inli
 so the file works from a desktop, an email attachment, a shared drive or any host.
 
 ```
-npm run proposal:standalone                       # → dist/proposal-standalone.html (sample data)
-npm run proposal:standalone -- clients/acme.json  # → dist/acme.html
+npm run proposal:standalone                       # → out/proposal-standalone.html (sample data)
+npm run proposal:standalone -- clients/acme.json  # → out/acme.html
 ```
 
 ## Data
