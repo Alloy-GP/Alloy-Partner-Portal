@@ -12,7 +12,7 @@ import { ArrowRight, Chevron, Check, FileIcon, Stripes } from './icons.jsx';
 export default function AcceptCard({
   cardRef, plan, company, startDate, canAccept, ownerNames, expired, validThrough, previewOnly,
   open, onToggle, agreementRead, onOpenAgreement, name, title, onName, onTitle, onAccept, busy, err,
-  accepted, acceptedAt, preparerFirst, welcomeCallUrl, onEnterPortal, nameRef,
+  accepted, acceptedAt, preparerFirst, welcomeCallUrl, onEnterPortal, nameRef, standalone = false,
 }) {
   const hasName = String(name || '').trim().length > 1;
   const ready = hasName && agreementRead;
@@ -61,8 +61,10 @@ export default function AcceptCard({
         <div className="pp-band is-disabled" data-testid="pp-expired">
           <div><div className="t">This proposal has expired</div><div className="s">It was valid through {longDate(validThrough)}. Ask your Alloy team in the thread to refresh it.</div></div>
         </div>
+      ) : standalone ? (
+        <div className="pp-note" data-testid="pp-portal-note"><b>Ready to say yes?</b> Accepting happens in your Alloy Growth Portal: read the agreement, sign your name, done. {preparerFirst} will send your sign-in link.</div>
       ) : !canAccept && !previewOnly ? (
-        <div className="pp-note" data-testid="pp-owner-note">Your account owner{ownerNames && ownerNames.length ? ` (${ownerNames.join(', ')})` : ''} accepts on behalf of {company}. You can read everything here and send questions from the thread.</div>
+        <div className="pp-note" data-testid="pp-owner-note">Your account owner{ownerNames && ownerNames.length ? ` (${ownerNames.join(', ')})` : ''} accepts on behalf of {company}. You can read everything here.</div>
       ) : (
         <>
           <button type="button" className={`pp-band${open ? ' is-open' : ''}`} onClick={onToggle} data-testid="pp-band">

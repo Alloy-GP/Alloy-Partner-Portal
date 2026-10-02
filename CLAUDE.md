@@ -115,7 +115,10 @@ expertise tiles, match HOA partner card) · 03 Investment (plan cells with a
 "Fuel" bar, match HOA logo row, Your terms, due-at-start band, seal) · 04 Next
 steps ("Review terms and sign"). No in-page chat since Oct 2 2026: questions go
 to the rep's contact on the cover; the Admin rail's Thread card shows historical
-client questions only (staff replies still email the owners). Section toggles = `SECTION_DEFS` keys
+client questions only (staff replies still email the owners). **One-off HTML:**
+`npm run proposal:standalone [data.json]` (tools/standalone-proposal) bundles the real
+page + CSS + Gotham + images into one file with a hand-editable JSON data block;
+`ProposalPage standalone` hides sign-out and routes acceptance to the portal. Section toggles = `SECTION_DEFS` keys
 results/baseline/programs/expertise/partner/next. Evergreen copy in
 `src/lib/proposalContent.js` — HARD RULES: never "Most CAM companies grow by
 accident"; form submissions only, never call tracking as a service; NO em dashes
