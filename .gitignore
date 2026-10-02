@@ -31,3 +31,6 @@ pnpm-debug.log*
 
 # supabase CLI scratch (project-ref cache from `supabase functions deploy`)
 supabase/.temp/
+
+# standalone proposal build scratch
+tools/standalone-proposal/dist-tmp/

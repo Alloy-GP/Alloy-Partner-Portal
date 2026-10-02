@@ -153,6 +153,15 @@ describe('ProposalPage (v3)', () => {
     expect(host.textContent).toContain('Staff preview.');
   });
 
+  it('standalone export: no sign-out or user, accept routed to the portal, CTA and agreement still work', () => {
+    const host = mount(owner, engagement(), { standalone: true });
+    expect(host.querySelector('.pp-top-user')).toBeNull();
+    expect(host.querySelector('[data-testid="pp-band"]')).toBeNull();
+    expect(host.querySelector('[data-testid="pp-portal-note"]').textContent).toContain('Accepting happens in your Alloy Growth Portal');
+    expect(host.querySelector('[data-testid="pp-cta"]')).toBeTruthy();
+    expect(host.querySelector('[data-testid="pp-plan-ascend"]')).toBeTruthy();
+  });
+
   it('expired: band replaced, no CTA, agreement read-only', () => {
     const host = mount(owner, engagement({ validThrough: '2020-01-01' }));
     expect(host.querySelector('[data-testid="pp-expired"]').textContent).toContain('This proposal has expired');

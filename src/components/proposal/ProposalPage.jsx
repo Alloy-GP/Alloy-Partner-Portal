@@ -33,7 +33,9 @@ const Play = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="#381c4f
 // Staff see it through "View as client" (previewOnly): Accept is locked,
 // everything else works.
 // ============================================================================
-export default function ProposalPage({ onAccepted, onSignOut, previewOnly = false, onExitPreview }) {
+// `standalone` = the one-off HTML export (tools/standalone-proposal): no
+// portal behind it, so no sign-out / user, and the accept card points to the portal.
+export default function ProposalPage({ onAccepted, onSignOut, previewOnly = false, onExitPreview, standalone = false }) {
   const p = DATA.engagement || {};
   const account = DATA.account || {};
   const user = DATA.user || {};
@@ -43,7 +45,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
   const [planKey, setPlanKey] = useState(() => (pickPlan(plans) || {}).key || null);
   const selected = pickPlan(plans, planKey);
   const expired = isExpired(p.validThrough);
-  const canAccept = !previewOnly && canAcceptProposal(user);
+  const canAccept = !previewOnly && !standalone && canAcceptProposal(user);
   const owners = (DATA.team || []).filter((t) => !t.isStaff && t.role === 'owner').map((t) => t.name).filter(Boolean);
   const preparer = p.preparedByName || 'Your Alloy team';
   const preparerFirst = p.preparedByName ? p.preparedByName.split(/\s+/)[0] : 'Your Alloy team';
@@ -188,7 +190,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
       <div className="pp-top">
         <div className="pp-top-in">
           <div className="pp-top-brand"><img src="/assets/alloy-logo-full-color.svg" alt="Alloy" /><div className="pp-top-sep" /><div className="pp-top-for">Proposal for <b>{company}</b></div></div>
-          <div className="pp-top-user">{user.name || user.email ? <span>{user.name || user.email}</span> : null}{onSignOut ? <button type="button" onClick={onSignOut}>Sign out</button> : null}</div>
+          {standalone ? null : <div className="pp-top-user">{user.name || user.email ? <span>{user.name || user.email}</span> : null}{onSignOut ? <button type="button" onClick={onSignOut}>Sign out</button> : null}</div>}
         </div>
       </div>
 
@@ -220,7 +222,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
             canAccept={canAccept} ownerNames={owners} expired={expired} validThrough={p.validThrough} previewOnly={previewOnly}
             open={acceptOpen} onToggle={() => setAcceptOpen((o) => !o)} agreementRead={agreementRead} onOpenAgreement={openAgreement}
             name={name} title={title} onName={setName} onTitle={setTitle} onAccept={accept} busy={busy} err={err} nameRef={nameRef}
-            accepted={!!accepted} acceptedAt={accepted && accepted.accepted_at} preparerFirst={preparerFirst} welcomeCallUrl={p.welcomeCallUrl} onEnterPortal={onAccepted}
+            accepted={!!accepted} acceptedAt={accepted && accepted.accepted_at} preparerFirst={preparerFirst} welcomeCallUrl={p.welcomeCallUrl} onEnterPortal={onAccepted} standalone={standalone}
           />
         </div>
       </div>
@@ -344,7 +346,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
             </div>
             <div className="pp-next-foot">
               <div className="q">{contactLine(preparerFirst, { phone, email }).replace(/^Questions\?/, 'Questions first?')}</div>
-              {!accepted && !expired && (canAccept || previewOnly) ? <button type="button" className="btn-pill" onClick={jumpToAccept} data-testid="pp-cta">{CTA_LABEL} <ArrowRight /></button> : null}
+              {!accepted && !expired && (canAccept || previewOnly || standalone) ? <button type="button" className="btn-pill" onClick={jumpToAccept} data-testid="pp-cta">{CTA_LABEL} <ArrowRight /></button> : null}
             </div>
           </div>
           </>) : null}
