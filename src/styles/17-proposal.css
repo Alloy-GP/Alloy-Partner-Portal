@@ -138,9 +138,9 @@
 /* section nav */
 .pp-nav { position: sticky; top: 55px; z-index: 15; background: var(--pp-purple); box-shadow: 0 6px 18px rgba(56,28,79,.10); }
 .pp-nav-in { max-width: 1180px; margin: 0 auto; padding: 8px 24px; display: flex; align-items: center; gap: 6px 22px; flex-wrap: wrap; font-size: 13px; }
-.pp-nav-in a { font-weight: 700; color: #fff; white-space: nowrap; padding: 6px 0 4px; border-bottom: 2px solid transparent; transition: color 200ms, border-color 200ms; }
+.pp-nav-in a { font-weight: 700; color: #fff; white-space: nowrap; padding: 6px 0; transition: color 200ms; }
 .pp-nav-in a:hover { color: var(--pp-yellow); text-decoration: none; }
-.pp-nav-in a.is-active { color: var(--pp-yellow); border-bottom-color: var(--pp-yellow); }
+.pp-nav-in a.is-active { color: var(--pp-yellow); }
 .pp-nav-in a b { color: var(--pp-yellow); margin-right: 6px; }
 .pp-nav .stripes { height: 4px; }
 
