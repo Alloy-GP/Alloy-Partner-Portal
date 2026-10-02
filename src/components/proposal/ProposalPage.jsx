@@ -13,6 +13,7 @@ import AgreementModal from './AgreementModal.jsx';
 import SampleModal from './SampleModal.jsx';
 import Investment from './Investment.jsx';
 import { ArrowRight, External, Stripes, FileIcon } from './icons.jsx';
+import { scrollToElement } from '../../lib/smoothScroll.js';
 
 const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 let viewedThisLoad = false;
@@ -118,9 +119,8 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     setAcceptOpen(true);
     const el = document.getElementById('accept');
     if (el && typeof window !== 'undefined') {
-      const y = el.getBoundingClientRect().top + window.scrollY - 90;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-      setTimeout(() => { if (nameRef.current) nameRef.current.focus(); }, 450);
+      scrollToElement(el, { offset: 90 });
+      setTimeout(() => { if (nameRef.current) nameRef.current.focus({ preventScroll: true }); }, 900);
     }
   };
   const accept = async () => {
@@ -136,13 +136,15 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     finally { setBusy(false); }
   };
 
-  // ── smooth anchors (section nav, "Review terms and sign") while mounted ──
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined;
-    const el = document.documentElement; const prev = el.style.scrollBehavior;
-    el.style.scrollBehavior = 'smooth';
-    return () => { el.style.scrollBehavior = prev; };
-  }, []);
+  // ── soft anchors: ease out into the target, stop if the reader scrolls ──
+  const NAV_OFFSET = 120; // sticky top bar + section nav
+  const goTo = (id) => (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const el = document.getElementById(id);
+    if (!el) return;
+    scrollToElement(el, { offset: NAV_OFFSET });
+    if (window.history && window.history.replaceState) window.history.replaceState(null, '', `#${id}`);
+  };
 
   const [sample, setSample] = useState(null);
   const openSample = (s) => { setSample(s); if (!previewOnly) track('proposal_sample_opened', { proposalId: p.id, sample: s.key }); };
@@ -206,7 +208,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
       {/* ── section nav ── */}
       <div className="pp-nav">
         <div className="pp-nav-in">
-          {nav.map(([id, t]) => <a key={id} href={`#${id}`}><b>{numOf(id)}</b>{t}</a>)}
+          {nav.map(([id, t]) => <a key={id} href={`#${id}`} onClick={goTo(id)}><b>{numOf(id)}</b>{t}</a>)}
         </div>
         <Stripes className="pp-nav-stripes" />
       </div>
