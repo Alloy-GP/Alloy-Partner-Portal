@@ -13,7 +13,7 @@ import AgreementModal from './AgreementModal.jsx';
 import SampleModal from './SampleModal.jsx';
 import Investment from './Investment.jsx';
 import { ArrowRight, External, Stripes, FileIcon } from './icons.jsx';
-import { scrollToElement } from '../../lib/smoothScroll.js';
+import { scrollToElement, activeSection } from '../../lib/smoothScroll.js';
 
 const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 let viewedThisLoad = false;
@@ -160,6 +160,26 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     show('next') ? ['s4', 'Next steps'] : null,
   ].filter(Boolean);
   const numOf = (id) => String(nav.findIndex((n) => n[0] === id) + 1).padStart(2, '0');
+  // Scroll spy: the nav link for the section under the sticky bars lights up.
+  const navKey = nav.map((n) => n[0]).join('|');
+  const [activeId, setActiveId] = useState(nav.length ? nav[0][0] : null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const ids = navKey ? navKey.split('|') : [];
+    let frame = 0;
+    const schedule = window.requestAnimationFrame ? (fn) => window.requestAnimationFrame(fn) : (fn) => setTimeout(fn, 16);
+    const update = () => {
+      frame = 0;
+      const tops = ids.map((id) => { const el = document.getElementById(id); return el ? el.getBoundingClientRect().top : Infinity; });
+      const atBottom = window.innerHeight + window.scrollY >= (document.documentElement.scrollHeight || 0) - 2;
+      setActiveId(activeSection(ids, tops, NAV_OFFSET + 8, atBottom));
+    };
+    const onScroll = () => { if (!frame) frame = schedule(update); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    update();
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
+  }, [navKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const floorMuted = !!(selected && !selected.guarantee);
 
   return (
@@ -208,7 +228,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
       {/* ── section nav ── */}
       <div className="pp-nav">
         <div className="pp-nav-in">
-          {nav.map(([id, t]) => <a key={id} href={`#${id}`} onClick={goTo(id)}><b>{numOf(id)}</b>{t}</a>)}
+          {nav.map(([id, t]) => <a key={id} href={`#${id}`} onClick={goTo(id)} className={activeId === id ? 'is-active' : ''} aria-current={activeId === id ? 'true' : undefined}><b>{numOf(id)}</b>{t}</a>)}
         </div>
         <Stripes className="pp-nav-stripes" />
       </div>
