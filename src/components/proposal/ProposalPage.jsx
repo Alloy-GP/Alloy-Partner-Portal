@@ -1,14 +1,13 @@
 import React from 'react';
 import { DATA } from '../../data.js';
 import { track } from '../../lib/track.js';
-import { acceptProposal, requestProposalChanges } from '../../lib/engagement.js';
-import { canAcceptProposal, validateAcceptForm, validateChangeRequest, PROPOSAL_AGREEMENT_VERSION } from '../../lib/engagementGate.js';
+import { acceptProposal } from '../../lib/engagement.js';
+import { canAcceptProposal, validateAcceptForm, PROPOSAL_AGREEMENT_VERSION } from '../../lib/engagementGate.js';
 import { pickPlan, marketsFor, agreementDocument, isExpired, EXPECT_KEYS, FIRST_PLAYBOOK_BUSINESS_DAYS } from '../../lib/proposalPlans.js';
 import {
   COVER_INTRO, contactLine, formatPhone, telHref, RESULTS, resultNum, BASELINE, CAPABILITIES, DIFFERENCE, PROGRAMS, YEARS, EXPERTISE,
   PARTNER, partnerBody, HOW_WE_WORK, THAT_IT_WORKS, SAMPLES, NEXT_STEPS_TITLE, STEPS, CTA_LABEL, COLORS,
 } from '../../lib/proposalContent.js';
-import { ThreadMessage } from '../ThreadMessage.jsx';
 import AcceptCard from './AcceptCard.jsx';
 import AgreementModal from './AgreementModal.jsx';
 import SampleModal from './SampleModal.jsx';
@@ -26,7 +25,8 @@ const Play = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="#381c4f
 // ProposalPage (v3) — the ONLY thing a new client sees until their owner
 // accepts. Shell-less. Cover + floating acceptance card, four numbered
 // sections (What you're buying · What to expect · Investment · Next steps),
-// sidebar with the sample modals, proof links and the question thread.
+// sidebar with the sample modals and proof links. Questions go to the rep's
+// contact on the cover (no in-page chat since Oct 2 2026).
 // Everything comes from DATA.engagement (engagement_proposals row →
 // engagementRowToView) plus the evergreen content in src/lib/proposalContent.js.
 // Staff see it through "View as client" (previewOnly): Accept is locked,
@@ -136,27 +136,13 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
     finally { setBusy(false); }
   };
 
-  // ── thread ────────────────────────────────────────────────────────────────
-  const [thread, setThread] = useState(p.thread || []);
-  useEffect(() => { setThread(p.thread || []); }, [p.thread]);
-  const threadRef = useRef(null);
-  useEffect(() => { const el = threadRef.current; if (el) el.scrollTop = el.scrollHeight; }, [thread.length]);
-  const [q, setQ] = useState(''); const [qBusy, setQBusy] = useState(false); const [qErr, setQErr] = useState(''); const [qSent, setQSent] = useState(false);
-  const ask = async () => {
-    if (previewOnly) { setQErr('Staff preview. Questions come from the client’s own sign-in.'); return; }
-    const v = validateChangeRequest(q);
-    if (!v.ok) { setQErr(v.error); return; }
-    setQBusy(true); setQErr('');
-    try {
-      const r = await requestProposalChanges({ proposalId: p.id, message: v.message });
-      track('proposal_change_requested', { proposalId: p.id });
-      const entry = (r && r.request) || { at: new Date().toISOString(), name: user.name || '', role: 'client', message: v.message };
-      setThread((t) => [...t, entry]);
-      if (DATA.engagement) DATA.engagement.thread = [...(DATA.engagement.thread || []), entry];
-      setQSent(true); setQ('');
-    } catch (e) { setQErr(String((e && e.message) || e)); }
-    finally { setQBusy(false); }
-  };
+  // ── smooth anchors (section nav, "Review terms and sign") while mounted ──
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const el = document.documentElement; const prev = el.style.scrollBehavior;
+    el.style.scrollBehavior = 'smooth';
+    return () => { el.style.scrollBehavior = prev; };
+  }, []);
 
   const [sample, setSample] = useState(null);
   const openSample = (s) => { setSample(s); if (!previewOnly) track('proposal_sample_opened', { proposalId: p.id, sample: s.key }); };
@@ -335,7 +321,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               ))}
             </div>
             <div className="pp-next-foot">
-              <div className="q">Questions first? {preparerFirst} answers in the thread on this page.</div>
+              <div className="q">{contactLine(preparerFirst, { phone, email }).replace(/^Questions\?/, 'Questions first?')}</div>
               {!accepted && !expired && (canAccept || previewOnly) ? <button type="button" className="btn-pill" onClick={jumpToAccept} data-testid="pp-cta">{CTA_LABEL} <ArrowRight /></button> : null}
             </div>
           </div>
@@ -381,24 +367,6 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
                 </a>
               ))}
             </div>
-          </div>
-
-          <div className="card pp-thread-card" data-testid="pp-thread-card">
-            <div className="eyebrow k">Questions &amp; changes</div>
-            <div className="t">Talk to your Alloy team</div>
-            {thread.length ? (
-              <div className="eg-thread" ref={threadRef} data-testid="eg-thread" aria-live="polite">
-                {thread.map((m, i) => <ThreadMessage key={i} m={m} mine={m.role !== 'staff'} />)}
-              </div>
-            ) : (
-              <div className="empty">Ask anything about this proposal: a change, a date, something unclear. Replies show up right here, and by email.</div>
-            )}
-            {qSent ? <div className="ok">Sent. Your Alloy team has it.</div> : null}
-            <div className="send">
-              <textarea className="field" rows={2} value={q} onChange={(e) => { setQ(e.target.value); setQErr(''); setQSent(false); }} placeholder={thread.length ? 'Reply…' : 'A change you’d like, something unclear, a different start date…'} />
-              <button type="button" className="btn-outline" onClick={ask} disabled={qBusy || previewOnly} title={previewOnly ? 'Preview only' : undefined}>{qBusy ? '…' : 'Send'}</button>
-            </div>
-            {qErr ? <div className="pp-err" role="alert">{qErr}</div> : null}
           </div>
           </div>
         </div>

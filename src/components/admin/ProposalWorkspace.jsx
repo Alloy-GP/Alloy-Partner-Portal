@@ -435,9 +435,9 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
             {activity.length ? activity.map((a, i) => <div key={i} className="adm-act"><i style={{ background: a.color }} /><div style={{ minWidth: 0 }}><div className="w">{a.what}</div><div className="t">{fmtWhen(a.at)}</div></div></div>) : <div className="help" style={{ margin: 0 }}>{view ? 'Nothing yet. Views, agreement opens and acceptance show up here.' : 'Send the proposal to start the trail.'}</div>}
           </div>
         </div>
-        {view ? (
+        {view && view.thread.length ? (
           <div className="card" data-testid="adm-thread">
-            <div className="card-head" style={{ marginBottom: 12 }}><div className="eyebrow">Thread</div>{view.thread.length ? <span className="pill pink" style={{ padding: '3px 8px' }}>{view.thread.length}</span> : null}</div>
+            <div className="card-head" style={{ marginBottom: 12 }}><div className="eyebrow">Thread · history</div>{view.thread.length ? <span className="pill pink" style={{ padding: '3px 8px' }}>{view.thread.length}</span> : null}</div>
             {view.thread.length ? <div className="eg-thread">{view.thread.map((m, i) => <ThreadMessage key={i} m={m} mine={m.role === 'staff'} />)}</div> : <div className="help" style={{ margin: '0 0 10px' }}>Questions the client asks on the proposal page land here.</div>}
             {status !== 'draft' ? <div className="send"><textarea className="in sm" rows={2} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Reply…" /><button type="button" className="btn-o" style={{ padding: '0 12px' }} onClick={sendReply} disabled={replyBusy || !reply.trim()}>Send</button></div> : null}
           </div>

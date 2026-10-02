@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       const alert = await sendEmail(to, `Reply from Alloy on your proposal · ${company}`, {
         kicker: "Alloy Growth Partners",
         title: `${me.name || "Your Alloy team"} replied on your proposal`,
-        body: `<div style="white-space:pre-wrap;background:#f8f7fc;border-radius:10px;padding:12px 14px;">${esc(message)}</div><br>The full conversation is on your proposal page. Reply there, or just answer this email.`,
+        body: `<div style="white-space:pre-wrap;background:#f8f7fc;border-radius:10px;padding:12px 14px;">${esc(message)}</div><br>Just answer this email to continue the conversation.`,
         ctaUrl: portalUrl, ctaLabel: "Open the proposal",
         footer: `Sent because you asked a question on ${company}'s proposal in the Alloy Growth Portal.`,
       }, user.email || undefined);
