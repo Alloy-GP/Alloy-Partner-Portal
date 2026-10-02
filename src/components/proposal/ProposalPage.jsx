@@ -335,7 +335,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               ))}
             </div>
             <div className="pp-next-foot">
-              <div className="q">Questions first? {preparerFirst} answers in the thread on the right.</div>
+              <div className="q">Questions first? {preparerFirst} answers in the thread on this page.</div>
               {!accepted && !expired && (canAccept || previewOnly) ? <button type="button" className="btn-pill" onClick={jumpToAccept} data-testid="pp-cta">{CTA_LABEL} <ArrowRight /></button> : null}
             </div>
           </div>
@@ -344,6 +344,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
 
         {/* ── sidebar ── */}
         <div className="pp-side" style={{ paddingTop: sidebarPad }}>
+          <div className="pp-side-stick">
           <div className="card pp-side-card" data-testid="pp-proof">
             <div className="eyebrow k">{HOW_WE_WORK.k}</div>
             <div className="t">{HOW_WE_WORK.t}</div>
@@ -398,6 +399,7 @@ export default function ProposalPage({ onAccepted, onSignOut, previewOnly = fals
               <button type="button" className="btn-outline" onClick={ask} disabled={qBusy || previewOnly} title={previewOnly ? 'Preview only' : undefined}>{qBusy ? '…' : 'Send'}</button>
             </div>
             {qErr ? <div className="pp-err" role="alert">{qErr}</div> : null}
+          </div>
           </div>
         </div>
       </div>

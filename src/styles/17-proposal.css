@@ -295,7 +295,10 @@
 
 /* sidebar */
 .pp-side .card { padding: 22px; }
-.pp-side-card { position: sticky; top: 120px; }
+/* proof + thread travel together; they only stick when the viewport is tall
+   enough to show both (a sticky card taller than the screen just gets cut off) */
+.pp-side-stick { display: flex; flex-direction: column; gap: 20px; }
+@media (min-height: 1040px) { .pp-side-stick { position: sticky; top: 120px; } }
 .pp-side .k { color: var(--pp-pink); margin-bottom: 6px; }
 .pp-side .k.sep { padding-top: 18px; border-top: 1px solid var(--pp-gray); }
 .pp-side .t { font-size: 16px; font-weight: 700; color: var(--pp-purple); margin-bottom: 14px; }
@@ -314,7 +317,7 @@
 .pp-stile.dark .t1 { color: #fff; }
 .pp-stile.dark .t2 { color: var(--pp-border-strong); }
 .pp-stile.dark .go { color: var(--pp-yellow); }
-.pp-thread-card .eg-thread { max-height: 360px; }
+.pp-thread-card .eg-thread { max-height: 260px; }
 .pp-thread-card .send { display: flex; gap: 8px; }
 .pp-thread-card .send textarea { flex: 1; min-width: 0; resize: none; }
 .pp-thread-card .empty { font-size: 13px; line-height: 1.55; color: var(--pp-body); background: var(--pp-off); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
@@ -411,11 +414,11 @@
   .pp-cover-in { display: block; padding: 40px 20px 32px; }
   .pp-cover-spacer { display: none; }
   .pp-accept { position: static; width: auto; margin: 28px 0 0; box-shadow: var(--pp-lg); }
-  .pp-nav { top: 0; }
+  .pp-nav { position: static; }
   .pp-body { display: block; padding: 24px 16px 64px; }
   .pp-main { gap: 18px; }
   .pp-side { margin-top: 24px; }
-  .pp-side-card { position: static; }
+  .pp-side-stick { position: static; }
   .pp-pad { padding: 22px; }
   .pp-h2 h2 { font-size: 22px; white-space: normal; }
   .pp-h3, .pp-h3.big { font-size: 24px; }
