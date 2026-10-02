@@ -112,7 +112,7 @@ describe('copy helpers', () => {
     expect(t).toContain('$4,250/month');
     expect(t).toContain('$1,500 setup');
     expect(proposalAgreementText('', {})).toContain('my company');
-    expect(PROPOSAL_AGREEMENT_VERSION).toBe('v1');
+    expect(PROPOSAL_AGREEMENT_VERSION).toBe('v2');
   });
   it('paragraphs split on blank lines; money drops cents when whole', () => {
     expect(paragraphs('a\n\n  b  \n\n\nc')).toEqual(['a', 'b', 'c']);

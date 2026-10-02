@@ -10,8 +10,8 @@
 import { buildAgreement } from "./agreementTerms.js";
 
 export const ALLOY_LEGAL = {
-  name: "Troves, LLC d.b.a. Alloy Creatives",
-  short: "Alloy Creatives",
+  name: "Alloy Growth Partners, LLC",
+  short: "Alloy Growth Partners",
   brand: "Alloy Growth Partners",
   city: "Austin, TX",
   signer: "Skyler Nelson, Partner",
@@ -69,6 +69,11 @@ export function normalizePlans(raw) {
       guarantee: !!p.guarantee,
       exclusive: !!p.exclusive,
       referralDiscount: Math.max(0, Number(p.referralDiscount) || 0),
+      // v3: match HOA preferred-partner status, portal access, and the "Fuel"
+      // bar (0–100; null = derive from price in the UI).
+      matchHoa: !!p.matchHoa,
+      portal: p.portal !== false,
+      fuel: Number.isFinite(Number(p.fuel)) && p.fuel !== "" && p.fuel !== null ? Math.max(0, Math.min(100, Math.round(Number(p.fuel)))) : null,
       recommended: !!p.recommended,
       show: p.show !== false,
     });
@@ -136,7 +141,7 @@ export function agreementDocument(input) {
   ];
   const built = buildAgreement({
     clientName: legalName,
-    clientEntity: String(i.clientEntityType || "").trim() || "[entity type]",
+    clientEntity: String(i.clientEntityType || "").trim() || "[entity type, e.g. Louisiana limited liability company]",
     clientAddress: String(i.clientAddress || "").trim() || "[client principal place of business]",
     effective,
     track: plan.name,

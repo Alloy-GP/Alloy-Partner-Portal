@@ -1,26 +1,24 @@
 import React from 'react';
-import { fmtUSD, planLocLabel, roiFor, longDate } from '../../lib/proposalPlans.js';
+import { fmtUSD, planLocLabel, longDate } from '../../lib/proposalPlans.js';
 import { PROPOSAL_AGREEMENT_VERSION } from '../../lib/engagementGate.js';
 import { ArrowRight, Chevron, Check, FileIcon, Stripes } from './icons.jsx';
 
-const { useState } = React;
-
-// The floating acceptance card. States (README §4):
-//   summary (+ROI)  →  pink band  →  form (read & confirm, sign)  →  accepted
+// The floating acceptance card (v3). States:
+//   summary (plan · price · setup/term/billing)  →  pink band  →  form (read &
+//   confirm, sign)  →  accepted
 // Variants: non-owner (summary + "your owner accepts"), expired (band disabled),
 // staff preview (form visible, Accept locked). Everything money-related reads
-// the SELECTED plan so switching plans in §05 updates here instantly.
+// the SELECTED plan so switching plans in §03 updates here instantly.
 export default function AcceptCard({
-  cardRef, plan, company, startDate, roiDefaults, canAccept, ownerNames, expired, validThrough, previewOnly,
+  cardRef, plan, company, startDate, canAccept, ownerNames, expired, validThrough, previewOnly,
   open, onToggle, agreementRead, onOpenAgreement, name, title, onName, onTitle, onAccept, busy, err,
   accepted, acceptedAt, preparerFirst, welcomeCallUrl, onEnterPortal, nameRef,
 }) {
-  const [roi, setRoi] = useState({ door: roiDefaults.feePerDoor, doors: roiDefaults.doorsPerCommunity });
-  const r = roiFor({ monthly: plan ? plan.monthly : 0, feePerDoor: roi.door, doors: roi.doors });
   const hasName = String(name || '').trim().length > 1;
   const ready = hasName && agreementRead;
   const doneCount = (agreementRead ? 1 : 0) + (hasName ? 1 : 0);
   const first = (String(name || '').trim().split(/\s+/)[0]) || 'there';
+  const signedAs = `${String(name || '').trim()}${String(title || '').trim() ? `, ${String(title).trim()}` : ''}`;
 
   if (accepted) {
     return (
@@ -32,12 +30,12 @@ export default function AcceptCard({
           <h3>Welcome aboard, {first}.</h3>
           <p>{preparerFirst} has been notified. Your portal is live{startDate ? `, and Foundation starts ${longDate(startDate)}` : ''}.</p>
           <div className="list">
-            <div><i style={{ background: '#aed7d0' }} />Proposal signed — {String(name || '').trim()}{String(title || '').trim() ? `, ${String(title).trim()}` : ''}</div>
+            <div><i style={{ background: '#aed7d0' }} />Proposal signed by {signedAs}</div>
             <div><i style={{ background: '#f5d880' }} />Next: add a bank account for autopay</div>
-            <div className={welcomeCallUrl ? '' : 'dim'}><i style={{ background: welcomeCallUrl ? '#a1c8e7' : 'rgba(255,255,255,.3)' }} />{welcomeCallUrl ? 'Welcome call — pick a time below' : `Welcome call — ${preparerFirst} will propose times`}</div>
+            <div className={welcomeCallUrl ? '' : 'dim'}><i style={{ background: welcomeCallUrl ? '#a1c8e7' : 'rgba(255,255,255,.3)' }} />{welcomeCallUrl ? 'Kickoff call: pick a time below' : `Kickoff call: ${preparerFirst} will propose times`}</div>
           </div>
           <button type="button" className="btn-pill" onClick={onEnterPortal} data-testid="pp-enter-portal">Open your portal <ArrowRight /></button>
-          {welcomeCallUrl ? <div className="cal"><a href={welcomeCallUrl} target="_blank" rel="noopener noreferrer">Schedule your welcome call ↗</a></div> : null}
+          {welcomeCallUrl ? <div className="cal"><a href={welcomeCallUrl} target="_blank" rel="noopener noreferrer">Schedule your kickoff call ↗</a></div> : null}
         </div>
       </div>
     );
@@ -48,20 +46,15 @@ export default function AcceptCard({
       <Stripes thin onWhite />
       <div className="pp-accept-sum">
         <div className="row">
-          <div className="eyebrow plan">{plan ? `${plan.name} plan · ${planLocLabel(plan)}` : 'Your plan'}</div>
+          <div className="eyebrow plan">{plan ? `${plan.name} · ${planLocLabel(plan)}` : 'Your plan'}</div>
           <div className="starts">{startDate ? `Starts ${longDate(startDate).replace(/, \d{4}$/, '')}` : ''}</div>
         </div>
         <div className="price"><b>{fmtUSD(plan ? plan.monthly : 0)}</b><span>/ month</span></div>
-        <div className="sub">{plan && plan.setup ? `${fmtUSD(plan.setup)} setup · ` : ''}{plan ? `${plan.termMonths} months` : ''} · ACH autopay</div>
-      </div>
-      <div className="pp-roi" data-testid="pp-roi">
-        <div className="t">How it pays for itself</div>
-        <div className="big"><b>{r.communities || '—'}</b><div>{r.label}<br /><span>covers our fee for the year</span></div></div>
-        <div className="pp-roi-grid">
-          <label><span className="l">Fee per door / mo</span><span className="in"><b>$</b><input type="number" min="0" step="1" value={roi.door} onChange={(e) => setRoi((x) => ({ ...x, door: Number(e.target.value) }))} aria-label="Fee per door per month" /></span></label>
-          <label><span className="l">Doors / community</span><span className="in"><input type="number" min="0" step="10" value={roi.doors} onChange={(e) => setRoi((x) => ({ ...x, doors: Number(e.target.value) }))} aria-label="Doors per community" /></span></label>
+        <div className="pp-accept-mini">
+          <div><div className="k">Setup</div><div className="v">{fmtUSD(plan ? plan.setup : 0)}</div></div>
+          <div><div className="k">Term</div><div className="v">{plan ? `${plan.termMonths} months` : '—'}</div></div>
+          <div><div className="k">Billing</div><div className="v">ACH autopay</div></div>
         </div>
-        <div className="note">One community ≈ <b>{fmtUSD(r.perCommunity)}</b> a year to you. Our fee is <b>{fmtUSD(r.feeYear)}/yr</b>. Everything after that is growth.</div>
       </div>
 
       {expired ? (
@@ -75,7 +68,7 @@ export default function AcceptCard({
           <button type="button" className={`pp-band${open ? ' is-open' : ''}`} onClick={onToggle} data-testid="pp-band">
             <div>
               <div className="t">Review terms and accept</div>
-              <div className="s">{open ? (ready ? 'Ready — hit accept below.' : `${doneCount} of 2 steps done`) : 'Read the agreement, sign your name. Two minutes.'}</div>
+              <div className="s">{open ? (ready ? 'Ready. Hit accept below.' : `${doneCount} of 2 steps done`) : 'Read the agreement, sign your name. Two minutes.'}</div>
             </div>
             <span className="arrow"><Chevron /></span>
           </button>

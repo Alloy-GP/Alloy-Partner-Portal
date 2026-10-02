@@ -1,7 +1,7 @@
 // ============================================================================
-// Proposal plans, comparison grid, ROI, validity — pure logic for the redesigned
-// proposal page and its Admin authoring. The parts the edge function also needs
-// (plan normalisation, money, the agreement document) live in
+// Proposal plans, comparison grid, sections, validity — pure logic for the
+// proposal page (v3) and its Admin authoring. The parts the edge function also
+// needs (plan normalisation, money, the agreement document) live in
 // supabase/functions/engagement-proposal/proposalShared.js and are re-exported
 // here so there is exactly one implementation. Tested in proposalPlans.test.js.
 // ============================================================================
@@ -12,46 +12,59 @@ export {
 } from '../../supabase/functions/engagement-proposal/proposalShared.js';
 import { normalizePlans as _normalizePlans, fmtUSD as _fmtUSD, planLocLabel as _planLocLabel, DEFAULT_EXCLUSIVITY_MILES } from '../../supabase/functions/engagement-proposal/proposalShared.js';
 
-// Prefill for a new proposal — staff edit from here. Prices are the current
-// standard tiers; locations default from the account where it has them.
+// Prefill for a new proposal — staff edit from here. The three standard tiers
+// (v3 handoff): Steady · Accelerate (recommended) · Ascend. `fuel` drives the
+// striped bar under each plan's price; `matchHoa` = preferred-partner status.
 export const PLAN_TEMPLATES = [
-  { key: 'core', name: 'Core', tagline: 'One market', monthly: 3200, setup: 2500, locations: 1, termMonths: 12, guarantee: false, exclusive: false, referralDiscount: 150, recommended: false },
-  { key: 'growth', name: 'Growth', tagline: 'Three markets', monthly: 6850, setup: 2500, locations: 3, termMonths: 12, guarantee: true, exclusive: true, referralDiscount: 150, recommended: true },
-  { key: 'scale', name: 'Scale', tagline: 'Five markets', monthly: 9400, setup: 2500, locations: 5, termMonths: 12, guarantee: true, exclusive: true, referralDiscount: 150, recommended: false },
+  { key: 'steady', name: 'Steady', tagline: 'One market', monthly: 3200, setup: 2500, locations: 1, termMonths: 12, guarantee: false, exclusive: false, matchHoa: false, portal: true, fuel: 35, referralDiscount: 150, recommended: false },
+  { key: 'accelerate', name: 'Accelerate', tagline: 'Three markets', monthly: 6850, setup: 2500, locations: 3, termMonths: 12, guarantee: true, exclusive: true, matchHoa: true, portal: true, fuel: 70, referralDiscount: 150, recommended: true },
+  { key: 'ascend', name: 'Ascend', tagline: 'Five markets', monthly: 9400, setup: 2500, locations: 5, termMonths: 12, guarantee: true, exclusive: true, matchHoa: true, portal: true, fuel: 100, referralDiscount: 150, recommended: false },
 ];
-export const DEFAULT_ROI = { feePerDoor: 14, doorsPerCommunity: 150 };
 export const DEFAULT_TESTIMONIAL = { vimeoId: '1131397045', caption: 'Client testimonial · 2:58' };
 export const VALIDITY_DAYS = 30;
+export const FIRST_PLAYBOOK_BUSINESS_DAYS = 21;
 
-// The six page sections. `sections` jsonb on the row is {key: bool}; missing = shown.
+// Fuel bar: the plan's own value, else relative to the priciest plan shown.
+export function planFuel(plan, plans) {
+  if (!plan) return 0;
+  if (Number.isFinite(plan.fuel) && plan.fuel !== null) return Math.max(0, Math.min(100, plan.fuel));
+  const max = Math.max(0, ...(plans || [plan]).map((p) => Number(p.monthly) || 0));
+  return max > 0 ? Math.max(8, Math.round(((Number(plan.monthly) || 0) / max) * 100)) : 0;
+}
+
+// Page sections staff can switch off (sections jsonb on the row is {key: bool};
+// missing = shown). Investment + the accept card never hide. The four
+// "What to expect" blocks share the 02 heading; the heading goes when all four do.
 export const SECTION_DEFS = [
-  { key: 's1', n: '01', label: 'The plan in one view', note: 'Intro paragraph + 3 stat tiles' },
-  { key: 's2', n: '02', label: 'We know CAM', note: '35 years · 10 expertise tiles' },
-  { key: 's3', n: '03', label: 'What you get', note: '4 outcome cards from the modules' },
-  { key: 's4', n: '04', label: 'How we do it', note: '5 topic tiles with peek modals' },
-  { key: 's5', n: '05', label: 'Investment & guarantee', note: 'Plan comparison + seal' },
-  { key: 's6', n: '06', label: 'Next steps', note: '4-step timeline + CTA' },
+  { key: 'results', n: '01', label: 'What you’re buying', note: 'Three-year plan: the 2× / 6×+ / 1× results block' },
+  { key: 'baseline', n: '02', label: 'What to expect · the baseline', note: 'Everything a traditional agency does · capability chips' },
+  { key: 'programs', n: '02', label: 'What to expect · three CAM programs', note: 'Reach (attract) · Match (close) · Retain (keep)' },
+  { key: 'expertise', n: '02', label: 'What to expect · 35+ years inside CAM', note: 'Years band + 10 expertise tiles' },
+  { key: 'partner', n: '02', label: 'What to expect · preferred partner network', note: 'The match HOA card' },
+  { key: 'next', n: '04', label: 'Next steps', note: 'Three steps + Review terms and sign' },
 ];
-export const OUTCOME_TOGGLE_KEYS = ['o-reach', 'o-match', 'o-retain', 'o-core'];
+export const EXPECT_KEYS = ['baseline', 'programs', 'expertise', 'partner'];
 export function normalizeSections(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
-  return Object.fromEntries([...SECTION_DEFS.map((s) => s.key), ...OUTCOME_TOGGLE_KEYS].map((k) => [k, src[k] !== false]));
+  return Object.fromEntries(SECTION_DEFS.map((s) => [s.key, src[s.key] !== false]));
 }
 // Full Vimeo URL or bare id → id digits ('' when unparseable).
 export function vimeoId(v) { const m = String(v || '').match(/(\d{6,})/); return m ? m[1] : ''; }
-export const FIRST_PLAYBOOK_BUSINESS_DAYS = 21;
 
-// Comparison grid rows. `show` is a per-proposal toggle (compare_rows jsonb);
-// `cell(plan)` yields true/false (check/dash) or a string. Order = display order.
+// Comparison grid rows (v3 order). `show` is a per-proposal toggle
+// (compare_rows jsonb); `cell(plan)` yields true/false (check/dash), a string,
+// or {kind:'logo'} for the match HOA mark. Order = display order.
+const LOGO = { kind: 'logo' };
 export const COMPARE_ROW_DEFS = [
+  { key: 'matchhoa', label: 'match HOA preferred partner', note: () => 'Boards searching on match HOA are introduced to you first.', cell: (p) => (p.matchHoa ? LOGO : false) },
   { key: 'locations', label: 'Locations', note: () => 'Markets with their own page, profile, form route and review flow.', cell: (p) => String(p.locations) },
   { key: 'term', label: 'Term', note: () => 'Month-to-month after the initial term.', cell: (p) => `${p.termMonths} months` },
-  { key: 'exclusivity', label: 'Market exclusivity', note: (o) => `We won't work with a competing manager within ${o.exclusivityMiles} miles of each of your markets.`, cell: (p) => !!p.exclusive },
-  { key: 'guarantee', label: 'Results Guarantee', note: () => 'Growth covers our fees or you get a refund.', cell: (p) => !!p.guarantee },
-  { key: 'portal', label: 'Growth Portal', note: () => 'Roadmap, playbook, leads, reports, billing.', cell: () => 'Every seat' },
-  { key: 'referral', label: 'Referral discount', note: () => 'For each CAM firm you refer that signs.', cell: (p) => p.referralDiscount > 0 ? `−${_fmtUSD(p.referralDiscount)} / mo` : false },
+  { key: 'exclusivity', label: 'Market exclusivity', note: (o) => `We won’t work with a competing manager within ${o.exclusivityMiles} miles of each of your markets.`, cell: (p) => !!p.exclusive },
+  { key: 'guarantee', label: 'Results Guarantee', note: () => 'Your growth covers our fees. Money-back guaranteed.', cell: (p) => !!p.guarantee },
+  { key: 'portal', label: 'Growth Portal', note: () => 'Roadmap, playbook, leads, reports, billing.', cell: (p) => (p.portal !== false ? 'Every seat' : false) },
+  { key: 'referral', label: 'Referral discount', note: () => 'For each CAM firm you refer that signs.', cell: (p) => (p.referralDiscount > 0 ? `−${_fmtUSD(p.referralDiscount)} / mo` : false) },
   { key: 'setup', label: 'One-time setup', note: () => `Foundation & onboarding, first ${FIRST_PLAYBOOK_BUSINESS_DAYS} business days.`, cell: (p) => _fmtUSD(p.setup) },
-  { key: 'monthly', label: 'Monthly investment', note: () => '', cell: (p) => _fmtUSD(p.monthly), strong: true },
+  { key: 'monthly', label: 'Monthly investment', note: () => 'All discounts applied.', cell: (p) => _fmtUSD(p.monthly), strong: true },
 ];
 
 export function defaultCompareRows() {
@@ -71,34 +84,27 @@ export function normalizeCustomRows(raw) {
     cells: Object.fromEntries(Object.entries(r.cells && typeof r.cells === 'object' ? r.cells : {}).map(([k, v]) => [k, v === true ? true : v === false || v == null ? false : String(v)])),
   }));
 }
-const toCell = (v) => v === true ? { kind: 'check' } : (v === false || v == null || v === '') ? { kind: 'dash' } : { kind: 'text', text: String(v) };
+const toCell = (v) => (v && typeof v === 'object' && v.kind) ? v : v === true ? { kind: 'check' } : (v === false || v == null || v === '') ? { kind: 'dash' } : { kind: 'text', text: String(v) };
 
-// Rows × plans → cells the grid renders. A cell is {kind:'check'|'dash'|'text', text}.
+// Rows × plans → cells the grid renders. A cell is {kind:'check'|'dash'|'text'|'logo', text}.
 // Custom rows sit after the standard rows and before Monthly investment.
 export function compareRows(plans, toggles, opts = {}) {
   const t = normalizeCompareRows(toggles);
   const o = { exclusivityMiles: opts.exclusivityMiles || DEFAULT_EXCLUSIVITY_MILES };
-  const std = COMPARE_ROW_DEFS.filter((r) => t[r.key]).map((r) => ({
-    key: r.key, label: r.label, note: r.note(o), strong: !!r.strong,
-    cells: (plans || []).map((p) => toCell(r.cell(p))),
-  }));
+  const list = plans || [];
+  const std = COMPARE_ROW_DEFS.filter((r) => t[r.key])
+    // the partner row only earns its place when some shown plan has it
+    .filter((r) => r.key !== 'matchhoa' || list.some((p) => p.matchHoa))
+    .map((r) => ({
+      key: r.key, label: r.label, note: r.note(o), strong: !!r.strong,
+      cells: list.map((p) => toCell(r.cell(p))),
+    }));
   const custom = normalizeCustomRows(opts.customRows).map((r) => ({
     key: `custom-${r.id}`, label: r.label, note: r.note, strong: false, custom: true,
-    cells: (plans || []).map((p) => toCell(r.cells[p.key])),
+    cells: list.map((p) => toCell(r.cells[p.key])),
   }));
   const last = std.length && std[std.length - 1].key === 'monthly' ? std.pop() : null;
   return [...std, ...custom, ...(last ? [last] : [])];
-}
-
-// "How it pays for itself": how many new communities a year cover the fee.
-export function roiFor({ monthly, feePerDoor, doors } = {}) {
-  const feeYear = (Number(monthly) || 0) * 12;
-  const perCommunity = (Number(feePerDoor) || 0) * (Number(doors) || 0) * 12;
-  const communities = perCommunity > 0 && feeYear > 0 ? Math.max(1, Math.ceil(feeYear / perCommunity)) : 0;
-  return {
-    feeYear, perCommunity, communities,
-    label: communities === 1 ? 'new community a year' : 'new communities a year',
-  };
 }
 
 // Validity window. Dates compare as YYYY-MM-DD so time zones can't expire a

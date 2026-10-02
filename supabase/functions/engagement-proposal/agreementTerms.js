@@ -1,9 +1,9 @@
 // Alloy service agreement — real contract text, populated from proposal fields.
-// f = { clientName, clientEntity, clientAddress, effective, track, monthly, setup, termMonths, guarantee, spoc }
+// f = { clientName, clientEntity, clientAddress, effective, track, monthly, setup, termMonths, guarantee, spoc, miles }
 export function buildAgreement(f) {
   const S = (n, title, body, subs) => ({ n: String(n), title, body: body || "", subs: subs || [] });
   const sub = (n, title, body) => ({ n, title, body });
-  const preamble = `This ALLOY CREATIVES & ${f.clientName.toUpperCase()} SERVICE AGREEMENT ("Agreement"), effective as of ${f.effective} ("Effective Date"), is by and between Troves, LLC d.b.a. Alloy Creatives ("Alloy"), a limited liability company with a principal place of business at 4908 Manchaca Rd, Austin, TX 78745, and ${f.clientName} ("Client"), a ${f.clientEntity} with a principal place of business at ${f.clientAddress}.
+  const preamble = `This ALLOY GROWTH PARTNERS & ${f.clientName.toUpperCase()} SERVICE AGREEMENT ("Agreement"), effective as of ${f.effective} ("Effective Date"), is by and between Alloy Growth Partners, LLC ("Alloy"), a limited liability company with a principal place of business at 4908 Manchaca Rd, Austin, TX 78745, and ${f.clientName} ("Client"), a ${f.clientEntity} with a principal place of business at ${f.clientAddress}.
 
 IN CONSIDERATION OF the mutual benefits and obligations set forth in this Agreement, the receipt and sufficiency of which consideration is hereby acknowledged, Alloy and the Client (individually the "Party" and together the "Parties" to this Agreement) agree as follows:`;
   const guarantee = f.guarantee ? [

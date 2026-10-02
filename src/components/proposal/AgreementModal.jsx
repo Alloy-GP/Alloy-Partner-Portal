@@ -20,7 +20,7 @@ export default function AgreementModal({ doc, onClose, onAgree, canAgree = true 
     if (!el || typeof window === 'undefined' || !window.open) return;
     const w = window.open('', '_blank');
     if (!w) return;
-    w.document.write(`<!doctype html><html><head><title>Alloy Service Agreement ${doc.ref || ''}</title><style>body{font-family:Gotham,Poppins,Helvetica,Arial,sans-serif;margin:48px;color:#555;line-height:1.6}h3{color:#381c4f}b,strong{color:#381c4f}@page{margin:.75in}</style></head><body>${el.innerHTML}</body></html>`);
+    w.document.write(`<!doctype html><html><head><title>Alloy Growth Partnership Agreement ${doc.ref || ''}</title><style>body{font-family:Gotham,Poppins,Helvetica,Arial,sans-serif;margin:48px;color:#555;line-height:1.6}h3{color:#381c4f}b,strong{color:#381c4f}@page{margin:.75in}</style></head><body>${el.innerHTML}</body></html>`);
     w.document.close();
     setTimeout(() => { try { w.focus(); w.print(); } catch { /* user closed */ } }, 300);
   };

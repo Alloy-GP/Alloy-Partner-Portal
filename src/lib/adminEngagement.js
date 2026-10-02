@@ -1,9 +1,9 @@
 import { supabase } from './supabase.js';
 import { engagementRowToView, normalizeReferenceLinks, parseLinkLines, invalidLinkLines, isHttpUrl } from './engagementGate.js';
-import { DEFAULT_MODULES, MODULE_BY_KEY, normalizeLocations } from './engagementCatalog.js';
+import { normalizeLocations } from './engagementCatalog.js';
 import {
   PLAN_TEMPLATES, normalizePlans, pickPlan, visiblePlans, defaultCompareRows, normalizeCompareRows, normalizeCustomRows, normalizeSections,
-  DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL, VALIDITY_DAYS, defaultValidThrough, proposalRef, nextRefSeq, vimeoId,
+  DEFAULT_EXCLUSIVITY_MILES, DEFAULT_TESTIMONIAL, VALIDITY_DAYS, defaultValidThrough, proposalRef, nextRefSeq, vimeoId,
 } from './proposalPlans.js';
 
 // Staff-side engagement proposal (Admin → client → Engagement proposal). Reads
@@ -90,10 +90,7 @@ export function blankProposalForm({ company, locations, legalName } = {}) {
   const n = Array.isArray(locations) && locations.length ? locations.length : 1;
   return {
     title: company ? `Growth partnership for ${company}` : 'Growth partnership proposal',
-    intro: '',
-    closing: '',
     locationsCount: n,
-    modules: [...DEFAULT_MODULES],
     plans: PLAN_TEMPLATES.map((p) => ({ ...p })),
     compareRows: defaultCompareRows(),
     customRows: [],
@@ -102,9 +99,10 @@ export function blankProposalForm({ company, locations, legalName } = {}) {
     spoc: '',
     validDays: String(VALIDITY_DAYS),
     preparedByName: '',
+    preparedByPhone: '',
+    preparedByEmail: '',
+    nextStepsTitle: '',
     exclusivityMiles: String(DEFAULT_EXCLUSIVITY_MILES),
-    roiFeePerDoor: String(DEFAULT_ROI.feePerDoor),
-    roiDoorsPerCommunity: String(DEFAULT_ROI.doorsPerCommunity),
     clientLegalName: legalName || company || '',
     clientEntityType: '',
     clientAddress: '',
@@ -123,10 +121,7 @@ export function viewToForm(v) {
   if (!v) return blankProposalForm();
   return {
     title: v.title || '',
-    intro: v.intro || '',
-    closing: v.closing || '',
     locationsCount: v.locationsCount || 1,
-    modules: [...(v.modules || [])],
     plans: (v.plans || []).map((p) => ({ ...p })),
     compareRows: normalizeCompareRows(v.compareRows),
     customRows: (v.customRows || []).map((r) => ({ ...r, cells: { ...r.cells } })),
@@ -135,9 +130,10 @@ export function viewToForm(v) {
     spoc: v.spoc || '',
     validDays: String(v.validDays || VALIDITY_DAYS),
     preparedByName: v.preparedByName || '',
+    preparedByPhone: v.preparedByPhone || '',
+    preparedByEmail: v.preparedByEmail || '',
+    nextStepsTitle: v.nextStepsTitle || '',
     exclusivityMiles: String(v.exclusivityMiles || DEFAULT_EXCLUSIVITY_MILES),
-    roiFeePerDoor: String(v.roiFeePerDoor || DEFAULT_ROI.feePerDoor),
-    roiDoorsPerCommunity: String(v.roiDoorsPerCommunity || DEFAULT_ROI.doorsPerCommunity),
     clientLegalName: v.clientLegalName || '',
     clientEntityType: v.clientEntityType || '',
     clientAddress: v.clientAddress || '',
@@ -161,9 +157,6 @@ export function formToRow(form = {}) {
   const rec = pickPlan(plans);
   return {
     title: String(form.title || '').trim(),
-    intro: String(form.intro || ''),
-    closing: String(form.closing || ''),
-    modules: (form.modules || []).filter((k) => MODULE_BY_KEY[k]),
     plans,
     compare_rows: normalizeCompareRows(form.compareRows),
     custom_rows: normalizeCustomRows(form.customRows),
@@ -172,9 +165,10 @@ export function formToRow(form = {}) {
     spoc: String(form.spoc || '').trim() || null,
     valid_days: int(form.validDays) || VALIDITY_DAYS,
     prepared_by_name: String(form.preparedByName || '').trim() || null,
+    prepared_by_phone: String(form.preparedByPhone || '').trim() || null,
+    prepared_by_email: String(form.preparedByEmail || '').trim().toLowerCase() || null,
+    next_steps_title: String(form.nextStepsTitle || '').trim() || null,
     exclusivity_miles: int(form.exclusivityMiles) || DEFAULT_EXCLUSIVITY_MILES,
-    roi_fee_per_door: num(form.roiFeePerDoor) || DEFAULT_ROI.feePerDoor,
-    roi_doors_per_community: int(form.roiDoorsPerCommunity) || DEFAULT_ROI.doorsPerCommunity,
     client_legal_name: String(form.clientLegalName || '').trim() || null,
     client_entity_type: String(form.clientEntityType || '').trim() || null,
     client_address: String(form.clientAddress || '').trim() || null,
@@ -205,8 +199,8 @@ export function validateProposalForm(form = {}) {
   }
   const miles = Number(form.exclusivityMiles);
   if (!Number.isInteger(miles) || miles < 1) errors.exclusivityMiles = 'Exclusivity radius must be a whole number of miles.';
-  if (!(num(form.roiFeePerDoor) > 0)) errors.roiFeePerDoor = 'Fee per door must be a positive number.';
-  if (!(int(form.roiDoorsPerCommunity) > 0)) errors.roiDoorsPerCommunity = 'Doors per community must be a whole number.';
+  const em = String(form.preparedByEmail || '').trim();
+  if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) errors.preparedByEmail = 'That email doesn\u2019t look right.';
   const bad = invalidLinkLines(form.linksText);
   if (bad.length) errors.linksText = `Not a link: ${bad.slice(0, 2).join(', ')}${bad.length > 2 ? '…' : ''}. Use https:// URLs, one per line.`;
   const wc = String(form.welcomeCallUrl || '').trim();
@@ -233,7 +227,7 @@ export function validateForSend(form = {}) {
 // Worth a nudge, not a block.
 export function sendWarnings(form = {}) {
   const w = [];
-  if (!String(form.intro || '').trim()) w.push('No intro — the cover opens without your paragraph.');
+  if (!String(form.preparedByEmail || '').trim() && !String(form.preparedByPhone || '').trim()) w.push('No contact on the cover: add a phone or email under Prepared by so the client can reach you.');
   if (!String(form.testimonialVimeoId || '').trim()) w.push('No testimonial video — the proof card shows documents only.');
   if (!parseLinkLines(form.linksText).length) w.push('No reference documents linked.');
   if (!String(form.welcomeCallUrl || '').trim()) w.push('No welcome-call scheduling link — the accepted state will say we’ll reach out.');

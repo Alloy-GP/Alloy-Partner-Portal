@@ -7,12 +7,11 @@ import {
 import { notifyProposalSent, replyOnProposal } from '../../lib/engagement.js';
 import { validateChangeRequest, fmtDate } from '../../lib/engagementGate.js';
 import {
-  PLAN_TEMPLATES, COMPARE_ROW_DEFS, SECTION_DEFS, normalizePlans, pickPlan, visiblePlans, fmtUSD, dueAtStart, roiFor, longDate,
+  PLAN_TEMPLATES, COMPARE_ROW_DEFS, SECTION_DEFS, normalizePlans, pickPlan, visiblePlans, fmtUSD, dueAtStart, longDate,
   isExpired, agreementDocument, marketsFor, vimeoId,
 } from '../../lib/proposalPlans.js';
 import { ThreadMessage } from '../ThreadMessage.jsx';
-import { OUTCOME_KEYS } from '../../lib/proposalContent.js';
-import { MODULES } from '../../lib/engagementCatalog.js';
+import { NEXT_STEPS_TITLE } from '../../lib/proposalContent.js';
 import AgreementModal from '../proposal/AgreementModal.jsx';
 import { LOCATION_TAGS } from './ClientTabs.jsx';
 
@@ -65,8 +64,6 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
   const checklist = sendChecklist(form, invites);
   const missingLegal = checklist.filter((c) => (c.key === 'legal' || c.key === 'entity') && !c.ok).length + (checklist.find((c) => c.key === 'entity' && !c.ok) ? 0 : 0);
   const legalMissingCount = ['clientLegalName', 'clientEntityType', 'clientAddress'].filter((k) => !String(form[k] || '').trim()).length;
-  const roi = rec ? roiFor({ monthly: rec.monthly, feePerDoor: Number(form.roiFeePerDoor), doors: Number(form.roiDoorsPerCommunity) }) : null;
-  const roiLine = roi && roi.communities ? `${roi.communities} ${roi.label} covers the fee` : '—';
 
   // ── plans editor ─────────────────────────────────────────────────────────
   const setPlan = (i, k, val) => setForm((f) => ({ ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, [k]: val } : p)) }));
@@ -184,7 +181,7 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
               <div className="card">
                 <div className="eyebrow" style={{ marginBottom: 12 }}>Included</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[['Results Guarantee', acceptedPlan.guarantee], ['Market exclusivity', acceptedPlan.exclusive], ['Growth Portal, every seat', true], ['Referral discount', acceptedPlan.referralDiscount > 0], ['Quarterly playbook & report', true], ['Monthly reporting', true]].map(([l, on]) => (
+                  {[['match HOA preferred partner', !!acceptedPlan.matchHoa], ['Results Guarantee', acceptedPlan.guarantee], ['Market exclusivity', acceptedPlan.exclusive], ['Growth Portal, every seat', acceptedPlan.portal !== false], ['Referral discount', acceptedPlan.referralDiscount > 0], ['Quarterly playbook & report', true], ['Monthly reporting', true]].map(([l, on]) => (
                     <div key={l} className={`adm-inc${on ? '' : ' off'}`}><span className="ck">{on ? <Check /> : null}</span>{l}</div>
                   ))}
                 </div>
@@ -226,11 +223,17 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
               <div className="eyebrow" style={{ marginBottom: 14 }}>Cover</div>
               <div className="grid220">
                 <Field label="Title" span error={errors.title}><input className={cls('title')} value={form.title} onChange={(e) => set('title')(e.target.value)} style={{ fontSize: 15, fontWeight: 700 }} /></Field>
-                <Field label="Intro (client-facing)" span hint="Blank line = new paragraph."><textarea className="in" rows={3} value={form.intro} onChange={(e) => set('intro')(e.target.value)} /></Field>
                 <Field label="Start date" error={errors.startDate}><input className={cls('startDate')} type="date" value={form.startDate} onChange={(e) => set('startDate')(e.target.value)} /></Field>
                 <Field label="Valid for (days)" error={errors.validDays}><input className={cls('validDays')} type="number" min="1" value={form.validDays} onChange={(e) => set('validDays')(e.target.value)} /></Field>
-                <Field label="Prepared by" hint="Blank = whoever clicks Send."><input className="in" value={form.preparedByName} onChange={(e) => set('preparedByName')(e.target.value)} placeholder="Skyler Nelson" /></Field>
-                <Field label="Closing (above Next steps)" span><textarea className="in" rows={2} value={form.closing} onChange={(e) => set('closing')(e.target.value)} /></Field>
+              </div>
+              <div className="card-sub" style={{ marginTop: 18 }}>The rest of the cover is evergreen copy. The intro paragraph and the 2× / 6×+ / 1× results block are the same on every proposal.</div>
+            </div>
+            <div className="card" data-testid="adm-contact">
+              <div className="card-head"><div className="eyebrow">Prepared by · who the client reaches</div><span className="help" style={{ margin: 0, whiteSpace: 'nowrap' }}>Cover: "Questions? Text, call or email …"</span></div>
+              <div className="grid220">
+                <Field label="Name" hint="Blank = whoever clicks Send."><input className="in" value={form.preparedByName} onChange={(e) => set('preparedByName')(e.target.value)} placeholder="Cameron Lange" /></Field>
+                <Field label="Phone" hint="Shown as a tap-to-call link. Blank hides it."><input className="in" inputMode="tel" value={form.preparedByPhone} onChange={(e) => set('preparedByPhone')(e.target.value)} placeholder="(555) 555-0100" data-testid="adm-contact-phone" /></Field>
+                <Field label="Email" error={errors.preparedByEmail} hint="Blank hides it."><input className={cls('preparedByEmail')} inputMode="email" value={form.preparedByEmail} onChange={(e) => set('preparedByEmail')(e.target.value)} placeholder="cameron@alloygp.co" data-testid="adm-contact-email" /></Field>
               </div>
             </div>
             <div className="card">
@@ -240,14 +243,6 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
                 {!locNames.length ? <span className="help" style={{ margin: 0 }}>Add locations on the Locations tab first.</span> : null}
               </div>
               {errors.markets ? <div className="err">{errors.markets}</div> : null}
-            </div>
-            <div className="card">
-              <div className="eyebrow" style={{ marginBottom: 14 }}>Pays-for-itself defaults</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, alignItems: 'end' }}>
-                <Field label="Fee per door / mo" error={errors.roiFeePerDoor}><input className={cls('roiFeePerDoor')} inputMode="decimal" value={form.roiFeePerDoor} onChange={(e) => set('roiFeePerDoor')(e.target.value)} /></Field>
-                <Field label="Doors / community" error={errors.roiDoorsPerCommunity}><input className={cls('roiDoorsPerCommunity')} type="number" min="1" value={form.roiDoorsPerCommunity} onChange={(e) => set('roiDoorsPerCommunity')(e.target.value)} /></Field>
-                <div className="adm-roi-line"><div className="k">Client sees</div><div className="v" data-testid="adm-roi-line">{roiLine}{rec ? ` · at ${rec.name}` : ''}</div></div>
-              </div>
             </div>
           </>
         ) : null}
@@ -259,7 +254,13 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
             <div className="adm-plans">
               {form.plans.map((p, i) => {
                 const isRec = !!p.recommended;
-                const flags = [['guarantee', 'Results Guarantee', !!p.guarantee, () => setPlan(i, 'guarantee', !p.guarantee)], ['exclusive', 'Market exclusivity', !!p.exclusive, () => setPlan(i, 'exclusive', !p.exclusive)], ['portal', 'Growth Portal', true, null], ['referral', 'Referral discount', Number(p.referralDiscount) > 0, () => setPlan(i, 'referralDiscount', Number(p.referralDiscount) > 0 ? 0 : 150)]];
+                const flags = [
+                  ['matchhoa', 'match HOA preferred partner', !!p.matchHoa, () => setPlan(i, 'matchHoa', !p.matchHoa)],
+                  ['guarantee', 'Results Guarantee', !!p.guarantee, () => setPlan(i, 'guarantee', !p.guarantee)],
+                  ['exclusive', 'Market exclusivity', !!p.exclusive, () => setPlan(i, 'exclusive', !p.exclusive)],
+                  ['portal', 'Growth Portal · every seat', p.portal !== false, () => setPlan(i, 'portal', p.portal === false)],
+                  ['referral', 'Referral discount', Number(p.referralDiscount) > 0, () => setPlan(i, 'referralDiscount', Number(p.referralDiscount) > 0 ? 0 : 150)],
+                ];
                 return (
                   <div key={i} className={`adm-plan${p.show === false ? ' hidden' : ''}`} data-testid={`adm-plan-${i}`}>
                     <div className={`adm-plan-head${isRec ? ' rec' : ''}`}>
@@ -273,10 +274,13 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
                         <Field label="Locations"><input className="in sm" type="number" min="1" value={p.locations} onChange={(e) => setPlan(i, 'locations', e.target.value)} /></Field>
                         <Field label="Term (months)"><input className="in sm" type="number" min="1" value={p.termMonths} onChange={(e) => setPlan(i, 'termMonths', e.target.value)} /></Field>
                       </div>
-                      <input className="in sm" value={p.tagline || ''} onChange={(e) => setPlan(i, 'tagline', e.target.value)} placeholder="Tagline, e.g. Three markets" />
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 92px', gap: 10, alignItems: 'end' }}>
+                        <Field label="Tagline"><input className="in sm" value={p.tagline || ''} onChange={(e) => setPlan(i, 'tagline', e.target.value)} placeholder="e.g. Three markets" /></Field>
+                        <Field label="Fuel %" hint=""><input className="in sm" type="number" min="0" max="100" value={p.fuel ?? ''} onChange={(e) => setPlan(i, 'fuel', e.target.value === '' ? null : e.target.value)} placeholder="auto" title="The striped Fuel bar under the price. Blank = relative to the priciest plan." data-testid={`adm-plan-${i}-fuel`} /></Field>
+                      </div>
                       <div className="adm-flags">
                         {flags.map(([k, l, on, toggle]) => (
-                          <button type="button" key={k} className={`adm-flag${on ? ' on' : ''}${toggle ? '' : ' fixed'}`} onClick={toggle || undefined} aria-pressed={on}><span>{l}{k === 'referral' && on ? ` · −${fmtUSD(p.referralDiscount)}/mo` : ''}</span><span className="box">{on ? <Check color="#fff" size={11} /> : null}</span></button>
+                          <button type="button" key={k} className={`adm-flag${on ? ' on' : ''}${toggle ? '' : ' fixed'}`} onClick={toggle || undefined} aria-pressed={on} data-testid={`adm-plan-${i}-${k}`}><span>{l}{k === 'referral' && on ? ` · −${fmtUSD(p.referralDiscount)}/mo` : ''}</span><span className="box">{on ? <Check color="#fff" size={11} /> : null}</span></button>
                         ))}
                       </div>
                       <div className="adm-plan-foot">
@@ -353,37 +357,20 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
                   <div key={s.key} className={`adm-rowitem${on ? '' : ' off'}`} data-testid={`adm-section-${s.key}`}>
                     <span className="num">{s.n}</span>
                     <div style={{ flex: 1, minWidth: 0 }}><div className="t">{s.label}</div><div className="d">{s.note}</div></div>
-                    {s.key === 's1' || s.key === 's6' ? <button type="button" className="btn-g" onClick={() => setSubTab('overview')}>Edit</button> : null}
                     <button type="button" className={`sw${on ? ' on' : ''}`} onClick={() => set('sections')({ ...form.sections, [s.key]: !on })} aria-pressed={on} aria-label={`Show ${s.label}`} />
                   </div>
                 ); })}
               </div>
             </div>
-            <div className="card" data-testid="adm-outcomes">
-              <div className="card-head"><div className="eyebrow">What you get · the four outcome cards</div><span className="help" style={{ margin: 0, whiteSpace: 'nowrap' }}>Modules become the chips</span></div>
-              <div className="card-sub">One card per engine. Switch a card off to drop it; tick the modules this engagement includes — they appear as chips on the card and drive the agreement's scope.</div>
-              <div className="grid220">
-                {OUTCOME_KEYS.map((o) => { const on = form.sections[o.key] !== false; const mods = MODULES.filter((m) => m.engine === o.engine); return (
-                  <div key={o.key} className={`adm-rowitem${on ? '' : ' off'}`} style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 8 }} data-testid={`adm-outcome-${o.engine}`}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}><div className="t">{o.tag}</div><div className="d">{o.title}</div></div>
-                      <button type="button" className={`sw${on ? ' on' : ''}`} onClick={() => set('sections')({ ...form.sections, [o.key]: !on })} aria-pressed={on} aria-label={`Show ${o.tag}`} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
-                      {mods.map((m) => { const mon = form.modules.includes(m.key); return (
-                        <label key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: mon ? 'var(--a-purple)' : 'var(--a-muted)', fontWeight: mon ? 700 : 500, cursor: 'pointer' }} data-testid={`adm-module-${m.key}`}>
-                          <input type="checkbox" checked={mon} onChange={() => set('modules')(mon ? form.modules.filter((k) => k !== m.key) : [...form.modules, m.key])} /> {m.name}
-                        </label>
-                      ); })}
-                    </div>
-                  </div>
-                ); })}
-              </div>
+            <div className="card">
+              <div className="card-head"><div className="eyebrow">Next steps headline</div><span className="help" style={{ margin: 0, whiteSpace: 'nowrap' }}>Seasonal · blank = the default</span></div>
+              <input className="in" value={form.nextStepsTitle} onChange={(e) => set('nextStepsTitle')(e.target.value)} placeholder={NEXT_STEPS_TITLE} data-testid="adm-next-title" />
+              <span className="help">The three steps (accept today · welcome call this week · first playbook on business day 21) and the "Review terms and sign" button are fixed.</span>
             </div>
             <div className="card">
               <div className="eyebrow" style={{ marginBottom: 14 }}>Proof &amp; reference</div>
               <div className="grid220">
-                <Field label="Testimonial video (Vimeo URL or id)" error={errors.testimonialVimeoId} hint={vimeoId(form.testimonialVimeoId) ? `Embeds video ${vimeoId(form.testimonialVimeoId)}` : 'Leave blank for documents only.'}><input className={cls('testimonialVimeoId')} value={form.testimonialVimeoId} onChange={(e) => set('testimonialVimeoId')(e.target.value)} placeholder="https://vimeo.com/1131397045" /></Field>
+                <Field label="Testimonial video (Vimeo URL or id)" error={errors.testimonialVimeoId} hint={vimeoId(form.testimonialVimeoId) ? `Links to vimeo.com/${vimeoId(form.testimonialVimeoId)} from the proof card.` : 'Leave blank for documents only.'}><input className={cls('testimonialVimeoId')} value={form.testimonialVimeoId} onChange={(e) => set('testimonialVimeoId')(e.target.value)} placeholder="https://vimeo.com/1131397045" /></Field>
                 <Field label="Caption"><input className="in" value={form.testimonialCaption} onChange={(e) => set('testimonialCaption')(e.target.value)} placeholder="Client testimonial · 2:58" /></Field>
                 <Field label="Documents · one per line" span error={errors.linksText} hint={<>Label | URL. A bare URL gets a label from its filename.</>}><textarea className={`${cls('linksText')} mono`} rows={3} value={form.linksText} onChange={(e) => set('linksText')(e.target.value)} placeholder={'Q3 2026 Growth Playbook | https://view.alloygp.co/<client>/playbook/….html'} /></Field>
                 <Field label="Welcome-call scheduling link" span error={errors.welcomeCallUrl} hint="Shown after they accept."><input className={cls('welcomeCallUrl')} value={form.welcomeCallUrl} onChange={(e) => set('welcomeCallUrl')(e.target.value)} placeholder="https://…" /></Field>
@@ -408,7 +395,7 @@ export default function ProposalWorkspace({ accountId, company, shortName, locat
             <div className="card">
               <div className="card-head"><div className="eyebrow">Terms pulled from the recommended plan</div><span className="help" style={{ margin: 0, whiteSpace: 'nowrap' }}>Edit these on Plans &amp; pricing</span></div>
               <div className="adm-facts">
-                {rec ? [['Investment Track', rec.name], ['Monthly fee', `${fmtUSD(rec.monthly)} / month`], ['Setup', fmtUSD(rec.setup)], ['Term', `${rec.termMonths} months`], ['Growth Guarantee', rec.guarantee ? 'Included (8.8)' : 'Not included'], ['Exclusivity', rec.exclusive ? 'Included (3.2)' : 'Not included']].map(([k, v]) => <div key={k} className="adm-fact"><div className="k">{k}</div><div className="v">{v}</div></div>) : <div className="help">Add a plan first.</div>}
+                {rec ? [['Investment Track', rec.name], ['Monthly fee', `${fmtUSD(rec.monthly)} / month`], ['Setup', fmtUSD(rec.setup)], ['Term', `${rec.termMonths} months`], ['Growth Guarantee', rec.guarantee ? 'Included (8.8)' : 'Not included'], ['Exclusivity', rec.exclusive ? `Included (3.2) · ${Number(form.exclusivityMiles) || 16} mi` : 'Not included'], ['match HOA partner', rec.matchHoa ? 'Preferred partner' : 'Not included']].map(([k, v]) => <div key={k} className="adm-fact"><div className="k">{k}</div><div className="v">{v}</div></div>) : <div className="help">Add a plan first.</div>}
               </div>
               <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button type="button" className="btn-o" onClick={() => setAgreementOpen(true)} data-testid="adm-preview-agreement">Preview agreement</button>

@@ -11,12 +11,12 @@
 //   AdminEngagement    → parse/format reference links, status labels
 // ============================================================================
 import { can } from './perms.js';
-import { plansFromRow, normalizeCompareRows, normalizeCustomRows, normalizeSections, DEFAULT_EXCLUSIVITY_MILES, DEFAULT_ROI, DEFAULT_TESTIMONIAL, VALIDITY_DAYS } from './proposalPlans.js';
+import { plansFromRow, normalizeCompareRows, normalizeCustomRows, normalizeSections, DEFAULT_EXCLUSIVITY_MILES, DEFAULT_TESTIMONIAL, VALIDITY_DAYS } from './proposalPlans.js';
 
 // Bump when the acceptance wording changes. Stored per acceptance as
 // engagement_proposals.agreement_version so we can prove which text an owner
 // agreed to (same idea as the ACH authorization record).
-export const PROPOSAL_AGREEMENT_VERSION = 'v1';
+export const PROPOSAL_AGREEMENT_VERSION = 'v2'; // v2 (Oct 2 2026): party is Alloy Growth Partners, LLC
 
 export function proposalAgreementText(company, proposal = {}) {
   const who = String(company || '').trim() || 'my company';
@@ -59,12 +59,13 @@ export function engagementRowToView(row) {
     spoc: row.spoc || '',
     validDays: Number(row.valid_days) > 0 ? Math.floor(Number(row.valid_days)) : VALIDITY_DAYS,
     exclusivityMiles: Math.max(1, Math.floor(Number(row.exclusivity_miles) || DEFAULT_EXCLUSIVITY_MILES)),
-    roiFeePerDoor: Number(row.roi_fee_per_door) > 0 ? Number(row.roi_fee_per_door) : DEFAULT_ROI.feePerDoor,
-    roiDoorsPerCommunity: Number(row.roi_doors_per_community) > 0 ? Math.floor(Number(row.roi_doors_per_community)) : DEFAULT_ROI.doorsPerCommunity,
     testimonialVimeoId: String(row.testimonial_vimeo_id || DEFAULT_TESTIMONIAL.vimeoId).trim(),
     testimonialCaption: String(row.testimonial_caption || DEFAULT_TESTIMONIAL.caption).trim(),
     welcomeCallUrl: row.welcome_call_url || '',
     preparedByName: row.prepared_by_name || '',
+    preparedByPhone: row.prepared_by_phone || '',
+    preparedByEmail: row.prepared_by_email || '',
+    nextStepsTitle: row.next_steps_title || '',
     acceptedPlanKey: row.accepted_plan_key || null,
     hasAgreementSnapshot: !!row.agreement_hash,
     sentBy: row.sent_by || null,
