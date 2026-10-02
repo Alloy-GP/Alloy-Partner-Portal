@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build a single self-contained HTML of the proposal page (v3) for one-off use:
-//   npm run proposal:standalone                      → dist/proposal-standalone.html (sample data)
-//   npm run proposal:standalone -- path/to/data.json → dist/<name>.html
+//   npm run proposal:standalone                      → out/proposal-standalone.html (sample data)
+//   npm run proposal:standalone -- path/to/data.json → out/<name>.html
 // The JSON is { account: {company, shortName, locations}, proposal: {…engagement_proposals row fields…} }.
 // Everything is inlined: React + the page, the proposal CSS, Gotham (licensed to
 // Alloy), the logo, the cover mark and the match HOA logo. The data sits in a
@@ -46,8 +46,8 @@ html = html.replace('<!--PROPOSAL_DATA-->', () => `<script id="proposal-data" ty
 if (!html.includes('id="proposal-data"') || html.includes('./assets/')) throw new Error('inlining failed');
 
 // 4. write
-mkdirSync(join(here, 'dist'), { recursive: true });
-const out = join(here, 'dist', outName);
+mkdirSync(join(here, 'out'), { recursive: true });   // not `dist`: the repo ignores dist/ and the built file is meant to be committed
+const out = join(here, 'out', outName);
 writeFileSync(out, html);
 rmSync(tmp, { recursive: true, force: true });
 console.log(`wrote ${out} (${(Buffer.byteLength(html) / 1024).toFixed(0)} KB)`);
