@@ -1,5 +1,6 @@
 import React from 'react';
 import { I } from './icons.jsx';
+import { pickDefaultAgent, previewTicket, summarizeTickets } from '../lib/intakeTicket.js';
 
 const { useState, useEffect } = React;
 
@@ -12,9 +13,16 @@ const { useState, useEffect } = React;
 // read-only renderer for its submission shape (`AdminNewsletter`,
 // `AdminQuarterly`).
 //
-// `api`  = { list, open(accountIds, title, due), close(id), remove(id) }
+// Opening a round also SENDS the client's prompt ticket from here (pending +
+// tagged, so their portal shows "Open Form"): staff pick who it sends as
+// (default Sharlene) and, per client, who it goes to (default: the portal
+// owner), and can edit the subject/message. `api.prep()` supplies the agents
+// and each org's users; `api.open(..., ticket)` creates the tickets.
+//
+// `api`  = { list, open(accountIds, title, due, ticket), close(id), remove(id), prep? }
 // `copy` = { noun, openTitle, openHelp, titlePlaceholder, defaultTitle(),
-//            fallbackTitle, deleteConfirm, empty, submittedLabel }
+//            fallbackTitle, deleteConfirm, empty, submittedLabel,
+//            ticket: { subject, message } }
 // `renderSubmission(sub)` → node (or null)
 
 const ZD_BASE = 'https://alloycreatives.zendesk.com/agent/tickets/';
@@ -24,6 +32,8 @@ const STATUS = {
   submitted: { label: 'Submitted', bg: 'var(--alloy-green-tint)', fg: 'var(--dark-green, #2c6e62)' },
   closed: { label: 'Closed', bg: 'var(--alloy-off-white)', fg: 'var(--fg-muted)' },
 };
+
+const LABEL = { display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', marginBottom: 4 };
 
 export function fmtDate(s) {
   if (!s) return '';
@@ -45,17 +55,31 @@ export function SubmissionRow({ label, value }) {
   );
 }
 
+const firstName = (s) => String(s || '').trim().split(/\s+/)[0] || '';
+
 export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
   const [data, setData] = useState(null); // { requests, accounts }
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(null); // string[] lines
   const [expanded, setExpanded] = useState({});
 
   // "Open a round" form
   const [title, setTitle] = useState(copy.defaultTitle());
   const [due, setDue] = useState('');
   const [picked, setPicked] = useState({}); // account_id -> bool
+
+  // The prompt ticket. `prep` = null while loading, then { agents, defaultAgentId,
+  // recipients, defaults, errors } or { error } when Zendesk couldn't be reached
+  // (the round can still open; tickets just can't be sent from here).
+  const canTicket = !!(api.prep && copy.ticket);
+  const [prep, setPrep] = useState(null);
+  const [sendTicket, setSendTicket] = useState(canTicket);
+  const [senderId, setSenderId] = useState('');
+  const [subject, setSubject] = useState((copy.ticket && copy.ticket.subject) || '');
+  const [message, setMessage] = useState((copy.ticket && copy.ticket.message) || '');
+  const [recip, setRecip] = useState({}); // account_id -> zendesk user id
+  const [showPreview, setShowPreview] = useState(false);
 
   const load = async () => {
     try {
@@ -64,18 +88,38 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
     } catch (e) { setError(String(e.message || e)); setData({ requests: [], accounts: [] }); }
   };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!canTicket) return;
+    let cancelled = false;
+    api.prep().then((p) => {
+      if (cancelled) return;
+      const agents = p.agents || [];
+      const def = p.defaultAgentId || (pickDefaultAgent(agents) || {}).id || '';
+      setPrep({ agents, defaultAgentId: def, recipients: p.recipients || {}, defaults: p.defaults || {}, errors: p.errors || {} });
+      setSenderId(def);
+      setRecip(p.defaults || {});
+    }).catch((e) => {
+      if (cancelled) return;
+      setPrep({ error: String(e.message || e), agents: [], recipients: {}, defaults: {}, errors: {} });
+      setSendTicket(false);
+    });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error && !data) return <div className="card card-pad" style={{ color: 'var(--alloy-pink)' }}>{error}</div>;
   if (!data) return <div className="card card-pad" style={{ color: 'var(--fg-muted)' }}>Loading…</div>;
 
   const { requests, accounts } = data;
+  const nameOf = {};
+  accounts.forEach((a) => { nameOf[a.id] = a.short_name || a.company; });
   // Accounts that already have a live (open/submitted) round → can't re-open.
   const liveByAccount = {};
   requests.forEach((r) => { if (r.status !== 'closed') liveByAccount[r.account_id] = r; });
 
   const selectable = accounts.filter((a) => !liveByAccount[a.id]);
   const allSelected = selectable.length > 0 && selectable.every((a) => picked[a.id]);
-  const pickedCount = selectable.filter((a) => picked[a.id]).length;
+  const pickedIds = selectable.filter((a) => picked[a.id]).map((a) => a.id);
+  const pickedCount = pickedIds.length;
 
   const toggle = (id) => setPicked((p) => ({ ...p, [id]: !p[id] }));
   const toggleAll = () => {
@@ -83,13 +127,31 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
     else { const next = {}; selectable.forEach((a) => { next[a.id] = true; }); setPicked(next); }
   };
 
+  const agents = (prep && prep.agents) || [];
+  const sender = agents.find((a) => a.id === senderId) || null;
+  const recipientsFor = (id) => (prep && prep.recipients && prep.recipients[id]) || [];
+  const recipientOf = (id) => recipientsFor(id).find((u) => u.id === recip[id]) || null;
+  const ticketOn = canTicket && sendTicket && prep && !prep.error;
+  // Picked clients the ticket can't reach (no Zendesk org / no users) — the
+  // round still opens for them; staff make that ticket by hand.
+  const unreachable = ticketOn ? pickedIds.filter((id) => !recipientOf(id)) : [];
+  const previewFor = ticketOn ? pickedIds.find((id) => recipientOf(id)) : null;
+  const preview = previewFor ? previewTicket({ subject, message }, {
+    recipient: recipientOf(previewFor), account: accounts.find((a) => a.id === previewFor), title: title.trim() || copy.fallbackTitle, sender,
+  }) : null;
+
   const openRound = async () => {
-    const ids = selectable.filter((a) => picked[a.id]).map((a) => a.id);
-    if (!ids.length) { setError('Pick at least one client.'); return; }
-    setBusy(true); setError(''); setNotice('');
+    if (!pickedIds.length) { setError('Pick at least one client.'); return; }
+    setBusy(true); setError(''); setNotice(null);
     try {
-      const res = await api.open(ids, title.trim() || copy.fallbackTitle, due || null);
-      setNotice(`Opened for ${res.opened} client${res.opened === 1 ? '' : 's'}${res.skipped ? ` · ${res.skipped} skipped (already had a live round)` : ''}.`);
+      const ticket = ticketOn ? {
+        send: true, senderId, subject, message,
+        recipients: Object.fromEntries(pickedIds.filter((id) => recipientOf(id)).map((id) => [id, recip[id]])),
+      } : null;
+      const res = await api.open(pickedIds, title.trim() || copy.fallbackTitle, due || null, ticket);
+      const lines = [`Opened for ${res.opened} client${res.opened === 1 ? '' : 's'}${res.skipped ? ` · ${res.skipped} skipped (already had a live round)` : ''}.`];
+      lines.push(...summarizeTickets(res.tickets, nameOf));
+      setNotice(lines);
       setPicked({});
       await load();
     } catch (e) { setError(String(e.message || e)); } finally { setBusy(false); }
@@ -116,6 +178,13 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
     return <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: st.bg, color: st.fg }}>{st.label}</span>;
   };
 
+  const Chip = ({ on, icon, children, title: t, href }) => {
+    const style = { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: on ? 'rgba(75,134,180,0.12)' : 'var(--alloy-off-white)', color: on ? '#3a6f96' : 'var(--fg-muted)', textDecoration: 'none' };
+    return href
+      ? <a href={href} target="_blank" rel="noopener noreferrer" title={t} style={style}>{icon} {children}</a>
+      : <span title={t} style={style}>{icon} {children}</span>;
+  };
+
   const Row = ({ r }) => {
     const isOpen = !!expanded[r.id];
     const a = r.analytics || { opens: 0, openerCount: 0, openers: [] };
@@ -123,6 +192,7 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
     const submissionNode = r.submission ? renderSubmission(r.submission) : null;
     // Show the expand toggle when there's a submission OR opener detail to see.
     const hasDetail = !!submissionNode || (a.openers && a.openers.length > 0);
+    const pm = r.prompt_meta || {};
     return (
       <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px' }}>
@@ -132,11 +202,19 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
               {r.title}{r.due_date ? ` · due ${fmtDate(r.due_date)}` : ''}
               {r.submitted_at ? ` · submitted ${fmtDate(r.submitted_at)}${r.submitted_by ? ` by ${r.submitted_by}` : ''}` : ''}
             </div>
-            {/* Engagement analytics */}
+            {/* Prompt ticket + engagement analytics */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
-              <span title={`${a.opens || 0} total clicks on "Open Form"`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: a.opens ? 'rgba(75,134,180,0.12)' : 'var(--alloy-off-white)', color: a.opens ? '#3a6f96' : 'var(--fg-muted)' }}>
-                <I.Eye width={12} height={12} /> {a.opens ? `Opened ${a.opens}× · ${a.openerCount} ${a.openerCount === 1 ? 'person' : 'people'}` : 'Not opened yet'}
-              </span>
+              {r.prompt_ticket_id ? (
+                <Chip on icon={<I.Send width={12} height={12} />} href={`${ZD_BASE}${r.prompt_ticket_id}`}
+                  title={`Prompt ticket #${r.prompt_ticket_id}${pm.sent_at ? ` · sent ${fmtDate(pm.sent_at)}` : ''}`}>
+                  Sent to {pm.requester_name || 'client'}{pm.sender_name ? ` as ${firstName(pm.sender_name)}` : ''} ↗
+                </Chip>
+              ) : r.status === 'open' ? (
+                <Chip icon={<I.Send width={12} height={12} />} title="No prompt ticket was sent from the portal — tag the client's ticket by hand.">No prompt ticket</Chip>
+              ) : null}
+              <Chip on={!!a.opens} icon={<I.Eye width={12} height={12} />} title={`${a.opens || 0} total clicks on "Open Form"`}>
+                {a.opens ? `Opened ${a.opens}× · ${a.openerCount} ${a.openerCount === 1 ? 'person' : 'people'}` : 'Not opened yet'}
+              </Chip>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: filledOut ? 'var(--alloy-green-tint)' : 'var(--alloy-off-white)', color: filledOut ? 'var(--dark-green, #2c6e62)' : 'var(--fg-muted)' }}>
                 <I.Check width={12} height={12} /> {filledOut ? 'Filled out' : 'Not submitted'}
               </span>
@@ -183,46 +261,115 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
   ) : null;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 16, alignItems: 'start' }}>
       {/* Open a round */}
       <div className="card card-pad" style={{ alignSelf: 'start' }}>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--alloy-purple)', marginBottom: 4 }}>{copy.openTitle}</div>
         <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 14 }}>{copy.openHelp}</div>
 
         <label style={{ display: 'block', marginBottom: 10 }}>
-          <span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', marginBottom: 4 }}>Round title</span>
+          <span style={LABEL}>Round title</span>
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={copy.titlePlaceholder} style={{ width: '100%', boxSizing: 'border-box' }} />
         </label>
         <label style={{ display: 'block', marginBottom: 12 }}>
-          <span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', marginBottom: 4 }}>Due date (optional)</span>
+          <span style={LABEL}>Due date (optional)</span>
           <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
         </label>
 
+        {/* The prompt ticket — sent from here so nobody has to make it in Zendesk. */}
+        {canTicket ? (
+          <div data-testid="ticket-panel" style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!ticketOn} disabled={!prep || !!prep.error} onChange={(e) => setSendTicket(e.target.checked)} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>Send the Zendesk ticket too</span>
+            </label>
+            <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', margin: '3px 0 0 24px' }}>
+              {!prep ? 'Loading agents and contacts from Zendesk…'
+                : prep.error ? `Couldn’t reach Zendesk (${prep.error}). Open the round, then tag the client’s ticket by hand.`
+                : 'Pending + tagged, so the client sees “Open Form” in their portal. Pick who it goes to under each client.'}
+            </div>
+            {prep && !prep.error && ticketOn ? (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ display: 'block', marginBottom: 8 }}>
+                  <span style={LABEL}>Send as</span>
+                  <select className="input" value={senderId} onChange={(e) => setSenderId(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} aria-label="Send as">
+                    {agents.map((a) => <option key={a.id} value={a.id}>{a.name}{a.email ? ` · ${a.email}` : ''}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: 'block', marginBottom: 8 }}>
+                  <span style={LABEL}>Subject</span>
+                  <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} aria-label="Ticket subject" />
+                </label>
+                <label style={{ display: 'block', marginBottom: 6 }}>
+                  <span style={LABEL}>Message</span>
+                  <textarea className="input" rows={7} value={message} onChange={(e) => setMessage(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', fontSize: 12.5, lineHeight: 1.5 }} aria-label="Ticket message" />
+                </label>
+                <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                  <code>{'{name}'}</code> recipient’s first name · <code>{'{client}'}</code> · <code>{'{title}'}</code> · <code>{'{sender}'}</code>
+                  {preview ? (
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowPreview((v) => !v)} style={{ marginLeft: 6 }}>
+                      {showPreview ? 'Hide preview' : `Preview for ${nameOf[previewFor]}`}
+                    </button>
+                  ) : null}
+                </div>
+                {preview && showPreview ? (
+                  <div data-testid="ticket-preview" style={{ background: 'var(--alloy-off-white)', borderRadius: 8, padding: '8px 10px', marginTop: 6, fontSize: 12.5 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--fg)', marginBottom: 4 }}>{preview.subject}</div>
+                    <div style={{ whiteSpace: 'pre-wrap', color: 'var(--fg-2)', lineHeight: 1.5 }}>{preview.message}</div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', flex: 1 }}>Clients ({pickedCount} selected)</span>
+          <span style={{ ...LABEL, flex: 1, marginBottom: 0 }}>Clients ({pickedCount} selected)</span>
           {selectable.length ? <button className="btn btn-ghost btn-sm" onClick={toggleAll}>{allSelected ? 'Clear' : 'Select all'}</button> : null}
         </div>
-        <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, maxHeight: 320, overflowY: 'auto' }}>
+        <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, maxHeight: 360, overflowY: 'auto' }}>
           {accounts.map((a) => {
             const live = liveByAccount[a.id];
+            const users = recipientsFor(a.id);
+            const showTo = ticketOn && !live && picked[a.id];
             return (
-              <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)', cursor: live ? 'default' : 'pointer', opacity: live ? 0.55 : 1 }}
-                title={live ? `Already has a live round (${live.status})` : ''}>
-                <input type="checkbox" disabled={!!live} checked={!!picked[a.id]} onChange={() => toggle(a.id)} />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{a.short_name || a.company}</span>
-                  {live ? <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{live.status === 'submitted' ? 'Submitted' : 'Round open'}</span> : null}
-                </span>
-              </label>
+              <div key={a.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', cursor: live ? 'default' : 'pointer', opacity: live ? 0.55 : 1 }}
+                  title={live ? `Already has a live round (${live.status})` : ''}>
+                  <input type="checkbox" disabled={!!live} checked={!!picked[a.id]} onChange={() => toggle(a.id)} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{a.short_name || a.company}</span>
+                    {live ? <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{live.status === 'submitted' ? 'Submitted' : 'Round open'}</span> : null}
+                  </span>
+                </label>
+                {showTo ? (
+                  <div style={{ padding: '0 12px 9px 33px' }}>
+                    {users.length ? (
+                      <select className="input" value={recip[a.id] || ''} onChange={(e) => setRecip((r) => ({ ...r, [a.id]: e.target.value }))}
+                        style={{ width: '100%', boxSizing: 'border-box', fontSize: 12 }} aria-label={`Send to (${a.short_name || a.company})`}>
+                        {users.map((u) => <option key={u.id} value={u.id}>To: {u.name}{u.portalRole === 'owner' ? ' · portal owner' : ''}{u.email ? ` · ${u.email}` : ''}</option>)}
+                      </select>
+                    ) : (
+                      <span style={{ fontSize: 11.5, color: 'var(--alloy-pink)' }}>
+                        {prep && prep.errors && prep.errors[a.id] ? `Zendesk: ${prep.errors[a.id]}` : 'No Zendesk org or contacts mapped — round opens, no ticket.'}
+                      </span>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
           {accounts.length === 0 ? <div style={{ padding: 12, fontSize: 12.5, color: 'var(--fg-muted)' }}>No clients yet.</div> : null}
         </div>
 
         <button className="btn btn-primary" onClick={openRound} disabled={busy || !pickedCount} style={{ marginTop: 12, width: '100%' }}>
-          {busy ? 'Opening…' : `Open round for ${pickedCount || 0} client${pickedCount === 1 ? '' : 's'}`}
+          {busy ? 'Opening…' : `Open round for ${pickedCount || 0} client${pickedCount === 1 ? '' : 's'}${ticketOn && pickedCount ? ` · send ${pickedCount - unreachable.length} ticket${pickedCount - unreachable.length === 1 ? '' : 's'}` : ''}`}
         </button>
-        {notice ? <div style={{ marginTop: 10, background: 'var(--alloy-green-tint)', color: 'var(--dark-green, #2c6e62)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 }}>{notice}</div> : null}
+        {notice ? (
+          <div style={{ marginTop: 10, background: 'var(--alloy-green-tint)', color: 'var(--dark-green, #2c6e62)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 }}>
+            {notice.map((l, i) => <div key={i} style={{ color: l.startsWith('⚠') ? 'var(--alloy-pink)' : undefined }}>{l}</div>)}
+          </div>
+        ) : null}
         {error ? <div style={{ marginTop: 10, background: 'var(--alloy-pink-tint)', color: 'var(--alloy-pink)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 }}>{error}</div> : null}
       </div>
 

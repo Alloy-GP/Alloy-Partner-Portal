@@ -1,8 +1,9 @@
 import React from 'react';
 import AdminIntakeRounds, { SubmissionRow } from './AdminIntakeRounds.jsx';
 import {
-  listQuarterlyRequests, openQuarterlyRound, closeQuarterlyRequest, deleteQuarterlyRequest,
+  listQuarterlyRequests, openQuarterlyRound, closeQuarterlyRequest, deleteQuarterlyRequest, intakePrep,
 } from '../lib/admin.js';
+import { TICKET_DEFAULTS } from '../lib/intakeTicket.js';
 import { QUARTERLY_SECTIONS, defaultQuarterlyTitle } from '../lib/quarterly.js';
 
 // Admin → Quarterly Meetings. Open a prep round for the clients you're about to
@@ -15,6 +16,7 @@ const API = {
   open: openQuarterlyRound,
   close: closeQuarterlyRequest,
   remove: deleteQuarterlyRequest,
+  prep: intakePrep,
 };
 
 const COPY = {
@@ -27,6 +29,7 @@ const COPY = {
   deleteConfirm: 'Delete this quarterly meeting request? This removes it and any recorded submission.',
   empty: 'No quarterly meeting rounds yet. Open one on the left before your next round of planning meetings.',
   submittedLabel: 'Submitted — ready for the meeting',
+  ticket: TICKET_DEFAULTS.quarterly,
 };
 
 // Submitted answers, rendered read-only for staff. Same order as the form.

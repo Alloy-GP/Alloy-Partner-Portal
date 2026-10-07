@@ -118,16 +118,11 @@ heartbeat, open alerts (with flaky ratio / hold state) and failed runs (24h).
   the weekly rollup failed ("no WhatConverts account id"), each with a daily
   reminder email (Happy CAM, 2026-10-02 → 10-07). A new consumer can rely on
   `is not null`; `.neq(col, "")` is belt and braces.
-- **Live ≠ main for `admin` (since 2026-10-02).** Live `admin` is a 3-way merge
-  of `origin/stg` (the onboarding feature: `onboarding_*` + `send_invite`
-  actions, `obRows`/`obSeedLocations`, `onboarding_items` table — 54 commits not
-  on main) and `origin/main`. v57 (2026-10-07) = that merge + the quarterly
-  intake block. **Deploying `admin` from main as-is deletes onboarding.** Until
-  stg lands on main, rebuild the artifact: `git merge-file -p <stg file> <merge-base file> <main file>`
-  → `deno check` → deploy (zero conflicts as of 2026-10-07). Compare live vs a
-  file by extracting the eszip with the npm `@deno/eszip` Parser (the MCP's own
-  parser; `deno.land/x/eszip@v0.55` can't read ESZIP2.3) and esbuild-normalising
-  both sides.
+- **`admin` live == main again (2026-10-07).** stg (onboarding, proposal gate,
+  client workspace) was promoted to main in PR #74, so deploy `admin` from the
+  repo as usual. If live and repo ever need comparing: extract the eszip with
+  the npm `@deno/eszip` Parser (the MCP's own parser; `deno.land/x/eszip@v0.55`
+  can't read ESZIP2.3) and esbuild-normalise both sides.
 - **Live ≠ repo for `sync-monday-roadmap`.** The deployed v11 (2026-10-05) has
   a webhook registry (`monday_roadmap_webhooks`, migration `20261005170000`,
   applied live) whose source was never pushed to GitHub. Do NOT redeploy
@@ -220,6 +215,16 @@ Seams, in order — skip one and the button silently never appears:
 5. `src/lib/<x>.js` → `<x>ForTicketTags(tags)` (pure, tested) + `submit<X>()`
 6. `App.jsx` → `open<X>` trigger (null when nothing is due) + the modal (`NewsletterModal` / `QuarterlyModal`)
 7. the button: `TicketThread.jsx` + the Playbook card in `screens-projects-roi.jsx`; `TicketsScreen` / `TicketDetailPage` only pass `on<X>` through
+- **The prompt ticket is sent from the portal.** "Open a round" also creates
+  the client's Zendesk ticket (pending, tagged) — `admin` → `intake_prep` lists
+  the agents to send as (default Sharlene) and each org's users to send to
+  (default: the portal owner); `<x>_open` takes `ticket: { send, senderId,
+  subject, message, recipients }`, fills `{name} {client} {title} {sender}`
+  (`src/lib/intakeTicket.js` mirrors it for the preview, tested) and records
+  `prompt_ticket_id` / `prompt_meta` on the row (migration `20261007200000`).
+  Submitter + first-comment author + assignee = the picked agent, so the client
+  sees it from her. A failed send keeps the round open and names the client in
+  the response; make that ticket by hand.
 The `goals` tag is a different, older thing: no round, no DB row, email-only
 (`submit-quarter-goals`, also the public `/goals` page).
 

@@ -1,8 +1,9 @@
 import React from 'react';
 import AdminIntakeRounds, { SubmissionRow } from './AdminIntakeRounds.jsx';
 import {
-  listNewsletterRequests, openNewsletterRound, closeNewsletterRequest, deleteNewsletterRequest,
+  listNewsletterRequests, openNewsletterRound, closeNewsletterRequest, deleteNewsletterRequest, intakePrep,
 } from '../lib/admin.js';
+import { TICKET_DEFAULTS } from '../lib/intakeTicket.js';
 
 // Admin → Newsletter Room. Open a content round for a set of clients, track
 // who opened / submitted, read what they sent. The tracker itself is
@@ -14,6 +15,7 @@ const API = {
   open: openNewsletterRound,
   close: closeNewsletterRequest,
   remove: deleteNewsletterRequest,
+  prep: intakePrep,
 };
 
 function defaultTitle() {
@@ -32,6 +34,7 @@ const COPY = {
   deleteConfirm: 'Delete this newsletter request? This removes it and any recorded submission.',
   empty: 'No newsletter rounds yet. Open one on the left to get started.',
   submittedLabel: 'Submitted — ready to build',
+  ticket: TICKET_DEFAULTS.newsletter,
 };
 
 // Submitted answers, rendered read-only for staff.
