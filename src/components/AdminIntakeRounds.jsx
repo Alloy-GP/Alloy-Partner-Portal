@@ -1,6 +1,6 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { pickDefaultAgent, previewTicket, summarizeTickets } from '../lib/intakeTicket.js';
+import { pickDefaultAgent, previewTicket, summarizeTickets, parseEmails } from '../lib/intakeTicket.js';
 
 const { useState, useEffect } = React;
 
@@ -79,6 +79,8 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
   const [subject, setSubject] = useState((copy.ticket && copy.ticket.subject) || '');
   const [message, setMessage] = useState((copy.ticket && copy.ticket.message) || '');
   const [recip, setRecip] = useState({}); // account_id -> zendesk user id
+  const [cc, setCc] = useState({}); // account_id -> [zendesk user id]: other org contacts to copy
+  const [ccEmails, setCcEmails] = useState(''); // "also CC" on every ticket, free text
   const [showPreview, setShowPreview] = useState(false);
 
   const load = async () => {
@@ -147,6 +149,9 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
       const ticket = ticketOn ? {
         send: true, senderId, subject, message,
         recipients: Object.fromEntries(pickedIds.filter((id) => recipientOf(id)).map((id) => [id, recip[id]])),
+        cc: Object.fromEntries(pickedIds.filter((id) => recipientOf(id) && (cc[id] || []).some((u) => u !== recip[id]))
+          .map((id) => [id, (cc[id] || []).filter((u) => u !== recip[id])])),
+        ccEmails: parseEmails(ccEmails),
       } : null;
       const res = await api.open(pickedIds, title.trim() || copy.fallbackTitle, due || null, ticket);
       const lines = [`Opened for ${res.opened} client${res.opened === 1 ? '' : 's'}${res.skipped ? ` · ${res.skipped} skipped (already had a live round)` : ''}.`];
@@ -206,7 +211,7 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
               {r.prompt_ticket_id ? (
                 <Chip on icon={<I.Send width={12} height={12} />} href={`${ZD_BASE}${r.prompt_ticket_id}`}
-                  title={`Prompt ticket #${r.prompt_ticket_id}${pm.sent_at ? ` · sent ${fmtDate(pm.sent_at)}` : ''}`}>
+                  title={`Prompt ticket #${r.prompt_ticket_id}${pm.sent_at ? ` · sent ${fmtDate(pm.sent_at)}` : ''}${(pm.cc || []).length ? ` · cc ${pm.cc.map((c) => c.name || c.email).join(', ')}` : ''}`}>
                   Sent to {pm.requester_name || 'client'}{pm.sender_name ? ` as ${firstName(pm.sender_name)}` : ''} ↗
                 </Chip>
               ) : r.status === 'open' ? (
@@ -318,6 +323,11 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
                     <div style={{ whiteSpace: 'pre-wrap', color: 'var(--fg-2)', lineHeight: 1.5 }}>{preview.message}</div>
                   </div>
                 ) : null}
+                <label style={{ display: 'block', marginTop: 8 }}>
+                  <span style={LABEL}>Also CC on every ticket (optional)</span>
+                  <input className="input" value={ccEmails} onChange={(e) => setCcEmails(e.target.value)} placeholder="name@company.com, other@company.com"
+                    style={{ width: '100%', boxSizing: 'border-box', fontSize: 12 }} aria-label="Also CC" />
+                </label>
               </div>
             ) : null}
           </div>
@@ -336,7 +346,7 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
               <div key={a.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', cursor: live ? 'default' : 'pointer', opacity: live ? 0.55 : 1 }}
                   title={live ? `Already has a live round (${live.status})` : ''}>
-                  <input type="checkbox" disabled={!!live} checked={!!picked[a.id]} onChange={() => toggle(a.id)} />
+                  <input type="checkbox" data-role="pick" disabled={!!live} checked={!!picked[a.id]} onChange={() => toggle(a.id)} />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{a.short_name || a.company}</span>
                     {live ? <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{live.status === 'submitted' ? 'Submitted' : 'Round open'}</span> : null}
@@ -344,12 +354,24 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
                 </label>
                 {showTo ? (
                   <div style={{ padding: '0 12px 9px 33px' }}>
-                    {users.length ? (
+                    {users.length ? (<>
                       <select className="input" value={recip[a.id] || ''} onChange={(e) => setRecip((r) => ({ ...r, [a.id]: e.target.value }))}
                         style={{ width: '100%', boxSizing: 'border-box', fontSize: 12 }} aria-label={`Send to (${a.short_name || a.company})`}>
                         {users.map((u) => <option key={u.id} value={u.id}>To: {u.name}{u.portalRole === 'owner' ? ' · portal owner' : ''}{u.email ? ` · ${u.email}` : ''}</option>)}
                       </select>
-                    ) : (
+                      {users.length > 1 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: 5, fontSize: 11.5, color: 'var(--fg-2)' }}>
+                          <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>CC:</span>
+                          {users.filter((u) => u.id !== (recip[a.id] || '')).map((u) => (
+                            <label key={u.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                              <input type="checkbox" checked={(cc[a.id] || []).includes(u.id)} aria-label={`CC ${u.name} (${a.short_name || a.company})`}
+                                onChange={(e) => setCc((c) => ({ ...c, [a.id]: e.target.checked ? [...(c[a.id] || []), u.id] : (c[a.id] || []).filter((x) => x !== u.id) }))} />
+                              {u.name}
+                            </label>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>) : (
                       <span style={{ fontSize: 11.5, color: 'var(--alloy-pink)' }}>
                         {prep && prep.errors && prep.errors[a.id] ? `Zendesk: ${prep.errors[a.id]}` : 'No Zendesk org or contacts mapped — round opens, no ticket.'}
                       </span>

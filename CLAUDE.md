@@ -223,8 +223,13 @@ Seams, in order — skip one and the button silently never appears:
   (`src/lib/intakeTicket.js` mirrors it for the preview, tested) and records
   `prompt_ticket_id` / `prompt_meta` on the row (migration `20261007200000`).
   Submitter + first-comment author + assignee = the picked agent, so the client
-  sees it from her. A failed send keeps the round open and names the client in
-  the response; make that ticket by hand.
+  sees it from her. `cc` (per-client contact ids) + `ccEmails` (every ticket)
+  become `email_ccs`. A failed send keeps the round open and names the client
+  in the response; make that ticket by hand.
+- **Test it on Alloy, not a client.** The internal account (Alloy Growth
+  Partners, tier `internal`) is mapped to the Alloy Zendesk org, so a round
+  opened for it goes to Alloy people only; `zendesk_orgs` (admin fn) lists
+  every org id for mapping. Delete the test round + ticket afterwards.
 The `goals` tag is a different, older thing: no round, no DB row, email-only
 (`submit-quarter-goals`, also the public `/goals` page).
 

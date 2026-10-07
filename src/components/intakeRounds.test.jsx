@@ -72,6 +72,7 @@ const select = async (el, value) => {
   });
 };
 const buttonByText = (text) => Array.from(container.querySelectorAll('button')).find((b) => b.textContent.trim() === text);
+const pickBoxes = () => Array.from(container.querySelectorAll('input[type=checkbox][data-role=pick]'));
 const buttonStarting = (text) => Array.from(container.querySelectorAll('button')).find((b) => b.textContent.trim().startsWith(text));
 
 describe('QuarterlyModal', () => {
@@ -178,7 +179,7 @@ describe('AdminQuarterly (AdminIntakeRounds)', () => {
     expect(promptLink.textContent).toContain('as Sharlene');
 
     // Both clients already have a live round → neither is selectable.
-    const boxes = Array.from(container.querySelectorAll('input[type=checkbox]')).filter((b) => b.closest('[data-testid=ticket-panel]') === null);
+    const boxes = pickBoxes();
     expect(boxes.length).toBe(2);
     expect(boxes.every((b) => b.disabled)).toBe(true);
 
@@ -205,15 +206,15 @@ describe('AdminQuarterly (AdminIntakeRounds)', () => {
     h.listQuarterly.mockResolvedValue({ accounts: ACCOUNTS, requests: [] });
     await render(<AdminQuarterly />);
     expect(container.textContent).toContain('No quarterly meeting rounds yet');
-    const boxes = Array.from(container.querySelectorAll('input[type=checkbox]')).filter((b) => b.closest('[data-testid=ticket-panel]') === null);
+    const boxes = pickBoxes();
     expect(boxes.length).toBe(3);
     expect(boxes.every((b) => !b.disabled)).toBe(true);
   });
 
-  it('sends the prompt ticket as Sharlene to the picked recipient, with the edited message', async () => {
+  it('sends the prompt ticket as Sharlene to the picked recipient, with CCs and the edited message', async () => {
     h.listQuarterly.mockResolvedValue({ accounts: ACCOUNTS, requests: [] });
     h.openQuarterly.mockResolvedValue({ ok: true, opened: 2, skipped: 0, tickets: [
-      { accountId: 'a2', ok: true, ticketId: '900', to: 'Ashley Renehan', as: 'Sharlene Smith' },
+      { accountId: 'a2', ok: true, ticketId: '900', to: 'Gail Windisch', as: 'Sharlene Smith', cc: ['Ashley Renehan', 'skyler@alloygp.co'] },
       { accountId: 'a3', ok: false, error: 'no recipient picked' },
     ] });
     await render(<AdminQuarterly />);
@@ -225,14 +226,17 @@ describe('AdminQuarterly (AdminIntakeRounds)', () => {
     expect(container.querySelector('textarea[aria-label="Ticket message"]').value).toContain('Hi {name},');
 
     // Pick Tidewater (has contacts) and Happy CAM (no Zendesk org).
-    const boxes = Array.from(container.querySelectorAll('input[type=checkbox]')).filter((b) => b.closest('[data-testid=ticket-panel]') === null);
+    const boxes = pickBoxes();
     await click(boxes[1]); // a2
     await click(boxes[2]); // a3
-    // Tidewater's recipient defaults to the portal owner; switch it to Ashley.
+    // Tidewater's recipient defaults to the portal owner.
     const to = container.querySelector('select[aria-label="Send to (Tidewater)"]');
     expect(to.value).toBe('22');
     expect(to.options[0].textContent).toContain('Gail Windisch · portal owner');
-    await select(to, '23');
+    // The other contact can be CC'd; the recipient is never offered as a CC.
+    expect(container.querySelector('input[aria-label="CC Gail Windisch (Tidewater)"]')).toBeNull();
+    await click(container.querySelector('input[aria-label="CC Ashley Renehan (Tidewater)"]'));
+    await type(container.querySelector('input[aria-label="Also CC"]'), 'Skyler@alloygp.co, not-an-email');
     expect(container.textContent).toContain('No Zendesk org or contacts mapped');
     // Button counts tickets it can actually send.
     expect(buttonStarting('Open round for 2 clients').textContent).toContain('send 1 ticket');
@@ -240,7 +244,7 @@ describe('AdminQuarterly (AdminIntakeRounds)', () => {
     // Edit the message, preview it for Tidewater, then open.
     await type(container.querySelector('textarea[aria-label="Ticket message"]'), 'Hi {name}, quick one from {sender} about {title}.');
     await click(buttonStarting('Preview for Tidewater'));
-    expect(container.querySelector('[data-testid=ticket-preview]').textContent).toContain('Hi Ashley, quick one from Sharlene about Q');
+    expect(container.querySelector('[data-testid=ticket-preview]').textContent).toContain('Hi Gail, quick one from Sharlene about Q');
     await click(buttonStarting('Open round for 2 clients'));
 
     expect(h.openQuarterly).toHaveBeenCalledTimes(1);
@@ -251,11 +255,13 @@ describe('AdminQuarterly (AdminIntakeRounds)', () => {
       send: true, senderId: '2',
       subject: '{title}: a few questions before we meet',
       message: 'Hi {name}, quick one from {sender} about {title}.',
-      recipients: { a2: '23' }, // a3 has nobody to send to
+      recipients: { a2: '22' }, // a3 has nobody to send to
+      cc: { a2: ['23'] },
+      ccEmails: ['skyler@alloygp.co'],
     });
     const notice = container.textContent;
     expect(notice).toContain('Opened for 2 clients.');
-    expect(notice).toContain('#900 → Ashley Renehan (as Sharlene)');
+    expect(notice).toContain('#900 → Gail Windisch (as Sharlene) · cc Ashley Renehan, skyler@alloygp.co');
     expect(notice).toContain('⚠ Happy: ticket not sent — no recipient picked');
   });
 
@@ -266,7 +272,7 @@ describe('AdminQuarterly (AdminIntakeRounds)', () => {
     await render(<AdminQuarterly />);
     expect(container.textContent).toContain('Couldn’t reach Zendesk');
     expect(container.querySelector('select[aria-label="Send as"]')).toBeNull();
-    const boxes = Array.from(container.querySelectorAll('input[type=checkbox]')).filter((b) => b.closest('[data-testid=ticket-panel]') === null);
+    const boxes = pickBoxes();
     await click(boxes[0]);
     await click(buttonStarting('Open round for 1 client'));
     const [ids, , , ticket] = h.openQuarterly.mock.calls[0];
