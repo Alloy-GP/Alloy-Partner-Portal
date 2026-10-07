@@ -22,7 +22,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //                 any failure. Once open, it stays open while either holds.
 //               - recovery must HOLD 2h (frequent jobs) before "recovered";
 //                 a failure inside the hold is a flap, counted, not emailed.
-//               - new -> email now; still open after 24h -> reminder.
+//               - new -> email now; still open after 24h -> one reminder,
+//                 then weekly. Mapping problems (config): once, never reminded.
 //             One email per run, however many problems changed. The email goes
 //             out BEFORE state is written, so a Resend failure retries next run.
 //
@@ -34,7 +35,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const PORTAL_URL = Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co";
 const HEALTH_URL = `${PORTAL_URL}/admin/health`;
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
-const REMIND_MS = 24 * 3600_000;
+const REMIND_MS = 24 * 3600_000;         // first reminder
+const REMIND_WEEKLY_MS = 7 * 86400_000;  // every reminder after that
 const BOARD_STALE_MS = 2 * 3600_000; // matches SyncHealth.jsx STALE_MS
 const FREQUENT_MS = 6 * 3600_000;      // a job whose silence window is <= this runs often enough to flap
 const FLAP_WINDOW_MS = 6 * 3600_000;   // count a frequent job's failures over this window...
@@ -176,7 +178,7 @@ function renderEmail(fresh: Problem[], reminders: Problem[], recovered: any[]): 
   };
   block("New", freshSync.map(describe), "#b03a3a");
   block("Needs a mapping fix (one email, no reminders)", config.map(describe), "#8a5a00");
-  block("Still broken (daily reminder)", reminders.map(describe), "#b03a3a");
+  block("Still broken (reminder: a day after the first email, then weekly)", reminders.map(describe), "#b03a3a");
   block("Recovered", recovered.map((a) => ({
     title: a.source,
     what: `was ${a.kind === "stale" ? "silent" : "failing"} since ${new Date(a.first_seen).toUTCString()}${a.flap_count ? `, came back ${a.flap_count}x before staying clear` : ""}`,
@@ -238,13 +240,26 @@ Deno.serve(async (req) => {
     const trackingSince = Date.parse(sinceCfg?.value ?? "") || now;
     const { data: jobs, error: jErr } = await db.rpc("sync_cron_jobs");
     if (jErr) throw jErr;
-    const { data: recent, error: rErr } = await db.from("sync_runs")
-      .select("source, started_at, ok, error, status_code")
-      .gte("started_at", new Date(now - 9 * 86400_000).toISOString())
-      .order("started_at", { ascending: false }).limit(3000);
-    if (rErr) throw rErr;
-    const bySource = new Map<string, Run[]>(); // newest first (query is ordered desc)
-    for (const r of (recent ?? []) as Run[]) { const l = bySource.get(r.source) ?? []; l.push(r); bySource.set(r.source, l); }
+    // Recent runs PER JOB. This used to be ONE query over 9 days with
+    // .limit(3000) - but PostgREST caps every response at 1000 rows
+    // (db-max-rows), and ~290 runs land per day, so only the newest ~3.4 days
+    // ever came back. A weekly job's last run dropped out of that window every
+    // Wednesday night: the monitor judged it "silent" (New + a reminder a day
+    // until Monday's run; 09-20, 09-24, 10-01), and a month-end job's failure
+    // "recovered" by itself 3.4 days later. One small query per active job can
+    // never be truncated that way (60 rows covers 12 ticks of a */30 job plus
+    // the 6h flap window of the monitor's own 10-min job).
+    const since = new Date(now - 9 * 86400_000).toISOString();
+    const bySource = new Map<string, Run[]>(); // newest first
+    for (const j of (jobs ?? []) as { jobname: string; active: boolean }[]) {
+      if (!j.active) continue;
+      const { data, error } = await db.from("sync_runs")
+        .select("source, started_at, ok, error, status_code")
+        .eq("source", j.jobname).gte("started_at", since)
+        .order("started_at", { ascending: false }).limit(60);
+      if (error) throw error;
+      bySource.set(j.jobname, (data ?? []) as Run[]);
+    }
     const { data: openRows, error: oErr } = await db.from("sync_alerts").select("*").is("resolved_at", null);
     if (oErr) throw oErr;
     const open = new Map<string, any>((openRows ?? []).map((a: any) => [a.key, a]));
@@ -337,7 +352,13 @@ Deno.serve(async (req) => {
       if (p) {
         const patch: any = { last_seen: nowIso, detail: p.detail };
         if (a.clear_since) { patch.clear_since = null; patch.flap_count = (a.flap_count ?? 0) + 1; }
-        const due = !a.last_notified_at || (p.kind !== "config" && now - Date.parse(a.last_notified_at) > REMIND_MS);
+        // Reminders: one after 24h, then weekly. A problem nobody has fixed in
+        // a day is not news every morning - Sync Health keeps showing it red.
+        // (A month-end job's single failure used to qualify for a reminder
+        // every day until its next run, 28 days later.)
+        const sinceNotified = a.last_notified_at ? now - Date.parse(a.last_notified_at) : Infinity;
+        const due = !a.last_notified_at
+          || (p.kind !== "config" && sinceNotified > ((a.notify_count ?? 0) >= 2 ? REMIND_WEEKLY_MS : REMIND_MS));
         if (due) reminders.push(p);
         patches.set(a.id, patch);
       } else if (a.kind === "config") {

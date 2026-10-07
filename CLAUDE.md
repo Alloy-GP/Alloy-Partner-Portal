@@ -84,7 +84,7 @@ every cron job's pg_net result into `sync_runs`, classifies it (HTTP status,
 timeout, body `ok:false` / `failed>0` / per-account `error`) and keeps open
 problems in `sync_alerts`: ONE email to staff when a job starts failing or goes
 silent (no run inside ≥4 intervals / ≥2h, or a Monday board not re-stamped in
-2h), a reminder every 24h while it stays broken, one on recovery. Hysteresis:
+2h), one reminder after 24h and then weekly while it stays broken, one on recovery. Hysteresis:
 a frequent job (≤6h window) alerts only on 2 failures in a row or ≥3 in 6h
 (flaky), and a recovery must hold 2h before it is emailed — a flapping job is
 one incident, not one email per flip. Sync Health → "Watchdog" strip shows the
@@ -148,6 +148,16 @@ is engineered so no single board can sink the run:
 - Adding a column to `projects`/`action_items`/`ticket_links`/`toolkit_systems`:
   the RPC maps JSON keys to columns by name, so populate it in `sync-monday`'s
   row objects and it flows; no RPC change needed.
+
+## PostgREST returns at most 1000 rows per request — whatever `.limit()` says
+Supabase's PostgREST caps every response at 1000 rows (`db-max-rows`), silently.
+`.limit(3000)` / `.limit(20000)` return 1000 with no error. This is how the
+watchdog falsely declared `whatconverts-rollup-weekly` "silent" every Wednesday
+(its last run fell out of a 1000-row window after ~3.4 days) and "recovered" a
+month-end failure that nobody fixed. Need more than 1000? Query per key (the
+monitor now reads runs per job), paginate with `.range(from, to)`, or aggregate
+in SQL (a view / RPC). Known remaining spot: `admin` → `analytics` reads
+`events` with `.limit(20000)` — it is reporting on at most 1000 rows.
 
 ## Editing screens-rest.jsx
 Lines contain non-ASCII (·, —, …, ✓). The Edit tool's exact-match can fail on
