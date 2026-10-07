@@ -8,7 +8,7 @@ const h = vi.hoisted(() => {
   const builder = (table) => {
     const result = Promise.resolve(tables[table] ?? { data: [], error: null });
     const b = {
-      select: () => b, eq: () => b, or: () => b, order: () => b, limit: () => b,
+      select: () => b, eq: () => b, neq: () => b, in: () => b, or: () => b, order: () => b, limit: () => b,
       maybeSingle: () => result,
       then: (res, rej) => result.then(res, rej),
     };
@@ -113,6 +113,40 @@ describe("loadAccountData field mapping (the 'five seams' guard)", () => {
       quoteValue: 500, salesValue: 600, context: "ctx", page: "/contact", type: "phone",
     });
     expect(lead.fields).toEqual({ a: 1 });
+  });
+
+  it("threads onboarding rows + lifecycle stamps into DATA.onboarding (the most-missed seam)", async () => {
+    h.tables.accounts.data.onboarding_started_at = "2026-09-30T12:00:00Z";
+    h.tables.onboarding_items = {
+      data: [{ id: "ob-1", account_id: "acc-1", section: "access", key: "gbp", label: "Google Business Profile", kind: "credential",
+        status: "request_sent", alloy_status: "complete", fields: { username: "x@y.com" }, custom: false, sort: 40, updated_by: "Bruce" }],
+      error: null,
+    };
+    const data = await loadAccountData(session, "acc-1", me);
+    expect(data.account.onboardingStartedAt).toBe("2026-09-30T12:00:00Z");
+    expect(data.account.onboardingCompletedAt).toBeNull();
+    expect(data.onboarding).toMatchObject({ startedAt: "2026-09-30T12:00:00Z", completedAt: null });
+    expect(data.onboarding.items[0]).toMatchObject({ id: "ob-1", key: "gbp", status: "request_sent", alloyStatus: "complete", updatedBy: "Bruce", sort: 40 });
+    expect(data.onboarding.items[0].fields).toEqual({ username: "x@y.com" });
+    delete h.tables.onboarding_items;
+  });
+
+  it("derives the bank step from quickbooks_payment_methods, not from the stored status", async () => {
+    h.tables.onboarding_items = {
+      data: [{ id: "ob-bank", account_id: "acc-1", section: "billing", key: "bank_account", label: "Bank account for autopay", kind: "payment", status: "pending", fields: {}, sort: 0 }],
+      error: null,
+    };
+    h.tables.quickbooks_payment_methods = { data: [{ bank_name: "FIRST CITIZENS", account_type: "BUSINESS_CHECKING", last4: "3913" }], error: null };
+    let data = await loadAccountData(session, "acc-1", me);
+    expect(data.onboarding.items[0].status).toBe("complete");
+    delete h.tables.quickbooks_payment_methods;
+    data = await loadAccountData(session, "acc-1", me);
+    expect(data.onboarding.items[0].status).toBe("pending");
+    h.tables.accounts.data.autopay_required = false;
+    data = await loadAccountData(session, "acc-1", me);
+    expect(data.onboarding.items[0].status).toBe("na");
+    delete h.tables.accounts.data.autopay_required;
+    delete h.tables.onboarding_items;
   });
 
   it("maps account fields incl. pastelUrl, and defaults origin to 'added'", async () => {

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:edge": "bash scripts/check-edge.sh",
-    "check": "npm run build && npm run test && npm run check:edge"
+    "check": "npm run build && npm run test && npm run check:edge",
+    "proposal:standalone": "node tools/standalone-proposal/build.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",

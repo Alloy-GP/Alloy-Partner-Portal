@@ -1,3 +1,26 @@
+import { templateRows } from './lib/onboarding.js';
+
+// Demo onboarding checklist (mock mode only) — a client a week into onboarding:
+// some access granted, one item stuck, brand files uploaded.
+const DEMO_OB = {
+  domain: { status: 'request_sent', alloyStatus: 'complete', fields: { username: 'rise-admin', url: 'https://godaddy.com' } },
+  hosting: { status: 'request_sent', alloyStatus: 'complete' },
+  cms: { status: 'complete', alloyStatus: 'complete', fields: { username: 'rim@riseamg.com', password: 'demo-only', url: 'https://riseamg.com/wp-admin' } },
+  google_ads: { status: 'stuck', fields: { notes: 'Where do I find this?' } },
+  gbp: { status: 'request_sent', alloyStatus: 'complete', fields: { username: 'riseamg@gmail.com' } },
+  ga: { status: 'request_sent', fields: { username: 'riseamg@gmail.com' } },
+  gtm: { status: 'na', alloyStatus: 'complete', fields: { notes: "We don't have one." } },
+  logos: { status: 'complete', fields: { link: 'https://alloy.dash.app/uploads/demo-rise' } },
+  brand_guide: { status: 'complete', fields: { link: 'https://alloy.dash.app/uploads/demo-rise' } },
+};
+const DEMO_ONBOARDING_ITEMS = [
+  { id: 'ob-c1', section: 'contacts', key: 'custom:c1', label: 'Rim Patel', kind: 'contact', hint: '', status: 'pending', alloyStatus: null, fields: { title: 'Owner', email: 'rim@riseamg.com', phone: '512.555.0142' }, custom: true, sort: 10, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
+  { id: 'ob-l1', section: 'locations', key: 'loc:austin-tx', label: 'Austin, TX', kind: 'location', hint: '', status: 'pending', alloyStatus: null, fields: { address: '2100 S Lamar Blvd, Austin, TX 78704', phone: '512.555.0100', manager: 'Rim Patel', hours: 'Mon–Fri 8:30am–5pm', notes: 'Main office — 14 staff' }, custom: true, sort: 10, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
+  { id: 'ob-l2', section: 'locations', key: 'loc:round-rock-tx', label: 'Round Rock, TX', kind: 'location', hint: '', status: 'pending', alloyStatus: null, fields: { address: '', phone: '' }, custom: true, sort: 20, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
+  { id: 'ob-c2', section: 'contacts', key: 'custom:c2', label: 'Pamela Andersen', kind: 'contact', hint: '', status: 'pending', alloyStatus: null, fields: { title: 'Director of Client Relations', email: 'pandersen@riseamg.com', phone: '512.555.0143' }, custom: true, sort: 20, createdAt: '2026-03-02', updatedAt: null, updatedBy: '' },
+  ...templateRows().map((t) => ({ id: `ob-${t.key}`, alloyStatus: null, createdAt: '2026-03-02', updatedAt: null, updatedBy: '', ...t, ...(DEMO_OB[t.key] || {}) })),
+];
+
 // Mock data for Alloy Client Portal
 export const DATA = {
   user: { name: "Rim", initials: "R", role: "owner" },
@@ -152,6 +175,7 @@ export const DATA = {
     rankingsTracked: 142,
     rankingsTop10: 47,
   },
+  onboarding: { startedAt: "2026-03-02T15:00:00Z", completedAt: null, items: DEMO_ONBOARDING_ITEMS },
   library: [
     { lane: "attract", stage: "BoardReach", ttl: "The CAM SEO Field Guide", meta: "Guide · 24 min read", desc: "Everything you need to outrank generalist competitors in your metro." },
     { lane: "attract", stage: "BoardReach", ttl: "Outsmarting AI Search", meta: "Course · 5 lessons · in progress", desc: "How micro-courses drive citations from Perplexity, Gemini & ChatGPT." },

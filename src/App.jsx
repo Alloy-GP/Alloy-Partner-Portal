@@ -15,11 +15,15 @@ import AccountScreen from './components/AccountScreen.jsx';
 import { AssetsScreen } from './components/screen-assets.jsx';
 import ProposalsScreen from './components/screen-proposals.jsx';
 import PrivacyScreen from './components/PrivacyScreen.jsx';
+import OnboardingScreen from './components/OnboardingScreen.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { track } from './lib/track.js';
 import { startPortalTour, TOUR_REVISED_AT } from './lib/tour.js';
 import { can, effectiveIdentity } from './lib/perms.js';
 import { canSeeProposals } from './lib/proposalAccess.js';
+import ProposalPage from './components/proposal/ProposalPage.jsx';
+import { proposalGateState } from './lib/engagementGate.js';
+import { canSeeOnboarding } from './lib/onboarding.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
 import QuarterGoalsModal from './components/QuarterGoalsModal.jsx';
@@ -37,7 +41,7 @@ const PATHS = {
   dashboard: '/', leads: '/partnership', snapshot: '/snapshot', roi: '/roi', projects: '/playbook', tickets: '/tickets',
   performance: '/visibility',
   playbook: '/roadmap', library: '/library', rewards: '/rewards', 'account-details': '/account', privacy: '/privacy',
-  assets: '/assets', proposals: '/proposals',
+  assets: '/assets', proposals: '/proposals', onboarding: '/onboarding',
 };
 
 // App entry — composes Sidebar + screen
@@ -110,7 +114,21 @@ function App({ session, onSignOut, staffNav } = {}) {
   // file. The decision is pure (src/lib/paymentNudge.js); mock mode never nudges.
   const [pmModalOpen, setPmModalOpen] = useState(false);
   const [, setPmTick] = useState(0);   // re-render once a bank is saved (DATA is mutable)
-  const pmNudge = isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
+  // Engagement proposal gate — a NEW client whose proposal is 'sent' sees ONLY
+  // the proposal page until their owner accepts (src/lib/engagementGate.js).
+  // Staff are never locked; "View as client" is (that is how staff QA it).
+  // While locked, the autopay nudge and the first-run tour stay quiet — they
+  // are the NEXT steps and fire naturally once the portal opens.
+  const [, setGateTick] = useState(0);
+  const gateState = proposalGateState({ user: DATA.user, engagement: DATA.engagement });
+  const locked = gateState === 'locked';
+  const pmNudge = !locked && isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
+  // While an OPEN onboarding checklist carries the bank step (its nav badge +
+  // dashboard card already point there), the sign-in modal and the persistent
+  // banner stand down — one nudge, not three. The Account page empty state and
+  // the checklist row still open the modal. Resumes once staff mark it complete.
+  const pmViaOnboarding = pmNudge && onboardingOwnsPaymentNudge(DATA.onboarding) && canSeeOnboarding(DATA.user, DATA.account, DATA.onboarding);
+  const pmNudgeUi = pmNudge && !pmViaOnboarding;
   // Staff previewing a client see the nudge but must not log client events.
   const trackNudge = (type) => { if (!viewAsClient) track(type, {}); };
   const openPm = () => { trackNudge('payment_nudge_open'); setPmModalOpen(true); };
@@ -175,27 +193,41 @@ function App({ session, onSignOut, staffNav } = {}) {
   // anchors are mounted; the tour stamps profiles.tour_completed_at on finish.
   const tourStartedRef = React.useRef(false);
   useEffect(() => {
-    if (tourStartedRef.current || active !== "dashboard") return;
+    if (tourStartedRef.current || active !== "dashboard" || locked) return;
     const u = DATA.user || {};
     // Show on first sign-in (no completion) OR when the tour was revised after
     // their last completion ("something new"). Otherwise leave them alone.
     const seenCurrent = u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT);
     if (!u.id || u.isStaff || seenCurrent) return;
     tourStartedRef.current = true;
-    const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmNudge) autoOpenPm(); } }), 800);
+    const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmNudgeUi) autoOpenPm(); } }), 800);
     return () => clearTimeout(t);
-  }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt]);
+  }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt, locked]);
 
   // Auto-open the autopay modal at sign-in — unless the first-run tour is about
   // to play on the dashboard (it opens the nudge when it finishes instead).
   useEffect(() => {
-    if (!pmNudge) return;
+    if (!pmNudgeUi) return;
     const u = DATA.user || {};
     const tourDue = !!u.id && !u.isStaff && !(u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT));
     if (tourDue && active === 'dashboard') return;
     const t = setTimeout(autoOpenPm, 400);
     return () => clearTimeout(t);
-  }, [pmNudge]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pmNudgeUi]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Locked → the proposal is the whole portal. Accepting flips DATA in place
+  // (the row is already 'accepted' server-side) and re-renders into the real
+  // portal, where the autopay nudge / tour take over.
+  if (locked) {
+    return (
+      <ProposalPage
+        onSignOut={onSignOut}
+        previewOnly={realStaff}
+        onExitPreview={toggleViewAsClient}
+        onAccepted={() => { if (DATA.engagement) DATA.engagement.status = 'accepted'; setGateTick((t) => t + 1); }}
+      />
+    );
+  }
 
   const titles = {
     dashboard: { t: "Dashboard", s: "Tuesday, March 17 — your week at a glance" },
@@ -212,6 +244,7 @@ function App({ session, onSignOut, staffNav } = {}) {
     assets: { t: "Assets", s: `Everything Alloy has made for ${DATA.account.company}` },
     proposals: { t: "Proposals", s: "Intake, match, and send tailored proposals" },
     privacy: { t: "Privacy", s: "How your information is handled" },
+    onboarding: { t: "Onboarding", s: "Everything we need to get your growth engine running" },
   };
 
   // Navigate within the current client context. `sub` appends a sub-path
@@ -244,6 +277,12 @@ function App({ session, onSignOut, staffNav } = {}) {
       // can't reach it either — see src/lib/proposalAccess.js for the matrix.
       case "proposals": return canSeeProposals(DATA.user, DATA.account)
         ? <ProposalsScreen/>
+        : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
+      // Onboarding checklist — only once Alloy has started one for this account
+      // (and never for accounting users: it holds credentials). Same helper
+      // gates the nav entry, so a typed URL can't reach what the nav hides.
+      case "onboarding": return canSeeOnboarding(DATA.user, DATA.account, DATA.onboarding)
+        ? <OnboardingScreen onNav={handleNav} onAddPayment={pmNudge ? openPm : null}/>
         : <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
       case "privacy": return <PrivacyScreen/>;
       default: return <Dashboard role={role} density={tweaks.density} onNav={handleNav} t={tweaks}/>;
@@ -285,7 +324,13 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       <main className="main">
         <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
-        {pmNudge ? <PaymentNudgeBanner onOpen={openPm} /> : null}
+        {pmNudgeUi ? <PaymentNudgeBanner onOpen={openPm} /> : null}
+        {realStaff && !viewAsClient && DATA.engagement && DATA.engagement.status === 'sent' ? (
+          <div className="eg-staff-banner" role="status" data-testid="eg-staff-banner">
+            <span><strong>Proposal sent (v{DATA.engagement.version}).</strong> This client's portal is locked to the proposal until their owner accepts.</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={toggleViewAsClient}>Preview as client</button>
+          </div>
+        ) : null}
         <ErrorBoundary key={location.pathname}>{screen}</ErrorBoundary>
       </main>
 
@@ -328,6 +373,8 @@ function App({ session, onSignOut, staffNav } = {}) {
             // Same shape loadData builds from quickbooks_payment_methods, so the
             // banner clears and the Account card fills in without a reload.
             DATA.paymentMethod = { bankName: m.bankName || null, accountType: m.accountType || null, last4: m.last4 || null, status: m.verificationStatus || null, authorizedAt: m.authorizedAt || new Date().toISOString() };
+            // …and the onboarding checklist's bank step, if there is one.
+            markOnboardingPaymentComplete().catch(() => {}).then(() => setPmTick((t) => t + 1));
             setPmTick((t) => t + 1);
           }}
           onFinish={() => setPmModalOpen(false)}

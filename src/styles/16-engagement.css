@@ -1,0 +1,145 @@
+/* ============================================================
+   Engagement proposal gate (ProposalGate.jsx). Shell-less page: the
+   document + a sticky aside. Reuses portal primitives (.card, .kicker,
+   .card-head, .btn*, .input, .nr-field, .pm-agree); only .eg-* lives here.
+   ============================================================ */
+
+.eg-page { min-height: 100vh; background: var(--alloy-off-white); color: var(--fg); }
+
+.eg-preview-bar {
+  position: sticky; top: 0; z-index: 50; background: var(--alloy-purple); color: #fff; text-align: center;
+  padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; letter-spacing: .01em;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+
+.eg-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 16px 28px; background: #fff; border-bottom: 1px solid var(--border-subtle);
+}
+.eg-top-brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.eg-top-brand img { height: 26px; width: auto; display: block; }
+.eg-top-sep { width: 1px; height: 22px; background: var(--border-subtle); }
+.eg-top-for { font-size: 13.5px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.eg-top-for strong { color: var(--alloy-purple); }
+.eg-top-user { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+
+.eg-body {
+  display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start;
+  max-width: 1180px; margin: 0 auto; padding: 28px 28px 64px;
+}
+.eg-body-center { grid-template-columns: minmax(0, 620px); justify-content: center; padding-top: 64px; }
+.eg-doc { display: grid; gap: 20px; min-width: 0; }
+.eg-aside { position: sticky; top: 24px; display: grid; gap: 16px; }
+
+.eg-card { padding: 24px 26px; }
+.eg-card .card-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.eg-card .card-head h3 { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--alloy-purple); }
+
+.eg-kicker { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: var(--alloy-pink); }
+.eg-h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(24px, 3vw, 32px); line-height: 1.15; letter-spacing: -.015em; color: var(--alloy-purple); margin: 6px 0 8px; }
+.eg-h3 { font-family: var(--font-display); font-weight: 800; font-size: 16px; color: var(--alloy-purple); margin: 4px 0 12px; }
+.eg-prepared { font-size: 13px; color: var(--fg-muted); margin-bottom: 14px; }
+.eg-prepared strong { color: var(--fg-2); }
+.eg-p { font-size: 14px; line-height: 1.65; color: var(--fg-3); margin: 0 0 10px; }
+.eg-p:last-child { margin-bottom: 0; }
+.eg-muted { color: var(--fg-muted); font-weight: 500; }
+
+.eg-hero { background: linear-gradient(180deg, #fff 0%, #fbfafd 100%); }
+
+/* markets */
+.eg-markets { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: start; }
+.eg-bignum { display: grid; justify-items: center; padding: 10px 18px; border-radius: 14px; background: var(--alloy-purple); color: #fff; min-width: 96px; }
+.eg-bignum .n { font-family: var(--font-display); font-size: 40px; font-weight: 800; line-height: 1; }
+.eg-bignum .l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; opacity: .8; margin-top: 4px; }
+.eg-locnames { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.eg-chip { display: inline-block; font-size: 12px; font-weight: 600; color: var(--alloy-purple); background: var(--alloy-purple-tint); border-radius: 999px; padding: 4px 10px; }
+.eg-chip-soft { background: var(--alloy-off-white); color: var(--fg-3); font-weight: 500; border: 1px solid var(--border-subtle); }
+
+.eg-effort { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+.eg-effort-head { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-3); margin-bottom: 10px; }
+.eg-bar-row { display: grid; grid-template-columns: 120px 1fr 90px; gap: 12px; align-items: center; margin-bottom: 8px; font-size: 13px; }
+.eg-bar-lbl { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--fg-2); }
+.eg-bar-lbl i { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+.eg-bar { position: relative; height: 12px; background: var(--alloy-off-white); border-radius: 999px; overflow: hidden; }
+.eg-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+.eg-bar i.now { opacity: .9; }
+.eg-bar i.one { background: rgba(56,28,79,.28); }
+.eg-bar-val { font-family: var(--font-mono); font-size: 12px; color: var(--fg-2); text-align: right; }
+
+.eg-curve { display: flex; align-items: flex-end; gap: 8px; margin-top: 14px; padding-top: 18px; position: relative; }
+.eg-curve-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; }
+.eg-curve-col i { display: block; width: 100%; max-width: 40px; border-radius: 6px 6px 2px 2px; background: var(--alloy-light-gray); }
+.eg-curve-col.is-now i { background: var(--alloy-pink); }
+.eg-curve-col span { font-family: var(--font-mono); font-size: 11px; color: var(--fg-muted); }
+.eg-curve-col.is-now span { color: var(--alloy-pink); font-weight: 700; }
+.eg-curve-cap { position: absolute; right: 0; top: -6px; font-size: 11px; color: var(--fg-muted); }
+
+/* engines + modules */
+.eg-engine { display: grid; gap: 12px; }
+.eg-engine-head { display: flex; align-items: center; gap: 12px; padding: 4px 4px 0; }
+.eg-engine-dot { width: 14px; height: 14px; border-radius: 999px; flex-shrink: 0; }
+.eg-engine-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--alloy-purple); letter-spacing: .01em; }
+.eg-engine-tag { font-size: 12.5px; color: var(--fg-muted); }
+.eg-mods { display: grid; gap: 12px; }
+.eg-mod { padding: 18px 22px; }
+.eg-mod-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.eg-mod-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--alloy-purple); }
+.eg-scale-tag { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--alloy-pink); background: var(--alloy-pink-tint); border-radius: 999px; padding: 3px 9px; }
+.eg-mod-sum { margin-top: 4px; }
+.eg-lines { margin: 10px 0 12px; padding: 0 0 0 18px; display: grid; gap: 4px; }
+.eg-lines li { font-size: 13.5px; color: var(--fg-2); font-weight: 600; }
+.eg-includes { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* investment */
+.eg-invest { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start; }
+.eg-invest-main { display: grid; justify-items: start; padding: 12px 18px; border-radius: 14px; background: var(--alloy-purple-tint); }
+.eg-invest-main .n { font-family: var(--font-display); font-size: 34px; font-weight: 800; color: var(--alloy-purple); line-height: 1; }
+.eg-invest-main .l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--fg-muted); margin-top: 6px; }
+.eg-dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 13.5px; }
+.eg-dl dt { color: var(--fg-muted); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; padding-top: 2px; }
+.eg-dl dd { margin: 0; color: var(--fg-2); font-weight: 600; }
+
+.eg-steps { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.55; color: var(--fg-3); }
+.eg-steps strong { color: var(--alloy-purple); }
+
+/* aside cards */
+.eg-accept { border-color: var(--alloy-pink); box-shadow: 0 8px 24px -12px rgba(217,53,110,.35); display: grid; gap: 12px; }
+.eg-accept-btn { width: 100%; justify-content: center; }
+.eg-note { font-size: 13px; line-height: 1.55; color: var(--fg-3); background: var(--alloy-off-white); border-radius: 10px; padding: 12px 14px; }
+.eg-note-warn { background: var(--alloy-yellow-tint); color: var(--alloy-purple); }
+.eg-note-ok { background: var(--alloy-green-tint); color: #2c6e62; margin-bottom: 10px; }
+.eg-refs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.eg-refs a { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; font-weight: 600; color: var(--alloy-purple); text-decoration: none; padding: 9px 12px; border-radius: 9px; background: var(--alloy-off-white); }
+.eg-refs a:hover { background: var(--alloy-purple-tint); }
+.eg-soon { border-style: dashed; background: transparent; }
+.eg-card textarea.input { resize: vertical; margin-bottom: 10px; }
+
+/* the conversation: colour = who (Alloy purple / client light), side = mine */
+.eg-thread { max-height: 320px; overflow-y: auto; display: grid; gap: 8px; padding: 2px 2px 6px; margin-bottom: 10px; scroll-behavior: smooth; }
+.eg-msg { max-width: 92%; border-radius: 12px; padding: 9px 12px; font-size: 13px; line-height: 1.5; background: var(--alloy-off-white); color: var(--fg-3); justify-self: start; border: 1px solid var(--border-subtle); }
+.eg-msg.is-staff { background: var(--alloy-purple); color: #fff; border-color: var(--alloy-purple); }
+.eg-msg.is-mine { justify-self: end; }
+.eg-msg-meta { font-size: 11px; font-weight: 700; opacity: .75; margin-bottom: 3px; }
+.eg-msg-body { white-space: pre-wrap; word-break: break-word; }
+
+/* staff banner inside the normal portal while a client's proposal is out */
+.eg-staff-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  margin: 0 0 20px; padding: 12px 16px; border-radius: 12px; font-size: 13px; color: var(--alloy-purple);
+  background: var(--alloy-yellow-tint); border: 1px solid #f1e3a8;
+}
+
+/* accepted */
+.eg-done { text-align: center; display: grid; justify-items: center; gap: 8px; padding: 40px 36px; }
+.eg-done-icon { width: 56px; height: 56px; border-radius: 999px; background: var(--alloy-green-tint); color: #2c6e62; display: grid; place-items: center; margin-bottom: 6px; }
+.eg-done .btn { margin-top: 10px; }
+
+@media (max-width: 960px) {
+  .eg-body { grid-template-columns: 1fr; padding: 20px 16px 48px; }
+  .eg-aside { position: static; order: -1; }
+  .eg-top { padding: 12px 16px; }
+  .eg-top-for { display: none; }
+  .eg-markets, .eg-invest { grid-template-columns: 1fr; }
+  .eg-bar-row { grid-template-columns: 90px 1fr 70px; }
+  .eg-card { padding: 18px 18px; }
+}
