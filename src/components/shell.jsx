@@ -5,6 +5,7 @@ import CompanyMark from './CompanyMark.jsx';
 import { zdList } from '../lib/zendesk.js';
 import { inMotionNow } from '../lib/quarterStats.js';
 import { canSeeProposals } from '../lib/proposalAccess.js';
+import { canSeeOnboarding, onboardingNavCount } from '../lib/onboarding.js';
 
 // Shell — sidebar nav, header, role switcher
 const { useState, useEffect, useRef, useMemo } = React;
@@ -30,8 +31,15 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
   // Identical to every other surface.
   const openProjects = inMotionNow(DATA.projects || []);
 
+  // Onboarding checklist — only for accounts where Alloy started one (Admin →
+  // Onboarding, or automatically on client creation). Sits right under
+  // Dashboard with a to-do badge until staff mark it complete, then parks at
+  // the bottom of Account as a reference (the credentials stay useful).
+  const obDone = !!(DATA.onboarding && DATA.onboarding.completedAt);
+  const obNav = { id: "onboarding", label: "Onboarding", icon: I.Check, group: obDone ? "account" : "main", count: onboardingNavCount(DATA.onboarding), hide: !canSeeOnboarding(DATA.user, DATA.account, DATA.onboarding) };
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: I.Home, group: "main" },
+    ...(obDone ? [] : [obNav]),
     { id: "tickets", label: "Inbox", icon: I.Mail, group: "main", count: pendingTickets || 0 },
     // The four program pages, ordered as the funnel: plan it -> run it -> see the
     // demand -> see it convert. NOTE: route ids are historical and don't match the
@@ -47,6 +55,7 @@ function Sidebar({ active, onNav, role, onRole, tier, density, t, setTweak, coll
     { id: "account-details", label: "Account Details", icon: I.Settings, group: "account" },
     { id: "assets", label: "Assets", icon: I.Image, group: "account" },
     { id: "upload-assets", label: "Upload Assets", icon: I.Upload, group: "account", external: true, href: (DATA.account && DATA.account.dashUploadUrl) || "https://dam.alloygp.co" },
+    ...(obDone ? [obNav] : []),
     // Admin lives at the staff level (Alloy Home), not inside a client's sidebar.
     // `hide` is the ONE way to gate an entry — set it from the same helper the
     // route uses, so the nav and the route can't disagree.

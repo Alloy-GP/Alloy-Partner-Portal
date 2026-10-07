@@ -239,3 +239,115 @@ appends one `open`/`denied` event, returns the HTML) → `src/lib/hostedDoc.js`
 - Change a password: `update hosted_docs set password='…' where slug='…'`.
 - **Accept relay:** a doc's own Accept button may `window.parent.postMessage({ type: 'hosted-doc:accept', name, title, option, optionDetail, price, terms }, '*')`. The gate re-posts it to `hosted-doc` (`action: 'accept'`) with the proven password → `accepted` event (details in `hosted_doc_events.meta`) + Resend email to `HOSTED_DOC_ALERT_TO` (default admin@alloygp.co). Notification only — nothing is signed or billed.
 - The CMA proposal is a "Bundled Page" export: content lives JSON-encoded in `<script type="__bundler/template">`; edit by parsing that string, patching, re-dumping with `</` escaped as `<\/`.
+
+## Engagement proposal gate (Alloy's proposal to a NEW client)
+Not the CMGT board system (`proposals`). Table `engagement_proposals`: staff author
+in Admin → client → Engagement proposal (`AdminEngagement.jsx`, writes under RLS)
+from the evergreen catalog `src/lib/engagementCatalog.js` (modules + how each
+scales with `locations_count`). **Send → the client's portal is LOCKED to
+`ProposalGate.jsx` until their OWNER accepts** (`acceptProposal` cap = client:owner).
+Decision is pure — `proposalGateState` in `src/lib/engagementGate.js` (tested):
+staff never locked, "View as client" locked (that is the QA path; Accept disabled
+in preview). Client writes (accept / request_changes) + staff `notify_sent` go
+through the `engagement-proposal` edge fn (`verify_jwt: true`; emails
+`PROPOSAL_ALERT_TO`, default admin@alloygp.co). Seams: migration → `loadData`
+(`DATA.engagement`, error-tolerant) → `App.jsx` (gate before `titles`; mutes the
+autopay nudge + tour while locked; staff banner when 'sent') → `AuthGate` realtime
+channel (`engagement_proposals`) so send/withdraw locks/unlocks live. Withdraw
+unlocks and allows a new proposal; re-send bumps `version`; acceptance records
+who/when/`accepted_version`/`agreement_version` (bump `PROPOSAL_AGREEMENT_VERSION`
+when the wording changes). Reference docs = `reference_links` (view.alloygp.co).
+
+**v3 page (design handoffs Sep 30 + Oct 1 2026):** `src/components/proposal/*`
+(ProposalPage, AcceptCard, AgreementModal, SampleModal, Investment) +
+`src/styles/17-proposal.css` (scoped `.pp`, Gotham from `public/fonts`, mobile
+stacks <960px). Four sections: 01 What you're buying (fixed 2×/6×+/1× results
+block; "The floor" grays out when the selected plan has no guarantee) · 02 What
+to expect (capability chips, Reach/Match/Retain program cards, 35+ years band +
+expertise tiles, match HOA partner card) · 03 Investment (plan cells with a
+"Fuel" bar, match HOA logo row, Your terms, due-at-start band, seal) · 04 Next
+steps ("Review terms and sign"). No in-page chat since Oct 2 2026: questions go
+to the rep's contact on the cover; the Admin rail's Thread card shows historical
+client questions only (staff replies still email the owners). **One-off HTML:**
+`npm run proposal:standalone [data.json]` (tools/standalone-proposal) bundles the real
+page + CSS + Gotham + images into one file with a hand-editable JSON data block;
+`ProposalPage standalone` hides sign-out and routes acceptance to the portal. Section toggles = `SECTION_DEFS` keys
+results/baseline/programs/expertise/partner/next. Evergreen copy in
+`src/lib/proposalContent.js` — HARD RULES: never "Most CAM companies grow by
+accident"; form submissions only, never call tracking as a service; NO em dashes
+in page copy. The cover shows the rep's contact (`prepared_by_phone/email`) and
+the Next-steps headline is per-proposal (`next_steps_title`, default seasonal).
+Removed in v3: the module picker / outcome cards, the ROI calculator, Admin
+intro/closing (columns kept, unused). Plans (1–3, one recommended; templates
+Steady/Accelerate/Ascend with `matchHoa`, `portal`, `fuel`), comparison-row
+toggles, validity (+30 days), client legal identity, testimonial (links to
+Vimeo), welcome-call link: `proposalPlans.js` + `adminEngagement.js`
+(`validateForSend` requires legal name/entity/address/start).
+The contract text is `supabase/functions/engagement-proposal/agreementTerms.js`
+(verbatim from the handoff; `buildAgreement`; party = **Alloy Growth Partners, LLC**
+since Oct 2 2026 → `PROPOSAL_AGREEMENT_VERSION` 'v2'; Sec. 3.2 radius =
+`exclusivity_miles`) and the ONE shared implementation of
+plans + the agreement document is `proposalShared.js` in the same folder — the portal
+imports it by relative path, so the modal and the server snapshot render the same
+bytes. Accept requires `agreementRead` + `planKey`; the fn stores `accepted_plan_key`,
+IP, user agent, `agreement_snapshot` (facts + full text) and `agreement_hash`
+(sha-256) — the signed record until a PDF service exists. Headless Chrome in the
+cloud sandbox stalls on this page (Gotham shaping + scroll containers), as it did
+on the designer's prototype: verify visually in a real browser on stg.
+
+## Admin · Manage Clients workspace (design handoff, Sep 30 2026)
+`src/components/admin/ClientWorkspace.jsx` replaces the old one-page AdminScreen:
+sticky header (identity · tab strip · Save / status pill) + clients list + tabs
+`ClientTabs.jsx` (Profile, Locations, Integrations, Team & access) and
+`ProposalWorkspace.jsx` (sub-tabs Overview/Plan · Plans & pricing · Content ·
+Agreement, plus the right rail: Preview/Send, "Client will see" + send checklist,
+Activity, Thread, Back to draft/Withdraw). Styles `18-admin.css` (scoped `.adm`).
+- Clients list is sectioned by `groupClients` (tested): In proposal (draft/sent) ·
+  Active clients (accepted or no proposal) · Internal. The **Alloy** account is
+  `tier='internal'` — staff profiles live on it; it is NOT a client, and every
+  other admin screen filters that tier out of client lists.
+- Locations are `accounts.locations` jsonb `[{name, hq, address, status, tag}]`
+  (tag: active | onboarding | proposed) — they feed the proposal's market chips.
+- Proposal v2 columns: `markets text[]` (which locations this proposal covers),
+  `sections jsonb` (page section toggles s1–s6; the page hides them), `spoc`,
+  `valid_days` (send stamps valid_through = today + days), plans carry `show`.
+- Team roles: client owner | staff ("Viewer" in the UI) | accounting; only the
+  owner accepts. `list_invites` (admin fn) adds `signed_up` + `last_seen_at`
+  from events. Invites can be added quietly (`send_email:false`) and sent later.
+- Send is gated by `sendChecklist` (markets, recommended plan, legal name,
+  entity+address, start date are hard; "an owner invited" is a warning).
+- Activity = `events` rows `proposal_*` for the account (staff read policy) via
+  `loadProposalActivity`; names from the account's profiles.
+- Plan (accepted) view: purple summary, Included / Markets / Signed cards, and a
+  Billing row whose "Change plan" / "Pause · cancel" are DISABLED placeholders.
+
+## Onboarding checklist (replaces the emailed intake Google Sheet)
+Per-client intake: contacts, platform access/credentials, brand files, existing
+marketing tools. Template = `TEMPLATE` in `src/lib/onboarding.js` (pure, tested).
+Add a line item there with a NEW stable `key` (never rename one — the client's
+answers hang on it); existing clients pick it up via Admin → Onboarding → "+ N new".
+Seams: migration (`onboarding_items` + `accounts.onboarding_started_at/completed_at`)
+→ `admin` fn `onboarding_*` actions (overview/start/reset/complete/remove — the UI
+sends the materialized rows, the fn stamps `account_id`) → `src/lib/admin.js` →
+`AdminOnboarding.jsx` (+ "Start their onboarding checklist" checkbox on New client
+in `admin/ClientWorkspace.jsx` → `ProfileTab`, default on) → `loadData` (`DATA.onboarding`,
+`account.onboardingStartedAt`) → `OnboardingScreen.jsx` at `/onboarding` (clients
+write rows directly under RLS via `src/lib/onboardingData.js`, autosave) → nav
+entry + badge (`shell.jsx`) + dashboard Action Queue card (`screen-dashboard.jsx`).
+`alloy_status` (the sheet's "Alloy Confirm") is staff-only — a DB trigger rejects it
+from a client JWT. Perms cap `screen_onboarding` (accounting excluded: credentials).
+Visibility is one helper, `canSeeOnboarding`, used by both the route and the nav.
+The autopay bank step is a checklist row too (section `billing`, kind `payment`):
+no typed fields — the row's button opens `PaymentSetupModal`; its status is DERIVED
+(`derivePaymentStatus` in `loadData` + the same join in `onboarding_overview`): bank
+in `quickbooks_payment_methods` → complete, `autopay_required=false` → n/a. While a
+checklist is open, `App.jsx` mutes the sign-in modal + banner (`pmNudgeUi`).
+Locations (section `locations`, kind `location`: label = name, fields {address, phone,
+manager, hours, notes})
+SYNC INTO `accounts.locations` via the DB trigger `onboarding_items_locations_sync`
+(`onboarding_sync_locations`, migration 20261001180000): linked by `source_key`/name,
+staff hq/status/tag preserved, client-added entries carry `source='onboarding'` and
+are removed when the row is; staff entries only unlink. `onboarding_start`/`reset`
+seed one row per existing staff location (`obSeedLocations`). Staff read everything
+the client entered in Admin → Manage Clients → **Credentials** tab
+(`admin/CredentialsTab.jsx`, read-only; edits happen in the client's checklist).

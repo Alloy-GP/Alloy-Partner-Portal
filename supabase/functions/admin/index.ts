@@ -133,6 +133,9 @@ async function syncWhatConverts(accountId: string): Promise<string | null> {
 const PORTAL_URL = Deno.env.get("PORTAL_URL") || "https://growth.alloygp.co";
 const PORTAL_HOST = PORTAL_URL.replace(/^https?:\/\//, "");
 const FROM = "Alloy Growth Partners <noreply@alloygp.co>";
+// Replies to invites land in a monitored mailbox (also helps deliverability —
+// no-reply senders with no reply-to score worse).
+const INVITE_REPLY_TO = Deno.env.get("INVITE_REPLY_TO") || "team@alloygp.co";
 
 function esc(s: unknown): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -252,17 +255,33 @@ async function sendSnapshotEmail(admin: any, snapshotId: string) {
 // Branded "you're invited" email with a one-click sign-in link. We generate the
 // link ourselves and send via Resend (not the built-in auth mailer) so it's
 // reliable + on-brand, and so failures surface instead of vanishing.
-function renderInviteEmail(acct: any, link: string, staff: boolean): string {
+// `proposal` = the account has an engagement proposal SENT and unaccepted: the
+// portal is locked to the proposal page, so the invite must say "review your
+// proposal", not "here is your full portal" (which they cannot see yet).
+function renderInviteEmail(acct: any, link: string, staff: boolean, proposal = false): string {
   // Email-safe rebuild of the "Growth Portal invite" design handoff: table
   // layout, inline styles, literal hex (CSS vars/flex/gradients degrade
   // gracefully), Helvetica/Arial fallback (Poppins as progressive enhancement).
   const name = acct?.short_name || acct?.company || "your team";
   const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
-  const eyebrow = staff ? "Team access" : "Your growth portal is ready";
+  const eyebrow = staff ? "Team access" : proposal ? "A proposal is waiting for you" : "Your growth portal is ready";
+  const headline = proposal && !staff ? "Your proposal from<br>Alloy Growth Partners" : "You're invited to<br>the Alloy Growth Portal";
   const intro = staff
     ? "You've been added to the Alloy Growth Portal &mdash; your team's live view of the work we're driving for clients. One click signs you in, no password needed."
+    : proposal
+    ? `We've prepared a growth partnership proposal for ${esc(name)}. One click signs you in to read it &mdash; what we'd do in each of your markets, what it costs, and the documents behind it. Ask questions right from the page; the rest of your Growth Portal opens the moment you accept.`
     : "This is your live view of the work we're driving together &mdash; the roadmap, the leads waiting on you, and the value we've built. One click signs you in, no password needed.";
-  const tour = [
+  const cta = proposal && !staff ? "Review the proposal &nbsp;&rarr;" : "Accept invite &amp; sign in &nbsp;&rarr;";
+  const tour = proposal && !staff ? [
+    { tint: "#fbe2eb", stroke: "#d9356e", name: "The proposal, market by market", desc: "Every module scaled to the locations you manage.",
+      svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="14" y2="17"></line>' },
+    { tint: "#dcecf7", stroke: "#4b86b4", name: "Reference documents", desc: "The audit, playbook and reports the plan is built on.",
+      svg: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>' },
+    { tint: "#fbf2d6", stroke: "#b8902f", name: "Ask your Alloy team", desc: "Questions and changes go straight to us from the page.",
+      svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' },
+    { tint: "#def0ec", stroke: "#3f8f80", name: "Accept, and your portal opens", desc: "Playbook, roadmap, leads and inbox, live from day one.",
+      svg: '<polyline points="20 6 9 17 4 12"></polyline>' },
+  ] : [
     { tint: "#fbe2eb", stroke: "#d9356e", name: "Leads waiting on you", desc: "Qualify new opportunities the moment they land.",
       svg: '<polygon points="13 2 4 14 11 14 11 22 20 10 13 10 13 2"></polygon>' },
     { tint: "#dcecf7", stroke: "#4b86b4", name: "Your growth roadmap", desc: "Every market tracked from Foundation to Dominance.",
@@ -325,11 +344,11 @@ function renderInviteEmail(acct: any, link: string, staff: boolean): string {
     </td></tr>
     <tr><td style="padding:40px 40px 36px;">
       <div style="font-family:${F};font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:#d9356e;margin-bottom:14px;">${eyebrow}</div>
-      <div style="font-family:${F};font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 16px;">You're invited to<br>the Alloy Growth Portal</div>
+      <div style="font-family:${F};font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-0.01em;color:#1a0a26;margin:0 0 16px;">${headline}</div>
       <div style="font-family:${F};font-weight:400;font-size:16px;line-height:1.62;color:#555555;margin:0 0 30px;">${intro}</div>
       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
         <td align="center" bgcolor="#d9356e" style="border-radius:12px;background:#d9356e;box-shadow:0 8px 24px rgba(217,53,110,0.25);">
-          <a href="${link}" style="display:inline-block;padding:18px 32px;font-family:${F};font-size:16px;font-weight:700;letter-spacing:0.01em;line-height:1;color:#ffffff;text-decoration:none;border-radius:12px;">Accept invite &amp; sign in &nbsp;&rarr;</a>
+          <a href="${link}" style="display:inline-block;padding:18px 32px;font-family:${F};font-size:16px;font-weight:700;letter-spacing:0.01em;line-height:1;color:#ffffff;text-decoration:none;border-radius:12px;">${cta}</a>
         </td>
       </tr></table>
       <div style="border-top:1px solid #e8e4ef;margin-top:38px;padding-top:26px;">
@@ -364,17 +383,90 @@ async function sendInviteEmail(
   const link = linkData?.properties?.action_link;
   if (linkErr || !link) return { emailed: false, error: `generateLink: ${linkErr?.message || "no link"}` };
   const { data: acct } = await admin.from("accounts").select("company, short_name, logo_url").eq("id", accountId).maybeSingle();
+  // A SENT engagement proposal locks this client's portal to the proposal page,
+  // so the invite talks about the proposal, not a portal they can't see yet.
+  const { data: prop } = staff ? { data: null } : await admin.from("engagement_proposals")
+    .select("id").eq("account_id", accountId).eq("status", "sent").limit(1).maybeSingle();
+  const proposal = !!prop;
+  const name = acct?.short_name || acct?.company || "";
   const subject = staff
     ? "You've been added to the Alloy team portal"
-    : `You're invited to the Alloy Growth Portal &middot; ${acct?.short_name || acct?.company || ""}`.trim().replace(/ &middot;\s*$/, "");
-  const html = renderInviteEmail(acct, link, staff);
+    : proposal
+    ? `Your proposal from Alloy Growth Partners${name ? ` · ${name}` : ""}`
+    : `Your Alloy Growth Portal invite${name ? ` · ${name}` : ""}`;
+  const html = renderInviteEmail(acct, link, staff, proposal);
+  // Plain-text twin: HTML-only mail is a spam signal, and some clients prefer it.
+  const text = [
+    staff ? "You've been added to the Alloy Growth Portal." : proposal
+      ? `We've prepared a growth partnership proposal for ${name || "your company"}. Sign in to read it, ask questions, and accept when you're ready — the rest of your Growth Portal opens the moment you do.`
+      : `You're invited to the Alloy Growth Portal — your live view of the work we're driving together for ${name || "your company"}.`,
+    "", `${proposal && !staff ? "Review the proposal" : "Accept the invite and sign in"}: ${link}`, "",
+    `This sign-in link is single-use and expires soon. If it has expired, enter your email at ${PORTAL_HOST} for a fresh one.`,
+    "", "--", `Alloy Growth Partners · ${PORTAL_HOST}`,
+  ].join("\n");
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM, to: [email], subject, html }),
+    body: JSON.stringify({ from: FROM, to: [email], subject, html, text, reply_to: INVITE_REPLY_TO }),
   });
   if (!res.ok) return { emailed: false, error: `resend ${res.status}: ${await res.text()}` };
+  await admin.from("account_invites").update({ emailed_at: new Date().toISOString() }).eq("email", email);
   return { emailed: true };
+}
+
+// ── Onboarding checklist ──────────────────────────────────────────────────────
+// Replaces the Google Sheet Alloy emailed each new client. The TEMPLATE lives in
+// src/lib/onboarding.js (one source of truth, unit-tested); the Admin UI sends
+// the materialized rows here and this function stamps account_id and inserts
+// with the service role. Clients then edit their rows directly under RLS; staff
+// confirm via alloy_status. Lifecycle stamps live on accounts.
+const OB_SECTIONS = ["contacts", "locations", "billing", "access", "resources", "marketing"];
+const OB_KINDS = ["contact", "location", "credential", "upload", "tool", "payment"];
+const OB_STATUSES = ["pending", "request_sent", "complete", "new_account", "stuck", "optional", "na"];
+function obRows(accountId: string, items: unknown) {
+  if (!Array.isArray(items)) return [];
+  return items.map((it: any, i: number) => ({
+    account_id: accountId,
+    section: OB_SECTIONS.includes(it?.section) ? it.section : "access",
+    key: String(it?.key || "").slice(0, 80),
+    label: String(it?.label || "").slice(0, 200),
+    hint: it?.hint ? String(it.hint).slice(0, 400) : null,
+    kind: OB_KINDS.includes(it?.kind) ? it.kind : "credential",
+    status: OB_STATUSES.includes(it?.status) ? it.status : "pending",
+    fields: it?.fields && typeof it.fields === "object" ? it.fields : {},
+    custom: !!it?.custom,
+    sort: Number.isFinite(Number(it?.sort)) ? Number(it.sort) : i * 10,
+  })).filter((r) => r.key && r.label);
+}
+const obSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+// Seed one 'locations' row per staff-entered location (accounts.locations) that
+// has no row yet, so the client sees what we already know and fills in the
+// address + phone. The DB trigger then links row ↔ entry (source_key) and
+// keeps accounts.locations in step with what the client types.
+async function obSeedLocations(admin: any, accountId: string): Promise<number> {
+  const { data: acct } = await admin.from("accounts").select("locations").eq("id", accountId).maybeSingle();
+  const locs: any[] = Array.isArray(acct?.locations) ? acct.locations : [];
+  if (!locs.length) return 0;
+  const { data: rows } = await admin.from("onboarding_items").select("key, label, sort").eq("account_id", accountId).eq("section", "locations");
+  const haveKeys = new Set((rows || []).map((r: any) => r.key));
+  const haveNames = new Set((rows || []).map((r: any) => String(r.label || "").trim().toLowerCase()));
+  let sort = (rows || []).reduce((m: number, r: any) => Math.max(m, Number(r.sort) || 0), 0) + 10;
+  const toInsert: any[] = [];
+  locs.forEach((l: any, i: number) => {
+    const name = String(l?.name || "").trim();
+    if (!name || haveNames.has(name.toLowerCase())) return;
+    let key = String(l?.source_key || "") || `loc:${obSlug(name) || i}`;
+    while (haveKeys.has(key)) key = `${key}-${i}`;
+    haveKeys.add(key); haveNames.add(name.toLowerCase());
+    toInsert.push({
+      account_id: accountId, section: "locations", key, label: name, hint: null, kind: "location",
+      status: "pending", fields: { address: String(l?.address || ""), phone: String(l?.phone || ""), manager: String(l?.manager || ""), hours: String(l?.hours || ""), notes: String(l?.notes || "") },
+      custom: true, sort,
+    });
+    sort += 10;
+  });
+  if (toInsert.length) { const { error } = await admin.from("onboarding_items").insert(toInsert); if (error) throw error; }
+  return toInsert.length;
 }
 
 Deno.serve(async (req) => {
@@ -468,7 +560,23 @@ Deno.serve(async (req) => {
       const { data, error } = await admin
         .from("account_invites").select("*").eq("account_id", body.account_id).order("email");
       if (error) throw error;
-      return json({ invites: data });
+      // Team & access shows whether each person has signed in and when they were
+      // last active (events.created_at). Resolve email → auth user id per invite
+      // (a handful per account), then one events query.
+      const invites = data || [];
+      const uids: Record<string, string> = {};
+      for (const inv of invites) {
+        const { data: uid } = await admin.rpc("auth_uid_by_email", { p_email: inv.email });
+        if (uid) uids[inv.email] = String(uid);
+      }
+      const ids = Object.values(uids);
+      const lastSeen: Record<string, string> = {};
+      if (ids.length) {
+        const { data: evs } = await admin.from("events").select("user_id, created_at")
+          .in("user_id", ids).order("created_at", { ascending: false }).limit(500);
+        for (const e of evs || []) if (e.user_id && !lastSeen[e.user_id]) lastSeen[e.user_id] = e.created_at;
+      }
+      return json({ invites: invites.map((inv: any) => ({ ...inv, signed_up: !!uids[inv.email], last_seen_at: uids[inv.email] ? (lastSeen[uids[inv.email]] || null) : null })) });
     }
 
     if (action === "add_invite") {
@@ -499,11 +607,28 @@ Deno.serve(async (req) => {
           is_staff: row.is_staff, name: row.name, initials: row.initials, title: row.title,
         }, { onConflict: "id" });
       }
-      // Always email a working sign-in link &mdash; new OR existing user. (New users
-      // are created by the 'invite' link; the signup trigger then provisions
-      // their profile from the invite row above.)
+      // Email a working sign-in link (new OR existing user) — unless staff chose
+      // to add this person quietly (send_email === false): e.g. a new client whose
+      // FIRST email should be the proposal, or someone to be invited later from
+      // the Team & access list ("Send invite"). New users are created by the
+      // 'invite' link; the signup trigger then provisions their profile from the
+      // invite row above.
+      if (body.send_email === false) return json({ ok: true, emailed: false, skipped: true });
       const { emailed, error: emailError } = await sendInviteEmail(
         admin, email, row.account_id, body.redirectTo || PORTAL_URL, !uid, row.is_staff,
+      );
+      return json({ ok: true, emailed, emailError });
+    }
+
+    // Send (or re-send) the invite email for someone already on the account.
+    if (action === "send_invite") {
+      const email = String(body.email || "").trim().toLowerCase();
+      if (!email) return json({ error: "email required" }, 400);
+      const { data: inv } = await admin.from("account_invites").select("account_id, is_staff").eq("email", email).maybeSingle();
+      if (!inv) return json({ error: "no invite for that email — add them first" }, 404);
+      const { data: uid } = await admin.rpc("auth_uid_by_email", { p_email: email });
+      const { emailed, error: emailError } = await sendInviteEmail(
+        admin, email, inv.account_id, body.redirectTo || PORTAL_URL, !uid, !!inv.is_staff,
       );
       return json({ ok: true, emailed, emailError });
     }
@@ -867,6 +992,127 @@ Deno.serve(async (req) => {
     if (intake && intakeVerb === "delete") {
       if (!body.id) return json({ error: "id required" }, 400);
       const { error } = await admin.from(intake.table).delete().eq("id", body.id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
+    // ── Onboarding checklist ────────────────────────────────────────────────
+    if (action === "onboarding_overview") {
+      const [{ data: accts, error: aErr }, { data: items, error: iErr }, { data: banks }] = await Promise.all([
+        admin.from("accounts").select("id, company, short_name, tier, logo_url, autopay_required, locations, onboarding_started_at, onboarding_completed_at").order("company"),
+        admin.from("onboarding_items").select("account_id, section, key, kind, label, status, alloy_status, updated_at, updated_by"),
+        admin.from("quickbooks_payment_methods").select("account_id"),
+      ]);
+      if (aErr) throw aErr;
+      if (iErr) throw iErr;
+      const RESOLVED = new Set(["complete", "na", "optional", "new_account"]);
+      // The bank step (kind payment) is derived exactly as loadData derives it
+      // for the client: a bank on file = complete, autopay exempt = n/a.
+      const bankOn = new Set((banks || []).map((b: any) => b.account_id));
+      const autopayOff = new Set((accts || []).filter((a: any) => a.autopay_required === false).map((a: any) => a.id));
+      const effStatus = (it: any) => it.kind === "payment"
+        ? (bankOn.has(it.account_id) ? "complete" : autopayOff.has(it.account_id) ? "na" : it.status)
+        : it.status;
+      type Agg = { total: number; resolved: number; stuck: number; confirmed: number; contacts: number; locations: number; keys: string[]; locNames: string[]; last: string | null; lastBy: string };
+      const blank = (): Agg => ({ total: 0, resolved: 0, stuck: 0, confirmed: 0, contacts: 0, locations: 0, keys: [], locNames: [], last: null, lastBy: "" });
+      const agg: Record<string, Agg> = {};
+      for (const it of items || []) {
+        const g = agg[it.account_id] || (agg[it.account_id] = blank());
+        g.keys.push(it.key);
+        if (it.updated_at && (!g.last || it.updated_at > g.last)) { g.last = it.updated_at; g.lastBy = it.updated_by || ""; }
+        if (it.section === "contacts") { g.contacts++; continue; }
+        if (it.section === "locations") { g.locations++; g.locNames.push(String(it.label || "").trim().toLowerCase()); continue; }
+        g.total++;
+        const st = effStatus(it);
+        if (RESOLVED.has(st)) g.resolved++;
+        if (st === "stuck") g.stuck++;
+        if (it.alloy_status === "complete") g.confirmed++;
+      }
+      const clients = (accts || []).map((a: any) => {
+        const g = agg[a.id] || blank();
+        // Staff locations with no checklist row yet → the Admin "+ N new" button
+        // (onboarding_start seeds them), so an already-started checklist can
+        // still pick up locations added later in Manage Clients.
+        const keys = new Set(g.keys), names = new Set(g.locNames);
+        const seedable = (Array.isArray(a.locations) ? a.locations : []).filter((l: any) => {
+          const name = String(l?.name || "").trim();
+          return name && !names.has(name.toLowerCase()) && !(l?.source_key && keys.has(String(l.source_key)));
+        }).length;
+        const { locNames: _omit, ...rest } = g;
+        return {
+          id: a.id, company: a.company, short_name: a.short_name, tier: a.tier, logo_url: a.logo_url,
+          started_at: a.onboarding_started_at, completed_at: a.onboarding_completed_at,
+          seedable: a.onboarding_started_at ? seedable : 0,
+          ...rest,
+        };
+      });
+      return json({ clients });
+    }
+
+    if (action === "onboarding_start") {
+      // Start a checklist — or top up an existing one with template keys it
+      // doesn't have yet (the Admin "+ N new" button). Idempotent on key.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const rows = obRows(id, body.items);
+      const { data: existing, error: eErr } = await admin.from("onboarding_items").select("key").eq("account_id", id);
+      if (eErr) throw eErr;
+      const have = new Set((existing || []).map((r: any) => r.key));
+      const toInsert = rows.filter((r) => !have.has(r.key));
+      if (toInsert.length) {
+        const { error } = await admin.from("onboarding_items").insert(toInsert);
+        if (error) throw error;
+      }
+      const { data: acct } = await admin.from("accounts").select("onboarding_started_at").eq("id", id).maybeSingle();
+      if (!acct) return json({ error: "account not found" }, 404);
+      const locations = await obSeedLocations(admin, id);
+      if (!acct.onboarding_started_at) {
+        const { error } = await admin.from("accounts")
+          .update({ onboarding_started_at: new Date().toISOString(), onboarding_completed_at: null }).eq("id", id);
+        if (error) throw error;
+      }
+      return json({ ok: true, inserted: toInsert.length + locations, skipped: rows.length - toInsert.length, locations });
+    }
+
+    if (action === "onboarding_reset") {
+      // Wipe every row (statuses, contacts, credentials the client typed) and
+      // start fresh from the rows the UI sent.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const { error: dErr } = await admin.from("onboarding_items").delete().eq("account_id", id);
+      if (dErr) throw dErr;
+      const rows = obRows(id, body.items);
+      if (rows.length) {
+        const { error } = await admin.from("onboarding_items").insert(rows);
+        if (error) throw error;
+      }
+      const locations = await obSeedLocations(admin, id);
+      const { error } = await admin.from("accounts")
+        .update({ onboarding_started_at: new Date().toISOString(), onboarding_completed_at: null }).eq("id", id);
+      if (error) throw error;
+      return json({ ok: true, inserted: rows.length + locations, locations });
+    }
+
+    if (action === "onboarding_complete") {
+      // complete: true → stamp done (drops the badge + dashboard card for the
+      // client; the page stays as a reference). false → reopen.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const done = body.complete !== false;
+      const { error } = await admin.from("accounts")
+        .update({ onboarding_completed_at: done ? new Date().toISOString() : null }).eq("id", id);
+      if (error) throw error;
+      return json({ ok: true, completed: done });
+    }
+
+    if (action === "onboarding_remove") {
+      // Remove the checklist entirely — the client loses the Onboarding page.
+      const id = String(body.account_id || "");
+      if (!id) return json({ error: "account_id required" }, 400);
+      const { error: dErr } = await admin.from("onboarding_items").delete().eq("account_id", id);
+      if (dErr) throw dErr;
+      const { error } = await admin.from("accounts")
+        .update({ onboarding_started_at: null, onboarding_completed_at: null }).eq("id", id);
       if (error) throw error;
       return json({ ok: true });
     }

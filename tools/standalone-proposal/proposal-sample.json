@@ -1,0 +1,40 @@
+{
+  "account": {
+    "company": "Community Management, LLC",
+    "shortName": "CMGT",
+    "locations": [{ "name": "Denham Springs, LA", "hq": true }, { "name": "Biloxi, MS" }, { "name": "Lafayette, LA" }]
+  },
+  "proposal": {
+    "status": "sent",
+    "version": 1,
+    "ref": "CMGT-2026-03",
+    "title": "Growth partnership for CMGT.",
+    "sent_at": "2026-10-01T14:00:00Z",
+    "valid_through": "2026-10-31",
+    "start_date": "2026-11-01",
+    "markets": ["Denham Springs, LA", "Biloxi, MS", "Lafayette, LA"],
+    "prepared_by_name": "Cameron Lange",
+    "prepared_by_phone": "5555550100",
+    "prepared_by_email": "cameron@alloygp.co",
+    "next_steps_title": "",
+    "exclusivity_miles": 16,
+    "client_legal_name": "Community Management, LLC",
+    "client_entity_type": "Louisiana limited liability company",
+    "client_address": "140 Aspen Square, Suite H, Denham Springs, LA 70726",
+    "spoc": "Jeff Harman, CEO",
+    "testimonial_vimeo_id": "1131397045",
+    "testimonial_caption": "Client testimonial · 2:58",
+    "welcome_call_url": "",
+    "reference_links": [
+      { "label": "Q2 2026 Impact Report", "url": "https://view.alloygp.co/cmgt/reports/2026/cmgt-impact-report-q2-2026.html" }
+    ],
+    "sections": {},
+    "compare_rows": {},
+    "custom_rows": [],
+    "plans": [
+      { "key": "steady", "name": "Steady", "tagline": "One market", "monthly": 3200, "setup": 2500, "locations": 1, "termMonths": 12, "guarantee": false, "exclusive": false, "matchHoa": false, "portal": true, "fuel": 35, "referralDiscount": 150, "recommended": false },
+      { "key": "accelerate", "name": "Accelerate", "tagline": "Three markets", "monthly": 6850, "setup": 2500, "locations": 3, "termMonths": 12, "guarantee": true, "exclusive": true, "matchHoa": true, "portal": true, "fuel": 70, "referralDiscount": 150, "recommended": true },
+      { "key": "ascend", "name": "Ascend", "tagline": "Five markets", "monthly": 9400, "setup": 2500, "locations": 5, "termMonths": 12, "guarantee": true, "exclusive": true, "matchHoa": true, "portal": true, "fuel": 100, "referralDiscount": 150, "recommended": false }
+    ]
+  }
+}

@@ -68,3 +68,13 @@ describe("effectiveIdentity (staff 'View as client')", () => {
     expect(effectiveIdentity({ id: "c1", role: "accounting" }, { realStaff: false, viewAsClient: false })).toEqual({ isStaff: false, role: "accounting" });
   });
 });
+
+describe("screen_onboarding", () => {
+  it("lets owners, client staff and Alloy in — not accounting (credentials live there)", () => {
+    expect(can(alloyAdmin, "screen_onboarding")).toBe(true);
+    expect(can(alloyStaff, "screen_onboarding")).toBe(true);
+    expect(can(clientOwner, "screen_onboarding")).toBe(true);
+    expect(can(clientStaff, "screen_onboarding")).toBe(true);
+    expect(can(clientAccounting, "screen_onboarding")).toBe(false);
+  });
+});

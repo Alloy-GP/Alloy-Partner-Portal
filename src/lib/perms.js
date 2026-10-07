@@ -53,7 +53,14 @@ const CAPS = {
   screen_performance: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:staff', 'client:accounting'],
   screen_roi: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:accounting'],
   partnershipValue: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:accounting'],
+  // Onboarding checklist (/onboarding) — holds platform credentials, so
+  // Accounting is out; everyone who runs the engagement is in.
+  screen_onboarding: ['alloy:admin', 'alloy:staff', 'client:owner', 'client:staff'],
   billing: ['alloy:admin', 'client:owner', 'client:accounting'],
+  // Accepting Alloy's engagement proposal commits the company — the client's
+  // OWNER only. Staff never accept on a client's behalf (the edge fn enforces
+  // it too); other client roles read the proposal and ask questions.
+  acceptProposal: ['client:owner'],
 };
 
 // Map a loaded user ({ isStaff, role }) to its identity key, normalizing any
