@@ -5,9 +5,10 @@ import { PortfolioGrid, SnapshotQueue } from './AlloyHome.jsx';
 import AdminScreen from './AdminScreen.jsx';
 import AdminAnalytics from './AdminAnalytics.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
+import AdminQuarterly from './AdminQuarterly.jsx';
 import AdminGuides from './AdminGuides.jsx';
 import SyncHealth from './SyncHealth.jsx';
-import { getPortfolio, snapshotQueue, listNewsletterRequests, listAccounts, listInvites } from '../lib/admin.js';
+import { getPortfolio, snapshotQueue, listNewsletterRequests, listQuarterlyRequests, listAccounts, listInvites } from '../lib/admin.js';
 
 const { useState, useEffect } = React;
 
@@ -25,6 +26,7 @@ const NAV = [
   ] },
   { group: 'Programs', items: [
     { id: 'newsletter', label: 'Newsletter Room', icon: I.Send, path: '/admin/newsletter' },
+    { id: 'quarterly', label: 'Quarterly Meetings', icon: I.TrendUp, path: '/admin/quarterly' },
     { id: 'updates', label: 'Monthly Updates', icon: I.Calendar, path: '/admin/updates' },
     { id: 'guides', label: 'Guides', icon: I.Book, path: '/admin/guides' },
     { id: 'proposals', label: 'Proposals', icon: I.Doc, path: '/admin/proposals', soon: true },
@@ -41,6 +43,7 @@ const TITLES = {
   clients: { t: 'Manage Clients', s: 'Accounts, integrations, and access' },
   team: { t: 'Team & Access', s: 'Who’s on each client’s team' },
   newsletter: { t: 'Newsletter Room', s: 'Open rounds, collect content, track engagement' },
+  quarterly: { t: 'Quarterly Meetings', s: 'Open prep rounds before each planning meeting, read the answers' },
   updates: { t: 'Monthly Updates', s: 'Review and publish client snapshots' },
   guides: { t: 'Guides', s: 'Author how-tos and shoot sheets (global or per client)' },
   proposals: { t: 'Proposals', s: 'Proposal system — management view' },
@@ -66,7 +69,7 @@ function OverviewCard({ label, value, tone, onClick }) {
 }
 
 function Overview({ go }) {
-  const [d, setD] = useState({ clients: null, open: 0, past: 0, users: 0, drafts: 0, flagged: 0, rounds: 0 });
+  const [d, setD] = useState({ clients: null, open: 0, past: 0, users: 0, drafts: 0, flagged: 0, rounds: 0, qrounds: 0 });
   useEffect(() => {
     getPortfolio().then((r) => {
       const real = (r.clients || []).filter((c) => c.tier !== 'internal');
@@ -75,6 +78,7 @@ function Overview({ go }) {
     }).catch(() => {});
     snapshotQueue().then((q) => setD((p) => ({ ...p, drafts: q.drafts || 0, flagged: q.flagged || 0 }))).catch(() => {});
     listNewsletterRequests().then((r) => setD((p) => ({ ...p, rounds: (r.requests || []).filter((x) => x.status === 'open').length }))).catch(() => {});
+    listQuarterlyRequests().then((r) => setD((p) => ({ ...p, qrounds: (r.requests || []).filter((x) => x.status === 'open').length }))).catch(() => {});
   }, []);
   return (
     <div style={{ maxWidth: 1100 }}>
@@ -89,6 +93,7 @@ function Overview({ go }) {
         <OverviewCard label="Snapshot drafts" value={d.drafts} tone="yellow" onClick={() => go('/admin/updates')} />
         <OverviewCard label="Flagged snapshots" value={d.flagged} tone="pink" onClick={() => go('/admin/updates')} />
         <OverviewCard label="Open newsletter rounds" value={d.rounds} onClick={() => go('/admin/newsletter')} />
+        <OverviewCard label="Open quarterly rounds" value={d.qrounds} onClick={() => go('/admin/quarterly')} />
       </div>
     </div>
   );
@@ -184,6 +189,7 @@ function AdminShell({ onSignOut }) {
       case 'clients': return <AdminScreen embed startNew={sp.get('new') === '1'} selectId={sp.get('client')} />;
       case 'team': return <TeamAccess go={go} />;
       case 'newsletter': return <AdminNewsletter />;
+      case 'quarterly': return <AdminQuarterly />;
       case 'updates': return (
         <div style={{ maxWidth: 900 }}>
           <SnapshotQueue onReview={(id) => go(`/c/${id}/snapshot`)} />

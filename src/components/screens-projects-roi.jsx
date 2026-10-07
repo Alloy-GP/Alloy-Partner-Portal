@@ -5,6 +5,7 @@ import { zdList } from '../lib/zendesk.js';
 import { guideForTags } from '../lib/guides.js';
 import { newsletterForTicketTags } from '../lib/newsletter.js';
 import { goalsForTicketTags } from '../lib/goals.js';
+import { quarterlyForTicketTags } from '../lib/quarterly.js';
 import GuideModal from './GuideModal.jsx';
 import { summarizeTickets } from '../lib/summaries.js';
 import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
@@ -198,7 +199,7 @@ function ProjRow({ p, isOverdue }) {
   );
 }
 
-function ProjectsScreen({ onNav, onCompose, onNewsletter, onGoals }) {
+function ProjectsScreen({ onNav, onCompose, onNewsletter, onGoals, onQuarterly }) {
   // Zones 1 & 2 are Zendesk tickets: pending = waiting on you, open = we're on it.
   const [tickets, setTickets] = React.useState(null);
   const [guideModal, setGuideModal] = React.useState(null); // guide reader popup
@@ -352,6 +353,7 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter, onGoals }) {
               const g = guideForTags(t.tags);
               const nl = newsletterForTicketTags(t.tags);
               const goals = goalsForTicketTags(t.tags);
+              const quarterly = quarterlyForTicketTags(t.tags);
               const qLabel = `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
               return (
                 <div className="pj-cta">
@@ -363,6 +365,11 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter, onGoals }) {
                   {goals && onGoals ? (
                     <button type="button" className="pj-btn-primary" onClick={() => onGoals()}>
                       <I.Edit width={13} height={13} /> Open {qLabel} Form
+                    </button>
+                  ) : null}
+                  {quarterly && onQuarterly ? (
+                    <button type="button" className="pj-btn-primary" onClick={() => onQuarterly()}>
+                      <I.Calendar width={13} height={13} /> Open Form
                     </button>
                   ) : null}
                   {links[t.id] ? (

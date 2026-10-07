@@ -37,6 +37,12 @@ export const openNewsletterRound = (accountIds, title, dueDate) =>
   call('newsletter_open', { accountIds, title, due_date: dueDate || null });
 export const closeNewsletterRequest = (id) => call('newsletter_close', { id });
 export const deleteNewsletterRequest = (id) => call('newsletter_delete', { id });
+// Quarterly meeting prep (staff): same four actions against quarterly_requests.
+export const listQuarterlyRequests = () => call('quarterly_list');
+export const openQuarterlyRound = (accountIds, title, dueDate) =>
+  call('quarterly_open', { accountIds, title, due_date: dueDate || null });
+export const closeQuarterlyRequest = (id) => call('quarterly_close', { id });
+export const deleteQuarterlyRequest = (id) => call('quarterly_delete', { id });
 
 // Resolve WhatConverts account ids to their real names, so Admin can show a
 // staffer whose account a typed id belongs to before it starts pulling leads.
