@@ -155,13 +155,27 @@ async function notifyBankAdded(db: any, account: any, method: any, authorizerId:
     const adminUrl = `${PORTAL_URL}/admin/clients?client=${account.id}`;
     const F = "'Poppins','Helvetica Neue',Helvetica,Arial,sans-serif";
     const row = (k: string, v: string) =>
-      `<tr><td style="font-family:${F};font-size:12px;color:#7a6f88;padding:6px 14px 6px 0;white-space:nowrap;vertical-align:top;">${k}</td>` +
-      `<td style="font-family:${F};font-size:13.5px;color:#3f2a55;padding:6px 0;">${v}</td></tr>`;
+      `<tr><td class="gp-k" style="font-family:${F};font-size:12px;color:#7a6f88;padding:6px 14px 6px 0;white-space:nowrap;vertical-align:top;">${k}</td>` +
+      `<td class="gp-v" style="font-family:${F};font-size:13.5px;color:#3f2a55;padding:6px 0;">${v}</td></tr>`;
     const html = `
-<div style="background:#f8f7fc;padding:28px 12px;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:26px 28px;border:1px solid #ece8f1;">
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .gp-stage { background: #1f0e30 !important; }
+      .gp-card { border-color: transparent !important; }
+      .gp-dark { background: #2a1540 !important; }
+      .gp-dark .gp-h, .gp-dark .gp-v { color: #f3eef9 !important; }
+      .gp-dark .gp-k, .gp-dark .gp-muted { color: #b3a6c9 !important; }
+      .gp-dark .gp-rule { border-color: #46325c !important; }
+      .gp-dark .gp-btn { background: #d9356e !important; }
+      .gp-dark .gp-link { color: #e7dcf3 !important; }
+    }
+  </style></head>
+<body class="gp-stage" bgcolor="#381c4f" style="margin:0;padding:28px 12px;background:#381c4f;">
+  <div class="gp-card gp-dark" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:26px 28px;">
     <div style="font-family:${F};font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#d9356e;">Billing · action needed</div>
-    <div style="font-family:${F};font-size:21px;font-weight:700;color:#381c4f;margin:6px 0 14px;">${esc(account.company)} added a bank account</div>
+    <div class="gp-h" style="font-family:${F};font-size:21px;font-weight:700;color:#381c4f;margin:6px 0 14px;">${esc(account.company)} added a bank account</div>
     <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
       ${row("Bank", `<strong>${esc(method?.bank_name || "Bank account")}</strong> · ${esc(prettyType(method?.account_type))} · •••• ${esc(method?.last4 || "----")}`)}
       ${row("Status", esc(method?.verification_status === "VERIFIED" ? "verified" : "not verified (normal — QuickBooks drafts anyway)"))}
@@ -170,13 +184,13 @@ async function notifyBankAdded(db: any, account: any, method: any, authorizerId:
       ${row("Agreement", esc(`ACH authorization ${method?.ach_agreement_version || "v1"}`))}
       ${row("QuickBooks customer", esc(account.quickbooks_customer_id || "—"))}
     </table>
-    <div style="font-family:${F};font-size:13.5px;line-height:1.6;color:#3f2a55;margin:16px 0 18px;">
+    <div class="gp-v" style="font-family:${F};font-size:13.5px;line-height:1.6;color:#3f2a55;margin:16px 0 18px;">
       <strong>Nothing drafts yet.</strong> Start their autopay in Admin — pick the service item, the monthly amount and the draft day. The first draft can't be before the 1st of next month, so verify the template in QuickBooks before then.
     </div>
-    <a href="${adminUrl}" style="display:inline-block;background:#381c4f;color:#ffffff;font-family:${F};font-weight:700;font-size:13.5px;text-decoration:none;padding:12px 20px;border-radius:999px;">Open in Admin → Autopay</a>
-    <div style="font-family:${F};font-size:12px;color:#8a8395;margin-top:22px;border-top:1px solid #ece8f1;padding-top:12px;">Sent by the Alloy portal when a client adds a bank account. Bank numbers are never stored — only this masked reference.</div>
+    <a href="${adminUrl}" class="gp-btn" style="display:inline-block;background:#381c4f;color:#ffffff;font-family:${F};font-weight:700;font-size:13.5px;text-decoration:none;padding:12px 20px;border-radius:999px;">Open in Admin → Autopay</a>
+    <div class="gp-muted gp-rule" style="font-family:${F};font-size:12px;color:#8a8395;margin-top:22px;border-top:1px solid #ece8f1;padding-top:12px;">Sent by the Alloy portal when a client adds a bank account. Bank numbers are never stored — only this masked reference.</div>
   </div>
-</div>`;
+</body></html>`;
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },

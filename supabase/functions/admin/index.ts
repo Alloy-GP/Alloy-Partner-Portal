@@ -43,6 +43,21 @@ function pick(obj: any, fields: string[]) {
   return out;
 }
 
+// Integration ids: an empty form field means "not mapped" and is saved as NULL,
+// never "". Every sync treats a non-null id as mapped, so a '' here made
+// sync-monday ask Monday for board "" every 30 minutes (Happy CAM, 2026-10-02)
+// and the watchdog email staff about it daily. The accounts trigger
+// (20261007170000_accounts_blank_ids_are_null.sql) enforces the same rule in
+// the database; normalising here also keeps onboardMonday/syncWhatConverts from
+// ever seeing a blank.
+const ACCOUNT_ID_FIELDS = ["monday_board_id", "zendesk_org_id", "whatconverts_profile_id", "quickbooks_customer_id"];
+function blankIdsToNull(fields: Record<string, unknown>) {
+  for (const f of ACCOUNT_ID_FIELDS) {
+    if (typeof fields[f] === "string" && !(fields[f] as string).trim()) fields[f] = null;
+  }
+  return fields;
+}
+
 // --- Monday real-time onboarding -------------------------------------------
 // When a client's board id is set, register the realtime webhooks (idempotent)
 // and kick an immediate sync so their data shows right away. Best-effort: a
@@ -64,7 +79,13 @@ async function mondayApi(query: string, variables: Record<string, unknown>) {
 }
 
 async function ensureMondayWebhooks(boardId: string) {
-  const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
+  // Monday can't send headers, so the webhook proves itself with ?secret= in its
+  // URL — sync-monday fails closed without it (the bare-URL webhooks registered
+  // before 2026-08-17 were all rejected once SYNC_SECRET existed). Monday never
+  // exposes a webhook's URL, so this can only ADD missing events; replacing the
+  // old bare ones is sync-monday's {"webhooks":"reconcile"} job.
+  const secret = Deno.env.get("SYNC_SECRET") || "";
+  const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday?secret=${encodeURIComponent(secret)}`;
   const data = await mondayApi(`query ($b: ID!) { webhooks(board_id: $b) { id event } }`, { b: boardId });
   const existing = new Set((data?.webhooks || []).map((w: any) => w.event));
   for (const event of WEBHOOK_EVENTS) {
@@ -77,9 +98,8 @@ async function ensureMondayWebhooks(boardId: string) {
 }
 
 async function triggerSync(boardId: string) {
-  const secret = Deno.env.get("SYNC_SECRET");
-  const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
-  await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: { boardId } }) });
+  const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
+  await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" }, body: JSON.stringify({ event: { boardId } }) });
 }
 
 // Wire up Monday for an account if it has a board id. Returns a status string
@@ -98,9 +118,8 @@ async function onboardMonday(boardId: unknown): Promise<string | null> {
 // Pull this account's WhatConverts leads now (best-effort).
 async function syncWhatConverts(accountId: string): Promise<string | null> {
   try {
-    const secret = Deno.env.get("SYNC_SECRET");
-    const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
-    const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId }) });
+    const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts`;
+    const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" }, body: JSON.stringify({ accountId }) });
     const j = await r.json().catch(() => ({}));
     return j && j.ok ? "synced" : ("error: " + JSON.stringify(j));
   } catch (e) {
@@ -158,8 +177,22 @@ function renderSnapshotEmail(acct: any, snap: any): string {
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
-  </head><body style="margin:0;background:${BRAND.off};padding:24px 16px;font-family:${SANS};">
-  <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
+  <meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .gp-stage { background: #1f0e30 !important; }
+      .gp-card { border-color: transparent !important; }
+      .gp-dark { background: #2a1540 !important; }
+      .gp-dark .gp-h, .gp-dark .gp-v { color: #f3eef9 !important; }
+      .gp-dark .gp-k, .gp-dark .gp-muted { color: #b3a6c9 !important; }
+      .gp-dark .gp-rule { border-color: #46325c !important; }
+      .gp-dark .gp-btn { background: #d9356e !important; }
+      .gp-dark .gp-link { color: #e7dcf3 !important; }
+    }
+  </style>
+  </head><body class="gp-stage" bgcolor="#381c4f" style="margin:0;background:#381c4f;padding:24px 16px;font-family:${SANS};">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" role="presentation" class="gp-card" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.border};">
     <tr><td style="background:${BRAND.deep};padding:24px 28px;">
       <div style="color:#ffffff;font-family:${DISPLAY};font-weight:800;font-size:17px;letter-spacing:.01em;">Alloy &middot; Weekly Snapshot</div>
       <div style="color:${BRAND.lav};font-family:${SANS};font-size:12.5px;margin-top:3px;">${esc(name)} &middot; ${esc(snap.week_label || "")}</div>
@@ -273,8 +306,21 @@ function renderInviteEmail(acct: any, link: string, staff: boolean, proposal = f
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
-  <style>@media (prefers-color-scheme:dark){.gp-card{border-color:transparent !important;}}</style>
-  </head><body style="margin:0;padding:24px 12px;background:#ebe8f1;font-family:${F};">
+  <meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .gp-stage { background: #1f0e30 !important; }
+      .gp-card { border-color: transparent !important; }
+      .gp-dark { background: #2a1540 !important; }
+      .gp-dark .gp-h, .gp-dark .gp-v { color: #f3eef9 !important; }
+      .gp-dark .gp-k, .gp-dark .gp-muted { color: #b3a6c9 !important; }
+      .gp-dark .gp-rule { border-color: #46325c !important; }
+      .gp-dark .gp-btn { background: #d9356e !important; }
+      .gp-dark .gp-link { color: #e7dcf3 !important; }
+    }
+  </style>
+  </head><body class="gp-stage" bgcolor="#381c4f" style="margin:0;padding:24px 12px;background:#381c4f;font-family:${F};">
   <table role="presentation" align="center" width="600" cellpadding="0" cellspacing="0" class="gp-card" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e4ef;box-shadow:0 6px 18px rgba(56,28,79,0.10);">
     <tr><td bgcolor="#381c4f" style="background:#290d41;background-image:linear-gradient(135deg,#381c4f 0%,#290d41 100%);padding:30px 40px 26px;">
       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
@@ -480,7 +526,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_account") {
-      const fields = pick(body, ACCOUNT_FIELDS);
+      const fields = blankIdsToNull(pick(body, ACCOUNT_FIELDS));
       if (!fields.company) return json({ error: "company required" }, 400);
       const { data, error } = await admin.from("accounts").insert(fields).select().single();
       if (error) throw error;
@@ -491,7 +537,7 @@ Deno.serve(async (req) => {
 
     if (action === "update_account") {
       if (!body.id) return json({ error: "id required" }, 400);
-      const patch = pick(body, ACCOUNT_FIELDS);
+      const patch = blankIdsToNull(pick(body, ACCOUNT_FIELDS));
       const { data, error } = await admin
         .from("accounts").update(patch).eq("id", body.id).select().single();
       if (error) throw error;
@@ -807,10 +853,9 @@ Deno.serve(async (req) => {
       // Staff "refresh from latest": re-pull this client's Monday board and
       // rebuild the draft, keeping the edited headline + note.
       if (!body.account_id) return json({ error: "account_id required" }, 400);
-      const secret = Deno.env.get("SYNC_SECRET");
-      const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-snapshot${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+      const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-snapshot`;
       const r = await fetch(u, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" },
         body: JSON.stringify({ accountId: body.account_id, preserve: true }),
       });
       const result = await r.json().catch(() => ({}));
