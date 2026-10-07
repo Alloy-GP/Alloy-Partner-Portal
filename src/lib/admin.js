@@ -47,6 +47,8 @@ export const closeQuarterlyRequest = (id) => call('quarterly_close', { id });
 export const deleteQuarterlyRequest = (id) => call('quarterly_delete', { id });
 // Agents to send as + each org's users to send to, for the "Open a round" panel.
 export const intakePrep = () => call('intake_prep');
+// Every Zendesk organization (id + name), for mapping an account's zendesk_org_id.
+export const zendeskOrgs = () => call('zendesk_orgs');
 // Onboarding checklist (staff): per-client overview + lifecycle. `items` are
 // the materialized template rows (templateRows() in src/lib/onboarding.js) —
 // the function stamps account_id. start = also "add new template items".

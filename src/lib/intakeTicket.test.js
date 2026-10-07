@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  firstName, fillTemplate, pickDefaultAgent, TICKET_DEFAULTS, previewTicket, summarizeTickets,
+  firstName, fillTemplate, pickDefaultAgent, parseEmails, TICKET_DEFAULTS, previewTicket, summarizeTickets,
 } from './intakeTicket.js';
 
 describe('fillTemplate / firstName', () => {
@@ -35,6 +35,15 @@ describe('pickDefaultAgent', () => {
   });
 });
 
+describe('parseEmails', () => {
+  it('splits on commas, semicolons and whitespace; keeps only emails; lower-cases; de-dupes', () => {
+    expect(parseEmails('Skyler@alloygp.co, justin@alloygp.co; not-an-email  skyler@alloygp.co\nops@x.io'))
+      .toEqual(['skyler@alloygp.co', 'justin@alloygp.co', 'ops@x.io']);
+    expect(parseEmails('')).toEqual([]);
+    expect(parseEmails(null)).toEqual([]);
+  });
+});
+
 describe('TICKET_DEFAULTS / previewTicket', () => {
   it('has a subject + message for both intakes, each using the placeholders', () => {
     for (const k of ['newsletter', 'quarterly']) {
@@ -60,14 +69,14 @@ describe('TICKET_DEFAULTS / previewTicket', () => {
 });
 
 describe('summarizeTickets', () => {
-  it('lists sent tickets with recipient + sender, and failures by client', () => {
+  it('lists sent tickets with recipient, sender and CCs, and failures by client', () => {
     const lines = summarizeTickets([
-      { accountId: 'a1', ok: true, ticketId: '501', to: 'Gail Windisch', as: 'Sharlene Smith' },
-      { accountId: 'a2', ok: true, ticketId: '502', to: 'Rim' },
+      { accountId: 'a1', ok: true, ticketId: '501', to: 'Gail Windisch', as: 'Sharlene Smith', cc: ['Ashley Renehan', 'skyler@alloygp.co'] },
+      { accountId: 'a2', ok: true, ticketId: '502', to: 'Rim', cc: [] },
       { accountId: 'a3', ok: false, error: 'no recipient picked' },
     ], { a3: 'CPE' });
     expect(lines).toEqual([
-      '2 tickets sent: #501 → Gail Windisch (as Sharlene), #502 → Rim',
+      '2 tickets sent: #501 → Gail Windisch (as Sharlene) · cc Ashley Renehan, skyler@alloygp.co, #502 → Rim',
       '⚠ CPE: ticket not sent — no recipient picked',
     ]);
   });

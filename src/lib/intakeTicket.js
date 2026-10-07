@@ -1,8 +1,9 @@
 // The prompt ticket an intake round sends from the portal (newsletter and
 // quarterly). Pure helpers: the default subject/message per intake, template
-// filling for the preview, and the default sender/recipient picks. The `admin`
-// edge function fills the same placeholders server-side when it creates the
-// ticket, so what the preview shows is what the client gets.
+// filling for the preview, the default sender/recipient picks, CC email
+// parsing and the notice summary. The `admin` edge function fills the same
+// placeholders server-side when it creates the ticket, so what the preview
+// shows is what the client gets.
 //
 // Placeholders: {name} recipient's first name · {client} the account's short
 // name · {title} the round title · {sender} the sending agent's first name.
@@ -20,6 +21,14 @@ export function pickDefaultAgent(agents, preferred = /sharlene/i) {
   const list = Array.isArray(agents) ? agents : [];
   const hit = list.find((a) => preferred.test(a.name || '') || preferred.test(a.email || ''));
   return (hit || list[0] || null);
+}
+
+// "Also CC" is a free-text field: split on commas / semicolons / whitespace,
+// keep what looks like an email, lower-case, de-dupe. Order preserved.
+export function parseEmails(text) {
+  const seen = new Set();
+  return String(text || '').split(/[\s,;]+/).map((s) => s.trim().toLowerCase())
+    .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s) && !seen.has(s) && seen.add(s));
 }
 
 // Per-intake defaults. Subjects deliberately differ from the ticket the
@@ -69,7 +78,10 @@ export function summarizeTickets(tickets, nameOf = {}) {
   const sent = list.filter((t) => t.ok);
   const failed = list.filter((t) => !t.ok);
   const parts = [];
-  if (sent.length) parts.push(`${sent.length} ticket${sent.length === 1 ? '' : 's'} sent: ${sent.map((t) => `#${t.ticketId} → ${t.to || nameOf[t.accountId] || 'client'}${t.as ? ` (as ${firstName(t.as)})` : ''}`).join(', ')}`);
+  if (sent.length) {
+    const one = (t) => `#${t.ticketId} → ${t.to || nameOf[t.accountId] || 'client'}${t.as ? ` (as ${firstName(t.as)})` : ''}${(t.cc || []).length ? ` · cc ${t.cc.join(', ')}` : ''}`;
+    parts.push(`${sent.length} ticket${sent.length === 1 ? '' : 's'} sent: ${sent.map(one).join(', ')}`);
+  }
   failed.forEach((t) => parts.push(`⚠ ${nameOf[t.accountId] || 'A client'}: ticket not sent — ${t.error || 'unknown error'}`));
   return parts;
 }
