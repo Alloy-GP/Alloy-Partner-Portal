@@ -932,6 +932,22 @@ Deno.serve(async (req) => {
     // RLS); staff CLOSE it to archive. Same table shape, same four actions,
     // same engagement roll-up - only the table and the event names differ, so
     // one block serves `newsletter_*` and `quarterly_*`.
+    if (action === "zendesk_orgs") {
+      // Every Zendesk organization (id + name), so an account can be mapped to
+      // one without hunting through Zendesk - e.g. Alloy's own org on the
+      // internal account, which makes the intake rounds testable end to end
+      // without emailing a client.
+      const orgs: { id: string; name: string }[] = [];
+      let url: string | null = `/organizations.json?per_page=100`;
+      for (let page = 0; url && page < 10; page++) {
+        const r = await zdFetch(url);
+        for (const o of r.organizations || []) orgs.push({ id: String(o.id), name: String(o.name || "") });
+        url = r.next_page ? String(r.next_page).replace(ZD_API, "") : null;
+      }
+      orgs.sort((a, b) => a.name.localeCompare(b.name));
+      return json({ orgs });
+    }
+
     if (action === "intake_prep") {
       // Everything the "Open a round" panel needs to send the prompt ticket from
       // the portal: the agents it can send as (default: Sharlene) and, for every
@@ -1075,6 +1091,12 @@ Deno.serve(async (req) => {
       if (t && t.send && inserted.length) {
         const senderId = t.senderId ? String(t.senderId) : "";
         const recips: Record<string, unknown> = t.recipients && typeof t.recipients === "object" ? t.recipients : {};
+        // CCs: per client, the other org contacts staff ticked (`cc`), plus the
+        // "also CC" emails that go on every ticket (`ccEmails`). Same
+        // `email_ccs` shape the client-side add_cc uses.
+        const ccMap: Record<string, unknown> = t.cc && typeof t.cc === "object" ? t.cc : {};
+        const ccEmails: string[] = (Array.isArray(t.ccEmails) ? t.ccEmails : []).map((e: unknown) => String(e || "").trim().toLowerCase())
+          .filter((e: string, i: number, arr: string[]) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && arr.indexOf(e) === i);
         const { data: accts } = await admin.from("accounts").select("id, company, short_name, zendesk_org_id").in("id", inserted.map((r: any) => r.account_id));
         const userName = async (id: string) => { try { const r = await zdFetch(`/users/${encodeURIComponent(id)}.json`); return String(r.user?.name || ""); } catch { return ""; } };
         const senderName = senderId ? await userName(senderId) : "";
@@ -1084,6 +1106,13 @@ Deno.serve(async (req) => {
           if (!requesterId) { tickets.push({ accountId: row.account_id, ok: false, error: "no recipient picked" }); return; }
           try {
             const reqName = await userName(requesterId);
+            const ccIds = (Array.isArray(ccMap[row.account_id]) ? (ccMap[row.account_id] as unknown[]) : []).map((x) => String(x))
+              .filter((x, i, arr) => x && x !== requesterId && x !== senderId && arr.indexOf(x) === i);
+            const ccNames = await Promise.all(ccIds.map((id) => userName(id)));
+            const email_ccs = [
+              ...ccIds.map((id) => ({ user_id: Number(id), action: "put" })),
+              ...ccEmails.map((e) => ({ user_email: e, action: "put" })),
+            ];
             const vars = { name: firstName(reqName), client: String(a.short_name || a.company || ""), title, sender: firstName(senderName) };
             const subject = fillTemplate(t.subject, vars).trim() || title;
             const ticket: Record<string, unknown> = {
@@ -1092,6 +1121,7 @@ Deno.serve(async (req) => {
               status: "pending",
               tags: [intake.tag],
               comment: { body: fillTemplate(t.message, vars), public: true, ...(senderId ? { author_id: Number(senderId) } : {}) },
+              ...(email_ccs.length ? { email_ccs } : {}),
             };
             if (a.zendesk_org_id) ticket.organization_id = Number(a.zendesk_org_id);
             if (senderId) { ticket.submitter_id = Number(senderId); ticket.assignee_id = Number(senderId); }
@@ -1100,12 +1130,14 @@ Deno.serve(async (req) => {
             const meta = {
               ticket_id: String(made.id), requester_id: requesterId, requester_name: reqName,
               sender_id: senderId, sender_name: senderName, subject, status: made.status, tags: made.tags,
+              cc: [...ccIds.map((id, i) => ({ id, name: ccNames[i] })), ...ccEmails.map((e) => ({ email: e }))],
               sent_at: new Date().toISOString(),
             };
             await admin.from(intake.table).update({ prompt_ticket_id: String(made.id), prompt_meta: meta }).eq("id", row.id);
             tickets.push({
               accountId: row.account_id, ok: true, ticketId: String(made.id), to: reqName, as: senderName,
               status: made.status, tags: made.tags, requesterId: String(made.requester_id), submitterId: String(made.submitter_id), assigneeId: String(made.assignee_id ?? ""),
+              cc: [...ccNames.map((n, i) => n || ccIds[i]), ...ccEmails], ccIds: (made.email_cc_ids || []).map((x: unknown) => String(x)),
             });
           } catch (e) {
             tickets.push({ accountId: row.account_id, ok: false, error: String((e as Error)?.message || e) });
