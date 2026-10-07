@@ -16,7 +16,7 @@ const { useState: _useState2, useEffect: _useEffect2 } = React;
 const useState = _useState2;
 const useEffect = _useEffect2;
 
-function TicketsScreen({ onNewsletter, onGoals }) {
+function TicketsScreen({ onNewsletter, onGoals, onQuarterly }) {
   const [tickets, setTickets] = useState(null); // null = loading
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState(null);
@@ -124,7 +124,7 @@ function TicketsScreen({ onNewsletter, onGoals }) {
         {/* Right detail */}
         <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           {activeId ? (
-            <TicketThread id={activeId} onChanged={loadList} onNewsletter={onNewsletter} onGoals={onGoals} />
+            <TicketThread id={activeId} onChanged={loadList} onNewsletter={onNewsletter} onGoals={onGoals} onQuarterly={onQuarterly} />
           ) : (
             <div style={{ padding: "40px 22px", fontSize: 13, color: "var(--fg-muted)" }}>
               {tickets === null ? "" : "Select a ticket to view the conversation."}

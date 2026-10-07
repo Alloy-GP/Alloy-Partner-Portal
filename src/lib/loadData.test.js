@@ -163,6 +163,23 @@ describe("loadAccountData field mapping (the 'five seams' guard)", () => {
     expect(data.plannedProjects.map((p) => p.id)).toEqual(["P2"]); // planned only
   });
 
+  it("maps the OPEN quarterly round to quarterlyRequest (the quarterly twin of newsletterRequest)", async () => {
+    h.tables.quarterly_requests = {
+      data: { id: "qr-1", title: "Q4 2026 Quarterly Meeting", status: "open", due_date: "2026-10-20", submission: null },
+      error: null,
+    };
+    const data = await loadAccountData(session, "acc-1", me);
+    expect(data.quarterlyRequest).toEqual({
+      id: "qr-1", title: "Q4 2026 Quarterly Meeting", status: "open", dueDate: "2026-10-20", submission: null,
+    });
+  });
+
+  it("quarterlyRequest is null when no round is open", async () => {
+    h.tables.quarterly_requests = { data: null, error: null };
+    const data = await loadAccountData(session, "acc-1", me);
+    expect(data.quarterlyRequest).toBe(null);
+  });
+
   it("returns null when the account id resolves to nothing", async () => {
     h.tables.accounts = { data: null, error: null };
     expect(await loadAccountData(session, "missing", me)).toBe(null);

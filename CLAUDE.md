@@ -118,6 +118,11 @@ heartbeat, open alerts (with flaky ratio / hold state) and failed runs (24h).
   the weekly rollup failed ("no WhatConverts account id"), each with a daily
   reminder email (Happy CAM, 2026-10-02 → 10-07). A new consumer can rely on
   `is not null`; `.neq(col, "")` is belt and braces.
+- **`admin` live == main again (2026-10-07).** stg (onboarding, proposal gate,
+  client workspace) was promoted to main in PR #74, so deploy `admin` from the
+  repo as usual. If live and repo ever need comparing: extract the eszip with
+  the npm `@deno/eszip` Parser (the MCP's own parser; `deno.land/x/eszip@v0.55`
+  can't read ESZIP2.3) and esbuild-normalise both sides.
 - **Live ≠ repo for `sync-monday-roadmap`.** The deployed v11 (2026-10-05) has
   a webhook registry (`monday_roadmap_webhooks`, migration `20261005170000`,
   applied live) whose source was never pushed to GitHub. Do NOT redeploy
@@ -192,6 +197,36 @@ gotcha: `createFromToken` wants `{ value: token }`, not `{ token }` (PMT-4002).
 Alloy still creates the recurring draft — Admin → client → Autopay (`AdminAutopay.jsx` →
 staff-only `createRecurring`/`deleteRecurring`). A successful `attach` emails
 `BILLING_ALERT_TO` (default admin@alloygp.co) via Resend; staff can `resendBankAlert`.
+
+## Client intake rounds — Newsletter and Quarterly Meeting share one shape
+`newsletter_requests` (ticket tag `newsletter`) and `quarterly_requests` (tag
+`quarterly`; `quarterly_meeting` / `quarterly-meeting` also match) are twins.
+Staff open a round per client (Admin → Newsletter Room / Quarterly Meetings),
+then put a tagged, **pending** Zendesk ticket in the client's portal — that
+ticket is the to-do (Action Queue + Playbook "Waiting on you"), and it shows
+"Open Form" only while the account has an `open` row. Submit = a new Zendesk
+ticket with the same tag + row → `submitted` (answers in `submission` jsonb) +
+a `<x>_submit` event; staff Close to archive (frees the one-live-row slot).
+Seams, in order — skip one and the button silently never appears:
+1. migration (`20260804120000_newsletter_requests.sql` / `20261007190000_quarterly_requests.sql`)
+2. `admin` edge fn → `INTAKES` table; actions `<x>_list|open|close|delete` are one generic block
+3. `src/lib/admin.js` wrappers → `AdminIntakeRounds.jsx` (shared tracker + engagement roll-up; `AdminNewsletter.jsx` / `AdminQuarterly.jsx` are copy + submission-layout wrappers) → `AdminShell` NAV/TITLES/switch/Overview card
+4. `src/lib/loadData.js` → `DATA.<x>Request` (the OPEN row only; null otherwise)
+5. `src/lib/<x>.js` → `<x>ForTicketTags(tags)` (pure, tested) + `submit<X>()`
+6. `App.jsx` → `open<X>` trigger (null when nothing is due) + the modal (`NewsletterModal` / `QuarterlyModal`)
+7. the button: `TicketThread.jsx` + the Playbook card in `screens-projects-roi.jsx`; `TicketsScreen` / `TicketDetailPage` only pass `on<X>` through
+- **The prompt ticket is sent from the portal.** "Open a round" also creates
+  the client's Zendesk ticket (pending, tagged) — `admin` → `intake_prep` lists
+  the agents to send as (default Sharlene) and each org's users to send to
+  (default: the portal owner); `<x>_open` takes `ticket: { send, senderId,
+  subject, message, recipients }`, fills `{name} {client} {title} {sender}`
+  (`src/lib/intakeTicket.js` mirrors it for the preview, tested) and records
+  `prompt_ticket_id` / `prompt_meta` on the row (migration `20261007200000`).
+  Submitter + first-comment author + assignee = the picked agent, so the client
+  sees it from her. A failed send keeps the round open and names the client in
+  the response; make that ticket by hand.
+The `goals` tag is a different, older thing: no round, no DB row, email-only
+(`submit-quarter-goals`, also the public `/goals` page).
 
 ## Hosted docs (`/p/<slug>`) — password-gated standalone HTML
 One-off documents that don't fit the portal (e.g. a custom proposal built

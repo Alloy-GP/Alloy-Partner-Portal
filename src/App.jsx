@@ -27,6 +27,7 @@ import { canSeeOnboarding } from './lib/onboarding.js';
 import NewRequestModal from './components/NewRequestModal.jsx';
 import NewsletterModal from './components/NewsletterModal.jsx';
 import QuarterGoalsModal from './components/QuarterGoalsModal.jsx';
+import QuarterlyModal from './components/QuarterlyModal.jsx';
 import PaymentSetupModal from './components/PaymentSetupModal.jsx';
 import PaymentNudgeBanner from './components/PaymentNudgeBanner.jsx';
 import { shouldNudgePayment, isNudgeSnoozed, snoozeNudge } from './lib/paymentNudge.js';
@@ -108,6 +109,14 @@ function App({ session, onSignOut, staffNav } = {}) {
   // gating), opens the prefilled in-portal form. Each open logs a goals_open.
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
   const openGoals = () => { track('goals_open', {}); setGoalsModalOpen(true); };
+  // Quarterly meeting prep — the account's current OPEN round (Admin →
+  // Quarterly Meetings) surfaces as an "Open Form" button on any
+  // `quarterly`-tagged ticket, exactly like the newsletter. `openQuarterly` is
+  // the trigger those surfaces call; null when nothing's due. Each click logs
+  // a quarterly_open event (client-only) for the admin tracker's analytics.
+  const qReq = (DATA.quarterlyRequest && DATA.quarterlyRequest.status === 'open') ? DATA.quarterlyRequest : null;
+  const [qModalOpen, setQModalOpen] = useState(false);
+  const openQuarterly = qReq ? () => { track('quarterly_open', { requestId: qReq.id }); setQModalOpen(true); } : null;
   // Autopay onboarding — SOFT nudge. A billing-role client with no bank on
   // file gets the setup modal at sign-in ("Remind me later" snoozes it for the
   // session) plus a persistent banner on every screen, until a bank is on
@@ -258,12 +267,12 @@ function App({ session, onSignOut, staffNav } = {}) {
   const handleCommand = (cmd) => { if (cmd === "new-ticket") setComposeOpen(true); };
 
   const screen = (() => {
-    if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav} onNewsletter={openNewsletter} onGoals={openGoals}/>;
+    if (active === "tickets" && ticketId) return <TicketDetailPage id={ticketId} onNav={handleNav} onNewsletter={openNewsletter} onGoals={openGoals} onQuarterly={openQuarterly}/>;
     switch (active) {
       case "dashboard": return <Dashboard role={role} density={tweaks.density} onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} t={tweaks} mobileNav={mobileNav} setMobileNav={setMobileNav}/>;
       case "roi": return <ROIScreen/>;
-      case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter} onGoals={openGoals}/>;
-      case "tickets": return <TicketsScreen onNewsletter={openNewsletter} onGoals={openGoals}/>;
+      case "projects": return <ProjectsScreen onNav={handleNav} onCompose={canNewRequest ? () => setComposeOpen(true) : null} onNewsletter={openNewsletter} onGoals={openGoals} onQuarterly={openQuarterly}/>;
+      case "tickets": return <TicketsScreen onNewsletter={openNewsletter} onGoals={openGoals} onQuarterly={openQuarterly}/>;
       case "leads": return <LeadsScreen/>;
       case "playbook": return <RoadmapScreen onNav={handleNav}/>;
       case "library": return <LibraryScreen/>;
@@ -364,6 +373,14 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       {goalsModalOpen ? (
         <QuarterGoalsModal onClose={() => setGoalsModalOpen(false)} />
+      ) : null}
+
+      {qModalOpen && qReq ? (
+        <QuarterlyModal
+          request={qReq}
+          onClose={() => setQModalOpen(false)}
+          onSubmitted={(ticketId) => { setQModalOpen(false); if (ticketId) handleNav('tickets', ticketId); }}
+        />
       ) : null}
 
       {pmModalOpen ? (

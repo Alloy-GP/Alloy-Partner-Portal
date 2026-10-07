@@ -33,10 +33,20 @@ export const regenerateSnapshot = (accountId) => call('regenerate_snapshot', { a
 export const approveSnapshot = (id) => call('approve_snapshot', { id });
 // Newsletter intake (staff): open a round for selected clients, track + close.
 export const listNewsletterRequests = () => call('newsletter_list');
-export const openNewsletterRound = (accountIds, title, dueDate) =>
-  call('newsletter_open', { accountIds, title, due_date: dueDate || null });
+// `ticket` (optional) = { send, senderId, subject, message, recipients: { accountId: zendeskUserId } }
+// → the function also creates the client's pending, tagged prompt ticket.
+export const openNewsletterRound = (accountIds, title, dueDate, ticket) =>
+  call('newsletter_open', { accountIds, title, due_date: dueDate || null, ticket: ticket || null });
 export const closeNewsletterRequest = (id) => call('newsletter_close', { id });
 export const deleteNewsletterRequest = (id) => call('newsletter_delete', { id });
+// Quarterly meeting prep (staff): same four actions against quarterly_requests.
+export const listQuarterlyRequests = () => call('quarterly_list');
+export const openQuarterlyRound = (accountIds, title, dueDate, ticket) =>
+  call('quarterly_open', { accountIds, title, due_date: dueDate || null, ticket: ticket || null });
+export const closeQuarterlyRequest = (id) => call('quarterly_close', { id });
+export const deleteQuarterlyRequest = (id) => call('quarterly_delete', { id });
+// Agents to send as + each org's users to send to, for the "Open a round" panel.
+export const intakePrep = () => call('intake_prep');
 // Onboarding checklist (staff): per-client overview + lifecycle. `items` are
 // the materialized template rows (templateRows() in src/lib/onboarding.js) —
 // the function stamps account_id. start = also "add new template items".
