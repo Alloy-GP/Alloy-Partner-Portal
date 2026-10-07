@@ -469,6 +469,40 @@ async function obSeedLocations(admin: any, accountId: string): Promise<number> {
   return toInsert.length;
 }
 
+// --- Zendesk (staff-side) ----------------------------------------------------
+// The intake rounds (newsletter, quarterly) send the client's prompt ticket from
+// the portal instead of staff creating it by hand. Same secrets as the
+// `zendesk` function. The ticket is created with submitter/author/assignee set
+// to the agent staff picked (default Sharlene), so it reads as from her.
+const ZD_SUB = Deno.env.get("ZENDESK_SUBDOMAIN") || "alloycreatives";
+const ZD_API = `https://${ZD_SUB}.zendesk.com/api/v2`;
+function zdAuthHeader(): string {
+  const email = Deno.env.get("ZENDESK_EMAIL") || "";
+  const token = Deno.env.get("ZENDESK_API_TOKEN") || "";
+  return "Basic " + btoa(`${email}/token:${token}`);
+}
+async function zdFetch(path: string, init?: RequestInit): Promise<any> {
+  const res = await fetch(`${ZD_API}${path}`, {
+    ...init,
+    headers: { "Authorization": zdAuthHeader(), "Content-Type": "application/json", ...(init?.headers || {}) },
+  });
+  const text = await res.text();
+  let j: any = {};
+  try { j = text ? JSON.parse(text) : {}; } catch { j = { raw: text }; }
+  if (!res.ok) {
+    const detail = j?.error?.message || j?.description || (typeof j?.error === "string" ? j.error : "") || text.slice(0, 200);
+    throw new Error(`Zendesk ${res.status}: ${detail}`);
+  }
+  return j;
+}
+const zdUser = (u: any) => ({ id: String(u.id), name: String(u.name || ""), email: String(u.email || "").toLowerCase(), role: String(u.role || "end-user") });
+const firstName = (s: unknown) => String(s || "").trim().split(/\s+/)[0] || "";
+// {name} {client} {title} {sender} - mirrors src/lib/intakeTicket.js so the
+// Admin preview and the ticket that is actually sent agree.
+function fillTemplate(tpl: unknown, vars: Record<string, string>): string {
+  return String(tpl || "").replace(/\{(name|client|title|sender)\}/g, (_m, k: string) => vars[k] ?? "");
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -891,15 +925,76 @@ Deno.serve(async (req) => {
       return json({ ok: true, email });
     }
 
-    // --- Newsletter intake: open a round, track submissions, close ---
-    if (action === "newsletter_list") {
+    // --- Client intake rounds: newsletter + quarterly meeting prep ----------
+    // Both work the same way: staff OPEN a round for a hand-picked set of
+    // clients (one row per client, status 'open'); the client submits from the
+    // portal (row -> 'submitted' + a Zendesk ticket, written client-side under
+    // RLS); staff CLOSE it to archive. Same table shape, same four actions,
+    // same engagement roll-up - only the table and the event names differ, so
+    // one block serves `newsletter_*` and `quarterly_*`.
+    if (action === "intake_prep") {
+      // Everything the "Open a round" panel needs to send the prompt ticket from
+      // the portal: the agents it can send as (default: Sharlene) and, for every
+      // account with a Zendesk org, that org's users (default: the portal
+      // owner, matched by email; then other portal users; then the rest). One
+      // Zendesk call per org, in parallel; an org that fails just has no
+      // recipients and says why.
+      const [{ data: accts }, agentsRes, { data: profs }] = await Promise.all([
+        admin.from("accounts").select("id, company, short_name, zendesk_org_id"),
+        zdFetch(`/users.json?role[]=agent&role[]=admin&per_page=100`),
+        admin.from("profiles").select("id, account_id, role"),
+      ]);
+      const agents = (agentsRes.users || []).filter((u: any) => u.active !== false && !u.suspended).map(zdUser)
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      const preferred = agents.find((a: any) => /sharlene/i.test(a.name) || /sharlene/i.test(a.email));
+      const defaultAgentId = preferred ? preferred.id : (agents[0]?.id || null);
+      const emailOf: Record<string, string> = {};
+      try {
+        for (let page = 1; ; page++) {
+          const { data: list } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+          const us = list?.users || [];
+          for (const u of us) emailOf[u.id] = String(u.email || "").toLowerCase();
+          if (us.length < 1000) break;
+        }
+      } catch { /* best-effort: without emails the first org user is the default */ }
+      const recipients: Record<string, any[]> = {};
+      const defaults: Record<string, string | null> = {};
+      const errors: Record<string, string> = {};
+      await Promise.all((accts || []).filter((a: any) => a.zendesk_org_id).map(async (a: any) => {
+        try {
+          const r = await zdFetch(`/organizations/${encodeURIComponent(String(a.zendesk_org_id))}/users.json?per_page=100`);
+          const portalRole: Record<string, string> = {};
+          for (const p of (profs || []) as any[]) if (p.account_id === a.id && emailOf[p.id]) portalRole[emailOf[p.id]] = p.role === "owner" ? "owner" : "member";
+          const rank = (u: any) => (portalRole[u.email] === "owner" ? 0 : portalRole[u.email] ? 1 : 2);
+          const users = (r.users || []).filter((u: any) => u.active !== false && !u.suspended).map(zdUser)
+            .map((u: any) => ({ ...u, portalRole: portalRole[u.email] || null }))
+            .sort((x: any, y: any) => rank(x) - rank(y) || x.name.localeCompare(y.name));
+          recipients[a.id] = users;
+          defaults[a.id] = users[0]?.id || null;
+        } catch (e) {
+          recipients[a.id] = []; defaults[a.id] = null;
+          errors[a.id] = String((e as Error)?.message || e);
+        }
+      }));
+      return json({ agents, defaultAgentId, recipients, defaults, errors });
+    }
+
+    const INTAKES: Record<string, { table: string; tag: string; defaultTitle: string; openEvent: string; submitEvent: string }> = {
+      newsletter: { table: "newsletter_requests", tag: "newsletter", defaultTitle: "Newsletter", openEvent: "newsletter_open", submitEvent: "newsletter_submit" },
+      quarterly: { table: "quarterly_requests", tag: "quarterly", defaultTitle: "Quarterly Meeting", openEvent: "quarterly_open", submitEvent: "quarterly_submit" },
+    };
+    const intakeMatch = /^(newsletter|quarterly)_(list|open|close|delete)$/.exec(String(action || ""));
+    const intake = intakeMatch ? INTAKES[intakeMatch[1]] : null;
+    const intakeVerb = intakeMatch ? intakeMatch[2] : "";
+
+    if (intake && intakeVerb === "list") {
       // Every request + its account name, newest first. Powers the admin tracker.
-      // Also roll up newsletter_open / newsletter_submit events per request →
-      // engagement analytics (who opened, how many clicks, who filled it out).
+      // Also roll up <x>_open / <x>_submit events per request -> engagement
+      // analytics (who opened, how many clicks, who filled it out).
       const [{ data: reqs, error }, { data: accts }, { data: evs }, { data: profs }] = await Promise.all([
-        admin.from("newsletter_requests").select("*").order("created_at", { ascending: false }),
+        admin.from(intake.table).select("*").order("created_at", { ascending: false }),
         admin.from("accounts").select("id, company, short_name"),
-        admin.from("events").select("user_id, type, meta, created_at").in("type", ["newsletter_open", "newsletter_submit"]),
+        admin.from("events").select("user_id, type, meta, created_at").in("type", [intake.openEvent, intake.submitEvent]),
         admin.from("profiles").select("id, name"),
       ]);
       if (error) throw error;
@@ -914,11 +1009,11 @@ Deno.serve(async (req) => {
         const rid = e.meta && (e.meta as any).requestId;
         if (!rid) continue;
         const g = agg[rid] || (agg[rid] = { opens: 0, openers: {}, lastOpen: null, submits: 0, submitters: {} });
-        if (e.type === "newsletter_open") {
+        if (e.type === intake.openEvent) {
           g.opens++;
           if (e.user_id) g.openers[e.user_id] = (g.openers[e.user_id] || 0) + 1;
           if (!g.lastOpen || e.created_at > g.lastOpen) g.lastOpen = e.created_at;
-        } else if (e.type === "newsletter_submit") {
+        } else if (e.type === intake.submitEvent) {
           g.submits++;
           if (e.user_id) g.submitters[e.user_id] = (g.submitters[e.user_id] || 0) + 1;
         }
@@ -931,7 +1026,7 @@ Deno.serve(async (req) => {
           : [];
         return {
           ...r,
-          account_name: (nameOf[r.account_id]?.short_name) || (nameOf[r.account_id]?.company) || "—",
+          account_name: (nameOf[r.account_id]?.short_name) || (nameOf[r.account_id]?.company) || "\u2014",
           account_company: nameOf[r.account_id]?.company || "",
           analytics: {
             opens: g ? g.opens : 0,          // total "Open Form" clicks
@@ -945,39 +1040,91 @@ Deno.serve(async (req) => {
       return json({ requests, accounts: (accts || []).sort((a: any, b: any) => String(a.company).localeCompare(String(b.company))) });
     }
 
-    if (action === "newsletter_open") {
+    if (intake && intakeVerb === "open") {
       // Open a round for a hand-picked set of clients. Skips any client that
-      // already has a live (open or submitted) round — one banner at a time.
+      // already has a live (open or submitted) round - one prompt at a time.
       const ids: string[] = Array.isArray(body.accountIds) ? body.accountIds.filter(Boolean).map(String) : [];
       if (!ids.length) return json({ error: "select at least one client" }, 400);
-      const title = String(body.title || "").trim() || "Newsletter";
+      const title = String(body.title || "").trim() || intake.defaultTitle;
       const due = body.due_date ? String(body.due_date) : null;
       const { data: live } = await admin
-        .from("newsletter_requests").select("account_id").in("account_id", ids).neq("status", "closed");
+        .from(intake.table).select("account_id").in("account_id", ids).neq("status", "closed");
       const already = new Set((live || []).map((r: any) => r.account_id));
       const toInsert = ids.filter((id) => !already.has(id));
       let opened = 0;
+      let inserted: any[] = [];
       if (toInsert.length) {
         const rows = toInsert.map((account_id) => ({
           account_id, title, due_date: due, status: "open", created_by: user.id,
         }));
-        const { error } = await admin.from("newsletter_requests").insert(rows);
+        const { data, error } = await admin.from(intake.table).insert(rows).select("id, account_id");
         if (error) throw error;
+        inserted = data || [];
         opened = rows.length;
       }
-      return json({ ok: true, opened, skipped: ids.length - opened });
+
+      // Send the prompt ticket from the portal (when `ticket.send`). Pending +
+      // tagged so the client's Action Queue shows it with the "Open Form"
+      // button; requester = the org user staff picked; submitter / first-comment
+      // author / assignee = the picked agent, so it reads as from Sharlene (or
+      // whoever was chosen). A failed send never un-opens the round: the
+      // response names the client that needs a hand-made ticket, and the
+      // tracker shows no prompt link for it.
+      const t = body.ticket && typeof body.ticket === "object" ? body.ticket : null;
+      const tickets: any[] = [];
+      if (t && t.send && inserted.length) {
+        const senderId = t.senderId ? String(t.senderId) : "";
+        const recips: Record<string, unknown> = t.recipients && typeof t.recipients === "object" ? t.recipients : {};
+        const { data: accts } = await admin.from("accounts").select("id, company, short_name, zendesk_org_id").in("id", inserted.map((r: any) => r.account_id));
+        const userName = async (id: string) => { try { const r = await zdFetch(`/users/${encodeURIComponent(id)}.json`); return String(r.user?.name || ""); } catch { return ""; } };
+        const senderName = senderId ? await userName(senderId) : "";
+        await Promise.all(inserted.map(async (row: any) => {
+          const a: any = (accts || []).find((x: any) => x.id === row.account_id) || {};
+          const requesterId = recips[row.account_id] ? String(recips[row.account_id]) : "";
+          if (!requesterId) { tickets.push({ accountId: row.account_id, ok: false, error: "no recipient picked" }); return; }
+          try {
+            const reqName = await userName(requesterId);
+            const vars = { name: firstName(reqName), client: String(a.short_name || a.company || ""), title, sender: firstName(senderName) };
+            const subject = fillTemplate(t.subject, vars).trim() || title;
+            const ticket: Record<string, unknown> = {
+              subject,
+              requester_id: Number(requesterId),
+              status: "pending",
+              tags: [intake.tag],
+              comment: { body: fillTemplate(t.message, vars), public: true, ...(senderId ? { author_id: Number(senderId) } : {}) },
+            };
+            if (a.zendesk_org_id) ticket.organization_id = Number(a.zendesk_org_id);
+            if (senderId) { ticket.submitter_id = Number(senderId); ticket.assignee_id = Number(senderId); }
+            const r = await zdFetch(`/tickets.json`, { method: "POST", body: JSON.stringify({ ticket }) });
+            const made = r.ticket || {};
+            const meta = {
+              ticket_id: String(made.id), requester_id: requesterId, requester_name: reqName,
+              sender_id: senderId, sender_name: senderName, subject, status: made.status, tags: made.tags,
+              sent_at: new Date().toISOString(),
+            };
+            await admin.from(intake.table).update({ prompt_ticket_id: String(made.id), prompt_meta: meta }).eq("id", row.id);
+            tickets.push({
+              accountId: row.account_id, ok: true, ticketId: String(made.id), to: reqName, as: senderName,
+              status: made.status, tags: made.tags, requesterId: String(made.requester_id), submitterId: String(made.submitter_id), assigneeId: String(made.assignee_id ?? ""),
+            });
+          } catch (e) {
+            tickets.push({ accountId: row.account_id, ok: false, error: String((e as Error)?.message || e) });
+          }
+        }));
+      }
+      return json({ ok: true, opened, skipped: ids.length - opened, tickets });
     }
 
-    if (action === "newsletter_close") {
+    if (intake && intakeVerb === "close") {
       if (!body.id) return json({ error: "id required" }, 400);
-      const { error } = await admin.from("newsletter_requests").update({ status: "closed" }).eq("id", body.id);
+      const { error } = await admin.from(intake.table).update({ status: "closed" }).eq("id", body.id);
       if (error) throw error;
       return json({ ok: true });
     }
 
-    if (action === "newsletter_delete") {
+    if (intake && intakeVerb === "delete") {
       if (!body.id) return json({ error: "id required" }, 400);
-      const { error } = await admin.from("newsletter_requests").delete().eq("id", body.id);
+      const { error } = await admin.from(intake.table).delete().eq("id", body.id);
       if (error) throw error;
       return json({ ok: true });
     }

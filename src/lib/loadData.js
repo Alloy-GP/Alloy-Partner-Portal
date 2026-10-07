@@ -103,7 +103,7 @@ export async function loadAccountData(session, accountId, me) {
     badgesRes, snapCurRes, snapPastRes, roadmapRes, actionRes, invoicesRes, teamRes,
     paymentMethodsRes, autopayRes, ticketLinksRes, ticketSummariesRes, locationsRes, programRes,
     toolkitRes, assetsRes, proposalUvpsRes, proposalsRes, proposalEventsRes,
-    newsletterRes, guidesRes, engagementRes, onboardingRes,
+    newsletterRes, guidesRes, engagementRes, onboardingRes, quarterlyRes,
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('id', accountId).maybeSingle(),
     supabase.from('recurring_services').select('*').eq('account_id', accountId).order('sort'),
@@ -162,6 +162,11 @@ export async function loadAccountData(session, accountId, me) {
     // resources, marketing). Empty until Admin starts one — the nav entry,
     // dashboard card and /onboarding route all key off DATA.onboarding.
     supabase.from('onboarding_items').select('*').eq('account_id', accountId).order('sort'),
+    // Quarterly meeting prep · the client's current OPEN round, if any (the
+    // newsletter's quarterly twin). Drives the "Open Form" button on a
+    // `quarterly`-tagged ticket + the submit form. Once submitted/closed it's
+    // no longer 'open', so the button clears automatically.
+    supabase.from('quarterly_requests').select('*').eq('account_id', accountId).eq('status', 'open').order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -473,6 +478,15 @@ export async function loadAccountData(session, accountId, me) {
       status: newsletterRes.data.status,
       dueDate: newsletterRes.data.due_date || null,
       submission: newsletterRes.data.submission || null,
+    } : null,
+    // Quarterly meeting prep · the current open round for this account (or
+    // null). Same shape as newsletterRequest; read by App.jsx + quarterly.js.
+    quarterlyRequest: quarterlyRes && quarterlyRes.data ? {
+      id: quarterlyRes.data.id,
+      title: quarterlyRes.data.title || 'Quarterly Meeting',
+      status: quarterlyRes.data.status,
+      dueDate: quarterlyRes.data.due_date || null,
+      submission: quarterlyRes.data.submission || null,
     } : null,
     // Onboarding checklist · camelCased rows + the account's lifecycle stamps,
     // in one object so every consumer (nav badge, dashboard card, the page)
