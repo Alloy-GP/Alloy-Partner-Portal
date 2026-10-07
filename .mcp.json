@@ -3,8 +3,23 @@
     "supabase": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref", "aryttfcmleukwstknvio"],
-      "env": { "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}" }
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref",
+        "aryttfcmleukwstknvio"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
+    },
+    "ahrefs": {
+      "type": "http",
+      "url": "https://api.ahrefs.com/mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AHREFS_MCP_KEY}"
+      }
     }
-  }
+  },
+  "$comment": "Project-scope MCP servers for Claude Code. No secrets here: AHREFS_MCP_KEY comes from the environment (Conductor: environment_variable_files in ~/.conductor/settings.toml; locally: your shell profile). Ahrefs key = Account settings \u2192 API keys \u2192 Generate MCP key (MCP scope)."
 }
