@@ -43,6 +43,21 @@ function pick(obj: any, fields: string[]) {
   return out;
 }
 
+// Integration ids: an empty form field means "not mapped" and is saved as NULL,
+// never "". Every sync treats a non-null id as mapped, so a '' here made
+// sync-monday ask Monday for board "" every 30 minutes (Happy CAM, 2026-10-02)
+// and the watchdog email staff about it daily. The accounts trigger
+// (20261007170000_accounts_blank_ids_are_null.sql) enforces the same rule in
+// the database; normalising here also keeps onboardMonday/syncWhatConverts from
+// ever seeing a blank.
+const ACCOUNT_ID_FIELDS = ["monday_board_id", "zendesk_org_id", "whatconverts_profile_id", "quickbooks_customer_id"];
+function blankIdsToNull(fields: Record<string, unknown>) {
+  for (const f of ACCOUNT_ID_FIELDS) {
+    if (typeof fields[f] === "string" && !(fields[f] as string).trim()) fields[f] = null;
+  }
+  return fields;
+}
+
 // --- Monday real-time onboarding -------------------------------------------
 // When a client's board id is set, register the realtime webhooks (idempotent)
 // and kick an immediate sync so their data shows right away. Best-effort: a
@@ -64,7 +79,13 @@ async function mondayApi(query: string, variables: Record<string, unknown>) {
 }
 
 async function ensureMondayWebhooks(boardId: string) {
-  const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
+  // Monday can't send headers, so the webhook proves itself with ?secret= in its
+  // URL — sync-monday fails closed without it (the bare-URL webhooks registered
+  // before 2026-08-17 were all rejected once SYNC_SECRET existed). Monday never
+  // exposes a webhook's URL, so this can only ADD missing events; replacing the
+  // old bare ones is sync-monday's {"webhooks":"reconcile"} job.
+  const secret = Deno.env.get("SYNC_SECRET") || "";
+  const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday?secret=${encodeURIComponent(secret)}`;
   const data = await mondayApi(`query ($b: ID!) { webhooks(board_id: $b) { id event } }`, { b: boardId });
   const existing = new Set((data?.webhooks || []).map((w: any) => w.event));
   for (const event of WEBHOOK_EVENTS) {
@@ -77,9 +98,8 @@ async function ensureMondayWebhooks(boardId: string) {
 }
 
 async function triggerSync(boardId: string) {
-  const secret = Deno.env.get("SYNC_SECRET");
-  const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
-  await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: { boardId } }) });
+  const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-monday`;
+  await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" }, body: JSON.stringify({ event: { boardId } }) });
 }
 
 // Wire up Monday for an account if it has a board id. Returns a status string
@@ -98,9 +118,8 @@ async function onboardMonday(boardId: unknown): Promise<string | null> {
 // Pull this account's WhatConverts leads now (best-effort).
 async function syncWhatConverts(accountId: string): Promise<string | null> {
   try {
-    const secret = Deno.env.get("SYNC_SECRET");
-    const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
-    const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId }) });
+    const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-whatconverts`;
+    const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" }, body: JSON.stringify({ accountId }) });
     const j = await r.json().catch(() => ({}));
     return j && j.ok ? "synced" : ("error: " + JSON.stringify(j));
   } catch (e) {
@@ -415,7 +434,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_account") {
-      const fields = pick(body, ACCOUNT_FIELDS);
+      const fields = blankIdsToNull(pick(body, ACCOUNT_FIELDS));
       if (!fields.company) return json({ error: "company required" }, 400);
       const { data, error } = await admin.from("accounts").insert(fields).select().single();
       if (error) throw error;
@@ -426,7 +445,7 @@ Deno.serve(async (req) => {
 
     if (action === "update_account") {
       if (!body.id) return json({ error: "id required" }, 400);
-      const patch = pick(body, ACCOUNT_FIELDS);
+      const patch = blankIdsToNull(pick(body, ACCOUNT_FIELDS));
       const { data, error } = await admin
         .from("accounts").update(patch).eq("id", body.id).select().single();
       if (error) throw error;
@@ -709,10 +728,9 @@ Deno.serve(async (req) => {
       // Staff "refresh from latest": re-pull this client's Monday board and
       // rebuild the draft, keeping the edited headline + note.
       if (!body.account_id) return json({ error: "account_id required" }, 400);
-      const secret = Deno.env.get("SYNC_SECRET");
-      const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-snapshot${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+      const u = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-snapshot`;
       const r = await fetch(u, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-sync-secret": Deno.env.get("SYNC_SECRET") ?? "" },
         body: JSON.stringify({ accountId: body.account_id, preserve: true }),
       });
       const result = await r.json().catch(() => ({}));

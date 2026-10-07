@@ -96,8 +96,28 @@ Deno.serve(async (req) => {
     let reqBody: any = {};
     try { reqBody = await req.json(); } catch { /* empty */ }
     if (reqBody && reqBody.challenge) return Response.json({ challenge: reqBody.challenge }, { headers: CORS });
-    const expected = Deno.env.get("SYNC_SECRET");
-    if (expected && url.searchParams.get("secret") !== expected) return new Response("unauthorized", { status: 401 });
+    // AUTH — FAIL CLOSED. Two legitimate callers: the daily cron (x-sync-secret
+    // header) and the staff "sync now" button on the Assets page (user JWT, must
+    // be is_staff). The old `expected && ...` gate was dormant until SYNC_SECRET
+    // was created on 2026-08-17, then rejected BOTH callers because neither sent
+    // the secret. An unset secret means "nobody", never "everybody".
+    const secret = Deno.env.get("SYNC_SECRET") || "";
+    const provided = req.headers.get("x-sync-secret") || url.searchParams.get("secret") || "";
+    let authorized = !!secret && provided === secret;
+    if (!authorized) {
+      const authorization = req.headers.get("Authorization") || "";
+      if (authorization) {
+        const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: authorization } },
+        });
+        const { data: auth } = await userClient.auth.getUser();
+        if (auth?.user) {
+          const { data: me } = await userClient.from("profiles").select("is_staff").eq("id", auth.user.id).maybeSingle();
+          authorized = !!me?.is_staff;
+        }
+      }
+    }
+    if (!authorized) return new Response("unauthorized", { status: 401, headers: CORS });
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const token = await getAccessToken(supabase);
