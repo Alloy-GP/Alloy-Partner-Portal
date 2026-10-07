@@ -46,10 +46,17 @@ export function summarizeWatchdog({ runs = [], alerts = [], now = Date.now() } =
 // One-line, human label for an alert row: "monday-daily failing since 3h ago".
 // A flaky job (fails some ticks, passes others) says so with the ratio, and
 // an alert that is currently clear but inside its recovery hold says that too.
+// A `config` alert is a Monday board the sync can't reach because the account's
+// mapping is wrong (archived / deleted / not found): named by client, with the
+// fix, since it is staff who resolve it (in Admin), not the sync.
 export function describeAlert(a, now = Date.now()) {
   const d = a.detail || {};
-  const verb = a.kind === 'stale' ? 'silent' : 'failing';
   const since = rel(a.first_seen, now);
+  if (a.kind === 'config') {
+    const which = d.role === 'roadmap' ? 'roadmap board' : 'Monday board';
+    return `${a.source}: ${which} ${d.issue || 'unavailable'} (id ${d.board_id || '?'}) since ${since} - fix the mapping in Admin`;
+  }
+  const verb = a.kind === 'stale' ? 'silent' : 'failing';
   const err = d.error || (Array.isArray(d.boards) ? d.boards.join(', ') : '');
   const flaky = d.fails_recent != null && d.runs_recent != null && d.fails_recent < d.runs_recent
     ? ` (flaky: ${d.fails_recent} of ${d.runs_recent} runs failed in ${d.recent_hours || 6}h)` : '';

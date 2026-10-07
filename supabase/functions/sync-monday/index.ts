@@ -20,7 +20,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //   - each board's rows + sync stamp are swapped in ONE transaction
 //     (monday_replace_account_rows), so a failure mid-board can never empty a
 //     client's Projects page;
-//   - Monday calls time out at 30s and retry rate/complexity limits with backoff.
+//   - Monday calls time out at 30s and retry rate/complexity limits with backoff;
+//   - a board Monday no longer returns (archived / deleted / not found) is a
+//     MAPPING problem recorded in monday_board_issues for staff, not a failed
+//     run: the client keeps its last good rows and the run still succeeds.
 
 const MONDAY_API = "https://api.monday.com/v2";
 // Realtime events we register per main board. Keep in sync with admin/index.ts
@@ -99,13 +102,39 @@ function zendeskRef(item: any, zendeskColId: string | null): { id: string | null
 }
 
 // --- Board metadata: resolve group + column ids by title/type (no hardcoding).
+// `state: all` + `state`: an ARCHIVED or DELETED board comes back labelled, so
+// the account's issue can say which; a board this token can't see at all comes
+// back as nothing ("not found"). Only an `active` board is synced.
 const META_QUERY = `
   query ($board: [ID!]) {
-    boards(ids: $board) {
+    boards(ids: $board, state: all) {
+      id state
       groups { id title }
       columns { id title type }
     }
   }`;
+
+// monday_board_issues (20261007160000_monday_board_issues.sql): one row per
+// (account, board role) for as long as a board can't be synced because its
+// MAPPING is wrong - archived, deleted, not found. That is a configuration
+// problem for staff (the watchdog emails it once, Sync Health flags it), NOT a
+// failure of this run: it will never fix itself, and before this it failed
+// monday-daily every 30 minutes with a reminder email every day naming a uuid.
+// Upsert keeps first_seen; the next good sync of that board deletes the row.
+// Both are best-effort: the table being absent must not turn a mapping
+// problem back into a run failure.
+type BoardRole = "main" | "roadmap";
+async function recordBoardIssue(supabase: any, accountId: string, role: BoardRole, boardId: string, issue: string) {
+  const { error } = await supabase.from("monday_board_issues").upsert(
+    { account_id: accountId, board_role: role, board_id: boardId, issue, last_seen: new Date().toISOString() },
+    { onConflict: "account_id,board_role" },
+  );
+  if (error) console.warn(`monday_board_issues upsert (${accountId}): ${error.message}`);
+}
+async function clearBoardIssue(supabase: any, accountId: string, role: BoardRole) {
+  const { error } = await supabase.from("monday_board_issues").delete().eq("account_id", accountId).eq("board_role", role);
+  if (error) console.warn(`monday_board_issues delete (${accountId}): ${error.message}`);
+}
 
 type ColMap = {
   status: string | null; due: string | null; person: string | null;
@@ -339,7 +368,7 @@ Deno.serve(async (req) => {
       const fn = target === "roadmap" ? "sync-monday-roadmap" : "sync-monday";
       const events = target === "roadmap" ? ROADMAP_WEBHOOK_EVENTS : WEBHOOK_EVENTS;
       const { data: accts } = await supabase
-        .from("accounts").select(`id, short_name, ${col}`).not(col, "is", null);
+        .from("accounts").select(`id, short_name, ${col}`).not(col, "is", null).neq(col, "");
       const accountBoards = (accts ?? []).map((a: any) => String(a[col]));
       const boards: string[] = body.webhooks === "list" && Array.isArray(body.boards) && body.boards.length
         ? body.boards.map(String) : accountBoards;
@@ -388,9 +417,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Mapped = a non-blank board id. The accounts trigger (20261007170000) now
+    // stores blanks as NULL; `.neq("")` keeps this true even for rows written
+    // before it existed. (Happy CAM's '' was asked of Monday every 30 min.)
     const { data: accounts, error: accErr } = await supabase
-      .from("accounts").select("id, short_name, monday_board_id, monday_service_group_id").not("monday_board_id", "is", null);
+      .from("accounts").select("id, short_name, monday_board_id, monday_service_group_id")
+      .not("monday_board_id", "is", null).neq("monday_board_id", "");
     if (accErr) throw accErr;
+
+    // Boards currently flagged as a mapping problem: a good sync clears the flag.
+    const { data: issueRows } = await supabase.from("monday_board_issues").select("account_id").eq("board_role", "main");
+    const hadIssue = new Set<string>((issueRows ?? []).map((r: any) => String(r.account_id)));
 
     // An event from a known account board scopes the sync to that account. An
     // event from an UNKNOWN board (e.g. the sub-items board, where subtask
@@ -425,7 +462,17 @@ Deno.serve(async (req) => {
         // 1) Read this board's structure and resolve ids by title/type.
         const meta = await monday(token, META_QUERY, { board: [acct.monday_board_id] }, deadline);
         const board = meta?.boards?.[0];
-        if (!board) { summary.push({ account: acct.id, name, ok: false, error: "board not found" }); continue; }
+        const boardState = board ? String(board.state || "active") : null;
+        if (!board || boardState !== "active") {
+          // Mapping problem (see recordBoardIssue): flag it for staff, keep the
+          // client's last good rows, and let the rest of the run - and the run
+          // itself - succeed. `missing` + `warning` (not `error`) is what the
+          // watchdog reads as "not a failed run".
+          const issue: string = !board ? "not found" : (boardState ?? "unavailable"); // "archived" | "deleted"
+          await recordBoardIssue(supabase, acct.id, "main", String(acct.monday_board_id), issue);
+          summary.push({ account: acct.id, name, ok: true, missing: true, board_id: String(acct.monday_board_id), warning: `board ${issue}`, ms: Date.now() - tAcct });
+          continue;
+        }
 
         const allGroups: any[] = board.groups ?? [];
         const C = resolveColumns(board.columns ?? []);
@@ -618,6 +665,7 @@ Deno.serve(async (req) => {
         const syncedRows = projects.length + actions.length + toolkit.length;
         // Rows + stamp land together or not at all (see replaceAccountRows).
         const write = await replaceAccountRows(supabase, acct.id, { projects, actions, ticketLinks: ticketLinksDedup, toolkit }, boardTopItems, syncedRows);
+        if (hadIssue.has(acct.id)) await clearBoardIssue(supabase, acct.id, "main");
 
         summary.push({ account: acct.id, name, ok: true, write, board_items: boardTopItems, synced_rows: syncedRows, projects: projects.length, actions: actions.length, toolkit: toolkit.length, ms: Date.now() - tAcct });
       } catch (e) {
@@ -627,10 +675,12 @@ Deno.serve(async (req) => {
 
     // ok only when every board attempted succeeded. Skipped boards are not
     // failures (they lead the next tick); the watchdog's 2h board check is the
-    // backstop if one keeps missing its turn.
+    // backstop if one keeps missing its turn. Missing boards (mapping problem,
+    // recorded in monday_board_issues) are not failures either.
     const failed = summary.filter((x) => !x.ok).length;
+    const missing = summary.filter((x) => x.missing).length;
     return Response.json({
-      ok: failed === 0, synced: summary.length - failed, failed, skipped: skipped.length,
+      ok: failed === 0, synced: summary.length - failed - missing, failed, missing, skipped: skipped.length,
       elapsed_ms: Date.now() - t0, summary: [...summary, ...skipped],
     });
   } catch (e) {

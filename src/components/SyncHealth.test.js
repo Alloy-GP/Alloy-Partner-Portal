@@ -37,7 +37,23 @@ beforeEach(() => {
   results.set('account_sync_health', { error: null, data: [
     { id: 'a1', company: 'CMGT', short_name: 'CMGT', has_monday: true, has_zendesk: true, has_wc: true, leads: 12, qualified: 3,
       projects: 152, services: 0, actions: 3, board_items: 170, synced_rows: 156, monday_synced_at: ago(2 * 60000), last_sync: ago(2 * 60000) },
+    // A board the sync can't reach (monday_board_issues): flagged by its issue,
+    // ahead of the "empty" it would otherwise show.
+    { id: 'a2', company: 'Happy CAM', short_name: 'Happy', has_monday: true, has_zendesk: false, has_wc: false, leads: 0, qualified: 0,
+      projects: 0, services: 0, actions: 0, board_items: null, synced_rows: null, monday_synced_at: null, last_sync: null, monday_issue: 'not found', roadmap_issue: null },
   ] });
+});
+
+describe('SyncHealth table', () => {
+  it('flags a board Monday no longer returns with its issue, not as empty', async () => {
+    results.set('sync_runs', { error: null, data: [] });
+    results.set('sync_alerts', { error: null, data: [] });
+    const el = await render();
+    const happy = [...el.querySelectorAll('tr')].find((tr) => tr.textContent.startsWith('Happy'));
+    expect(happy).toBeTruthy();
+    expect(happy.textContent).toContain('⚠ board not found');
+    expect(happy.textContent).not.toContain('⚠ empty');
+  });
 });
 
 describe('SyncHealth watchdog strip', () => {
@@ -50,14 +66,17 @@ describe('SyncHealth watchdog strip', () => {
     results.set('sync_alerts', { error: null, data: [
       { key: 'fail:whatconverts-daily', kind: 'fail', source: 'whatconverts-daily', first_seen: ago(11 * 60000), last_notified_at: ago(11 * 60000), resolved_at: null,
         detail: { error: 'RISE: upsert: canceling statement due to statement timeout', status_code: 200 } },
+      { key: 'config:monday-main:a2', kind: 'config', source: 'Happy', first_seen: ago(3 * 3600000), last_notified_at: ago(3 * 3600000), resolved_at: null,
+        detail: { role: 'main', board_id: '', issue: 'not found' } },
     ] });
     const el = await render();
     const text = el.textContent;
     expect(text).toContain('CMGT');                       // the health table still renders
     expect(text).toContain('Watchdog');
     expect(text).toContain('checked 12m ago');
-    expect(text).toContain('1 open alert');
+    expect(text).toContain('2 open alerts');
     expect(text).toContain('whatconverts-daily failing since 11m ago - RISE: upsert');
+    expect(text).toContain('Happy: Monday board not found');
     expect(text).toContain('1 failed run (24h)');
     expect(text).toContain('HTTP 200');
     expect(text).not.toContain('NOT being alerted');

@@ -47,7 +47,14 @@ type Pending = {
   status_code: number | null; timed_out: boolean | null; error_msg: string | null; content: string | null;
 };
 type Run = { source: string; started_at: string; ok: boolean; error: string | null; status_code: number | null };
-type Problem = { key: string; kind: "fail" | "stale"; source: string; detail: Record<string, unknown> };
+// kind: "fail" = the job's latest run failed; "stale" = no run / no board stamp
+// inside the window; "config" = a Monday board the sync can't reach because the
+// account's MAPPING is wrong (monday_board_issues, written by sync-monday).
+// A config problem is for staff to fix in Admin, so it is emailed ONCE naming
+// the client and the fix, never reminded, and closes quietly when the row goes.
+// (Before: one blank board id failed monday-daily every 30 min and staff got a
+// daily reminder naming an account uuid, from 2026-10-02 until this.)
+type Problem = { key: string; kind: "fail" | "stale" | "config"; source: string; detail: Record<string, unknown> };
 
 function tryJson(s: string | null): any { if (!s) return null; try { return JSON.parse(s); } catch { return null; } }
 const excerpt = (s: string | null, n = 300) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -129,6 +136,13 @@ async function sendEmail(to: string[], subject: string, html: string, text: stri
 
 function describe(p: Problem): { title: string; what: string } {
   const d = p.detail as any;
+  if (p.kind === "config") {
+    const which = d.role === "roadmap" ? "Growth Roadmap board" : "Monday board";
+    return {
+      title: `${p.source}: ${which} ${d.issue}`,
+      what: `board id "${d.board_id}" on the account's mapping. The sync skips it and keeps the client's last data; every other board still syncs. Fix once in Admin → ${p.source}: point the id at the right board, or clear it. This is the only email about it (no daily reminder); it closes by itself once the mapping changes.`,
+    };
+  }
   if (p.kind === "stale") {
     const what = Array.isArray(d.boards)
       ? `no re-stamp within 2h: ${d.boards.join(", ")}`
@@ -141,10 +155,14 @@ function describe(p: Problem): { title: string; what: string } {
 }
 
 function renderEmail(fresh: Problem[], reminders: Problem[], recovered: any[]): { subject: string; html: string; text: string } {
-  const failing = [...fresh, ...reminders];
-  const subject = failing.length
-    ? `[Alloy portal] ${failing.length} sync${failing.length === 1 ? "" : "s"} failing${recovered.length ? `, ${recovered.length} recovered` : ""}: ${failing.map((p) => p.source).join(", ")}`
-    : `[Alloy portal] Sync recovered: ${recovered.map((a) => a.source).join(", ")}`;
+  const config = fresh.filter((p) => p.kind === "config");     // emailed once, never reminded
+  const freshSync = fresh.filter((p) => p.kind !== "config");
+  const failing = [...freshSync, ...reminders];
+  const parts: string[] = [];
+  if (failing.length) parts.push(`${failing.length} sync${failing.length === 1 ? "" : "s"} failing${recovered.length ? `, ${recovered.length} recovered` : ""}: ${failing.map((p) => p.source).join(", ")}`);
+  if (config.length) parts.push(`Monday board mapping needs a fix: ${config.map((p) => p.source).join(", ")}`);
+  if (!parts.length) parts.push(`Sync recovered: ${recovered.map((a) => a.source).join(", ")}`);
+  const subject = `[Alloy portal] ${parts.join(" / ")}`;
   const sections: string[] = [];
   const textParts: string[] = [];
   const block = (title: string, items: { title: string; what: string }[], color: string) => {
@@ -156,7 +174,8 @@ function renderEmail(fresh: Problem[], reminders: Problem[], recovered: any[]): 
     );
     textParts.push(`${title}\n${items.map((i) => `- ${i.title} - ${i.what}`).join("\n")}`);
   };
-  block("New", fresh.map(describe), "#b03a3a");
+  block("New", freshSync.map(describe), "#b03a3a");
+  block("Needs a mapping fix (one email, no reminders)", config.map(describe), "#8a5a00");
   block("Still broken (daily reminder)", reminders.map(describe), "#b03a3a");
   block("Recovered", recovered.map((a) => ({
     title: a.source,
@@ -165,7 +184,7 @@ function renderEmail(fresh: Problem[], reminders: Problem[], recovered: any[]): 
   const html = `<div style="max-width:640px;margin:0 auto;padding:20px;font:14px/1.5 Inter,Arial,sans-serif;color:#222">
     <div style="font:800 18px/1.2 Poppins,Inter,Arial,sans-serif;color:#3b1e6e">Sync watchdog</div>
     ${sections.join("")}
-    <p style="margin:18px 0 0"><a href="${HEALTH_URL}" style="color:#3b1e6e;font-weight:700">Open Sync Health</a> for every board, the failed runs, and the runbook in CLAUDE.md (section "SYNC_SECRET").</p>
+    <p style="margin:18px 0 0"><a href="${HEALTH_URL}" style="color:#3b1e6e;font-weight:700">Open Sync Health</a> for every board, the failed runs, and the runbook in CLAUDE.md (section "Sync watchdog").</p>
     <p style="margin:10px 0 0;font-size:11.5px;color:#777">Sent by the sync-monitor edge function (every 10 min, only when something changes). Recipients: app_config.sync_alert_emails, else all staff.</p>
   </div>`;
   const text = `Sync watchdog\n\n${textParts.join("\n\n")}\n\nSync Health: ${HEALTH_URL}`;
@@ -266,9 +285,34 @@ Deno.serve(async (req) => {
         }
       }
     }
-    const { data: boards, error: bErr } = await db.from("monday_sync_status").select("account_id, synced_at, accounts(short_name)");
+    // Mapping problems (monday_board_issues, written by sync-monday): a board
+    // Monday no longer returns, for an account that STILL maps that id. One
+    // `config` problem per (account, board role); the key is per account, so a
+    // changed-but-still-wrong id updates the open alert instead of opening a
+    // second one. A row whose account no longer maps that id is ignored (the
+    // next sync tick deletes it). Read best-effort: the watchdog must keep
+    // judging every job even if migration 20261007160000 is not applied yet.
+    const { data: issueRows, error: iErr } = await db.from("monday_board_issues")
+      .select("account_id, board_role, board_id, issue, first_seen, accounts(short_name, monday_board_id, monday_roadmap_board_id)");
+    if (iErr) console.warn(`monday_board_issues unreadable (migration 20261007160000 applied?): ${iErr.message}`);
+    const issueOpen = new Set<string>();
+    for (const i of (issueRows ?? []) as any[]) {
+      const mapped = i.board_role === "roadmap" ? i.accounts?.monday_roadmap_board_id : i.accounts?.monday_board_id;
+      if (!mapped || String(mapped) !== String(i.board_id)) continue;
+      issueOpen.add(`${i.account_id}:${i.board_role}`);
+      problems.push({
+        key: `config:monday-${i.board_role}:${i.account_id}`, kind: "config", source: i.accounts?.short_name ?? i.account_id,
+        detail: { role: i.board_role, board_id: i.board_id, issue: i.issue, since: i.first_seen },
+      });
+    }
+
+    // Every mapped Monday board must re-stamp within 2h. A board with an open
+    // mapping issue is reported above (once), not as stale; a stamp left behind
+    // by an account whose board id was since cleared is ignored.
+    const { data: boards, error: bErr } = await db.from("monday_sync_status").select("account_id, synced_at, accounts(short_name, monday_board_id)");
     if (bErr) throw bErr;
     const staleBoards = (boards ?? [])
+      .filter((b: any) => b.accounts?.monday_board_id && !issueOpen.has(`${b.account_id}:main`))
       .filter((b: any) => now - Date.parse(b.synced_at) > BOARD_STALE_MS)
       .map((b: any) => `${b.accounts?.short_name ?? b.account_id} (${Math.floor((now - Date.parse(b.synced_at)) / 3600_000)}h)`);
     if (staleBoards.length) {
@@ -281,8 +325,11 @@ Deno.serve(async (req) => {
     //   open, still present  -> a running recovery hold means it came BACK: flap, cleared, no email;
     //                           remind every 24h
     //   open, absent         -> start (or continue) the recovery hold; "Recovered" only once it has held
+    //   config (mapping) problem -> emailed once when new (or until an email
+    //                           gets through); never reminded; closed quietly,
+    //                           no email, once the mapping changed
     const problemByKey = new Map(problems.map((p) => [p.key, p]));
-    const fresh: Problem[] = [], reminders: Problem[] = [], recovered: any[] = [];
+    const fresh: Problem[] = [], reminders: Problem[] = [], recovered: any[] = [], closedQuietly: any[] = [];
     const patches = new Map<number, any>();
     for (const p of problems) if (!open.has(p.key)) fresh.push(p);
     for (const a of openRows ?? []) {
@@ -290,8 +337,11 @@ Deno.serve(async (req) => {
       if (p) {
         const patch: any = { last_seen: nowIso, detail: p.detail };
         if (a.clear_since) { patch.clear_since = null; patch.flap_count = (a.flap_count ?? 0) + 1; }
-        if (!a.last_notified_at || now - Date.parse(a.last_notified_at) > REMIND_MS) reminders.push(p);
+        const due = !a.last_notified_at || (p.kind !== "config" && now - Date.parse(a.last_notified_at) > REMIND_MS);
+        if (due) reminders.push(p);
         patches.set(a.id, patch);
+      } else if (a.kind === "config") {
+        closedQuietly.push(a);
       } else {
         const hold = holdMs.get(a.source) ?? 0;
         const clearSince = a.clear_since ? Date.parse(a.clear_since) : now;
@@ -325,7 +375,7 @@ Deno.serve(async (req) => {
       const { error } = await db.from("sync_alerts").update(patch).eq("id", id);
       if (error) throw error;
     }
-    for (const a of recovered) {
+    for (const a of [...recovered, ...closedQuietly]) {
       const { error } = await db.from("sync_alerts").update({ resolved_at: nowIso }).eq("id", a.id);
       if (error) throw error;
     }
@@ -342,6 +392,7 @@ Deno.serve(async (req) => {
       ok: !mute, ...(mute ? { error: "alerts not emailed: no recipients or RESEND_API_KEY unset" } : {}),
       harvested: harvested.length, problems: problems.map((p) => p.key),
       notified: { fresh: fresh.map((p) => p.key), reminders: reminders.map((p) => p.key), recovered: recovered.map((a) => a.key) },
+      closed_quietly: closedQuietly.map((a) => a.key),
       emailed,
     });
   } catch (e) {

@@ -101,6 +101,29 @@ heartbeat, open alerts (with flaky ratio / hold state) and failed runs (24h).
   source='monday-daily' and not ok order by started_at desc`) before touching
   the monitor. Known causes: 150s gateway timeout on a slow full sync, Monday
   complexity limits, PostgREST 8s statement timeout on a big write.
+- **`config:` alerts = mapping problems, not failed runs.** A Monday board the
+  sync can't reach because the account's id is wrong (archived, deleted, not
+  found) is recorded by `sync-monday` in `monday_board_issues` (one row per
+  account + board role; the next good sync of that board deletes it), reported
+  in the run summary as `missing` + `warning` (NOT `error`, so the run stays
+  `ok:true` and the client keeps its last rows). The watchdog emails it ONCE
+  ("Needs a mapping fix", naming the client + board id), never reminds, and
+  closes it quietly once the mapping changes. Sync Health shows
+  "⚠ board not found / archived" on that client's row. Fix = Admin → client →
+  Monday board ID (correct it, or clear it). Migration `20261007160000`.
+- **Blank integration ids are NULL** — trigger `accounts_blank_ids_to_null`
+  (`20261007170000`). Admin used to save `''` for an empty field, and every
+  sync selects mapped accounts with `.not(col, "is", null)`, so `''` counted as
+  mapped: board `""` was asked of Monday every 30 min ("board not found") and
+  the weekly rollup failed ("no WhatConverts account id"), each with a daily
+  reminder email (Happy CAM, 2026-10-02 → 10-07). A new consumer can rely on
+  `is not null`; `.neq(col, "")` is belt and braces.
+- **Live ≠ repo for `sync-monday-roadmap`.** The deployed v11 (2026-10-05) has
+  a webhook registry (`monday_roadmap_webhooks`, migration `20261005170000`,
+  applied live) whose source was never pushed to GitHub. Do NOT redeploy
+  roadmap from the repo until that source lands. If it must be recovered:
+  `GET /v1/projects/{ref}/functions/sync-monday-roadmap/body` is an eszip whose
+  `source/index.ts` (type-stripped JS) the `deno.land/x/eszip` Parser extracts.
 
 ## Sync dependability — how the Monday sync is built to not flap
 `sync-monday` (cron `monday-daily`, */30) runs every board in ONE request, so it

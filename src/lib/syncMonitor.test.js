@@ -74,6 +74,12 @@ describe('describeAlert', () => {
     const a = { kind: 'fail', source: 'x', first_seen: ago(H), detail: { error: 'HTTP 401', fails_recent: 4, runs_recent: 4 } };
     expect(describeAlert(a, NOW)).toBe('x failing since 1h ago - HTTP 401');
   });
+  it('names the client, the board and the fix for a config (mapping) alert', () => {
+    const a = { kind: 'config', source: 'Happy', first_seen: ago(3 * H), detail: { role: 'main', board_id: '123', issue: 'not found' } };
+    expect(describeAlert(a, NOW)).toBe('Happy: Monday board not found (id 123) since 3h ago - fix the mapping in Admin');
+    const r = { kind: 'config', source: 'KC', first_seen: ago(2 * H), detail: { role: 'roadmap', board_id: '456', issue: 'archived' } };
+    expect(describeAlert(r, NOW)).toBe('KC: roadmap board archived (id 456) since 2h ago - fix the mapping in Admin');
+  });
 });
 
 describe('rel', () => {

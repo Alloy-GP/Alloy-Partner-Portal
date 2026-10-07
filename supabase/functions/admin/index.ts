@@ -43,6 +43,21 @@ function pick(obj: any, fields: string[]) {
   return out;
 }
 
+// Integration ids: an empty form field means "not mapped" and is saved as NULL,
+// never "". Every sync treats a non-null id as mapped, so a '' here made
+// sync-monday ask Monday for board "" every 30 minutes (Happy CAM, 2026-10-02)
+// and the watchdog email staff about it daily. The accounts trigger
+// (20261007170000_accounts_blank_ids_are_null.sql) enforces the same rule in
+// the database; normalising here also keeps onboardMonday/syncWhatConverts from
+// ever seeing a blank.
+const ACCOUNT_ID_FIELDS = ["monday_board_id", "zendesk_org_id", "whatconverts_profile_id", "quickbooks_customer_id"];
+function blankIdsToNull(fields: Record<string, unknown>) {
+  for (const f of ACCOUNT_ID_FIELDS) {
+    if (typeof fields[f] === "string" && !(fields[f] as string).trim()) fields[f] = null;
+  }
+  return fields;
+}
+
 // --- Monday real-time onboarding -------------------------------------------
 // When a client's board id is set, register the realtime webhooks (idempotent)
 // and kick an immediate sync so their data shows right away. Best-effort: a
@@ -419,7 +434,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_account") {
-      const fields = pick(body, ACCOUNT_FIELDS);
+      const fields = blankIdsToNull(pick(body, ACCOUNT_FIELDS));
       if (!fields.company) return json({ error: "company required" }, 400);
       const { data, error } = await admin.from("accounts").insert(fields).select().single();
       if (error) throw error;
@@ -430,7 +445,7 @@ Deno.serve(async (req) => {
 
     if (action === "update_account") {
       if (!body.id) return json({ error: "id required" }, 400);
-      const patch = pick(body, ACCOUNT_FIELDS);
+      const patch = blankIdsToNull(pick(body, ACCOUNT_FIELDS));
       const { data, error } = await admin
         .from("accounts").update(patch).eq("id", body.id).select().single();
       if (error) throw error;
