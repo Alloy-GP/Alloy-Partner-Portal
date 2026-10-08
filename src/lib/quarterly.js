@@ -120,7 +120,7 @@ export async function submitQuarterly(requestId, form, files) {
 // ── Scheduling the meeting itself (Cal.com) ─────────────────────────────────
 // The event type lives in Alloy's Cal.com; `namespace` is the embed namespace
 // from Cal's "pop up via element click" snippet and `link` the booking path.
-export const CAL_QUARTERLY = { namespace: 'alloy-quarterly-meeting', link: 'alloy/alloy-quarterly-meeting' };
+export const CAL_QUARTERLY = { namespace: 'alloy-quarterly-meeting', link: 'team/agp/alloy-quarterly-meeting' };
 
 // What Cal's booking form is prefilled with: the client's name + email, and a
 // note that ties the booking to the prep they just sent.
@@ -137,5 +137,6 @@ export function quarterlyBookingConfig(req, { user = DATA.user, account = DATA.a
 // (client-only) so staff can see who went on to book.
 export function openQuarterlyBooking(req, cal = CAL_QUARTERLY) {
   if (req && req.id) track('quarterly_schedule_click', { requestId: req.id });
-  return openCalModal({ namespace: cal.namespace, calLink: cal.link, config: quarterlyBookingConfig(req) });
+  // Layout keys mirror Cal's generated snippet (month view; slots view on phones).
+  return openCalModal({ namespace: cal.namespace, calLink: cal.link, config: { layout: 'month_view', useSlotsViewOnSmallScreen: 'true', ...quarterlyBookingConfig(req) } });
 }
