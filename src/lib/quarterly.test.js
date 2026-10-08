@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { DATA } from '../data.js';
 import {
-  quarterlyForTicketTags, quarterlyBookingForTicketTags, quarterlyBookingConfig, CAL_QUARTERLY,
+  quarterlyForTicketTags, quarterlyBookingForTicketTags, quarterlyMeetingForTicketTags, quarterlyBookingConfig, CAL_QUARTERLY,
+  parseCalBooking, recordQuarterlyBooking, formatMeetingAt,
   quarterLabel, defaultQuarterlyTitle, hasQuarterlyAnswer, buildQuarterlyBody, QUARTERLY_SECTIONS,
 } from './quarterly.js';
 
@@ -99,5 +101,57 @@ describe('quarterlyBookingConfig (Cal.com prefill)', () => {
   it('points at the quarterly event type', () => {
     expect(CAL_QUARTERLY.namespace).toBe('alloy-quarterly-meeting');
     expect(CAL_QUARTERLY.link).toMatch(/^[a-z0-9-]+(\/[a-z0-9-]+)+$/);
+  });
+});
+
+describe('booked state (Cal.com embed event → the button retires)', () => {
+  const submitted = { ...openReq, status: 'submitted' };
+  const booked = { ...submitted, meetingAt: '2026-10-15T19:00:00.000Z' };
+
+  it('offers the booking only while submitted AND not yet booked; shows the meeting once booked', () => {
+    expect(quarterlyBookingForTicketTags(['quarterly'], submitted)).toBe(submitted);
+    expect(quarterlyBookingForTicketTags(['quarterly'], booked)).toBeNull();
+    expect(quarterlyMeetingForTicketTags(['quarterly'], booked)).toBe(booked);
+    expect(quarterlyMeetingForTicketTags(['quarterly'], submitted)).toBeNull();
+    expect(quarterlyMeetingForTicketTags(['newsletter'], booked)).toBeNull();
+    expect(quarterlyMeetingForTicketTags(['quarterly'], { ...booked, status: 'closed' })).toBeNull();
+  });
+
+  it('parses both embed event shapes and rejects one without a start', () => {
+    expect(parseCalBooking({ type: 'bookingSuccessfulV2', data: { uid: 'u1', title: 'Alloy Quarterly Meeting', startTime: '2026-10-15T19:00:00Z', endTime: '2026-10-15T19:30:00Z', videoCallUrl: 'https://meet/x' } }))
+      .toEqual({ uid: 'u1', startTime: '2026-10-15T19:00:00.000Z', endTime: '2026-10-15T19:30:00.000Z', title: 'Alloy Quarterly Meeting', videoCallUrl: 'https://meet/x' });
+    expect(parseCalBooking({ data: { eventType: { title: 'Quarterly' }, date: '2026-10-15T19:00:00Z', duration: 30, booking: { uid: 'u2' } } }))
+      .toEqual({ uid: 'u2', startTime: '2026-10-15T19:00:00.000Z', endTime: null, title: 'Quarterly', videoCallUrl: null });
+    expect(parseCalBooking({ data: { confirmed: true } })).toBeNull();
+    expect(parseCalBooking(null)).toBeNull();
+    expect(parseCalBooking({ data: { startTime: 'not a date' } })).toBeNull();
+  });
+
+  it('formats the meeting time for people, and blanks a bad one', () => {
+    expect(formatMeetingAt('2026-10-15T19:00:00Z')).toMatch(/Oct 15 · \d{1,2}:\d{2}/);
+    expect(formatMeetingAt('nope')).toBe('');
+    expect(formatMeetingAt(null)).toBe('');
+  });
+
+  describe('recordQuarterlyBooking', () => {
+    const saved = DATA.quarterlyRequest;
+    afterEach(() => { DATA.quarterlyRequest = saved; });
+
+    it('flips the in-memory round to booked once; a repeat for the same time is a no-op', async () => {
+      DATA.quarterlyRequest = { ...submitted };
+      const b = parseCalBooking({ data: { uid: 'u1', startTime: '2026-10-15T19:00:00Z', title: 'Q' } });
+      expect(await recordQuarterlyBooking(submitted, b)).toBe(true);
+      expect(DATA.quarterlyRequest).toMatchObject({ id: 'r1', status: 'submitted', meetingAt: '2026-10-15T19:00:00.000Z', meetingUid: 'u1' });
+      expect(DATA.quarterlyRequest.meetingMeta).toMatchObject({ title: 'Q', source: 'embed' });
+      expect(await recordQuarterlyBooking(submitted, b)).toBe(false); // Cal fires both event shapes
+      expect(quarterlyBookingForTicketTags(['quarterly'])).toBeNull();
+      expect(quarterlyMeetingForTicketTags(['quarterly'])).toBe(DATA.quarterlyRequest);
+    });
+    it('ignores a booking with nothing usable', async () => {
+      DATA.quarterlyRequest = { ...submitted };
+      expect(await recordQuarterlyBooking(submitted, null)).toBe(false);
+      expect(await recordQuarterlyBooking(null, { startTime: '2026-10-15T19:00:00Z' })).toBe(false);
+      expect(DATA.quarterlyRequest.meetingAt).toBeUndefined();
+    });
   });
 });

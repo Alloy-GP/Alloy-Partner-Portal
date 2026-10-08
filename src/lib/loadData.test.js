@@ -171,6 +171,7 @@ describe("loadAccountData field mapping (the 'five seams' guard)", () => {
     const data = await loadAccountData(session, "acc-1", me);
     expect(data.quarterlyRequest).toEqual({
       id: "qr-1", title: "Q4 2026 Quarterly Meeting", status: "open", dueDate: "2026-10-20", submission: null,
+      meetingAt: null, meetingUid: null, meetingMeta: null,
     });
   });
 
@@ -178,6 +179,12 @@ describe("loadAccountData field mapping (the 'five seams' guard)", () => {
     h.tables.quarterly_requests = { data: { id: "qr-2", title: "Q4 2026 Quarterly Meeting", status: "submitted", due_date: null, submission: { wins: "x" } }, error: null };
     const data = await loadAccountData(session, "acc-1", me);
     expect(data.quarterlyRequest).toMatchObject({ id: "qr-2", status: "submitted", submission: { wins: "x" } });
+  });
+
+  it("threads the booked meeting through (meeting_at → meetingAt)", async () => {
+    h.tables.quarterly_requests = { data: { id: "qr-3", title: "Q4", status: "submitted", meeting_at: "2026-10-15T19:00:00Z", meeting_uid: "abc", meeting_meta: { source: "embed" } }, error: null };
+    const data = await loadAccountData(session, "acc-1", me);
+    expect(data.quarterlyRequest).toMatchObject({ id: "qr-3", meetingAt: "2026-10-15T19:00:00Z", meetingUid: "abc", meetingMeta: { source: "embed" } });
   });
 
   it("quarterlyRequest is null when no round is open", async () => {

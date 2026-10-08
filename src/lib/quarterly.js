@@ -2,7 +2,7 @@ import { supabase, isSupabaseConfigured } from './supabase.js';
 import { DATA } from '../data.js';
 import { zdCreate, zdUpload } from './zendesk.js';
 import { track } from './track.js';
-import { openCalModal } from './calEmbed.js';
+import { openCalModal, onCalEvent } from './calEmbed.js';
 
 // Quarterly meeting prep intake — the quarterly twin of `newsletter.js`.
 //
@@ -17,8 +17,10 @@ import { openCalModal } from './calEmbed.js';
 //
 // Once submitted, the same ticket (and the form's success step) offers
 // "Schedule the meeting": Cal.com's booking dialog for the quarterly meeting,
-// prefilled with the client's name/email. Staff closing the round after the
-// meeting hides it. Lifecycle: open → form · submitted → schedule · closed → nothing.
+// prefilled with the client's name/email. When they book inside it, Cal's
+// embed event is recorded on the row (meeting_at) and the button becomes
+// "Meeting booked · <date>". Staff closing the round after the meeting hides
+// it all. Lifecycle: open → form · submitted → schedule · booked → chip · closed → nothing.
 
 const clean = (s) => String(s || '').trim();
 
@@ -36,11 +38,25 @@ export function quarterlyForTicketTags(tags, req = DATA.quarterlyRequest) {
   return hasQuarterlyTag(tags) ? req : null;
 }
 
-// The SUBMITTED round to offer "Schedule the meeting" on, or null. Same tag
-// gate; the other half of the lifecycle. Closed rounds show nothing.
+// The SUBMITTED, not-yet-booked round to offer "Schedule the meeting" on, or
+// null. Same tag gate; the other half of the lifecycle. Closed rounds show nothing.
 export function quarterlyBookingForTicketTags(tags, req = DATA.quarterlyRequest) {
-  if (!req || req.status !== 'submitted') return null;
+  if (!req || req.status !== 'submitted' || req.meetingAt) return null;
   return hasQuarterlyTag(tags) ? req : null;
+}
+// The SUBMITTED round whose meeting IS booked (from the portal), or null —
+// shows "Meeting booked · <date>" where the button used to be.
+export function quarterlyMeetingForTicketTags(tags, req = DATA.quarterlyRequest) {
+  if (!req || req.status !== 'submitted' || !req.meetingAt) return null;
+  return hasQuarterlyTag(tags) ? req : null;
+}
+// "Thu, Oct 15 · 2:00 PM" in the viewer's time zone; '' for a bad date.
+export function formatMeetingAt(iso) {
+  const d = new Date(iso || '');
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  } catch { return d.toISOString(); }
 }
 
 // Calendar quarter label for a date — "Q4 2026". The default round title; staff
@@ -133,10 +149,57 @@ export function quarterlyBookingConfig(req, { user = DATA.user, account = DATA.a
   return config;
 }
 
+// What Cal's embed tells the page when a booking succeeds. Two shapes exist:
+// bookingSuccessfulV2 { uid, title, startTime, endTime, videoCallUrl, … } and
+// the older bookingSuccessful { eventType, date, duration, booking?, … }.
+// Normalises either to { uid, startTime, endTime, title, videoCallUrl } or
+// null when there is no usable start time.
+export function parseCalBooking(detail) {
+  const d = (detail && detail.data) || detail || {};
+  const startTime = d.startTime || d.date || (d.booking && (d.booking.startTime || d.booking.start_time)) || null;
+  if (!startTime || Number.isNaN(new Date(startTime).getTime())) return null;
+  return {
+    uid: d.uid || (d.booking && d.booking.uid) || null,
+    startTime: new Date(startTime).toISOString(),
+    endTime: d.endTime ? new Date(d.endTime).toISOString() : null,
+    title: d.title || (d.eventType && d.eventType.title) || null,
+    videoCallUrl: d.videoCallUrl || null,
+  };
+}
+
+// Tell the UI the round changed (button → chip) without a reload. Components
+// that read DATA.quarterlyRequest listen for this (QuarterlyBookButton, the
+// form's success step).
+export const QUARTERLY_CHANGED = 'quarterly:changed';
+const announce = () => { if (typeof window !== 'undefined' && window.dispatchEvent) window.dispatchEvent(new Event(QUARTERLY_CHANGED)); };
+
+// Record a booking on the round: DB row (the client's own, under RLS), the
+// in-memory round, an event for staff analytics, and a UI announce. Safe to
+// call twice (Cal may fire both event shapes): the second is a no-op.
+export async function recordQuarterlyBooking(req, booking) {
+  if (!req || !req.id || !booking || !booking.startTime) return false;
+  const cur = DATA.quarterlyRequest;
+  if (cur && cur.id === req.id && cur.meetingAt === booking.startTime) return false;
+  const meta = { title: booking.title, end_time: booking.endTime, video_call_url: booking.videoCallUrl, source: 'embed', booked_at: new Date().toISOString() };
+  if (cur && cur.id === req.id) DATA.quarterlyRequest = { ...cur, meetingAt: booking.startTime, meetingUid: booking.uid || null, meetingMeta: meta };
+  announce();
+  track('quarterly_booked', { requestId: req.id, meetingAt: booking.startTime });
+  if (isSupabaseConfigured) {
+    const { error } = await supabase.from('quarterly_requests')
+      .update({ meeting_at: booking.startTime, meeting_uid: booking.uid || null, meeting_meta: meta }).eq('id', req.id);
+    if (error) throw error;
+  }
+  return true;
+}
+
 // Open the Cal.com dialog for this round. Logs a quarterly_schedule_click
-// (client-only) so staff can see who went on to book.
+// (client-only) so staff can see who went on to book, and listens for the
+// booking so the button can retire itself.
 export function openQuarterlyBooking(req, cal = CAL_QUARTERLY) {
   if (req && req.id) track('quarterly_schedule_click', { requestId: req.id });
+  const onBooked = (detail) => { const b = parseCalBooking(detail); if (b) recordQuarterlyBooking(req, b).catch(() => {}); };
+  onCalEvent(cal.namespace, 'bookingSuccessfulV2', onBooked);
+  onCalEvent(cal.namespace, 'bookingSuccessful', onBooked);
   // Layout keys mirror Cal's generated snippet (month view; slots view on phones).
   return openCalModal({ namespace: cal.namespace, calLink: cal.link, config: { layout: 'month_view', useSlotsViewOnSmallScreen: 'true', ...quarterlyBookingConfig(req) } });
 }

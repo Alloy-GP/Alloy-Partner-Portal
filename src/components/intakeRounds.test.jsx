@@ -125,6 +125,21 @@ describe('QuarterlyModal', () => {
     expect(onSubmitted).toHaveBeenCalledWith('4321');
   });
 
+  it('success step turns into "Meeting booked" when the client books in Cal\'s dialog', async () => {
+    const saved = DATA.quarterlyRequest;
+    DATA.quarterlyRequest = { ...request };
+    h.submitQuarterly.mockResolvedValue({ ticketId: '1' });
+    await render(<QuarterlyModal request={request} onClose={() => {}} onSubmitted={() => {}} />);
+    await type(container.querySelector('textarea'), 'A win');
+    await click(buttonByText('Submit meeting prep'));
+    expect(buttonByText('Schedule the meeting')).toBeTruthy();
+    DATA.quarterlyRequest = { ...request, status: 'submitted', meetingAt: '2026-10-15T19:00:00Z' };
+    await act(async () => { window.dispatchEvent(new Event('quarterly:changed')); });
+    expect(buttonByText('Schedule the meeting')).toBeUndefined();
+    expect(container.querySelector('[data-testid=quarterly-schedule]').textContent).toMatch(/Meeting booked · .*Oct 15/);
+    DATA.quarterlyRequest = saved;
+  });
+
   it('surfaces a submit failure inline', async () => {
     h.submitQuarterly.mockRejectedValue(new Error('Zendesk is down'));
     await render(<QuarterlyModal request={request} onClose={() => {}} onSubmitted={() => {}} />);
@@ -146,6 +161,25 @@ describe('QuarterlyBookButton (on the ticket, after the prep is in)', () => {
     await click(btns[0]);
     expect(h.openQuarterlyBooking).toHaveBeenCalledWith(DATA.quarterlyRequest);
   });
+  it('shows "Meeting booked" instead of the button once the round carries a meeting', async () => {
+    DATA.quarterlyRequest = { id: 'qr-9', title: 'Q4', status: 'submitted', meetingAt: '2026-10-15T19:00:00Z' };
+    await render(<div><QuarterlyBookButton tags={['quarterly']} /><QuarterlyBookButton tags={['quarterly']} variant="card" /></div>);
+    expect(container.querySelector('button')).toBeNull();
+    const chips = Array.from(container.querySelectorAll('[data-testid=quarterly-booked]'));
+    expect(chips.length).toBe(2);
+    expect(chips[0].textContent).toMatch(/Meeting booked · .*Oct 15/);
+  });
+
+  it('retires itself live when the booking lands while it is on screen', async () => {
+    DATA.quarterlyRequest = { id: 'qr-9', title: 'Q4', status: 'submitted' };
+    await render(<QuarterlyBookButton tags={['quarterly']} />);
+    expect(container.querySelector('button').textContent).toContain('Schedule the meeting');
+    DATA.quarterlyRequest = { ...DATA.quarterlyRequest, meetingAt: '2026-10-15T19:00:00Z' };
+    await act(async () => { window.dispatchEvent(new Event('quarterly:changed')); });
+    expect(container.querySelector('button')).toBeNull();
+    expect(container.textContent).toContain('Meeting booked');
+  });
+
   it('renders nothing while the round is still open (the form button owns that state)', async () => {
     DATA.quarterlyRequest = { id: 'qr-9', title: 'Q4', status: 'open' };
     await render(<QuarterlyBookButton tags={['quarterly']} />);

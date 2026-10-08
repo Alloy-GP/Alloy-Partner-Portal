@@ -227,7 +227,14 @@ Seams, in order — skip one and the button silently never appears:
   become `email_ccs`. A failed send keeps the round open and names the client
   in the response; make that ticket by hand.
 - **Scheduling the meeting (Cal.com).** Lifecycle of a quarterly round: open →
-  "Open Form" · submitted → "Schedule the meeting" · closed → nothing. The
+  "Open Form" · submitted → "Schedule the meeting" · booked → "Meeting booked ·
+  <date>" · closed → nothing. Booking is detected from Cal's embed events
+  (`bookingSuccessful[V2]` via `onCalEvent`) → `recordQuarterlyBooking` writes
+  `meeting_at/uid/meta` (migration `20261008120000`, client's own row under RLS),
+  flips `DATA.quarterlyRequest`, dispatches `quarterly:changed` so the button
+  retires without a reload, and tracks `quarterly_booked`. Only bookings made
+  INSIDE the portal dialog are seen; a Cal.com webhook would also catch
+  cancels/reschedules/outside bookings (not built). The
   success step of `QuarterlyModal` and `QuarterlyBookButton` (ticket thread +
   Playbook card, self-contained, no App prop) open Cal's dialog via
   `src/lib/calEmbed.js` (lazy `embed.js`, programmatic `modal`) prefilled with
