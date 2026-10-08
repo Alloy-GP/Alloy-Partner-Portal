@@ -5,7 +5,8 @@ import { zdThread, zdReply, zdResolve, zdUpload, zdAddCc } from '../lib/zendesk.
 import { guideForTags } from '../lib/guides.js';
 import { newsletterForTicketTags } from '../lib/newsletter.js';
 import { goalsForTicketTags } from '../lib/goals.js';
-import { quarterlyForTicketTags } from '../lib/quarterly.js';
+import { quarterlyForTicketTags, quarterlyBookingForTicketTags } from '../lib/quarterly.js';
+import QuarterlyBookButton from './QuarterlyBookButton.jsx';
 import GuideModal from './GuideModal.jsx';
 
 const { useState, useEffect, useRef } = React;
@@ -208,6 +209,7 @@ function TicketThread({ id, onChanged, onNewsletter, onGoals, onQuarterly }) {
   const nl = newsletterForTicketTags(t.tags); // open newsletter round on a `newsletter`-tagged ticket
   const goals = goalsForTicketTags(t.tags); // quarterly goals form on a `goals`-tagged ticket
   const quarterly = quarterlyForTicketTags(t.tags); // open quarterly-meeting round on a `quarterly`-tagged ticket
+  const quarterlyBook = quarterlyBookingForTicketTags(t.tags); // prep submitted → "Schedule the meeting" (Cal.com)
   const qLabel = `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
 
   return (
@@ -235,7 +237,7 @@ function TicketThread({ id, onChanged, onNewsletter, onGoals, onQuarterly }) {
       </div>
 
       {/* Contextual actions — review link, guide, newsletter/goals form; wherever you opened this from */}
-      {(reviewLink || guide || (nl && onNewsletter) || (goals && onGoals) || (quarterly && onQuarterly)) ? (
+      {(reviewLink || guide || (nl && onNewsletter) || (goals && onGoals) || (quarterly && onQuarterly) || quarterlyBook) ? (
         <div style={{ padding: '14px 22px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {nl && onNewsletter ? (
             <button className="btn btn-primary" onClick={onNewsletter}
@@ -255,6 +257,7 @@ function TicketThread({ id, onChanged, onNewsletter, onGoals, onQuarterly }) {
               <I.Calendar width={15} height={15} /> Open Form
             </button>
           ) : null}
+          <QuarterlyBookButton tags={t.tags} />
           {reviewLink ? (
             <a className="btn btn-primary" href={reviewLink} target="_blank" rel="noopener noreferrer"
               style={{ textDecoration: 'none', fontSize: 14, fontWeight: 800, padding: '11px 20px', gap: 8 }}>

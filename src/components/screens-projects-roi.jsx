@@ -6,6 +6,7 @@ import { guideForTags } from '../lib/guides.js';
 import { newsletterForTicketTags } from '../lib/newsletter.js';
 import { goalsForTicketTags } from '../lib/goals.js';
 import { quarterlyForTicketTags } from '../lib/quarterly.js';
+import QuarterlyBookButton from './QuarterlyBookButton.jsx';
 import GuideModal from './GuideModal.jsx';
 import { summarizeTickets } from '../lib/summaries.js';
 import { ENGINES, ENGINE_ORDER, enginesOf } from '../lib/engines.js';
@@ -372,6 +373,7 @@ function ProjectsScreen({ onNav, onCompose, onNewsletter, onGoals, onQuarterly }
                       <I.Calendar width={13} height={13} /> Open Form
                     </button>
                   ) : null}
+                  <QuarterlyBookButton tags={t.tags} variant="card" />
                   {links[t.id] ? (
                     <a className="pj-btn-primary" href={links[t.id]} target="_blank" rel="noopener noreferrer">
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{linkLabels[t.id] || "Review Now"}</span> <I.External width={12} height={12} style={{ flexShrink: 0 }} />
