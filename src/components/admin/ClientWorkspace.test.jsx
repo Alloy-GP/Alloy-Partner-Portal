@@ -31,13 +31,14 @@ const h = vi.hoisted(() => {
 vi.mock('../../lib/supabase.js', () => ({ supabase: h.supabase, isSupabaseConfigured: true }));
 vi.mock('../../lib/admin.js', () => ({
   listAccounts: () => Promise.resolve({ accounts: [
-    { id: 'a1', company: 'Community Management, LLC', short_name: 'CMGT', tier: 'Accelerate', locations: [{ name: 'Denham Springs, LA', hq: true, tag: 'active', status: 'Page live' }, { name: 'Biloxi, MS', tag: 'onboarding' }], autopay_required: true, whatconverts_profile_id: '48211' },
-    { id: 'a2', company: 'Edison Association Management', short_name: 'Edison', locations: [] },
+    { id: 'a1', company: 'Community Management, LLC', short_name: 'CMGT', tier: 'Accelerate', locations: [{ name: 'Denham Springs, LA', hq: true, tag: 'active', status: 'Page live' }, { name: 'Biloxi, MS', tag: 'onboarding' }], autopay_required: true, whatconverts_profile_id: '48211', zendesk_org_id: '49184676863259' },
+    { id: 'a2', company: 'Edison Association Management', short_name: 'Edison', locations: [], zendesk_org_id: '999' },
   ] }),
   createAccount: vi.fn(), updateAccount: vi.fn(() => Promise.resolve({})), deleteAccount: vi.fn(), setDashConfig: vi.fn(() => Promise.resolve({})), uploadLogo: vi.fn(),
   listInvites: () => Promise.resolve({ invites: h.state.invites }),
   addInvite: vi.fn(), sendInvite: vi.fn(), removeInvite: vi.fn(),
   wcAccounts: () => Promise.resolve({ accounts: [{ id: 48211, name: 'CMGT' }] }),
+  zendeskOrgs: () => Promise.resolve({ orgs: [{ id: '49184676863259', name: 'CMGT' }, { id: '5146158918043', name: 'Alloy' }] }),
 }));
 vi.mock('../../lib/engagement.js', () => ({ notifyProposalSent: vi.fn(), replyOnProposal: vi.fn(), acceptProposal: vi.fn(), requestProposalChanges: vi.fn() }));
 
@@ -96,11 +97,26 @@ describe('ClientWorkspace', () => {
     await flush();
     expect(host.textContent).toContain('Connected systems');
     expect(host.textContent).toContain('48211');
+    // Zendesk org is a picker over the real org list, with the saved org selected.
+    const sel = host.querySelector('[data-testid="adm-zendesk-org"]');
+    expect(sel.value).toBe('49184676863259');
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(['Not connected', 'CMGT · 49184676863259', 'Alloy · 5146158918043']);
+    expect(host.querySelector('[data-testid="adm-zendesk-org-status"]').textContent).toBe('CMGT');
     click(host.querySelector('[data-testid="adm-tab-team"]'));
     expect(host.querySelectorAll('[data-testid="adm-person"]')).toHaveLength(1);
     expect(host.textContent).toContain('Viewed Sep 30');
     expect(host.querySelector('[data-testid="adm-person"] .pill').textContent).toBe('Owner');
     expect(host.querySelector('[data-testid="adm-invite-add"]').textContent).toBe('Add & email');
+  });
+
+  it('integrations: an org id Zendesk no longer lists stays selected and is flagged, never silently dropped', async () => {
+    const host = await mount({ selectId: 'a2' });
+    click(host.querySelector('[data-testid="adm-tab-integrations"]'));
+    await flush();
+    const sel = host.querySelector('[data-testid="adm-zendesk-org"]');
+    expect(sel.value).toBe('999');
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(['Not connected', '999 · not found in Zendesk', 'CMGT · 49184676863259 · used by CMGT', 'Alloy · 5146158918043']);
+    expect(host.querySelector('[data-testid="adm-zendesk-org-status"]').textContent).toContain('999 isn’t one of Zendesk’s 2 organizations');
   });
 
   it('credentials tab: empty state without a checklist; with rows lists contacts, locations and masked credentials', async () => {
