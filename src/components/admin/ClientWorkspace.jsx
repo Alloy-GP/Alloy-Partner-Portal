@@ -1,5 +1,6 @@
 import React from 'react';
-import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, sendInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts, startOnboarding } from '../../lib/admin.js';
+import { listAccounts, createAccount, updateAccount, deleteAccount, listInvites, addInvite, sendInvite, removeInvite, uploadLogo, setDashConfig, wcAccounts, zendeskOrgs, startOnboarding } from '../../lib/admin.js';
+import { orgUsage } from '../../lib/zendeskOrgs.js';
 import { templateRows } from '../../lib/onboarding.js';
 import { parseLabelMap, formatLabelMap } from '../../lib/leadFieldLabels.js';
 import { getEngagementProposal, listLiveProposalStatuses, groupClients } from '../../lib/adminEngagement.js';
@@ -43,6 +44,7 @@ export default function ClientWorkspace({ startNew, selectId }) {
   const [labelText, setLabelText] = useState('');
   const [invites, setInvites] = useState([]);
   const [wcNames, setWcNames] = useState(null);
+  const [zdOrgs, setZdOrgs] = useState(null); // Zendesk organizations for the org picker; null = loading, [] = couldn't load
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -65,6 +67,7 @@ export default function ClientWorkspace({ startNew, selectId }) {
   useEffect(() => { if (error) setFeedback({ kind: 'err', text: error }); }, [error]);
 
   useEffect(() => { wcAccounts().then((r) => setWcNames(Object.fromEntries((r?.accounts || []).map((a) => [String(a.id), a.name])))).catch(() => setWcNames({})); }, []);
+  useEffect(() => { zendeskOrgs().then((r) => setZdOrgs(r?.orgs || [])).catch(() => setZdOrgs([])); }, []);
   const refreshStatuses = () => listLiveProposalStatuses().then(setStatuses).catch(() => {});
 
   const loadAccounts = async (selectAfter, autoSelect = true) => {
@@ -210,7 +213,7 @@ export default function ClientWorkspace({ startNew, selectId }) {
             <>
               {tab === 'profile' ? <div className="adm-main"><ProfileTab form={{ ...form, id: selectedId }} set={set} isNew={isNew} onLogo={onLogo} onDelete={remove} saving={saving} bankOnFile={bankOnFile} startOb={startOb} setStartOb={setStartOb} /></div> : null}
               {tab === 'locations' ? <div className="adm-main"><LocationsTab form={form} set={set} /></div> : null}
-              {tab === 'integrations' ? <div className="adm-main"><IntegrationsTab form={form} set={set} labelText={labelText} setLabelText={setLabelText} wcCheck={<WcIdCheck value={form.whatconverts_profile_id} names={wcNames} />} /></div> : null}
+              {tab === 'integrations' ? <div className="adm-main"><IntegrationsTab form={form} set={set} labelText={labelText} setLabelText={setLabelText} wcCheck={<WcIdCheck value={form.whatconverts_profile_id} names={wcNames} />} zdPicker={{ orgs: zdOrgs, usedBy: orgUsage(accounts, selectedId) }} /></div> : null}
               {tab === 'credentials' ? <div className="adm-main"><CredentialsTab accountId={selectedId} account={form} bankOnFile={bankOnFile} autopayRequired={form.autopay_required !== false} /></div> : null}
               {tab === 'team' ? <div className="adm-main"><TeamTab invites={invites} inviteForm={inviteForm} setInviteForm={setInviteForm} onAdd={addInviteH} onSend={sendInviteH} onRemove={removeInviteH} busy={busyInvite} notice={notice} /></div> : null}
               {tab === 'proposal' ? (proposal === undefined ? <div className="adm-empty">Loading…</div> : (
