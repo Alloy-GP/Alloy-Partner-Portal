@@ -1,3 +1,4 @@
+import { zendeskOrgOptions } from '../../lib/zendeskOrgs.js';
 import React from 'react';
 import AdminAutopay from '../AdminAutopay.jsx';
 import { CLIENT_ROLES } from '../../lib/perms.js';
@@ -125,6 +126,23 @@ export function LocationsTab({ form, set }) {
 }
 
 // ── Integrations ─────────────────────────────────────────────────────────────
+// Zendesk org: a picker over the real org list (admin fn `zendesk_orgs`) instead
+// of a pasted id. An existing mapping is never dropped — an id the list doesn't
+// contain stays selected and flagged (see src/lib/zendeskOrgs.js); the plain
+// input is only shown when no picker was supplied.
+function ZendeskOrgField({ value, onChange, picker }) {
+  const { options, status, value: v } = zendeskOrgOptions(picker.orgs, value, picker.usedBy);
+  const color = status.kind === 'ok' ? 'var(--a-purple)' : status.kind === 'missing' ? '#b4232a' : status.kind === 'offline' ? '#7a5a12' : undefined;
+  return (
+    <>
+      <select className="in sm" value={v} onChange={(e) => onChange(e.target.value)} disabled={picker.orgs === null} data-testid="adm-zendesk-org">
+        {options.map((o) => <option key={o.value || '__none'} value={o.value}>{o.label}</option>)}
+      </select>
+      <span className="help" data-testid="adm-zendesk-org-status" style={color ? { color, fontWeight: status.kind === 'ok' ? 700 : undefined } : undefined}>{status.text}</span>
+    </>
+  );
+}
+
 const INTEGRATIONS = [
   { key: 'monday_board_id', label: 'Monday board ID', placeholder: '1234567890', help: 'Projects, services and action queue source.' },
   { key: 'zendesk_org_id', label: 'Zendesk org ID', placeholder: '', help: 'Scopes the client’s tickets.' },
@@ -134,7 +152,7 @@ const INTEGRATIONS = [
   { key: 'dash_upload_url', label: 'Dash upload link', placeholder: 'https://', help: 'Guest-upload link — powers the Upload Assets button.' },
   { key: 'pastel_url', label: 'Pastel website board', placeholder: 'https://', help: 'Client’s Pastel feedback URL — routes website update requests.' },
 ];
-export function IntegrationsTab({ form, set, labelText, setLabelText, wcCheck }) {
+export function IntegrationsTab({ form, set, labelText, setLabelText, wcCheck, zdPicker }) {
   return (
     <>
       <div className="card">
@@ -143,7 +161,9 @@ export function IntegrationsTab({ form, set, labelText, setLabelText, wcCheck })
           {INTEGRATIONS.map((ig) => (
             <label key={ig.key} className="adm-tile">
               <span className="h"><span>{ig.label}</span><i className={String(form[ig.key] || '').trim() ? 'on' : ''} /></span>
-              <input className="in sm" value={form[ig.key] || ''} onChange={(e) => set(ig.key)(e.target.value)} placeholder={ig.placeholder} />
+              {ig.key === 'zendesk_org_id' && zdPicker
+                ? <ZendeskOrgField value={form[ig.key]} onChange={set(ig.key)} picker={zdPicker} />
+                : <input className="in sm" value={form[ig.key] || ''} onChange={(e) => set(ig.key)(e.target.value)} placeholder={ig.placeholder} />}
               <span className="help">{ig.help}</span>
               {ig.key === 'whatconverts_profile_id' ? wcCheck : null}
             </label>

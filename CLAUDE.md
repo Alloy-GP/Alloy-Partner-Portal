@@ -331,6 +331,10 @@ Activity, Thread, Back to draft/Withdraw). Styles `18-admin.css` (scoped `.adm`)
   Active clients (accepted or no proposal) · Internal. The **Alloy** account is
   `tier='internal'` — staff profiles live on it; it is NOT a client, and every
   other admin screen filters that tier out of client lists.
+- Integrations → **Zendesk org is a picker** (`ZendeskOrgField` in `ClientTabs.jsx`
+  over the `admin` fn's `zendesk_orgs`; pure `src/lib/zendeskOrgs.js`, tested).
+  A saved id the list doesn't contain stays selected and flagged — a save never
+  drops a mapping — and an org another client already uses says so.
 - Locations are `accounts.locations` jsonb `[{name, hq, address, status, tag}]`
   (tag: active | onboarding | proposed) — they feed the proposal's market chips.
 - Proposal v2 columns: `markets text[]` (which locations this proposal covers),
