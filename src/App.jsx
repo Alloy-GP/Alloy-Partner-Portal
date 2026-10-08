@@ -134,11 +134,13 @@ function App({ session, onSignOut, staffNav } = {}) {
   const locked = gateState === 'locked';
   const pmNudge = !locked && isSupabaseConfigured && shouldNudgePayment({ user: DATA.user, account: DATA.account, paymentMethod: DATA.paymentMethod });
   // While an OPEN onboarding checklist carries the bank step (its nav badge +
-  // dashboard card already point there), the sign-in modal and the persistent
-  // banner stand down — one nudge, not three. The Account page empty state and
-  // the checklist row still open the modal. Resumes once staff mark it complete.
+  // dashboard card already point there), only the sign-in POP-UP stands down.
+  // The persistent top banner stays until a bank is on file — it is the one
+  // reminder that follows the client to every screen (decision 2026-10-08).
+  // The Account page empty state and the checklist row still open the modal.
   const pmViaOnboarding = pmNudge && onboardingOwnsPaymentNudge(DATA.onboarding) && canSeeOnboarding(DATA.user, DATA.account, DATA.onboarding);
-  const pmNudgeUi = pmNudge && !pmViaOnboarding;
+  const pmAutoModal = pmNudge && !pmViaOnboarding; // sign-in pop-up (after the tour)
+  const pmBanner = pmNudge;                          // top banner: always, until done
   // Staff previewing a client see the nudge but must not log client events.
   const trackNudge = (type) => { if (!viewAsClient) track(type, {}); };
   const openPm = () => { trackNudge('payment_nudge_open'); setPmModalOpen(true); };
@@ -210,20 +212,20 @@ function App({ session, onSignOut, staffNav } = {}) {
     const seenCurrent = u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT);
     if (!u.id || u.isStaff || seenCurrent) return;
     tourStartedRef.current = true;
-    const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmNudgeUi) autoOpenPm(); } }), 800);
+    const t = setTimeout(() => startPortalTour({ userId: u.id, onDone: () => { if (pmAutoModal) autoOpenPm(); } }), 800);
     return () => clearTimeout(t);
   }, [active, DATA.user && DATA.user.id, DATA.user && DATA.user.tourCompletedAt, locked]);
 
   // Auto-open the autopay modal at sign-in — unless the first-run tour is about
   // to play on the dashboard (it opens the nudge when it finishes instead).
   useEffect(() => {
-    if (!pmNudgeUi) return;
+    if (!pmAutoModal) return;
     const u = DATA.user || {};
     const tourDue = !!u.id && !u.isStaff && !(u.tourCompletedAt && Date.parse(u.tourCompletedAt) >= Date.parse(TOUR_REVISED_AT));
     if (tourDue && active === 'dashboard') return;
     const t = setTimeout(autoOpenPm, 400);
     return () => clearTimeout(t);
-  }, [pmNudgeUi]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pmAutoModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Locked → the proposal is the whole portal. Accepting flips DATA in place
   // (the row is already 'accepted' server-side) and re-renders into the real
@@ -334,7 +336,7 @@ function App({ session, onSignOut, staffNav } = {}) {
 
       <main className="main">
         <DesktopTopBar title={active === "dashboard" ? (DATA.account.shortName || DATA.account.company) : titles[active].t} isDashboard={active === "dashboard"} active={active} onNav={handleNav} session={session} onSignOut={onSignOut} onNewRequest={canNewRequest ? () => setComposeOpen(true) : null}/>
-        {pmNudgeUi ? <PaymentNudgeBanner onOpen={openPm} /> : null}
+        {pmBanner ? <PaymentNudgeBanner onOpen={openPm} /> : null}
         {realStaff && !viewAsClient && DATA.engagement && DATA.engagement.status === 'sent' ? (
           <div className="eg-staff-banner" role="status" data-testid="eg-staff-banner">
             <span><strong>Proposal sent (v{DATA.engagement.version}).</strong> This client's portal is locked to the proposal until their owner accepts.</span>
