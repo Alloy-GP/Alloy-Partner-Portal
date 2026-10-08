@@ -375,7 +375,8 @@ The autopay bank step is a checklist row too (section `billing`, kind `payment`)
 no typed fields — the row's button opens `PaymentSetupModal`; its status is DERIVED
 (`derivePaymentStatus` in `loadData` + the same join in `onboarding_overview`): bank
 in `quickbooks_payment_methods` → complete, `autopay_required=false` → n/a. While a
-checklist is open, `App.jsx` mutes the sign-in modal + banner (`pmNudgeUi`).
+checklist is open, `App.jsx` mutes only the sign-in pop-up (`pmAutoModal`); the top
+banner (`pmBanner`) stays on every screen until a bank is on file (decision 2026-10-08).
 Locations (section `locations`, kind `location`: label = name, fields {address, phone,
 manager, hours, notes})
 SYNC INTO `accounts.locations` via the DB trigger `onboarding_items_locations_sync`
