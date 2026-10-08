@@ -1,6 +1,7 @@
 import React from 'react';
 import { I } from './icons.jsx';
-import { submitQuarterly, hasQuarterlyAnswer, openQuarterlyBooking } from '../lib/quarterly.js';
+import { submitQuarterly, hasQuarterlyAnswer, openQuarterlyBooking, formatMeetingAt, QUARTERLY_CHANGED } from '../lib/quarterly.js';
+import { DATA } from '../data.js';
 
 const { useState, useEffect, useRef } = React;
 
@@ -18,6 +19,15 @@ export default function QuarterlyModal({ request, onClose, onSubmitted }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null); // { ticketId } once sent
+  // Re-render when the round changes under us (the client books inside Cal's dialog).
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setTick((t) => t + 1);
+    window.addEventListener(QUARTERLY_CHANGED, bump);
+    return () => window.removeEventListener(QUARTERLY_CHANGED, bump);
+  }, []);
+  const live = DATA.quarterlyRequest && request && DATA.quarterlyRequest.id === request.id ? DATA.quarterlyRequest : request;
+  const bookedAt = live && live.meetingAt ? formatMeetingAt(live.meetingAt) : '';
   const fileRef = useRef(null);
 
   const title = (request && request.title) || 'Quarterly Meeting';
@@ -74,6 +84,12 @@ export default function QuarterlyModal({ request, onClose, onSubmitted }) {
                 A separate step from the form so a client can send the prep now
                 and book later from the ticket. */}
             <div data-testid="quarterly-schedule" style={{ background: 'var(--alloy-purple-tint)', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              {bookedAt ? (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: 'var(--alloy-purple)' }}><I.Check width={14} height={14} /> Meeting booked · {bookedAt}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--fg-2)', marginTop: 2 }}>It’s on the calendar — you’ll get Cal’s confirmation by email. See you then.</div>
+                </div>
+              ) : (<>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: 'var(--alloy-purple)' }}>One more thing: pick a time for your {title}.</div>
                 <div style={{ fontSize: 12.5, color: 'var(--fg-2)', marginTop: 2 }}>Choose a slot that works for you — it takes a minute, and you can always do it later from this ticket.</div>
@@ -82,6 +98,7 @@ export default function QuarterlyModal({ request, onClose, onSubmitted }) {
                 style={{ fontSize: 13.5, fontWeight: 800, padding: '10px 16px', gap: 8, flexShrink: 0 }}>
                 <I.Calendar width={14} height={14} /> Schedule the meeting
               </button>
+              </>)}
             </div>
             <div className="nr-foot">
               <button className="btn btn-secondary" onClick={finish}>Done</button>

@@ -35,6 +35,12 @@ const STATUS = {
 
 const LABEL = { display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--fg-muted)', marginBottom: 4 };
 
+export function fmtDateTime(s) {
+  const d = new Date(s || '');
+  if (Number.isNaN(d.getTime())) return '';
+  try { return `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`; } catch { return String(s); }
+}
+
 export function fmtDate(s) {
   if (!s) return '';
   // Date-only strings (due_date, 'YYYY-MM-DD') parse as UTC midnight and can
@@ -223,6 +229,11 @@ export default function AdminIntakeRounds({ api, copy, renderSubmission }) {
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: filledOut ? 'var(--alloy-green-tint)' : 'var(--alloy-off-white)', color: filledOut ? 'var(--dark-green, #2c6e62)' : 'var(--fg-muted)' }}>
                 <I.Check width={12} height={12} /> {filledOut ? 'Filled out' : 'Not submitted'}
               </span>
+              {r.meeting_at ? (
+                <Chip on icon={<I.Calendar width={12} height={12} />} title={`Booked from the portal${(r.meeting_meta || {}).booked_at ? ` on ${fmtDate(r.meeting_meta.booked_at)}` : ''}`}>
+                  Meeting booked · {fmtDateTime(r.meeting_at)}
+                </Chip>
+              ) : null}
             </div>
           </div>
           <StatusPill s={r.status} />
