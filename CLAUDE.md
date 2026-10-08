@@ -226,6 +226,14 @@ Seams, in order — skip one and the button silently never appears:
   sees it from her. `cc` (per-client contact ids) + `ccEmails` (every ticket)
   become `email_ccs`. A failed send keeps the round open and names the client
   in the response; make that ticket by hand.
+- **Scheduling the meeting (Cal.com).** Lifecycle of a quarterly round: open →
+  "Open Form" · submitted → "Schedule the meeting" · closed → nothing. The
+  success step of `QuarterlyModal` and `QuarterlyBookButton` (ticket thread +
+  Playbook card, self-contained, no App prop) open Cal's dialog via
+  `src/lib/calEmbed.js` (lazy `embed.js`, programmatic `modal`) prefilled with
+  name/email (`quarterlyBookingConfig`, tested). `loadData` therefore loads the
+  live round (`status <> 'closed'`), not just the open one. Event type =
+  `CAL_QUARTERLY` in `src/lib/quarterly.js`; click → `quarterly_schedule_click`.
 - **Test it on Alloy, not a client.** The internal account (Alloy Growth
   Partners, tier `internal`) is mapped to the Alloy Zendesk org, so a round
   opened for it goes to Alloy people only; `zendesk_orgs` (admin fn) lists

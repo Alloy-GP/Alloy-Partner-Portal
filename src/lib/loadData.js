@@ -162,11 +162,12 @@ export async function loadAccountData(session, accountId, me) {
     // resources, marketing). Empty until Admin starts one — the nav entry,
     // dashboard card and /onboarding route all key off DATA.onboarding.
     supabase.from('onboarding_items').select('*').eq('account_id', accountId).order('sort'),
-    // Quarterly meeting prep · the client's current OPEN round, if any (the
-    // newsletter's quarterly twin). Drives the "Open Form" button on a
-    // `quarterly`-tagged ticket + the submit form. Once submitted/closed it's
-    // no longer 'open', so the button clears automatically.
-    supabase.from('quarterly_requests').select('*').eq('account_id', accountId).eq('status', 'open').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    // Quarterly meeting prep · the client's current LIVE round (open or
+    // submitted; at most one per account), the newsletter's quarterly twin.
+    // 'open' drives the "Open Form" button on a `quarterly`-tagged ticket +
+    // the submit form; 'submitted' drives "Schedule the meeting" (Cal.com) on
+    // the same ticket. Staff closing the round after the meeting clears both.
+    supabase.from('quarterly_requests').select('*').eq('account_id', accountId).neq('status', 'closed').order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   if (accountRes.error) throw accountRes.error;
@@ -479,7 +480,7 @@ export async function loadAccountData(session, accountId, me) {
       dueDate: newsletterRes.data.due_date || null,
       submission: newsletterRes.data.submission || null,
     } : null,
-    // Quarterly meeting prep · the current open round for this account (or
+    // Quarterly meeting prep · the current live round for this account (or
     // null). Same shape as newsletterRequest; read by App.jsx + quarterly.js.
     quarterlyRequest: quarterlyRes && quarterlyRes.data ? {
       id: quarterlyRes.data.id,

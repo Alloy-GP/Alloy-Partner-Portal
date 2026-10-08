@@ -2,23 +2,30 @@ import { supabase, isSupabaseConfigured } from './supabase.js';
 import { DATA } from '../data.js';
 import { zdCreate, zdUpload } from './zendesk.js';
 import { track } from './track.js';
+import { openCalModal } from './calEmbed.js';
 
 // Quarterly meeting prep intake — the quarterly twin of `newsletter.js`.
 //
 // Before each quarterly planning meeting, staff open a round for a client
 // (Admin → Quarterly Meetings → `quarterly_requests` row, status 'open') and
-// put a `quarterly`-tagged ticket in their portal. While a round is open that
+// send a `quarterly`-tagged ticket to their portal. While a round is open that
 // ticket shows an "Open Form" button; the client answers five short questions
 // about last quarter + what's ahead. Submit mirrors the New Request flow: stage
 // any files as Zendesk uploads, create a ticket (tagged `quarterly` so it's
 // filterable), then stamp the account's open row as submitted so the button
 // clears and staff can read the answers in the Admin tracker before the meeting.
+//
+// Once submitted, the same ticket (and the form's success step) offers
+// "Schedule the meeting": Cal.com's booking dialog for the quarterly meeting,
+// prefilled with the client's name/email. Staff closing the round after the
+// meeting hides it. Lifecycle: open → form · submitted → schedule · closed → nothing.
 
 const clean = (s) => String(s || '').trim();
 
 // Ticket tags that mean "this is the quarterly meeting prep ticket". Staff tag
 // tickets by hand in Zendesk, so accept the obvious spellings.
 export const QUARTERLY_TAGS = ['quarterly', 'quarterly_meeting', 'quarterly-meeting'];
+const hasQuarterlyTag = (tags) => (tags || []).some((t) => QUARTERLY_TAGS.includes(String(t).toLowerCase()));
 
 // The open quarterly round to surface on a ticket, or null. Like the newsletter:
 // a `quarterly`-tagged ticket shows an "Open Form" button — but only while
@@ -26,7 +33,14 @@ export const QUARTERLY_TAGS = ['quarterly', 'quarterly_meeting', 'quarterly-meet
 // round (DATA.quarterlyRequest); passing it explicitly keeps this testable.
 export function quarterlyForTicketTags(tags, req = DATA.quarterlyRequest) {
   if (!req || req.status !== 'open') return null;
-  return (tags || []).some((t) => QUARTERLY_TAGS.includes(String(t).toLowerCase())) ? req : null;
+  return hasQuarterlyTag(tags) ? req : null;
+}
+
+// The SUBMITTED round to offer "Schedule the meeting" on, or null. Same tag
+// gate; the other half of the lifecycle. Closed rounds show nothing.
+export function quarterlyBookingForTicketTags(tags, req = DATA.quarterlyRequest) {
+  if (!req || req.status !== 'submitted') return null;
+  return hasQuarterlyTag(tags) ? req : null;
 }
 
 // Calendar quarter label for a date — "Q4 2026". The default round title; staff
@@ -97,7 +111,32 @@ export async function submitQuarterly(requestId, form, files) {
   // Log the submission for the admin "who filled it out" analytics (client-only).
   if (requestId) track('quarterly_submit', { requestId });
 
-  // Clear the prompt immediately (the next load won't return it as 'open').
-  DATA.quarterlyRequest = null;
+  // Flip the in-memory round to submitted right away: the "Open Form" button
+  // clears and "Schedule the meeting" appears without a reload.
+  if (DATA.quarterlyRequest) DATA.quarterlyRequest = { ...DATA.quarterlyRequest, status: 'submitted' };
   return { ticketId };
+}
+
+// ── Scheduling the meeting itself (Cal.com) ─────────────────────────────────
+// The event type lives in Alloy's Cal.com; `namespace` is the embed namespace
+// from Cal's "pop up via element click" snippet and `link` the booking path.
+export const CAL_QUARTERLY = { namespace: 'alloy-quarterly-meeting', link: 'team/agp/alloy-quarterly-meeting' };
+
+// What Cal's booking form is prefilled with: the client's name + email, and a
+// note that ties the booking to the prep they just sent.
+export function quarterlyBookingConfig(req, { user = DATA.user, account = DATA.account } = {}) {
+  const title = clean(req && req.title) || 'Quarterly Meeting';
+  const company = clean(account && account.company);
+  const config = { notes: `${title}${company ? ` — ${company}` : ''} (prep submitted via the Growth Portal)` };
+  if (clean(user && user.name)) config.name = clean(user.name);
+  if (clean(user && user.email)) config.email = clean(user.email);
+  return config;
+}
+
+// Open the Cal.com dialog for this round. Logs a quarterly_schedule_click
+// (client-only) so staff can see who went on to book.
+export function openQuarterlyBooking(req, cal = CAL_QUARTERLY) {
+  if (req && req.id) track('quarterly_schedule_click', { requestId: req.id });
+  // Layout keys mirror Cal's generated snippet (month view; slots view on phones).
+  return openCalModal({ namespace: cal.namespace, calLink: cal.link, config: { layout: 'month_view', useSlotsViewOnSmallScreen: 'true', ...quarterlyBookingConfig(req) } });
 }

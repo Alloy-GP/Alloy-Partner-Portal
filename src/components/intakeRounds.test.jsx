@@ -14,6 +14,7 @@ import { act } from 'react';
 
 const h = vi.hoisted(() => ({
   submitQuarterly: vi.fn(),
+  openQuarterlyBooking: vi.fn(),
   listQuarterly: vi.fn(),
   openQuarterly: vi.fn(),
   listNewsletter: vi.fn(),
@@ -22,7 +23,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('../lib/quarterly.js', async (importOriginal) => {
   const real = await importOriginal();
-  return { ...real, submitQuarterly: h.submitQuarterly };
+  return { ...real, submitQuarterly: h.submitQuarterly, openQuarterlyBooking: h.openQuarterlyBooking };
 });
 vi.mock('../lib/admin.js', () => ({
   listQuarterlyRequests: h.listQuarterly,
@@ -37,6 +38,8 @@ vi.mock('../lib/admin.js', () => ({
 }));
 
 import QuarterlyModal from './QuarterlyModal.jsx';
+import QuarterlyBookButton from './QuarterlyBookButton.jsx';
+import { DATA } from '../data.js';
 import AdminQuarterly from './AdminQuarterly.jsx';
 import AdminNewsletter from './AdminNewsletter.jsx';
 
@@ -112,6 +115,13 @@ describe('QuarterlyModal', () => {
     expect(requestId).toBe('qr-1');
     expect(form).toMatchObject({ topics: 'Budget for the annual meeting', wins: '' });
     expect(files).toEqual([]);
+    // Success step: thank-you + "Schedule the meeting"; Done hands the ticket id back.
+    expect(onSubmitted).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Thank you — we’ve got it.');
+    expect(container.querySelector('textarea')).toBeNull();
+    await click(buttonByText('Schedule the meeting'));
+    expect(h.openQuarterlyBooking).toHaveBeenCalledWith(request);
+    await click(buttonByText('Done'));
     expect(onSubmitted).toHaveBeenCalledWith('4321');
   });
 
@@ -121,6 +131,25 @@ describe('QuarterlyModal', () => {
     await type(container.querySelector('textarea'), 'A win');
     await click(buttonByText('Submit meeting prep'));
     expect(container.querySelector('.nr-err').textContent).toBe('Zendesk is down');
+  });
+});
+
+describe('QuarterlyBookButton (on the ticket, after the prep is in)', () => {
+  const saved = DATA.quarterlyRequest;
+  afterEach(() => { DATA.quarterlyRequest = saved; });
+
+  it('renders only for a submitted round on a quarterly-tagged ticket, and opens Cal.com', async () => {
+    DATA.quarterlyRequest = { id: 'qr-9', title: 'Q4 2026 Quarterly Meeting', status: 'submitted' };
+    await render(<div><QuarterlyBookButton tags={['quarterly']} /><QuarterlyBookButton tags={['video']} variant="card" /></div>);
+    const btns = Array.from(container.querySelectorAll('button'));
+    expect(btns.map((b) => b.textContent.trim())).toEqual(['Schedule the meeting']);
+    await click(btns[0]);
+    expect(h.openQuarterlyBooking).toHaveBeenCalledWith(DATA.quarterlyRequest);
+  });
+  it('renders nothing while the round is still open (the form button owns that state)', async () => {
+    DATA.quarterlyRequest = { id: 'qr-9', title: 'Q4', status: 'open' };
+    await render(<QuarterlyBookButton tags={['quarterly']} />);
+    expect(container.querySelector('button')).toBeNull();
   });
 });
 

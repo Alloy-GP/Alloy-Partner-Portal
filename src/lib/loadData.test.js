@@ -174,6 +174,12 @@ describe("loadAccountData field mapping (the 'five seams' guard)", () => {
     });
   });
 
+  it("maps a SUBMITTED round too (it drives 'Schedule the meeting' on the ticket)", async () => {
+    h.tables.quarterly_requests = { data: { id: "qr-2", title: "Q4 2026 Quarterly Meeting", status: "submitted", due_date: null, submission: { wins: "x" } }, error: null };
+    const data = await loadAccountData(session, "acc-1", me);
+    expect(data.quarterlyRequest).toMatchObject({ id: "qr-2", status: "submitted", submission: { wins: "x" } });
+  });
+
   it("quarterlyRequest is null when no round is open", async () => {
     h.tables.quarterly_requests = { data: null, error: null };
     const data = await loadAccountData(session, "acc-1", me);
