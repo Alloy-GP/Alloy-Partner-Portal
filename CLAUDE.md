@@ -12,8 +12,13 @@ the running screen, or explicitly say "compiles, not yet rendered." Most bugs
 this codebase has hit were runtime/data-flow issues a build never catches.
 
 ## Tests — run the gate, add to it
-`npm run check` = `build` + `test` (Vitest) + `check:edge` (`deno check` on every
-edge function). **Run it before calling anything done and before any deploy.**
+`npm run check` = `build` + `lint` + `test` (Vitest) + `check:edge` (`deno check` on
+every edge function). **Run it before calling anything done and before any deploy.**
+- **`npm run lint`** — ESLint with ONE rule, `no-undef`, over `src/`. An identifier
+  that is used but never imported/defined builds fine and throws at runtime; a
+  render-path hit blanks the page (App.jsx used `onboardingOwnsPaymentNudge`
+  without importing it → white screen viewing Insight as a client, 2026-10-08).
+  Not a style guide — don't add rules that fail on taste. `eslint.config.js`.
 - **`npm run test`** — Vitest over `src/**/*.test.js`. The pure logic that decides
   what the UI shows (`quarterStats`, `engines`, `perms`, …) is unit-tested; a
   wrong-number regression there fails here, not in production. When you change or

@@ -27,11 +27,14 @@ import './styles/18-admin.css';
 import './styles/19-onboarding.css';
 
 import AuthGate from './AuthGate.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthGate />
+      <ErrorBoundary root>
+        <AuthGate />
+      </ErrorBoundary>
     </BrowserRouter>
   </React.StrictMode>
 );
