@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  quarterlyForTicketTags, quarterLabel, defaultQuarterlyTitle,
-  hasQuarterlyAnswer, buildQuarterlyBody, QUARTERLY_SECTIONS,
+  quarterlyForTicketTags, quarterlyBookingForTicketTags, quarterlyBookingConfig, CAL_QUARTERLY,
+  quarterLabel, defaultQuarterlyTitle, hasQuarterlyAnswer, buildQuarterlyBody, QUARTERLY_SECTIONS,
 } from './quarterly.js';
 
 const openReq = { id: 'r1', title: 'Q4 2026 Quarterly Meeting', status: 'open' };
@@ -66,5 +66,38 @@ describe('buildQuarterlyBody', () => {
     const idx = QUARTERLY_SECTIONS.map(([, heading]) => body.indexOf(heading));
     expect(idx.every((i) => i >= 0)).toBe(true);
     expect([...idx].sort((a, b) => a - b)).toEqual(idx);
+  });
+});
+
+describe('quarterlyBookingForTicketTags (the other half of the lifecycle)', () => {
+  const submitted = { ...openReq, status: 'submitted' };
+  it('returns the round only while it is submitted, on a quarterly-tagged ticket', () => {
+    expect(quarterlyBookingForTicketTags(['quarterly'], submitted)).toBe(submitted);
+    expect(quarterlyBookingForTicketTags(['Quarterly_Meeting'], submitted)).toBe(submitted);
+    expect(quarterlyBookingForTicketTags(['newsletter'], submitted)).toBeNull();
+    expect(quarterlyBookingForTicketTags(['quarterly'], openReq)).toBeNull();          // form, not booking
+    expect(quarterlyBookingForTicketTags(['quarterly'], { ...openReq, status: 'closed' })).toBeNull();
+    expect(quarterlyBookingForTicketTags(['quarterly'], null)).toBeNull();
+  });
+  it('never offers both the form and the booking for one round', () => {
+    for (const status of ['open', 'submitted', 'closed']) {
+      const req = { ...openReq, status };
+      expect(!!quarterlyForTicketTags(['quarterly'], req) && !!quarterlyBookingForTicketTags(['quarterly'], req)).toBe(false);
+    }
+  });
+});
+
+describe('quarterlyBookingConfig (Cal.com prefill)', () => {
+  it('prefills name + email and ties the booking to the prep', () => {
+    const cfg = quarterlyBookingConfig(openReq, { user: { name: 'Gail Windisch', email: 'gail@tidewater.com' }, account: { company: 'Tidewater Property' } });
+    expect(cfg).toEqual({ name: 'Gail Windisch', email: 'gail@tidewater.com', notes: 'Q4 2026 Quarterly Meeting — Tidewater Property (prep submitted via the Growth Portal)' });
+  });
+  it('omits blanks rather than sending empty strings to Cal', () => {
+    const cfg = quarterlyBookingConfig(null, { user: {}, account: null });
+    expect(cfg).toEqual({ notes: 'Quarterly Meeting (prep submitted via the Growth Portal)' });
+  });
+  it('points at the quarterly event type', () => {
+    expect(CAL_QUARTERLY.namespace).toBe('alloy-quarterly-meeting');
+    expect(CAL_QUARTERLY.link).toMatch(/^[a-z0-9-]+(\/[a-z0-9-]+)+$/);
   });
 });
