@@ -488,6 +488,10 @@ export async function loadAccountData(session, accountId, me) {
       status: quarterlyRes.data.status,
       dueDate: quarterlyRes.data.due_date || null,
       submission: quarterlyRes.data.submission || null,
+      // The meeting, once booked from the portal (Cal.com embed event).
+      meetingAt: quarterlyRes.data.meeting_at || null,
+      meetingUid: quarterlyRes.data.meeting_uid || null,
+      meetingMeta: quarterlyRes.data.meeting_meta || null,
     } : null,
     // Onboarding checklist · camelCased rows + the account's lifecycle stamps,
     // in one object so every consumer (nav badge, dashboard card, the page)

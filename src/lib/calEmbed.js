@@ -60,6 +60,22 @@ export function initCalNamespace(namespace, ui = {}) {
   return Cal.ns[namespace];
 }
 
+// Subscribe to a Cal embed event (e.g. 'bookingSuccessful',
+// 'bookingSuccessfulV2') for a namespace. Cal keeps every listener it is
+// given, so register ONE per namespace+action and route it to the latest
+// handler — re-calling with a new handler replaces, never stacks.
+const handlers = new Map();
+export function onCalEvent(namespace, action, handler) {
+  const key = `${namespace}::${action}`;
+  const first = !handlers.has(key);
+  handlers.set(key, handler);
+  if (!first) return true;
+  const ns = initCalNamespace(namespace);
+  if (!ns) { handlers.delete(key); return false; }
+  ns('on', { action, callback: (e) => { const h = handlers.get(key); if (h) h(e && e.detail ? e.detail : e); } });
+  return true;
+}
+
 // Open the booking dialog for `calLink` (e.g. "alloy/quarterly-meeting").
 // `config` prefills the booking form: { name, email, notes, guests, … }.
 // Returns false when there is no DOM (tests, SSR).
